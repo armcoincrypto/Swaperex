@@ -1,5 +1,5 @@
 """API routers."""
 
-from swaperex.api.routers import admin
+from swaperex.api.routers import admin, hdwallet
 
-__all__ = ["admin"]
+__all__ = ["admin", "hdwallet"]

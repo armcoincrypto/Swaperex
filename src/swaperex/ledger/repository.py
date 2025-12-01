@@ -256,6 +256,12 @@ class LedgerRepository:
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
+    async def get_deposit_by_txid(self, txid: str) -> Optional[Deposit]:
+        """Get deposit by transaction hash (idempotent check)."""
+        stmt = select(Deposit).where(Deposit.tx_hash == txid)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
     # Swap operations
     async def create_swap(
         self,
