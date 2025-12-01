@@ -1,0 +1,76 @@
+"""Bot initialization and runner."""
+
+import asyncio
+import logging
+
+from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
+from aiogram.fsm.storage.memory import MemoryStorage
+
+from swaperex.bot.handlers import setup_routers
+from swaperex.config import get_settings
+from swaperex.ledger.database import init_db
+
+logger = logging.getLogger(__name__)
+
+
+def create_bot() -> tuple[Bot, Dispatcher]:
+    """Create bot and dispatcher instances."""
+    settings = get_settings()
+
+    if not settings.telegram_bot_token:
+        raise ValueError("TELEGRAM_BOT_TOKEN is not set")
+
+    bot = Bot(
+        token=settings.telegram_bot_token,
+        default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN),
+    )
+
+    # Use memory storage for FSM (in production, use Redis)
+    storage = MemoryStorage()
+    dp = Dispatcher(storage=storage)
+
+    # Register all routers
+    main_router = setup_routers()
+    dp.include_router(main_router)
+
+    return bot, dp
+
+
+async def run_bot() -> None:
+    """Run the bot in polling mode."""
+    settings = get_settings()
+
+    # Configure logging
+    log_level = logging.DEBUG if settings.debug else logging.INFO
+    logging.basicConfig(
+        level=log_level,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+
+    logger.info("Starting Swaperex bot...")
+
+    # Initialize database
+    await init_db()
+    logger.info("Database initialized")
+
+    # Create bot
+    bot, dp = create_bot()
+
+    try:
+        # Delete webhook if any and start polling
+        await bot.delete_webhook(drop_pending_updates=True)
+        logger.info("Starting polling...")
+        await dp.start_polling(bot)
+    finally:
+        await bot.session.close()
+
+
+def main() -> None:
+    """Entry point for bot-only mode."""
+    asyncio.run(run_bot())
+
+
+if __name__ == "__main__":
+    main()
