@@ -93,7 +93,10 @@ class Balance(Base):
 
 
 class DepositAddress(Base):
-    """Unique deposit address per user per asset."""
+    """Unique deposit address per user per asset.
+
+    For HD wallets, stores derivation path information.
+    """
 
     __tablename__ = "deposit_addresses"
     __table_args__ = (Index("ix_deposit_addresses_user_asset", "user_id", "asset", unique=True),)
@@ -102,12 +105,38 @@ class DepositAddress(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     asset: Mapped[str] = mapped_column(String(20), nullable=False)
     address: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+
+    # HD wallet derivation info
+    derivation_path: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    derivation_index: Mapped[Optional[int]] = mapped_column(nullable=True)
+    change: Mapped[int] = mapped_column(default=0)  # 0 = receiving, 1 = change
+
+    # Status tracking
+    status: Mapped[str] = mapped_column(String(20), default="active")  # unused, active, used
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
 
     # Relationships
     user: Mapped["User"] = relationship(back_populates="deposit_addresses")
+
+
+class HDWalletState(Base):
+    """Tracks the last used index for each HD wallet asset.
+
+    This ensures deterministic address generation without collisions.
+    """
+
+    __tablename__ = "hd_wallet_state"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    asset: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
+    last_index: Mapped[int] = mapped_column(default=0)  # Last used child index
+    change: Mapped[int] = mapped_column(default=0)  # 0 = receiving, 1 = change
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class Deposit(Base):

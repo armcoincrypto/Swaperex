@@ -6,9 +6,9 @@ from aiogram.types import CallbackQuery, Message
 
 from swaperex.bot.keyboards import back_keyboard, deposit_asset_keyboard
 from swaperex.config import get_settings
+from swaperex.hdwallet import get_hd_wallet
 from swaperex.ledger.database import get_db
 from swaperex.ledger.repository import LedgerRepository
-from swaperex.providers import get_provider
 
 router = Router()
 
@@ -63,7 +63,11 @@ Select the asset you want to deposit:"""
 
 @router.callback_query(F.data.startswith("deposit:"))
 async def handle_deposit_asset(callback: CallbackQuery) -> None:
-    """Handle deposit asset selection."""
+    """Handle deposit asset selection.
+
+    Uses HD wallet for address derivation when configured,
+    otherwise falls back to simulated addresses.
+    """
     if not callback.data or not callback.from_user:
         return
 
@@ -83,16 +87,27 @@ async def handle_deposit_asset(callback: CallbackQuery) -> None:
 
         if existing_addr:
             address = existing_addr.address
-            memo = None
+            derivation_path = existing_addr.derivation_path
         else:
-            # Get address from provider
-            provider = get_provider()
-            provider_addr = await provider.create_deposit_address(user.id, asset)
-            address = provider_addr.address
-            memo = provider_addr.memo
+            # Get HD wallet for this asset
+            hd_wallet = get_hd_wallet(asset)
 
-            # Store in database for future lookups
-            await repo.create_deposit_address(user.id, asset, address)
+            # Get next available index
+            index = await repo.get_next_hd_index(asset)
+
+            # Derive address from HD wallet
+            addr_info = hd_wallet.derive_address(index)
+            address = addr_info.address
+            derivation_path = addr_info.derivation_path
+
+            # Store in database with derivation info
+            await repo.create_deposit_address(
+                user_id=user.id,
+                asset=asset,
+                address=address,
+                derivation_path=derivation_path,
+                derivation_index=index,
+            )
 
     # Build message
     lines = [
@@ -102,9 +117,6 @@ async def handle_deposit_asset(callback: CallbackQuery) -> None:
         "",
         address,
     ]
-
-    if memo:
-        lines.extend(["", f"Memo/Tag: {memo}"])
 
     lines.extend([
         "",

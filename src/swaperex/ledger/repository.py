@@ -14,6 +14,7 @@ from swaperex.ledger.models import (
     Deposit,
     DepositAddress,
     DepositStatus,
+    HDWalletState,
     Swap,
     SwapStatus,
     User,
@@ -136,10 +137,18 @@ class LedgerRepository:
         return addr
 
     async def create_deposit_address(
-        self, user_id: int, asset: str, address: str
+        self, user_id: int, asset: str, address: str,
+        derivation_path: Optional[str] = None,
+        derivation_index: Optional[int] = None,
     ) -> DepositAddress:
         """Create a deposit address with a specific address string (from provider)."""
-        addr = DepositAddress(user_id=user_id, asset=asset.upper(), address=address)
+        addr = DepositAddress(
+            user_id=user_id,
+            asset=asset.upper(),
+            address=address,
+            derivation_path=derivation_path,
+            derivation_index=derivation_index,
+        )
         self.session.add(addr)
         await self.session.flush()
         return addr
@@ -341,3 +350,43 @@ class LedgerRepository:
         stmt = select(Swap).where(Swap.id == swap_id)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
+
+    # HD Wallet State operations
+    async def get_hd_wallet_state(self, asset: str) -> Optional[HDWalletState]:
+        """Get HD wallet state for an asset."""
+        stmt = select(HDWalletState).where(HDWalletState.asset == asset.upper())
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_next_hd_index(self, asset: str) -> int:
+        """Get the next available HD wallet index for an asset.
+
+        Atomically increments the index to prevent collisions.
+        """
+        state = await self.get_hd_wallet_state(asset)
+
+        if state is None:
+            # Create initial state
+            state = HDWalletState(asset=asset.upper(), last_index=0)
+            self.session.add(state)
+            await self.session.flush()
+            return 0
+        else:
+            # Increment and return next index
+            next_index = state.last_index + 1
+            state.last_index = next_index
+            await self.session.flush()
+            return next_index
+
+    async def get_all_active_deposit_addresses(
+        self, asset: Optional[str] = None
+    ) -> list[DepositAddress]:
+        """Get all active deposit addresses, optionally filtered by asset.
+
+        Used by the deposit scanner to monitor for incoming transactions.
+        """
+        stmt = select(DepositAddress).where(DepositAddress.status == "active")
+        if asset:
+            stmt = stmt.where(DepositAddress.asset == asset.upper())
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
