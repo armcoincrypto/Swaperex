@@ -131,11 +131,13 @@ async def test_swap_maintains_ledger_consistency(db_session):
         to_asset="ETH",
         from_amount=Decimal("1.0"),
         expected_to_amount=Decimal("20.0"),
-        route_provider="test_router",
+        route="test_router",
+        fee_asset="BTC",
+        fee_amount=Decimal("0.0"),
     )
 
     # Complete the swap
-    await repo.complete_swap(swap.id, to_amount=Decimal("20.0"))
+    await repo.complete_swap(swap.id, actual_to_amount=Decimal("20.0"))
 
     # Verify balances
     btc_balance = await repo.get_balance(user.id, "BTC")
@@ -162,19 +164,23 @@ async def test_failed_swap_returns_funds(db_session):
         to_asset="USDT",
         from_amount=Decimal("2.0"),
         expected_to_amount=Decimal("4000.0"),
-        route_provider="test_router",
+        route="test_router",
+        fee_asset="ETH",
+        fee_amount=Decimal("0.0"),
     )
 
-    # Check balance is debited but not yet credited
+    # Check balance is locked but not debited yet
     eth_balance = await repo.get_balance(user.id, "ETH")
-    assert eth_balance.amount == Decimal("3.0")  # 5 - 2
+    assert eth_balance.amount == Decimal("5.0")  # Amount unchanged
+    assert eth_balance.available == Decimal("3.0")  # 5 - 2 locked
 
-    # Fail the swap (should return funds)
-    await repo.fail_swap(swap.id, error="Test error")
+    # Fail the swap (should unlock funds)
+    await repo.fail_swap(swap.id, error_message="Test error")
 
-    # Verify funds are returned
+    # Verify funds are unlocked (available restored)
     eth_balance = await repo.get_balance(user.id, "ETH")
-    assert eth_balance.amount == Decimal("5.0")  # Returned
+    assert eth_balance.amount == Decimal("5.0")  # Amount unchanged
+    assert eth_balance.available == Decimal("5.0")  # Fully unlocked
 
     # Verify swap status
     from sqlalchemy import select
