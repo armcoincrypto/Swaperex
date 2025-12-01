@@ -1,0 +1,21 @@
+image:
+  file: Dockerfile.dev
+
+tasks:
+  - name: Setup
+    init: |
+      pip install -e '.[dev]'
+      mkdir -p data
+      cp .env.example .env
+    command: |
+      echo "Ready! Run: ./scripts/start_dev.sh"
+
+ports:
+  - port: 8000
+    onOpen: notify
+    visibility: public
+
+vscode:
+  extensions:
+    - ms-python.python
+    - charliermarsh.ruff
