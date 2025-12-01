@@ -49,6 +49,23 @@ class Settings(BaseSettings):
         default=None, description="Secret for deposit webhook verification"
     )
 
+    # Provider configuration
+    provider: str = Field(
+        default="dryrun",
+        description="Deposit provider: dryrun, cryptoapis, nowpayments",
+    )
+    cryptoapis_key: str = Field(default="", description="CryptoAPIs API key")
+    nowpayments_key: str = Field(default="", description="NOWPayments API key")
+
+    # Admin API
+    admin_token: str = Field(default="", description="Admin API token for protected endpoints")
+
+    # Safety guards
+    dry_run: bool = Field(default=True, description="Enable dry-run mode (no real transactions)")
+    hot_wallet_threshold: float = Field(
+        default=0.0, description="Hot wallet balance threshold (0 = disabled)"
+    )
+
     @property
     def admin_ids(self) -> list[int]:
         """Parse admin user IDs into a list of integers."""
@@ -66,11 +83,17 @@ class Settings(BaseSettings):
         data = {
             "environment": self.environment,
             "debug": self.debug,
+            "dry_run": self.dry_run,
             "api_host": self.api_host,
             "api_port": self.api_port,
             "database_url": self._redact_url(self.database_url),
             "telegram_bot_token": "***" if self.telegram_bot_token else "(not set)",
             "admin_user_ids": self.admin_user_ids or "(none)",
+            "provider": self.provider,
+            "cryptoapis_key": "***" if self.cryptoapis_key else "(not set)",
+            "nowpayments_key": "***" if self.nowpayments_key else "(not set)",
+            "admin_token": "***" if self.admin_token else "(not set)",
+            "hot_wallet_threshold": self.hot_wallet_threshold,
             "thorchain_api_url": self.thorchain_api_url or "(not set)",
             "dex_aggregator_api_url": self.dex_aggregator_api_url or "(not set)",
             "mm2_rpc_url": self.mm2_rpc_url or "(not set)",

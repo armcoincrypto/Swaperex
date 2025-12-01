@@ -135,6 +135,15 @@ class LedgerRepository:
             await self.session.flush()
         return addr
 
+    async def create_deposit_address(
+        self, user_id: int, asset: str, address: str
+    ) -> DepositAddress:
+        """Create a deposit address with a specific address string (from provider)."""
+        addr = DepositAddress(user_id=user_id, asset=asset.upper(), address=address)
+        self.session.add(addr)
+        await self.session.flush()
+        return addr
+
     async def get_user_by_deposit_address(self, address: str) -> Optional[User]:
         """Find user by deposit address."""
         stmt = (

@@ -21,10 +21,68 @@ Telegram crypto wallet bot with multi-route swap aggregation for the best rates.
 ## Stage 2 (Planned)
 
 - Real routing adapters (THORChain, DEX aggregators, MM2)
-- Real deposit provider or full node integration
-- HSM signing for secure key management
+- Real deposit provider integration (CryptoAPIs, NOWPayments)
+- HSM signing for secure key management (AWS KMS, GCP KMS)
 - Withdrawal support
 - Redis for FSM state (production)
+
+## Architecture
+
+```mermaid
+sequenceDiagram
+    participant User as Telegram User
+    participant Bot as Aiogram Bot
+    participant API as FastAPI Backend
+    participant Provider as Deposit Provider
+    participant Router as Route Aggregator
+    participant DB as SQLite Ledger
+
+    User->>Bot: /deposit (request)
+    Bot->>API: request deposit address (user_id, asset)
+    API->>Provider: create_address(user_id, asset)
+    Provider-->>API: address
+    API-->>Bot: address
+    Bot-->>User: show address
+
+    User->>Provider: send tx (on-chain)
+    Provider-->>API: webhook(deposit)
+    API->>DB: record_deposit, credit_balance
+    API->>Bot: notify deposit credited
+
+    User->>Bot: /swap BTC->USDT amount
+    Bot->>API: ask for quote
+    API->>Router: get_quote(BTC,USDT,amt)
+    Router-->>API: best_quote
+    API->>DB: record_swap(simulated)
+    API-->>Bot: send confirmation
+    Bot-->>User: "swap executed"
+```
+
+## Roadmap
+
+### Priority A - Core
+
+1. **Provider Adapters** - CryptoAPIs / NOWPayments integration (done: interface)
+2. **DEX Aggregator** - 0x/1inch testnet adapter
+3. **MM2 Adapter** - AtomicDEX interface stub
+4. **Ledger Integrity Tests** - Ensure balance consistency
+
+### Priority B - Safety & Admin
+
+5. **Admin Dashboard** - Protected /admin endpoints (done)
+6. **Hot Wallet Guard** - Configurable balance thresholds
+
+### Priority C - UX & Polish
+
+7. **Interactive Swap Flow** - Inline keyboard UI
+8. **History Export** - CSV download for users
+
+### Priority D - Production
+
+9. **Real Deposits** - CryptoAPIs/NOWPayments live integration
+10. **Real Aggregator** - 0x/1inch mainnet calls
+11. **KMS Signing** - AWS/GCP key management
+12. **Security Audit** - Pen testing
 
 ## Quick Start
 
@@ -118,6 +176,10 @@ pytest tests/test_ledger.py -v
 | `/api/v1/deposits/webhook` | POST | Deposit webhook (from provider) |
 | `/api/v1/deposits/simulate` | POST | Simulate deposit (dev only) |
 | `/api/v1/deposits/{id}` | GET | Get deposit details |
+| `/admin/balances` | GET | Aggregated balances (protected) |
+| `/admin/stats` | GET | System statistics (protected) |
+| `/admin/provider` | GET | Provider status (protected) |
+| `/admin/users` | GET | List users with balances (protected) |
 
 ### Simulated Deposit (Development)
 
@@ -189,14 +251,38 @@ Environment variables (`.env`):
 # Required
 TELEGRAM_BOT_TOKEN=your_bot_token
 
-# Optional
+# Optional - General
 DATABASE_URL=sqlite+aiosqlite:///./data/swaperex.db
 API_HOST=0.0.0.0
 API_PORT=8000
 ENVIRONMENT=development
 DEBUG=true
+DRY_RUN=true
+
+# Admin
 ADMIN_USER_IDS=123456789,987654321
+ADMIN_TOKEN=your_admin_api_token
+
+# Provider (Stage 2)
+PROVIDER=dryrun  # dryrun, cryptoapis, nowpayments
+CRYPTOAPIS_KEY=your_cryptoapis_key
+NOWPAYMENTS_KEY=your_nowpayments_key
+
+# Safety
+HOT_WALLET_THRESHOLD=0.0  # 0 = disabled
 ```
+
+### Admin API Access
+
+```bash
+# With token set
+curl -H "x-admin-token: your_token" http://localhost:8000/admin/balances
+
+# Response
+{"balances":[{"asset":"BTC","total":0.5,"user_count":1}]}
+```
+
+If `ADMIN_TOKEN` is not set, endpoints are open (dev mode only).
 
 ## Routing Architecture
 

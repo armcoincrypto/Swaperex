@@ -1,12 +1,14 @@
 """Wallet and balance handlers."""
 
-from aiogram import Router, F
+from aiogram import F, Router
 from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import CallbackQuery, Message
 
-from swaperex.bot.keyboards import deposit_asset_keyboard, back_keyboard
+from swaperex.bot.keyboards import back_keyboard, deposit_asset_keyboard
+from swaperex.config import get_settings
 from swaperex.ledger.database import get_db
 from swaperex.ledger.repository import LedgerRepository
+from swaperex.providers import get_provider
 
 router = Router()
 
@@ -66,6 +68,7 @@ async def handle_deposit_asset(callback: CallbackQuery) -> None:
         return
 
     asset = callback.data.split(":")[1]
+    settings = get_settings()
 
     async with get_db() as session:
         repo = LedgerRepository(session)
@@ -74,21 +77,47 @@ async def handle_deposit_asset(callback: CallbackQuery) -> None:
             username=callback.from_user.username,
             first_name=callback.from_user.first_name,
         )
-        addr = await repo.get_or_create_deposit_address(user.id, asset)
 
-    text = f"""Deposit {asset}
+        # Check if we have an existing address
+        existing_addr = await repo.get_deposit_address(user.id, asset)
 
-Send {asset} to this address:
+        if existing_addr:
+            address = existing_addr.address
+            memo = None
+        else:
+            # Get address from provider
+            provider = get_provider()
+            provider_addr = await provider.create_deposit_address(user.id, asset)
+            address = provider_addr.address
+            memo = provider_addr.memo
 
-{addr.address}
+            # Store in database for future lookups
+            await repo.create_deposit_address(user.id, asset, address)
 
-Important:
-- Only send {asset} to this address
-- Minimum confirmations: varies by asset
-- Deposits are credited automatically
+    # Build message
+    lines = [
+        f"Deposit {asset}",
+        "",
+        f"Send {asset} to this address:",
+        "",
+        address,
+    ]
 
-(This is a PoC - simulated addresses only)"""
+    if memo:
+        lines.extend(["", f"Memo/Tag: {memo}"])
 
+    lines.extend([
+        "",
+        "Important:",
+        f"- Only send {asset} to this address",
+        "- Minimum confirmations: varies by asset",
+        "- Deposits are credited automatically",
+    ])
+
+    if settings.dry_run:
+        lines.extend(["", "(PoC mode - simulated addresses)"])
+
+    text = "\n".join(lines)
     await callback.message.edit_text(text, reply_markup=back_keyboard("deposit_back"))
     await callback.answer()
 
