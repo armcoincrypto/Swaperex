@@ -234,8 +234,8 @@ async def handle_confirm_swap(callback: CallbackQuery, state: FSMContext) -> Non
             )
 
             text = (
-                f"**Swap Completed!**\n\n"
-                f"{amount} {from_asset} → {completed_swap.to_amount:.8f} {to_asset}\n\n"
+                f"Swap Completed!\n\n"
+                f"{amount} {from_asset} -> {completed_swap.to_amount:.8f} {to_asset}\n\n"
                 f"Route: {selected_quote['provider']}\n"
                 f"Fee: ${selected_quote['fee_amount']}\n\n"
                 f"(Simulated swap - PoC)\n\n"
@@ -243,9 +243,9 @@ async def handle_confirm_swap(callback: CallbackQuery, state: FSMContext) -> Non
             )
 
         except ValueError as e:
-            text = f"**Swap Failed**\n\n{str(e)}"
+            text = f"Swap Failed\n\n{str(e)}"
 
-    await callback.message.edit_text(text, parse_mode="Markdown")
+    await callback.message.edit_text(text)
     await state.clear()
     await callback.answer()
 
