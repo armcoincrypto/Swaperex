@@ -33,17 +33,11 @@ async def cmd_swap(message: Message, state: FSMContext) -> None:
     await state.clear()
     await state.set_state(SwapStates.selecting_from)
 
-    text = """
-**Swap Coins**
+    text = """Swap Coins
 
-Select the coin you want to swap FROM:
-"""
+Select the coin you want to swap FROM:"""
 
-    await message.answer(
-        text,
-        reply_markup=swap_from_keyboard(),
-        parse_mode="Markdown",
-    )
+    await message.answer(text, reply_markup=swap_from_keyboard())
 
 
 @router.callback_query(SwapStates.selecting_from, F.data.startswith("swap_from:"))
@@ -56,17 +50,11 @@ async def handle_swap_from(callback: CallbackQuery, state: FSMContext) -> None:
     await state.update_data(from_asset=from_asset)
     await state.set_state(SwapStates.selecting_to)
 
-    text = f"""
-**Swap FROM: {from_asset}**
+    text = f"""Swap FROM: {from_asset}
 
-Now select the coin you want to swap TO:
-"""
+Now select the coin you want to swap TO:"""
 
-    await callback.message.edit_text(
-        text,
-        reply_markup=swap_to_keyboard(from_asset),
-        parse_mode="Markdown",
-    )
+    await callback.message.edit_text(text, reply_markup=swap_to_keyboard(from_asset))
     await callback.answer()
 
 
@@ -83,15 +71,13 @@ async def handle_swap_to(callback: CallbackQuery, state: FSMContext) -> None:
     await state.update_data(to_asset=to_asset)
     await state.set_state(SwapStates.entering_amount)
 
-    text = f"""
-**Swap {from_asset} → {to_asset}**
+    text = f"""Swap {from_asset} -> {to_asset}
 
 Enter the amount of {from_asset} you want to swap:
 
-_Example: 0.1_
-"""
+Example: 0.1"""
 
-    await callback.message.edit_text(text, parse_mode="Markdown")
+    await callback.message.edit_text(text)
     await callback.answer()
 
 
@@ -124,8 +110,7 @@ async def handle_swap_amount(message: Message, state: FSMContext) -> None:
         if available < amount:
             await message.answer(
                 f"Insufficient balance. You have {available:.8f} {from_asset} available.\n\n"
-                f"Use /deposit to add funds.",
-                parse_mode="Markdown",
+                f"Use /deposit to add funds."
             )
             return
 
@@ -135,7 +120,7 @@ async def handle_swap_amount(message: Message, state: FSMContext) -> None:
 
     if not quotes:
         await message.answer(
-            f"No routes available for {from_asset} → {to_asset}.\n"
+            f"No routes available for {from_asset} -> {to_asset}.\n"
             "Try a different pair."
         )
         await state.clear()
@@ -165,28 +150,24 @@ async def handle_swap_amount(message: Message, state: FSMContext) -> None:
 
     # Build quote comparison text
     lines = [
-        f"**Swap Quote: {amount} {from_asset} → {to_asset}**\n",
-        "**Available Routes:**\n",
+        f"Swap Quote: {amount} {from_asset} -> {to_asset}\n",
+        "Available Routes:\n",
     ]
 
     for i, q in enumerate(quotes):
-        best_marker = "⭐ " if i == 0 else "   "
+        best_marker = "[BEST] " if i == 0 else "       "
         lines.append(
-            f"{best_marker}**{q.provider}**\n"
+            f"{best_marker}{q.provider}\n"
             f"   Receive: {q.to_amount:.8f} {to_asset}\n"
             f"   Fee: ${q.fee_amount:.2f}\n"
             f"   Slippage: {q.slippage_percent:.2f}%\n"
             f"   Time: ~{q.estimated_time_seconds}s\n"
         )
 
-    lines.append("\n_Best rate selected automatically._")
-    lines.append("_This is a simulated quote (PoC)._")
+    lines.append("\nBest rate selected automatically.")
+    lines.append("(Simulated quote - PoC)")
 
-    await message.answer(
-        "\n".join(lines),
-        reply_markup=confirm_swap_keyboard("best"),
-        parse_mode="Markdown",
-    )
+    await message.answer("\n".join(lines), reply_markup=confirm_swap_keyboard("best"))
 
 
 @router.callback_query(SwapStates.confirming, F.data.startswith("confirm_swap:"))

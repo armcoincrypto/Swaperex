@@ -2,14 +2,14 @@
 
 from decimal import Decimal
 
-from aiogram import Router, F
+from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
 
 from swaperex.config import get_settings
 from swaperex.ledger.database import get_db
 from swaperex.ledger.repository import LedgerRepository
-from swaperex.routing.dry_run import DryRunRouter, create_default_aggregator
+from swaperex.routing.dry_run import create_default_aggregator
 
 router = Router()
 
@@ -27,8 +27,7 @@ async def cmd_admin(message: Message) -> None:
         await message.answer("You are not authorized to use admin commands.")
         return
 
-    text = """
-**Admin Commands**
+    text = """Admin Commands
 
 /admin - Show this help
 /debug - Show environment info
@@ -37,7 +36,7 @@ async def cmd_admin(message: Message) -> None:
 /stats - Show system stats
 """
 
-    await message.answer(text, parse_mode="Markdown")
+    await message.answer(text)
 
 
 @router.message(Command("debug"))
@@ -50,11 +49,11 @@ async def cmd_debug(message: Message) -> None:
     settings = get_settings()
     safe_config = settings.get_safe_dict()
 
-    lines = ["**Environment Info**\n"]
+    lines = ["Environment Info\n"]
     for key, value in safe_config.items():
-        lines.append(f"**{key}**: `{value}`")
+        lines.append(f"{key}: {value}")
 
-    await message.answer("\n".join(lines), parse_mode="Markdown")
+    await message.answer("\n".join(lines))
 
 
 @router.message(Command("dryrun"))
@@ -89,7 +88,7 @@ async def cmd_dryrun(message: Message) -> None:
 
     if not quotes:
         await message.answer(
-            f"No routes available for {from_asset.upper()} → {to_asset.upper()}"
+            f"No routes available for {from_asset.upper()} -> {to_asset.upper()}"
         )
         return
 
@@ -97,13 +96,13 @@ async def cmd_dryrun(message: Message) -> None:
     quotes.sort(key=lambda q: q.to_amount, reverse=True)
 
     lines = [
-        f"**Dry Run Quote: {amount} {from_asset.upper()} → {to_asset.upper()}**\n",
+        f"Dry Run Quote: {amount} {from_asset.upper()} -> {to_asset.upper()}\n",
     ]
 
     for i, q in enumerate(quotes):
         best = " (BEST)" if i == 0 else ""
         lines.append(
-            f"**{q.provider}**{best}\n"
+            f"{q.provider}{best}\n"
             f"  Output: {q.to_amount:.8f} {to_asset.upper()}\n"
             f"  Rate: 1 {from_asset.upper()} = {q.effective_rate:.8f} {to_asset.upper()}\n"
             f"  Fee: ${q.fee_amount:.2f} {q.fee_asset}\n"
@@ -112,7 +111,7 @@ async def cmd_dryrun(message: Message) -> None:
             f"  Simulated: {q.is_simulated}\n"
         )
 
-    await message.answer("\n".join(lines), parse_mode="Markdown")
+    await message.answer("\n".join(lines))
 
 
 @router.message(Command("simulate_deposit"))
@@ -174,11 +173,10 @@ async def cmd_simulate_deposit(message: Message) -> None:
         await repo.confirm_deposit(deposit.id)
 
     await message.answer(
-        f"**Simulated Deposit**\n\n"
+        f"Simulated Deposit\n\n"
         f"Credited: {amount} {asset.upper()}\n"
         f"Deposit ID: {deposit.id}\n\n"
-        f"Use /wallet to check balance.",
-        parse_mode="Markdown",
+        f"Use /wallet to check balance."
     )
 
 
@@ -191,7 +189,8 @@ async def cmd_stats(message: Message) -> None:
 
     async with get_db() as session:
         from sqlalchemy import func, select
-        from swaperex.ledger.models import User, Deposit, Swap, Balance
+
+        from swaperex.ledger.models import Balance, Deposit, Swap, User
 
         # Count users
         user_count = await session.scalar(select(func.count(User.id)))
@@ -205,18 +204,17 @@ async def cmd_stats(message: Message) -> None:
         # Count balances
         balance_count = await session.scalar(select(func.count(Balance.id)))
 
-    text = f"""
-**System Statistics**
+    text = f"""System Statistics
 
-**Users**: {user_count or 0}
-**Deposits**: {deposit_count or 0}
-**Swaps**: {swap_count or 0}
-**Balance Records**: {balance_count or 0}
+Users: {user_count or 0}
+Deposits: {deposit_count or 0}
+Swaps: {swap_count or 0}
+Balance Records: {balance_count or 0}
 
-_PoC Mode - All data is simulated_
+PoC Mode - All data is simulated
 """
 
-    await message.answer(text, parse_mode="Markdown")
+    await message.answer(text)
 
 
 # Public dry-run command (available to all users)
@@ -249,22 +247,21 @@ async def cmd_quote(message: Message) -> None:
 
     if not best_quote:
         await message.answer(
-            f"No routes available for {from_asset.upper()} → {to_asset.upper()}"
+            f"No routes available for {from_asset.upper()} -> {to_asset.upper()}"
         )
         return
 
-    text = f"""
-**Quote: {amount} {from_asset.upper()} → {to_asset.upper()}**
+    text = f"""Quote: {amount} {from_asset.upper()} -> {to_asset.upper()}
 
-**Best Route**: {best_quote.provider}
-**You Receive**: {best_quote.to_amount:.8f} {to_asset.upper()}
-**Rate**: 1 {from_asset.upper()} = {best_quote.effective_rate:.8f} {to_asset.upper()}
-**Fee**: ${best_quote.fee_amount:.2f}
-**Est. Time**: ~{best_quote.estimated_time_seconds}s
+Best Route: {best_quote.provider}
+You Receive: {best_quote.to_amount:.8f} {to_asset.upper()}
+Rate: 1 {from_asset.upper()} = {best_quote.effective_rate:.8f} {to_asset.upper()}
+Fee: ${best_quote.fee_amount:.2f}
+Est. Time: ~{best_quote.estimated_time_seconds}s
 
 Use /swap to execute a trade.
 
-_Simulated quote (PoC)_
+Simulated quote (PoC)
 """
 
-    await message.answer(text, parse_mode="Markdown")
+    await message.answer(text)

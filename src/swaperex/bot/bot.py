@@ -4,8 +4,6 @@ import asyncio
 import logging
 
 from aiogram import Bot, Dispatcher
-from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 
 from swaperex.bot.handlers import setup_routers
@@ -22,10 +20,8 @@ def create_bot() -> tuple[Bot, Dispatcher]:
     if not settings.telegram_bot_token:
         raise ValueError("TELEGRAM_BOT_TOKEN is not set")
 
-    bot = Bot(
-        token=settings.telegram_bot_token,
-        default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN),
-    )
+    # No default parse_mode - each handler decides
+    bot = Bot(token=settings.telegram_bot_token)
 
     # Use memory storage for FSM (in production, use Redis)
     storage = MemoryStorage()
