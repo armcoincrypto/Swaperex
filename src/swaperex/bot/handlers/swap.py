@@ -233,18 +233,14 @@ async def handle_confirm_swap(callback: CallbackQuery, state: FSMContext) -> Non
                 actual_to_amount=Decimal(selected_quote["to_amount"]),
             )
 
-            text = f"""
-**Swap Completed!**
-
-{amount} {from_asset} → {completed_swap.to_amount:.8f} {to_asset}
-
-Route: {selected_quote["provider"]}
-Fee: ${selected_quote["fee_amount"]}
-
-_Simulated swap (PoC)_
-
-Use /wallet to check your balance.
-"""
+            text = (
+                f"**Swap Completed!**\n\n"
+                f"{amount} {from_asset} → {completed_swap.to_amount:.8f} {to_asset}\n\n"
+                f"Route: {selected_quote['provider']}\n"
+                f"Fee: ${selected_quote['fee_amount']}\n\n"
+                f"(Simulated swap - PoC)\n\n"
+                f"Use /wallet to check your balance."
+            )
 
         except ValueError as e:
             text = f"**Swap Failed**\n\n{str(e)}"
