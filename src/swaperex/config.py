@@ -66,6 +66,11 @@ class Settings(BaseSettings):
         default=0.0, description="Hot wallet balance threshold (0 = disabled)"
     )
 
+    # Encryption
+    master_key: Optional[str] = Field(
+        default=None, description="Master encryption key for xpub storage (Fernet key)"
+    )
+
     @property
     def admin_ids(self) -> list[int]:
         """Parse admin user IDs into a list of integers."""

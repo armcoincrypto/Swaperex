@@ -109,12 +109,15 @@ class XpubEncryptor:
 
 
 def get_encryptor() -> Optional[XpubEncryptor]:
-    """Get encryptor instance using MASTER_KEY from environment.
+    """Get encryptor instance using MASTER_KEY from settings.
 
     Returns:
         XpubEncryptor if MASTER_KEY is set, None otherwise
     """
-    master_key = os.environ.get("MASTER_KEY")
+    from swaperex.config import get_settings
+
+    settings = get_settings()
+    master_key = settings.master_key
 
     if not master_key:
         return None

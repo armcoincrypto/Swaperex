@@ -139,6 +139,31 @@ class HDWalletState(Base):
     )
 
 
+class Deposit(Base):
+    """Record of a deposit transaction."""
+
+    __tablename__ = "deposits"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    asset: Mapped[str] = mapped_column(String(20), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(36, 18), nullable=False)
+    tx_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
+    from_address: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    to_address: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[DepositStatus] = mapped_column(
+        String(20), default=DepositStatus.PENDING, nullable=False
+    )
+    confirmations: Mapped[int] = mapped_column(default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    confirmed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Relationships
+    user: Mapped["User"] = relationship(back_populates="deposits")
+
+
 class XpubKey(Base):
     """Stores encrypted extended public keys for HD wallet derivation.
 
@@ -182,31 +207,6 @@ class ProcessedTransaction(Base):
     processed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
-
-
-class Deposit(Base):
-    """Record of a deposit transaction."""
-
-    __tablename__ = "deposits"
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    asset: Mapped[str] = mapped_column(String(20), nullable=False)
-    amount: Mapped[Decimal] = mapped_column(Numeric(36, 18), nullable=False)
-    tx_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
-    from_address: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    to_address: Mapped[str] = mapped_column(String(255), nullable=False)
-    status: Mapped[DepositStatus] = mapped_column(
-        String(20), default=DepositStatus.PENDING, nullable=False
-    )
-    confirmations: Mapped[int] = mapped_column(default=0)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
-    confirmed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-
-    # Relationships
-    user: Mapped["User"] = relationship(back_populates="deposits")
 
 
 class Swap(Base):
