@@ -10,23 +10,61 @@ Environment variables:
     BACKEND_URL: URL of the FastAPI backend (default: http://127.0.0.1:8000)
     BTC_CONFIRMATIONS: Minimum confirmations for BTC (default: 2)
     SCANNER_INTERVAL: Seconds between scan cycles (default: 60)
+    TELEGRAM_BOT_TOKEN: Bot token for sending notifications (optional)
 """
 
 import argparse
 import asyncio
 import logging
 import os
+from typing import Optional
 
 from swaperex.ledger.database import get_db, init_db
 from swaperex.ledger.repository import LedgerRepository
 from swaperex.scanner import TransactionInfo, get_scanner
 
-# Configure logging
+# Configure logging - reduce SQL noise
+logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    format="%(asctime)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+
+async def send_deposit_notification(
+    telegram_id: int, asset: str, amount, txid: str
+) -> bool:
+    """Send Telegram notification about deposit.
+
+    Returns True if notification was sent successfully.
+    """
+    from swaperex.config import get_settings
+
+    settings = get_settings()
+    if not settings.telegram_bot_token:
+        return False
+
+    try:
+        from aiogram import Bot
+
+        bot = Bot(token=settings.telegram_bot_token)
+
+        message = (
+            f"Deposit received!\n\n"
+            f"Amount: {amount} {asset}\n"
+            f"TX: {txid[:16]}..."
+        )
+
+        await bot.send_message(chat_id=telegram_id, text=message)
+        await bot.session.close()
+
+        logger.info(f"Notification sent to user {telegram_id}")
+        return True
+
+    except Exception as e:
+        logger.warning(f"Failed to send notification: {e}")
+        return False
 
 
 class DepositScannerRunner:
@@ -121,6 +159,14 @@ class DepositScannerRunner:
 
             logger.info(
                 f"Deposit confirmed: {tx.amount} {tx.asset} credited to user {user.id}"
+            )
+
+            # Send Telegram notification
+            await send_deposit_notification(
+                telegram_id=user.telegram_id,
+                asset=tx.asset,
+                amount=tx.amount,
+                txid=tx.txid,
             )
 
         self._processed_txids.add(tx.txid)
