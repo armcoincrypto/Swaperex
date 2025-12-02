@@ -1,5 +1,7 @@
 """Factory for creating deposit scanners."""
 
+import os
+
 from swaperex.config import get_settings
 from swaperex.scanner.base import DepositScanner, SimulatedScanner
 from swaperex.scanner.blockstream import BlockstreamScanner, LTCBlockstreamScanner
@@ -12,7 +14,7 @@ def get_scanner(asset: str) -> DepositScanner:
     """Get a deposit scanner for an asset.
 
     Args:
-        asset: Asset symbol (BTC, ETH, etc.)
+        asset: Asset symbol (BTC, ETH, TRX, USDT-TRC20, USDT-ERC20, etc.)
 
     Returns:
         DepositScanner instance for the asset
@@ -34,16 +36,75 @@ def get_scanner(asset: str) -> DepositScanner:
     # Get real scanner based on asset
     testnet = not settings.is_production
 
+    # BTC
     if asset_upper == "BTC":
         scanner = BlockstreamScanner(testnet=testnet)
+
+    # LTC
     elif asset_upper == "LTC":
         scanner = LTCBlockstreamScanner(testnet=testnet)
+
+    # ETH
+    elif asset_upper == "ETH":
+        from swaperex.scanner.etherscan import EtherscanScanner
+        api_key = os.environ.get("ETHERSCAN_API_KEY")
+        scanner = EtherscanScanner(testnet=testnet, api_key=api_key)
+
+    # USDT-ERC20
+    elif asset_upper == "USDT-ERC20":
+        from swaperex.scanner.etherscan import get_usdt_erc20_scanner
+        api_key = os.environ.get("ETHERSCAN_API_KEY")
+        scanner = get_usdt_erc20_scanner(testnet=testnet, api_key=api_key)
+
+    # USDC
+    elif asset_upper == "USDC":
+        from swaperex.scanner.etherscan import get_usdc_scanner
+        api_key = os.environ.get("ETHERSCAN_API_KEY")
+        scanner = get_usdc_scanner(testnet=testnet, api_key=api_key)
+
+    # TRX
+    elif asset_upper == "TRX":
+        from swaperex.scanner.trongrid import TronGridScanner
+        api_key = os.environ.get("TRONGRID_API_KEY")
+        scanner = TronGridScanner(testnet=testnet, api_key=api_key)
+
+    # USDT-TRC20
+    elif asset_upper == "USDT-TRC20":
+        from swaperex.scanner.trongrid import get_usdt_trc20_scanner
+        api_key = os.environ.get("TRONGRID_API_KEY")
+        scanner = get_usdt_trc20_scanner(testnet=testnet, api_key=api_key)
+
+    # BSC (Binance Smart Chain) - uses BscScan (same API as Etherscan)
+    elif asset_upper in ("BSC", "BNB"):
+        from swaperex.scanner.etherscan import EtherscanScanner
+        api_key = os.environ.get("BSCSCAN_API_KEY")
+        scanner = EtherscanScanner(testnet=testnet, api_key=api_key)
+        scanner.asset = "BSC"
+        scanner.base_url = (
+            "https://api-testnet.bscscan.com/api" if testnet
+            else "https://api.bscscan.com/api"
+        )
+
     else:
         # Fall back to simulated for unsupported assets
         scanner = SimulatedScanner(asset_upper)
 
     _scanner_cache[asset_upper] = scanner
     return scanner
+
+
+def get_supported_scanner_assets() -> list[str]:
+    """Get list of assets with real scanner support."""
+    return [
+        "BTC",
+        "LTC",
+        "ETH",
+        "USDT-ERC20",
+        "USDC",
+        "TRX",
+        "USDT-TRC20",
+        "BSC",
+    ]
 
 
 def reset_scanner_cache() -> None:
