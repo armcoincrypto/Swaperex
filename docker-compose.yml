@@ -1,0 +1,141 @@
+version: "3.8"
+
+services:
+  # API Server
+  api:
+    build:
+      context: .
+      target: runtime
+    container_name: swaperex-api
+    command: uvicorn swaperex.api.app:app --host 0.0.0.0 --port 8000 --workers 2
+    ports:
+      - "8000:8000"
+    environment:
+      - SWAPEREX_ENV=production
+      - DRY_RUN=false
+      - DATABASE_URL=sqlite+aiosqlite:///data/swaperex.db
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - ADMIN_TOKEN=${ADMIN_TOKEN}
+      # HD Wallet xpubs (set in .env)
+      - XPUB_BTC=${XPUB_BTC:-}
+      - XPUB_ETH=${XPUB_ETH:-}
+      - XPUB_LTC=${XPUB_LTC:-}
+      - XPUB_TRX=${XPUB_TRX:-}
+      # API Keys
+      - ETHERSCAN_API_KEY=${ETHERSCAN_API_KEY:-}
+      - TRONGRID_API_KEY=${TRONGRID_API_KEY:-}
+      - ONEINCH_API_KEY=${ONEINCH_API_KEY:-}
+    volumes:
+      - swaperex-data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health').raise_for_status()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - swaperex-net
+
+  # Telegram Bot
+  bot:
+    build:
+      context: .
+      target: runtime
+    container_name: swaperex-bot
+    command: python -m swaperex.bot
+    environment:
+      - SWAPEREX_ENV=production
+      - DRY_RUN=false
+      - DATABASE_URL=sqlite+aiosqlite:///data/swaperex.db
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - ADMIN_TELEGRAM_ID=${ADMIN_TELEGRAM_ID:-}
+      # HD Wallet xpubs (needed for address derivation)
+      - XPUB_BTC=${XPUB_BTC:-}
+      - XPUB_ETH=${XPUB_ETH:-}
+      - XPUB_LTC=${XPUB_LTC:-}
+      - XPUB_TRX=${XPUB_TRX:-}
+    volumes:
+      - swaperex-data:/app/data
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - swaperex-net
+
+  # BTC Deposit Scanner
+  scanner-btc:
+    build:
+      context: .
+      target: runtime
+    container_name: swaperex-scanner-btc
+    command: python -m swaperex.scanner.runner --asset BTC --interval 60
+    environment:
+      - SWAPEREX_ENV=production
+      - DRY_RUN=false
+      - DATABASE_URL=sqlite+aiosqlite:///data/swaperex.db
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - ADMIN_TELEGRAM_ID=${ADMIN_TELEGRAM_ID:-}
+    volumes:
+      - swaperex-data:/app/data
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - swaperex-net
+
+  # ETH Deposit Scanner
+  scanner-eth:
+    build:
+      context: .
+      target: runtime
+    container_name: swaperex-scanner-eth
+    command: python -m swaperex.scanner.runner --asset ETH --interval 60
+    environment:
+      - SWAPEREX_ENV=production
+      - DRY_RUN=false
+      - DATABASE_URL=sqlite+aiosqlite:///data/swaperex.db
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - ADMIN_TELEGRAM_ID=${ADMIN_TELEGRAM_ID:-}
+      - ETHERSCAN_API_KEY=${ETHERSCAN_API_KEY:-}
+    volumes:
+      - swaperex-data:/app/data
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - swaperex-net
+
+  # TRX Deposit Scanner
+  scanner-trx:
+    build:
+      context: .
+      target: runtime
+    container_name: swaperex-scanner-trx
+    command: python -m swaperex.scanner.runner --asset TRX --interval 60
+    environment:
+      - SWAPEREX_ENV=production
+      - DRY_RUN=false
+      - DATABASE_URL=sqlite+aiosqlite:///data/swaperex.db
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - ADMIN_TELEGRAM_ID=${ADMIN_TELEGRAM_ID:-}
+      - TRONGRID_API_KEY=${TRONGRID_API_KEY:-}
+    volumes:
+      - swaperex-data:/app/data
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - swaperex-net
+
+volumes:
+  swaperex-data:
+    driver: local
+
+networks:
+  swaperex-net:
+    driver: bridge

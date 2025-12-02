@@ -1,0 +1,47 @@
+version: "3.8"
+
+# Development override - run with: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  api:
+    build:
+      context: .
+      target: runtime
+    volumes:
+      # Mount source for hot-reload
+      - ./src:/app/src:ro
+      - swaperex-data:/app/data
+    environment:
+      - SWAPEREX_ENV=development
+      - DRY_RUN=true
+      - DEBUG=true
+    command: uvicorn swaperex.api.app:app --host 0.0.0.0 --port 8000 --reload
+
+  bot:
+    volumes:
+      - ./src:/app/src:ro
+      - swaperex-data:/app/data
+    environment:
+      - SWAPEREX_ENV=development
+      - DRY_RUN=true
+      - DEBUG=true
+
+  # Run only one scanner in dev mode
+  scanner-btc:
+    volumes:
+      - ./src:/app/src:ro
+      - swaperex-data:/app/data
+    environment:
+      - SWAPEREX_ENV=development
+      - DRY_RUN=true
+      - DEBUG=true
+    command: python -m swaperex.scanner.runner --asset BTC --interval 300
+
+  # Disable other scanners in dev mode
+  scanner-eth:
+    profiles:
+      - production
+
+  scanner-trx:
+    profiles:
+      - production
