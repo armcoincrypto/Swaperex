@@ -192,13 +192,3 @@ async def cmd_history(message: Message) -> None:
     await message.answer("\n".join(lines))
 
 
-@router.message(F.text == "📤 Withdraw")
-async def cmd_withdraw(message: Message) -> None:
-    """Handle withdraw - not implemented in Stage 1."""
-    text = """Withdraw
-
-Withdrawals will be available in Stage 2.
-
-For now, this is a PoC with simulated balances."""
-
-    await message.answer(text)

@@ -2,7 +2,7 @@
 
 from aiogram import Router
 
-from swaperex.bot.handlers import admin, start, swap, wallet
+from swaperex.bot.handlers import admin, start, swap, wallet, withdraw
 
 
 def setup_routers() -> Router:
@@ -12,6 +12,7 @@ def setup_routers() -> Router:
     # Register all routers
     main_router.include_router(start.router)
     main_router.include_router(wallet.router)
+    main_router.include_router(withdraw.router)
     main_router.include_router(swap.router)
     main_router.include_router(admin.router)
 

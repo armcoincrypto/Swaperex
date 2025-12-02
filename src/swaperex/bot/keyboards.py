@@ -53,8 +53,26 @@ def back_keyboard(callback_data: str = "back") -> InlineKeyboardMarkup:
 
 def deposit_asset_keyboard() -> InlineKeyboardMarkup:
     """Create deposit asset selection keyboard."""
-    assets = ["BTC", "ETH", "USDT", "USDC", "SOL", "ATOM"]
+    assets = ["BTC", "ETH", "USDT", "USDC", "TRX", "SOL"]
     return asset_selection_keyboard(assets, "deposit")
+
+
+def withdraw_asset_keyboard() -> InlineKeyboardMarkup:
+    """Create withdrawal asset selection keyboard."""
+    assets = ["BTC", "ETH", "USDT-ERC20", "USDT-TRC20", "TRX"]
+    return asset_selection_keyboard(assets, "withdraw")
+
+
+def confirm_withdraw_keyboard(withdraw_id: str) -> InlineKeyboardMarkup:
+    """Create withdrawal confirmation keyboard."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="✅ Confirm", callback_data=f"confirm_withdraw:{withdraw_id}"),
+                InlineKeyboardButton(text="❌ Cancel", callback_data="cancel_withdraw"),
+            ]
+        ]
+    )
 
 
 def swap_from_keyboard() -> InlineKeyboardMarkup:
