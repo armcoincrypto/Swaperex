@@ -6,7 +6,19 @@ from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from swaperex.config import get_settings
-from swaperex.ledger.models import Base
+
+# Import all models to ensure they're registered with Base.metadata
+from swaperex.ledger.models import (  # noqa: F401
+    Balance,
+    Base,
+    Deposit,
+    DepositAddress,
+    HDWalletState,
+    ProcessedTransaction,
+    Swap,
+    User,
+    XpubKey,
+)
 
 # Global engine and session factory
 _engine = None
