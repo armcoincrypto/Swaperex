@@ -15,9 +15,11 @@ from swaperex.ledger.models import (
     DepositAddress,
     DepositStatus,
     HDWalletState,
+    ProcessedTransaction,
     Swap,
     SwapStatus,
     User,
+    XpubKey,
 )
 
 
@@ -396,3 +398,163 @@ class LedgerRepository:
             stmt = stmt.where(DepositAddress.asset == asset.upper())
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    # Xpub Key operations
+    async def store_xpub(
+        self,
+        asset: str,
+        encrypted_xpub: str,
+        label: str,
+        key_type: str = "xpub",
+        is_testnet: bool = False,
+    ) -> XpubKey:
+        """Store an encrypted xpub key.
+
+        If one already exists for the asset, it will be updated.
+        """
+        stmt = select(XpubKey).where(XpubKey.asset == asset.upper())
+        result = await self.session.execute(stmt)
+        existing = result.scalar_one_or_none()
+
+        if existing:
+            existing.encrypted_xpub = encrypted_xpub
+            existing.label = label
+            existing.key_type = key_type
+            existing.is_testnet = is_testnet
+            await self.session.flush()
+            return existing
+        else:
+            xpub_key = XpubKey(
+                asset=asset.upper(),
+                encrypted_xpub=encrypted_xpub,
+                label=label,
+                key_type=key_type,
+                is_testnet=is_testnet,
+            )
+            self.session.add(xpub_key)
+            await self.session.flush()
+            return xpub_key
+
+    async def get_xpub(self, asset: str) -> Optional[XpubKey]:
+        """Get stored xpub for an asset."""
+        stmt = select(XpubKey).where(XpubKey.asset == asset.upper())
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_all_xpubs(self) -> list[XpubKey]:
+        """Get all stored xpub keys."""
+        stmt = select(XpubKey).order_by(XpubKey.asset)
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def delete_xpub(self, asset: str) -> bool:
+        """Delete stored xpub for an asset."""
+        stmt = select(XpubKey).where(XpubKey.asset == asset.upper())
+        result = await self.session.execute(stmt)
+        xpub = result.scalar_one_or_none()
+        if xpub:
+            await self.session.delete(xpub)
+            await self.session.flush()
+            return True
+        return False
+
+    # Atomic HD index allocation (for PostgreSQL with FOR UPDATE)
+    async def allocate_hd_index_atomic(self, asset: str) -> int:
+        """Atomically allocate the next HD index.
+
+        Uses SELECT FOR UPDATE to prevent race conditions.
+        For SQLite, falls back to regular select (SQLite has implicit locking).
+        """
+        from sqlalchemy.dialects import postgresql
+
+        # Check if we're using PostgreSQL
+        dialect = self.session.bind.dialect.name if self.session.bind else "sqlite"
+
+        if dialect == "postgresql":
+            # Use FOR UPDATE for PostgreSQL
+            stmt = (
+                select(HDWalletState)
+                .where(HDWalletState.asset == asset.upper())
+                .with_for_update()
+            )
+        else:
+            # SQLite uses implicit locking
+            stmt = select(HDWalletState).where(HDWalletState.asset == asset.upper())
+
+        result = await self.session.execute(stmt)
+        state = result.scalar_one_or_none()
+
+        if state is None:
+            # Create initial state
+            state = HDWalletState(asset=asset.upper(), last_index=0)
+            self.session.add(state)
+            await self.session.flush()
+            return 0
+        else:
+            # Increment and return next index
+            next_index = state.last_index + 1
+            state.last_index = next_index
+            await self.session.flush()
+            return next_index
+
+    # Processed transaction tracking (idempotency)
+    async def is_transaction_processed(
+        self, chain: str, tx_hash: str, tx_index: int = 0
+    ) -> bool:
+        """Check if a transaction has already been processed."""
+        stmt = select(ProcessedTransaction).where(
+            ProcessedTransaction.chain == chain.upper(),
+            ProcessedTransaction.tx_hash == tx_hash,
+            ProcessedTransaction.tx_index == tx_index,
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none() is not None
+
+    async def mark_transaction_processed(
+        self,
+        chain: str,
+        tx_hash: str,
+        amount: Decimal,
+        to_address: str,
+        source: str = "scanner",
+        tx_index: int = 0,
+        deposit_id: Optional[int] = None,
+        raw_payload: Optional[str] = None,
+    ) -> ProcessedTransaction:
+        """Mark a transaction as processed."""
+        processed = ProcessedTransaction(
+            chain=chain.upper(),
+            tx_hash=tx_hash,
+            tx_index=tx_index,
+            source=source,
+            amount=amount,
+            to_address=to_address,
+            deposit_id=deposit_id,
+            raw_payload=raw_payload,
+        )
+        self.session.add(processed)
+        await self.session.flush()
+        return processed
+
+    async def get_processed_transaction(
+        self, chain: str, tx_hash: str, tx_index: int = 0
+    ) -> Optional[ProcessedTransaction]:
+        """Get processed transaction record."""
+        stmt = select(ProcessedTransaction).where(
+            ProcessedTransaction.chain == chain.upper(),
+            ProcessedTransaction.tx_hash == tx_hash,
+            ProcessedTransaction.tx_index == tx_index,
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    # Balance update (for withdrawals)
+    async def update_balance(self, user_id: int, asset: str, delta: Decimal) -> Balance:
+        """Update balance by delta (positive for credit, negative for debit)."""
+        balance = await self.get_or_create_balance(user_id, asset)
+        new_amount = balance.amount + delta
+        if new_amount < 0:
+            raise ValueError(f"Insufficient balance for {asset}")
+        balance.amount = new_amount
+        await self.session.flush()
+        return balance

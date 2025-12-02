@@ -94,34 +94,81 @@ async def register_xpub(
 ) -> XpubRegisterResponse:
     """Register an xpub for HD wallet derivation.
 
-    NOTE: In production, xpubs should be configured via environment
-    variables (XPUB_BTC, XPUB_ETH, etc.) rather than this endpoint.
-    This endpoint is for testing/development convenience.
+    Stores the xpub in the database (encrypted if MASTER_KEY is set).
+    Also sets runtime environment variable for immediate use.
     """
     import os
+    from swaperex.crypto import encrypt_xpub
 
-    # Set environment variable (runtime only, not persisted)
-    env_key = f"XPUB_{asset.upper()}"
-    os.environ[env_key] = request.xpub
-
-    # Reset wallet cache to pick up new xpub
-    from swaperex.hdwallet.factory import reset_wallet_cache
-    reset_wallet_cache()
-
-    # Validate by trying to create wallet
+    # Validate xpub format first
     try:
+        wallet = get_hd_wallet(asset)
+        # Temporarily set for validation
+        os.environ[f"XPUB_{asset.upper()}"] = request.xpub
+        from swaperex.hdwallet.factory import reset_wallet_cache
+        reset_wallet_cache()
         wallet = get_hd_wallet(asset)
         if hasattr(wallet, '_validate_xpub'):
             wallet._validate_xpub()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+    # Determine key type and testnet from prefix
+    xpub = request.xpub
+    key_type = "xpub"
+    is_testnet = False
+    if xpub.startswith("tpub") or xpub.startswith("vpub"):
+        is_testnet = True
+        key_type = xpub[:4]
+    elif xpub.startswith("xpub") or xpub.startswith("zpub"):
+        key_type = xpub[:4]
+
+    # Encrypt xpub if MASTER_KEY is available
+    encrypted = encrypt_xpub(xpub)
+    xpub_to_store = encrypted if encrypted else xpub
+
+    # Store in database
+    async with get_db() as session:
+        repo = LedgerRepository(session)
+        await repo.store_xpub(
+            asset=asset,
+            encrypted_xpub=xpub_to_store,
+            label=request.label,
+            key_type=key_type,
+            is_testnet=is_testnet,
+        )
+
+    persistence = "encrypted in DB" if encrypted else "stored in DB (unencrypted - set MASTER_KEY for encryption)"
+
     return XpubRegisterResponse(
         ok=True,
         label=request.label,
         asset=asset.upper(),
-        message=f"Xpub registered for {asset.upper()} (runtime only)",
+        message=f"Xpub registered for {asset.upper()} ({persistence})",
     )
+
+
+@router.get("/{asset}/xpub")
+async def get_stored_xpub(
+    asset: str,
+    _: bool = Depends(require_admin_token),
+) -> dict:
+    """Get stored xpub info (admin only, xpub value is masked)."""
+    async with get_db() as session:
+        repo = LedgerRepository(session)
+        xpub_record = await repo.get_xpub(asset)
+
+        if not xpub_record:
+            raise HTTPException(status_code=404, detail=f"No xpub stored for {asset}")
+
+        return {
+            "asset": xpub_record.asset,
+            "label": xpub_record.label,
+            "key_type": xpub_record.key_type,
+            "is_testnet": xpub_record.is_testnet,
+            "is_encrypted": xpub_record.encrypted_xpub.startswith("gAAAAA"),  # Fernet prefix
+            "created_at": xpub_record.created_at.isoformat(),
+        }
 
 
 @router.get("/{asset}/address", response_model=AddressResponse)

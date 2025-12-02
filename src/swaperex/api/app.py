@@ -1,12 +1,48 @@
 """FastAPI application factory."""
 
+import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from swaperex.config import get_settings
-from swaperex.ledger.database import close_db, init_db
+from swaperex.ledger.database import close_db, get_db, init_db
+
+logger = logging.getLogger(__name__)
+
+
+async def load_xpubs_from_db():
+    """Load stored xpubs from database and set as environment variables.
+
+    This ensures HD wallets use persistent xpubs after service restart.
+    """
+    from swaperex.crypto import decrypt_xpub
+    from swaperex.hdwallet.factory import reset_wallet_cache
+    from swaperex.ledger.repository import LedgerRepository
+
+    try:
+        async with get_db() as session:
+            repo = LedgerRepository(session)
+            xpubs = await repo.get_all_xpubs()
+
+            for xpub_record in xpubs:
+                # Decrypt if encrypted
+                xpub_value = decrypt_xpub(xpub_record.encrypted_xpub)
+
+                # Set environment variable
+                env_key = f"XPUB_{xpub_record.asset.upper()}"
+                os.environ[env_key] = xpub_value
+                logger.info(f"Loaded xpub for {xpub_record.asset} from database")
+
+            # Reset wallet cache so new xpubs are picked up
+            if xpubs:
+                reset_wallet_cache()
+                logger.info(f"Loaded {len(xpubs)} xpubs from database")
+
+    except Exception as e:
+        logger.warning(f"Failed to load xpubs from database: {e}")
 
 
 @asynccontextmanager
@@ -14,6 +50,7 @@ async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     # Startup
     await init_db()
+    await load_xpubs_from_db()
     yield
     # Shutdown
     await close_db()
@@ -41,7 +78,7 @@ def create_app() -> FastAPI:
     )
 
     # Register routes
-    from swaperex.api.routers import admin, hdwallet, withdrawal
+    from swaperex.api.routers import admin, hdwallet, webhook, withdrawal
     from swaperex.api.routes import deposits, health
 
     app.include_router(health.router, tags=["Health"])
@@ -49,6 +86,7 @@ def create_app() -> FastAPI:
     app.include_router(admin.router, tags=["Admin"])
     app.include_router(hdwallet.router, tags=["HD Wallet"])
     app.include_router(withdrawal.router, tags=["Withdrawals"])
+    app.include_router(webhook.router, tags=["Webhooks"])
 
     return app
 

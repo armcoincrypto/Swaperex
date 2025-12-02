@@ -139,6 +139,51 @@ class HDWalletState(Base):
     )
 
 
+class XpubKey(Base):
+    """Stores encrypted extended public keys for HD wallet derivation.
+
+    Keys are encrypted using Fernet (AES-128-CBC) with a master key.
+    """
+
+    __tablename__ = "xpub_keys"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    asset: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
+    label: Mapped[str] = mapped_column(String(100), nullable=False)
+    encrypted_xpub: Mapped[str] = mapped_column(Text, nullable=False)  # Fernet encrypted
+    key_type: Mapped[str] = mapped_column(String(20), default="xpub")  # xpub, tpub, zpub, etc.
+    is_testnet: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class ProcessedTransaction(Base):
+    """Tracks processed transactions for idempotent webhook handling.
+
+    Prevents double-crediting from duplicate webhooks or scanner re-runs.
+    """
+
+    __tablename__ = "processed_transactions"
+    __table_args__ = (Index("ix_processed_tx_chain_hash", "chain", "tx_hash", unique=True),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    chain: Mapped[str] = mapped_column(String(20), nullable=False)  # BTC, ETH, TRX, etc.
+    tx_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    tx_index: Mapped[int] = mapped_column(default=0)  # For multi-output transactions
+    source: Mapped[str] = mapped_column(String(20), nullable=False)  # webhook, scanner
+    amount: Mapped[Decimal] = mapped_column(Numeric(36, 18), nullable=False)
+    to_address: Mapped[str] = mapped_column(String(255), nullable=False)
+    deposit_id: Mapped[Optional[int]] = mapped_column(ForeignKey("deposits.id"), nullable=True)
+    raw_payload: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON for audit
+    processed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class Deposit(Base):
     """Record of a deposit transaction."""
 

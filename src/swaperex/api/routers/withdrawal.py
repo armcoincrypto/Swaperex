@@ -1,5 +1,6 @@
 """Withdrawal API endpoints."""
 
+import logging
 from decimal import Decimal
 from typing import Optional
 
@@ -11,6 +12,8 @@ from swaperex.withdrawal.factory import (
     get_supported_withdrawal_assets,
     get_withdrawal_handler,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/withdraw", tags=["Withdrawals"])
 
@@ -209,3 +212,168 @@ async def get_withdrawal_info(asset: str) -> dict:
         "testnet": handler.testnet,
         "handler_type": type(handler).__name__,
     }
+
+
+# ==============================================================================
+# Secure Signing Endpoints (Production)
+# ==============================================================================
+
+class SecureWithdrawalRequest(BaseModel):
+    """Secure withdrawal request (no private key in request)."""
+    user_id: int
+    asset: str
+    destination: str
+    amount: str
+    priority: str = "normal"
+
+
+class SignerInfoResponse(BaseModel):
+    """Signer configuration info."""
+    signer_type: str
+    healthy: bool
+    signer_class: str
+
+
+@router.get("/signer/info", response_model=SignerInfoResponse)
+async def get_signer_info(
+    _: bool = Depends(require_admin_token),
+) -> SignerInfoResponse:
+    """Get information about the configured transaction signer."""
+    from swaperex.signing import get_signer
+
+    try:
+        signer = get_signer()
+        health = await signer.health_check()
+
+        return SignerInfoResponse(
+            signer_type=signer.signer_type.value,
+            healthy=health,
+            signer_class=signer.__class__.__name__,
+        )
+    except Exception as e:
+        logger.error(f"Failed to get signer info: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/signer/address/{asset}")
+async def get_signing_address(
+    asset: str,
+    _: bool = Depends(require_admin_token),
+) -> dict:
+    """Get the withdrawal address for an asset (from signer)."""
+    from swaperex.signing import get_signer
+
+    try:
+        signer = get_signer()
+        address = await signer.get_address(asset, asset)
+
+        if not address:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No signing key configured for {asset}",
+            )
+
+        return {
+            "asset": asset.upper(),
+            "address": address,
+            "signer_type": signer.signer_type.value,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get signing address: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/secure", response_model=WithdrawalResponse)
+async def execute_secure_withdrawal(
+    request: SecureWithdrawalRequest,
+    _: bool = Depends(require_admin_token),
+) -> WithdrawalResponse:
+    """Execute a withdrawal using secure signing (KMS/HSM/local hot wallet).
+
+    This endpoint uses the configured signer backend instead of
+    requiring a private key in the request.
+
+    Flow:
+    1. Validate destination address
+    2. Check user balance (TODO: integrate with ledger)
+    3. Build unsigned transaction
+    4. Sign using configured signer
+    5. Broadcast transaction
+    """
+    from swaperex.signing import get_signer
+    from swaperex.withdrawal.base import WithdrawalStatus
+
+    handler = get_withdrawal_handler(request.asset)
+    if not handler:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported asset: {request.asset}",
+        )
+
+    try:
+        amount = Decimal(request.amount)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid amount")
+
+    # Validate address
+    if not await handler.validate_address(request.destination):
+        raise HTTPException(status_code=400, detail="Invalid destination address")
+
+    # Get signer
+    signer = get_signer()
+
+    # Check signer health
+    if not await signer.health_check():
+        raise HTTPException(
+            status_code=503,
+            detail="Signing service unavailable",
+        )
+
+    # For now, use simulated execution if no real implementation
+    # In production, this would:
+    # 1. Build unsigned transaction
+    # 2. Get message hash
+    # 3. Sign with signer
+    # 4. Apply signature
+    # 5. Broadcast
+
+    logger.info(
+        f"Secure withdrawal request: {amount} {request.asset} to {request.destination} "
+        f"(user={request.user_id}, signer={signer.signer_type.value})"
+    )
+
+    # Placeholder: use existing handler execution with empty key
+    # Real implementation would build tx, sign separately, then broadcast
+    import secrets
+
+    # Check if we have a signing key for this asset
+    address = await signer.get_address(request.asset, request.asset)
+    if not address:
+        return WithdrawalResponse(
+            success=False,
+            status=WithdrawalStatus.FAILED.value,
+            error=f"No signing key configured for {request.asset}. "
+                  f"Set HOT_WALLET_PRIVATE_KEY_{request.asset} or configure KMS/HSM.",
+        )
+
+    # For development/testing: return simulated result
+    settings = get_settings()
+    if settings.dry_run:
+        return WithdrawalResponse(
+            success=True,
+            txid=f"sim_{secrets.token_hex(32)}",
+            status=WithdrawalStatus.BROADCAST.value,
+            message=f"[DRY_RUN] Would send {amount} {request.asset} to {request.destination} "
+                    f"using {signer.signer_type.value} signer",
+            fee_paid="0.0001",
+        )
+
+    # Real execution would go here
+    return WithdrawalResponse(
+        success=False,
+        status=WithdrawalStatus.FAILED.value,
+        error="Secure withdrawal execution not yet implemented. Set DRY_RUN=true for testing.",
+    )
