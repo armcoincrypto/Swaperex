@@ -38,12 +38,14 @@ async def run_bot() -> None:
     """Run the bot in polling mode."""
     settings = get_settings()
 
-    # Configure logging
-    log_level = logging.DEBUG if settings.debug else logging.INFO
+    # Configure logging - reduce noise from libraries
     logging.basicConfig(
-        level=log_level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
     )
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+    logging.getLogger("aiosqlite").setLevel(logging.WARNING)
+    logging.getLogger("aiogram").setLevel(logging.INFO)
 
     logger.info("Starting Swaperex bot...")
 

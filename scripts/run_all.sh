@@ -44,9 +44,6 @@ echo "Bot:     Telegram polling (PID: $BOT_PID)"
 echo ""
 echo "Press Ctrl+C to stop all services"
 
-# Wait for any process to exit
-wait -n
-
-# If any process exits, kill all
-echo "Service exited, stopping all..."
-kill $API_PID $SCANNER_PID $BOT_PID 2>/dev/null || true
+# Wait for all processes (Ctrl+C will interrupt)
+trap "echo 'Stopping...'; kill $API_PID $SCANNER_PID $BOT_PID 2>/dev/null; exit 0" INT TERM
+wait
