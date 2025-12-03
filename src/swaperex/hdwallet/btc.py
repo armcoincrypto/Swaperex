@@ -14,11 +14,22 @@ from swaperex.hdwallet.base import AddressInfo, HDWalletProvider
 
 # Try to import bip_utils, fall back to simulation if not available
 try:
-    from bip_utils import Bip44Changes, Bip84, CoinsNames
+    from bip_utils import (
+        Bip32KeyNetVersions,
+        Bip32Secp256k1,
+        Bip44Changes,
+        Bip84,
+        Bip84Coins,
+        P2WPKHAddrEncoder,
+    )
 
     HAS_BIP_UTILS = True
 except ImportError:
     HAS_BIP_UTILS = False
+
+# Network version bytes for different xpub formats
+VPUB_NET_VER = Bip32KeyNetVersions(b'\x04\x5f\x1c\xf6', b'\x04\x5f\x18\xbc') if HAS_BIP_UTILS else None  # BIP84 testnet
+ZPUB_NET_VER = Bip32KeyNetVersions(b'\x04\xb2\x47\x46', b'\x04\xb2\x43\x0c') if HAS_BIP_UTILS else None  # BIP84 mainnet
 
 
 class BTCHDWallet(HDWalletProvider):
@@ -42,6 +53,8 @@ class BTCHDWallet(HDWalletProvider):
         self._xpub = xpub
         self._testnet = testnet
         self._bip84_ctx: Optional[object] = None
+        self._bip32_ctx: Optional[object] = None
+        self._use_bip32: bool = False
 
         if xpub:
             self._validate_xpub()
@@ -61,15 +74,24 @@ class BTCHDWallet(HDWalletProvider):
 
         if HAS_BIP_UTILS:
             try:
-                # Try to parse the xpub
-                if self._testnet:
-                    self._bip84_ctx = Bip84.FromExtendedKey(
-                        self._xpub, Bip84.CoinClass(CoinsNames.BITCOIN_TESTNET)
-                    )
+                # Use raw BIP32 parsing with correct network versions for vpub/zpub
+                if self._xpub.startswith("vpub"):
+                    self._bip32_ctx = Bip32Secp256k1.FromExtendedKey(self._xpub, VPUB_NET_VER)
+                    self._use_bip32 = True
+                elif self._xpub.startswith("zpub"):
+                    self._bip32_ctx = Bip32Secp256k1.FromExtendedKey(self._xpub, ZPUB_NET_VER)
+                    self._use_bip32 = True
                 else:
-                    self._bip84_ctx = Bip84.FromExtendedKey(
-                        self._xpub, Bip84.CoinClass(CoinsNames.BITCOIN)
-                    )
+                    # Try standard BIP84 parsing for xpub/tpub
+                    self._use_bip32 = False
+                    if self._testnet:
+                        self._bip84_ctx = Bip84.FromExtendedKey(
+                            self._xpub, Bip84Coins.BITCOIN_TESTNET
+                        )
+                    else:
+                        self._bip84_ctx = Bip84.FromExtendedKey(
+                            self._xpub, Bip84Coins.BITCOIN
+                        )
             except Exception as e:
                 raise ValueError(f"Invalid BTC xpub: {e}")
 
@@ -80,6 +102,9 @@ class BTCHDWallet(HDWalletProvider):
     @xpub.setter
     def xpub(self, value: str) -> None:
         self._xpub = value
+        self._bip84_ctx = None
+        self._bip32_ctx = None
+        self._use_bip32 = False
         if value:
             self._validate_xpub()
 
@@ -113,10 +138,31 @@ class BTCHDWallet(HDWalletProvider):
         Returns:
             AddressInfo with bech32 address
         """
-        if HAS_BIP_UTILS and self._bip84_ctx:
-            return self._derive_with_bip_utils(index, change)
-        else:
-            return self._derive_simulated(index, change)
+        if HAS_BIP_UTILS:
+            if self._use_bip32 and self._bip32_ctx:
+                return self._derive_with_bip32(index, change)
+            elif self._bip84_ctx:
+                return self._derive_with_bip_utils(index, change)
+        return self._derive_simulated(index, change)
+
+    def _derive_with_bip32(self, index: int, change: int) -> AddressInfo:
+        """Derive address using raw BIP32 for vpub/zpub keys."""
+        # Derive change/index path
+        child = self._bip32_ctx.DerivePath(f"{change}/{index}")
+        pubkey = child.PublicKey().RawCompressed().ToBytes()
+
+        # Generate bech32 address
+        hrp = "tb" if self._testnet else "bc"
+        address = P2WPKHAddrEncoder.EncodeKey(pubkey, hrp=hrp)
+
+        return AddressInfo(
+            address=address,
+            asset=self.asset,
+            derivation_path=self.get_derivation_path(index, change),
+            index=index,
+            change=change,
+            script_type="p2wpkh",
+        )
 
     def _derive_with_bip_utils(self, index: int, change: int) -> AddressInfo:
         """Derive address using bip_utils library."""
