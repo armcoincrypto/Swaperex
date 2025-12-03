@@ -218,21 +218,49 @@ class LTCHDWallet(HDWalletProvider):
     Generates ltc1q... addresses.
     """
 
+    # LTC BIP84 network version bytes
+    # Ltub = 019da462 (testnet), Mtub = 01b26ef6 (mainnet)
+    LTUB_NET_VER = Bip32KeyNetVersions(b'\x01\x9d\xa4\x62', b'\x01\x9d\x9c\xfe') if HAS_BIP_UTILS else None
+    MTUB_NET_VER = Bip32KeyNetVersions(b'\x01\xb2\x6e\xf6', b'\x01\xb2\x67\x92') if HAS_BIP_UTILS else None
+
     def __init__(self, xpub: str, testnet: bool = False):
         self._xpub = xpub
         self._testnet = testnet
+        self._bip32_ctx: Optional[object] = None
 
         if xpub:
             self._validate_xpub()
 
     def _validate_xpub(self) -> None:
-        """Validate LTC xpub."""
+        """Validate LTC xpub and initialize BIP32 context."""
         if not self._xpub:
             return
-        # Basic validation - LTC uses similar format
+
         valid_prefixes = ["Ltub", "Mtub", "xpub", "tpub", "zpub"]
         if not any(self._xpub.startswith(p) for p in valid_prefixes):
             raise ValueError("Invalid LTC xpub prefix")
+
+        if HAS_BIP_UTILS:
+            try:
+                # Parse with appropriate network version
+                if self._xpub.startswith("Ltub"):
+                    self._bip32_ctx = Bip32Secp256k1.FromExtendedKey(
+                        self._xpub, self.LTUB_NET_VER
+                    )
+                elif self._xpub.startswith("Mtub"):
+                    self._bip32_ctx = Bip32Secp256k1.FromExtendedKey(
+                        self._xpub, self.MTUB_NET_VER
+                    )
+                else:
+                    # Standard xpub format
+                    key_net_ver = Bip32KeyNetVersions(
+                        b'\x04\x88\xb2\x1e', b'\x04\x88\xad\xe4'
+                    )
+                    self._bip32_ctx = Bip32Secp256k1.FromExtendedKey(
+                        self._xpub, key_net_ver
+                    )
+            except Exception as e:
+                raise ValueError(f"Invalid LTC xpub: {e}")
 
     @property
     def xpub(self) -> str:
@@ -241,6 +269,9 @@ class LTCHDWallet(HDWalletProvider):
     @xpub.setter
     def xpub(self, value: str) -> None:
         self._xpub = value
+        self._bip32_ctx = None
+        if value:
+            self._validate_xpub()
 
     @property
     def testnet(self) -> bool:
@@ -263,7 +294,31 @@ class LTCHDWallet(HDWalletProvider):
         return 84
 
     def derive_address(self, index: int, change: int = 0) -> AddressInfo:
-        """Derive LTC address (simulated for now)."""
+        """Derive LTC address."""
+        if HAS_BIP_UTILS and self._bip32_ctx:
+            return self._derive_with_bip32(index, change)
+        return self._derive_simulated(index, change)
+
+    def _derive_with_bip32(self, index: int, change: int) -> AddressInfo:
+        """Derive address using raw BIP32."""
+        child = self._bip32_ctx.DerivePath(f"{change}/{index}")
+        pubkey = child.PublicKey().RawCompressed().ToBytes()
+
+        # LTC uses ltc1 for mainnet, tltc1 for testnet (bech32)
+        hrp = "tltc" if self._testnet else "ltc"
+        address = P2WPKHAddrEncoder.EncodeKey(pubkey, hrp=hrp)
+
+        return AddressInfo(
+            address=address,
+            asset=self.asset,
+            derivation_path=self.get_derivation_path(index, change),
+            index=index,
+            change=change,
+            script_type="p2wpkh",
+        )
+
+    def _derive_simulated(self, index: int, change: int) -> AddressInfo:
+        """Generate deterministic simulated address."""
         seed = f"{self._xpub}:{change}:{index}"
         hash_bytes = hashlib.sha256(seed.encode()).digest()
 
@@ -277,5 +332,5 @@ class LTCHDWallet(HDWalletProvider):
             derivation_path=self.get_derivation_path(index, change),
             index=index,
             change=change,
-            script_type="p2wpkh",
+            script_type="p2wpkh_simulated",
         )
