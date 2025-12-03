@@ -89,6 +89,10 @@ async def handle_deposit_asset(callback: CallbackQuery) -> None:
         # Check if we have an existing address for this asset
         existing_addr = await repo.get_deposit_address(user.id, asset)
 
+        # Ignore old simulated addresses
+        if existing_addr and existing_addr.address.startswith("sim:"):
+            existing_addr = None
+
         # For ERC-20 tokens, also check if user has an ETH address (same address)
         parent_chain = None
         if asset in ["USDT", "USDC", "USDT-ERC20"]:
@@ -98,6 +102,9 @@ async def handle_deposit_asset(callback: CallbackQuery) -> None:
 
         if not existing_addr and parent_chain:
             existing_addr = await repo.get_deposit_address(user.id, parent_chain)
+            # Also ignore simulated parent chain addresses
+            if existing_addr and existing_addr.address.startswith("sim:"):
+                existing_addr = None
 
         if existing_addr:
             address = existing_addr.address
