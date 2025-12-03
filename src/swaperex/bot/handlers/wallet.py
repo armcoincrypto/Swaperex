@@ -74,6 +74,10 @@ async def handle_deposit_asset(callback: CallbackQuery) -> None:
     asset = callback.data.split(":")[1]
     settings = get_settings()
 
+    # Get HD wallet for this asset (to check if simulated)
+    hd_wallet = get_hd_wallet(asset)
+    is_simulated = not hd_wallet.xpub or hd_wallet.xpub.startswith("sim_")
+
     async with get_db() as session:
         repo = LedgerRepository(session)
         user = await repo.get_or_create_user(
@@ -89,9 +93,6 @@ async def handle_deposit_asset(callback: CallbackQuery) -> None:
             address = existing_addr.address
             derivation_path = existing_addr.derivation_path
         else:
-            # Get HD wallet for this asset
-            hd_wallet = get_hd_wallet(asset)
-
             # Get next available index
             index = await repo.get_next_hd_index(asset)
 
@@ -126,8 +127,11 @@ async def handle_deposit_asset(callback: CallbackQuery) -> None:
         "- Deposits are credited automatically",
     ])
 
-    if settings.dry_run:
-        lines.extend(["", "(PoC mode - simulated addresses)"])
+    # Show appropriate mode indicator
+    if is_simulated:
+        lines.extend(["", "(Simulated address - no xpub configured)"])
+    elif hd_wallet.testnet:
+        lines.extend(["", "(Testnet mode)"])
 
     text = "\n".join(lines)
     await callback.message.edit_text(text, reply_markup=back_keyboard("deposit_back"))
