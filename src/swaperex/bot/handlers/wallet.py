@@ -86,8 +86,18 @@ async def handle_deposit_asset(callback: CallbackQuery) -> None:
             first_name=callback.from_user.first_name,
         )
 
-        # Check if we have an existing address
+        # Check if we have an existing address for this asset
         existing_addr = await repo.get_deposit_address(user.id, asset)
+
+        # For ERC-20 tokens, also check if user has an ETH address (same address)
+        parent_chain = None
+        if asset in ["USDT", "USDC", "USDT-ERC20"]:
+            parent_chain = "ETH"
+        elif asset == "USDT-TRC20":
+            parent_chain = "TRX"
+
+        if not existing_addr and parent_chain:
+            existing_addr = await repo.get_deposit_address(user.id, parent_chain)
 
         if existing_addr:
             address = existing_addr.address
@@ -102,13 +112,17 @@ async def handle_deposit_asset(callback: CallbackQuery) -> None:
             derivation_path = addr_info.derivation_path
 
             # Store in database with derivation info
-            await repo.create_deposit_address(
-                user_id=user.id,
-                asset=asset,
-                address=address,
-                derivation_path=derivation_path,
-                derivation_index=index,
-            )
+            try:
+                await repo.create_deposit_address(
+                    user_id=user.id,
+                    asset=asset,
+                    address=address,
+                    derivation_path=derivation_path,
+                    derivation_index=index,
+                )
+            except Exception:
+                # Address may already exist for another asset (same chain)
+                pass
 
     # Determine network info for tokens
     network_info = ""
