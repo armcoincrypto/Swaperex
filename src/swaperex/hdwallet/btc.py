@@ -222,6 +222,8 @@ class LTCHDWallet(HDWalletProvider):
     # Ltub = 019da462 (testnet), Mtub = 01b26ef6 (mainnet)
     LTUB_NET_VER = Bip32KeyNetVersions(b'\x01\x9d\xa4\x62', b'\x01\x9d\x9c\xfe') if HAS_BIP_UTILS else None
     MTUB_NET_VER = Bip32KeyNetVersions(b'\x01\xb2\x6e\xf6', b'\x01\xb2\x67\x92') if HAS_BIP_UTILS else None
+    # Some wallets use BTC's zpub format for LTC
+    ZPUB_NET_VER = Bip32KeyNetVersions(b'\x04\xb2\x47\x46', b'\x04\xb2\x43\x0c') if HAS_BIP_UTILS else None
 
     def __init__(self, xpub: str, testnet: bool = False):
         self._xpub = xpub
@@ -236,7 +238,7 @@ class LTCHDWallet(HDWalletProvider):
         if not self._xpub:
             return
 
-        valid_prefixes = ["Ltub", "Mtub", "xpub", "tpub", "zpub"]
+        valid_prefixes = ["Ltub", "Mtub", "xpub", "tpub", "zpub", "vpub"]
         if not any(self._xpub.startswith(p) for p in valid_prefixes):
             raise ValueError("Invalid LTC xpub prefix")
 
@@ -250,6 +252,16 @@ class LTCHDWallet(HDWalletProvider):
                 elif self._xpub.startswith("Mtub"):
                     self._bip32_ctx = Bip32Secp256k1.FromExtendedKey(
                         self._xpub, self.MTUB_NET_VER
+                    )
+                elif self._xpub.startswith("zpub"):
+                    # Some wallets (like Electrum) use BTC's zpub format for LTC
+                    self._bip32_ctx = Bip32Secp256k1.FromExtendedKey(
+                        self._xpub, self.ZPUB_NET_VER
+                    )
+                elif self._xpub.startswith("vpub"):
+                    # BTC testnet vpub format used for LTC testnet
+                    self._bip32_ctx = Bip32Secp256k1.FromExtendedKey(
+                        self._xpub, VPUB_NET_VER
                     )
                 else:
                     # Standard xpub format
