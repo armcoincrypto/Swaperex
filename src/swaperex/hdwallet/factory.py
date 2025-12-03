@@ -77,29 +77,74 @@ def get_hd_wallet(asset: str) -> HDWalletProvider:
 
 
 def _get_xpub_for_asset(asset: str, settings) -> Optional[str]:
-    """Get xpub from settings for a specific asset.
+    """Get xpub for a specific asset.
 
-    Xpubs are stored in environment variables as:
-    - XPUB_BTC=zpub...
-    - XPUB_ETH=xpub...
-    - etc.
+    Priority:
+    1. Database (encrypted xpub_keys table)
+    2. Environment variables (XPUB_BTC, etc.)
     """
     import os
 
-    # Try asset-specific xpub first
+    # Try to load from database first
+    xpub = _load_xpub_from_db(asset.upper())
+    if xpub:
+        return xpub
+
+    # Fall back to environment variables
     xpub = os.environ.get(f"XPUB_{asset.upper()}")
     if xpub:
         return xpub
 
     # Try generic xpub for chain families
     if asset in ["USDT-ERC20", "USDC"]:
-        return os.environ.get("XPUB_ETH")
+        return _load_xpub_from_db("ETH") or os.environ.get("XPUB_ETH")
     if asset in ["USDT-TRC20"]:
-        return os.environ.get("XPUB_TRX")
+        return _load_xpub_from_db("TRX") or os.environ.get("XPUB_TRX")
     if asset in ["BNB", "BSC"]:
-        return os.environ.get("XPUB_BSC") or os.environ.get("XPUB_ETH")
+        return _load_xpub_from_db("BSC") or _load_xpub_from_db("ETH") or os.environ.get("XPUB_BSC") or os.environ.get("XPUB_ETH")
 
     return None
+
+
+def _load_xpub_from_db(asset: str) -> Optional[str]:
+    """Load and decrypt xpub from database.
+
+    Uses synchronous database access for compatibility with factory pattern.
+    """
+    import asyncio
+
+    try:
+        from swaperex.crypto import decrypt_xpub
+        from swaperex.ledger.database import get_engine
+        from sqlalchemy import text
+
+        async def fetch_xpub():
+            engine = get_engine()
+            async with engine.connect() as conn:
+                result = await conn.execute(
+                    text("SELECT encrypted_xpub FROM xpub_keys WHERE asset = :asset"),
+                    {"asset": asset.upper()}
+                )
+                row = result.fetchone()
+                if row:
+                    return decrypt_xpub(row[0])
+            return None
+
+        # Run async function
+        try:
+            loop = asyncio.get_running_loop()
+            # If we're already in an async context, create a task
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                future = pool.submit(asyncio.run, fetch_xpub())
+                return future.result(timeout=5)
+        except RuntimeError:
+            # No running loop, safe to use asyncio.run
+            return asyncio.run(fetch_xpub())
+
+    except Exception:
+        # If anything fails, return None and fall back to env vars
+        return None
 
 
 def reset_wallet_cache() -> None:
