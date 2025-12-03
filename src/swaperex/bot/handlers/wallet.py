@@ -110,9 +110,18 @@ async def handle_deposit_asset(callback: CallbackQuery) -> None:
                 derivation_index=index,
             )
 
+    # Determine network info for tokens
+    network_info = ""
+    if asset == "USDT":
+        network_info = " (ERC-20 on Ethereum)"
+    elif asset == "USDC":
+        network_info = " (ERC-20 on Ethereum)"
+    elif asset == "USDT-TRC20":
+        network_info = " (TRC-20 on Tron)"
+
     # Build message
     lines = [
-        f"Deposit {asset}",
+        f"Deposit {asset}{network_info}",
         "",
         f"Send {asset} to this address:",
         "",

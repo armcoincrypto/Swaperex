@@ -19,9 +19,11 @@ WALLET_CLASSES: dict[str, type[HDWalletProvider]] = {
     "BSC": BSCHDWallet,
     "BNB": BSCHDWallet,  # Alias for BSC
     "TRX": TRXHDWallet,
+    "USDT": ETHHDWallet,  # Default USDT is ERC-20 (use ETH address)
     "USDT-TRC20": TRXHDWallet,
     "USDT-ERC20": ETHHDWallet,
     "USDC": ETHHDWallet,
+    "SOL": None,  # Not yet implemented - will use simulated
 }
 
 # Cache for wallet instances
@@ -96,7 +98,7 @@ def _get_xpub_for_asset(asset: str, settings) -> Optional[str]:
         return xpub
 
     # Try generic xpub for chain families
-    if asset in ["USDT-ERC20", "USDC"]:
+    if asset in ["USDT", "USDT-ERC20", "USDC"]:
         return _load_xpub_from_db("ETH") or os.environ.get("XPUB_ETH")
     if asset in ["USDT-TRC20"]:
         return _load_xpub_from_db("TRX") or os.environ.get("XPUB_TRX")
