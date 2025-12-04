@@ -73,7 +73,13 @@ async def handle_withdraw_asset(callback: CallbackQuery, state: FSMContext) -> N
     # Get address format hint based on asset
     if asset == "BTC":
         hint = "Example: bc1q... or 1A1zP1..."
-    elif asset in ("ETH", "USDT-ERC20", "USDC"):
+    elif asset == "LTC":
+        hint = "Example: ltc1q... or L... or M..."
+    elif asset == "DASH":
+        hint = "Example: X..."
+    elif asset == "DOGE":
+        hint = "Example: D..."
+    elif asset in ("ETH", "USDT-ERC20", "USDC", "BSC"):
         hint = "Example: 0x..."
     elif asset in ("TRX", "USDT-TRC20"):
         hint = "Example: T..."

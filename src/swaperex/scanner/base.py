@@ -32,12 +32,15 @@ class TransactionInfo:
     def is_confirmed(self) -> bool:
         """Check if transaction has minimum confirmations."""
         # Different assets may require different confirmation counts
+        # Based on block times and security considerations
         min_confirmations = {
-            "BTC": 2,
-            "LTC": 6,
-            "ETH": 12,
-            "BSC": 15,
-            "TRX": 20,
+            "BTC": 2,      # ~20 min (10 min blocks)
+            "LTC": 6,      # ~15 min (2.5 min blocks)
+            "DASH": 6,     # ~15 min (2.5 min blocks)
+            "DOGE": 6,     # ~6 min (1 min blocks)
+            "ETH": 12,     # ~3 min (12 sec blocks)
+            "BSC": 15,     # ~45 sec (3 sec blocks)
+            "TRX": 20,     # ~60 sec (3 sec blocks)
         }
         required = min_confirmations.get(self.asset.upper(), 6)
         return self.confirmations >= required

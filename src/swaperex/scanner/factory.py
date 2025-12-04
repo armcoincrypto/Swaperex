@@ -5,6 +5,7 @@ import os
 from swaperex.config import get_settings
 from swaperex.scanner.base import DepositScanner, SimulatedScanner
 from swaperex.scanner.blockstream import BlockstreamScanner, LTCBlockstreamScanner
+from swaperex.scanner.blockcypher import DASHScanner, LTCScanner, DOGEScanner
 
 # Cache for scanner instances
 _scanner_cache: dict[str, DepositScanner] = {}
@@ -40,9 +41,20 @@ def get_scanner(asset: str) -> DepositScanner:
     if asset_upper == "BTC":
         scanner = BlockstreamScanner(testnet=testnet)
 
-    # LTC
+    # LTC (use BlockCypher for real scanning)
     elif asset_upper == "LTC":
-        scanner = LTCBlockstreamScanner(testnet=testnet)
+        api_key = os.environ.get("BLOCKCYPHER_API_KEY")
+        scanner = LTCScanner(testnet=testnet, api_key=api_key)
+
+    # DASH
+    elif asset_upper == "DASH":
+        api_key = os.environ.get("BLOCKCYPHER_API_KEY")
+        scanner = DASHScanner(testnet=testnet, api_key=api_key)
+
+    # DOGE
+    elif asset_upper == "DOGE":
+        api_key = os.environ.get("BLOCKCYPHER_API_KEY")
+        scanner = DOGEScanner(testnet=testnet, api_key=api_key)
 
     # ETH
     elif asset_upper == "ETH":
@@ -98,6 +110,8 @@ def get_supported_scanner_assets() -> list[str]:
     return [
         "BTC",
         "LTC",
+        "DASH",
+        "DOGE",
         "ETH",
         "USDT-ERC20",
         "USDC",

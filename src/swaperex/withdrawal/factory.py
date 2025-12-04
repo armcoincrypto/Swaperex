@@ -90,6 +90,17 @@ def get_withdrawal_handler(asset: str) -> Optional[WithdrawalHandler]:
         handler = ETHWithdrawalHandler(testnet=testnet, rpc_url=rpc_url)
         handler.asset = "BSC"
 
+    # DASH
+    elif asset_upper == "DASH":
+        from swaperex.withdrawal.dash import DASHWithdrawalHandler
+        api_key = os.environ.get("BLOCKCYPHER_API_KEY")
+        handler = DASHWithdrawalHandler(testnet=testnet, api_key=api_key)
+
+    # DOGE (would use similar handler to DASH)
+    elif asset_upper == "DOGE":
+        # DOGE not yet implemented, return None
+        handler = None
+
     if handler:
         _handler_cache[asset_upper] = handler
 
@@ -101,6 +112,7 @@ def get_supported_withdrawal_assets() -> list[str]:
     return [
         "BTC",
         "LTC",
+        "DASH",
         "ETH",
         "USDT-ERC20",
         "USDC",
