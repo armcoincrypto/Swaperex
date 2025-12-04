@@ -79,13 +79,13 @@ def confirm_withdraw_keyboard(withdraw_id: str) -> InlineKeyboardMarkup:
 
 def swap_from_keyboard() -> InlineKeyboardMarkup:
     """Create swap 'from' asset selection keyboard."""
-    assets = ["BTC", "ETH", "USDT", "USDC", "SOL", "ATOM", "RUNE"]
+    assets = ["BTC", "ETH", "LTC", "DASH", "TRX", "USDT", "USDC", "RUNE"]
     return asset_selection_keyboard(assets, "swap_from")
 
 
 def swap_to_keyboard(exclude_asset: str) -> InlineKeyboardMarkup:
     """Create swap 'to' asset selection keyboard."""
-    all_assets = ["BTC", "ETH", "USDT", "USDC", "SOL", "ATOM", "RUNE"]
+    all_assets = ["BTC", "ETH", "LTC", "DASH", "TRX", "USDT", "USDC", "RUNE"]
     assets = [a for a in all_assets if a != exclude_asset]
     return asset_selection_keyboard(assets, "swap_to")
 
