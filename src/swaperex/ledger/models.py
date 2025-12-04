@@ -299,3 +299,106 @@ class Withdrawal(Base):
 
     # Relationships
     user: Mapped["User"] = relationship(back_populates="withdrawals")
+
+
+class AuditLogType(str, Enum):
+    """Type of audit log entry."""
+
+    DEPOSIT = "deposit"              # Deposit credited
+    WITHDRAWAL = "withdrawal"        # Withdrawal debited
+    SWAP_DEBIT = "swap_debit"        # Swap from_asset debited
+    SWAP_CREDIT = "swap_credit"      # Swap to_asset credited
+    LOCK = "lock"                    # Funds locked for operation
+    UNLOCK = "unlock"                # Funds unlocked (cancel/refund)
+    ADMIN_CREDIT = "admin_credit"    # Manual admin credit
+    ADMIN_DEBIT = "admin_debit"      # Manual admin debit
+    RECONCILIATION = "reconciliation"  # Auto-reconciliation adjustment
+    FEE = "fee"                      # Fee charged
+    REFUND = "refund"                # Refund processed
+
+
+class AuditLog(Base):
+    """Immutable audit trail for all balance changes.
+
+    Every change to a user's balance is logged here with full context.
+    This enables:
+    - Complete transaction history
+    - Reconciliation and debugging
+    - Regulatory compliance
+    - Dispute resolution
+    """
+
+    __tablename__ = "audit_logs"
+    __table_args__ = (
+        Index("ix_audit_logs_user_asset", "user_id", "asset"),
+        Index("ix_audit_logs_created_at", "created_at"),
+        Index("ix_audit_logs_ref", "reference_type", "reference_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    asset: Mapped[str] = mapped_column(String(20), nullable=False)
+
+    # Change details
+    log_type: Mapped[AuditLogType] = mapped_column(String(30), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(36, 18), nullable=False)  # Positive = credit, Negative = debit
+    balance_before: Mapped[Decimal] = mapped_column(Numeric(36, 18), nullable=False)
+    balance_after: Mapped[Decimal] = mapped_column(Numeric(36, 18), nullable=False)
+
+    # Reference to related entity
+    reference_type: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)  # deposit, withdrawal, swap
+    reference_id: Mapped[Optional[int]] = mapped_column(nullable=True)  # ID of related record
+
+    # Additional context
+    description: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    tx_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    metadata_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Additional JSON data
+
+    # Actor info
+    actor_type: Mapped[str] = mapped_column(String(20), default="system")  # system, admin, user
+    actor_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # Admin user ID if manual
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    # Relationships
+    user: Mapped["User"] = relationship()
+
+
+class SystemConfig(Base):
+    """System-wide configuration settings.
+
+    Stores runtime configuration that can be changed without restart.
+    """
+
+    __tablename__ = "system_config"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    key: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+    updated_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+
+
+class HotWalletBalance(Base):
+    """Tracks expected hot wallet balance per asset.
+
+    Used for reconciliation against actual blockchain balance.
+    """
+
+    __tablename__ = "hot_wallet_balances"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    asset: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
+    address: Mapped[str] = mapped_column(String(255), nullable=False)
+    expected_balance: Mapped[Decimal] = mapped_column(Numeric(36, 18), default=Decimal("0"))
+    last_blockchain_balance: Mapped[Optional[Decimal]] = mapped_column(Numeric(36, 18), nullable=True)
+    last_reconciled_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    discrepancy: Mapped[Optional[Decimal]] = mapped_column(Numeric(36, 18), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

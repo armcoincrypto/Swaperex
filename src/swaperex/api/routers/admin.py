@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 
 from swaperex.config import get_settings
 from swaperex.ledger.database import get_db
-from swaperex.ledger.models import Balance, Deposit, Swap, User, Withdrawal, WithdrawalStatus
+from swaperex.ledger.models import AuditLog, AuditLogType, Balance, Deposit, Swap, User, Withdrawal, WithdrawalStatus
 from swaperex.ledger.repository import LedgerRepository
 from swaperex.providers import get_provider
 
@@ -568,4 +568,226 @@ async def list_all_withdrawals(
             "total": total,
             "limit": limit,
             "offset": offset,
+        }
+
+
+# ==============================================================================
+# Audit Logs
+# ==============================================================================
+
+
+@router.get("/audit-logs")
+async def list_audit_logs(
+    user_id: Optional[int] = None,
+    telegram_id: Optional[int] = None,
+    asset: Optional[str] = None,
+    log_type: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
+    _: bool = Depends(require_admin_token),
+) -> dict:
+    """List audit logs with optional filters.
+
+    Provides full audit trail of all balance changes.
+    """
+    async with get_db() as session:
+        stmt = select(AuditLog).order_by(AuditLog.created_at.desc())
+
+        if user_id:
+            stmt = stmt.where(AuditLog.user_id == user_id)
+        elif telegram_id:
+            # Find user by telegram_id first
+            user_stmt = select(User).where(User.telegram_id == telegram_id)
+            user_result = await session.execute(user_stmt)
+            user = user_result.scalar_one_or_none()
+            if user:
+                stmt = stmt.where(AuditLog.user_id == user.id)
+            else:
+                return {"logs": [], "total": 0}
+
+        if asset:
+            stmt = stmt.where(AuditLog.asset == asset.upper())
+
+        if log_type:
+            stmt = stmt.where(AuditLog.log_type == log_type)
+
+        stmt = stmt.limit(limit).offset(offset)
+        result = await session.execute(stmt)
+        logs = result.scalars().all()
+
+        items = []
+        for log in logs:
+            user = await session.get(User, log.user_id)
+            items.append({
+                "id": log.id,
+                "user_id": log.user_id,
+                "telegram_id": user.telegram_id if user else 0,
+                "asset": log.asset,
+                "log_type": log.log_type.value if hasattr(log.log_type, 'value') else str(log.log_type),
+                "amount": str(log.amount),
+                "balance_before": str(log.balance_before),
+                "balance_after": str(log.balance_after),
+                "reference_type": log.reference_type,
+                "reference_id": log.reference_id,
+                "description": log.description,
+                "tx_hash": log.tx_hash,
+                "actor_type": log.actor_type,
+                "actor_id": log.actor_id,
+                "created_at": log.created_at.isoformat() if log.created_at else "",
+            })
+
+        count_stmt = select(func.count(AuditLog.id))
+        total = await session.scalar(count_stmt) or 0
+
+        return {
+            "logs": items,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        }
+
+
+# ==============================================================================
+# Health & Monitoring
+# ==============================================================================
+
+
+class HealthStatus(BaseModel):
+    """System health status."""
+
+    status: str
+    database: str
+    hot_wallets: dict
+    users: int
+    pending_withdrawals: int
+
+
+@router.get("/health", response_model=HealthStatus)
+async def get_system_health(_: bool = Depends(require_admin_token)) -> HealthStatus:
+    """Get detailed system health status.
+
+    Checks:
+    - Database connectivity
+    - Hot wallet configuration
+    - Pending operations
+    """
+    import os
+
+    try:
+        async with get_db() as session:
+            repo = LedgerRepository(session)
+
+            # User count
+            user_count = await session.scalar(select(func.count(User.id))) or 0
+
+            # Pending withdrawals
+            pending = await repo.get_pending_withdrawals()
+
+            # Check hot wallets
+            hot_wallets = {}
+            for asset in ["BTC", "ETH", "DASH", "LTC", "TRX"]:
+                wif_key = os.getenv(f"{asset}_HOT_WALLET_WIF")
+                address = os.getenv(f"{asset}_HOT_WALLET_ADDRESS")
+
+                hot_wallets[asset] = {
+                    "configured": bool(wif_key or address),
+                    "address": address[:10] + "..." if address else None,
+                }
+
+            return HealthStatus(
+                status="healthy",
+                database="connected",
+                hot_wallets=hot_wallets,
+                users=user_count,
+                pending_withdrawals=len(pending),
+            )
+
+    except Exception as e:
+        return HealthStatus(
+            status="unhealthy",
+            database=f"error: {str(e)}",
+            hot_wallets={},
+            users=0,
+            pending_withdrawals=0,
+        )
+
+
+# ==============================================================================
+# Manual Balance Adjustment with Audit
+# ==============================================================================
+
+
+class AdjustBalanceRequest(BaseModel):
+    """Request to adjust user balance."""
+
+    telegram_id: int
+    asset: str
+    amount: str  # Positive for credit, negative for debit
+    reason: str
+
+
+@router.post("/balance/adjust")
+async def adjust_balance(
+    request: AdjustBalanceRequest,
+    _: bool = Depends(require_admin_token),
+) -> dict:
+    """Adjust user balance with full audit trail.
+
+    Use positive amount to credit, negative to debit.
+    All adjustments are logged for audit purposes.
+    """
+    from decimal import Decimal, InvalidOperation
+
+    try:
+        amount = Decimal(request.amount)
+    except InvalidOperation:
+        raise HTTPException(status_code=400, detail="Invalid amount format")
+
+    async with get_db() as session:
+        repo = LedgerRepository(session)
+
+        # Get or create user
+        user = await repo.get_or_create_user(telegram_id=request.telegram_id)
+
+        # Get current balance
+        balance = await repo.get_or_create_balance(user.id, request.asset.upper())
+        balance_before = balance.amount
+
+        if amount > 0:
+            # Credit
+            await repo.credit_balance(user.id, request.asset.upper(), amount)
+            log_type = AuditLogType.ADMIN_CREDIT
+        else:
+            # Debit
+            if balance.available < abs(amount):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Insufficient balance: {balance.available} available"
+                )
+            await repo.debit_balance(user.id, request.asset.upper(), abs(amount))
+            log_type = AuditLogType.ADMIN_DEBIT
+
+        balance_after = balance_before + amount
+
+        # Add audit log
+        await repo.add_audit_log(
+            user_id=user.id,
+            asset=request.asset.upper(),
+            log_type=log_type,
+            amount=amount,
+            balance_before=balance_before,
+            balance_after=balance_after,
+            description=f"Admin adjustment: {request.reason}",
+            actor_type="admin",
+        )
+
+        return {
+            "success": True,
+            "user_id": user.id,
+            "telegram_id": request.telegram_id,
+            "asset": request.asset.upper(),
+            "adjustment": str(amount),
+            "balance_before": str(balance_before),
+            "balance_after": str(balance_after),
+            "reason": request.reason,
         }

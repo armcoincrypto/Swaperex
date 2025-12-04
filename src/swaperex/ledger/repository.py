@@ -10,14 +10,18 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from swaperex.ledger.models import (
+    AuditLog,
+    AuditLogType,
     Balance,
     Deposit,
     DepositAddress,
     DepositStatus,
     HDWalletState,
+    HotWalletBalance,
     ProcessedTransaction,
     Swap,
     SwapStatus,
+    SystemConfig,
     User,
     Withdrawal,
     WithdrawalStatus,
@@ -731,3 +735,186 @@ class LedgerRepository:
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    # Audit Log operations
+    async def add_audit_log(
+        self,
+        user_id: int,
+        asset: str,
+        log_type: AuditLogType,
+        amount: Decimal,
+        balance_before: Decimal,
+        balance_after: Decimal,
+        reference_type: Optional[str] = None,
+        reference_id: Optional[int] = None,
+        description: Optional[str] = None,
+        tx_hash: Optional[str] = None,
+        metadata_json: Optional[str] = None,
+        actor_type: str = "system",
+        actor_id: Optional[str] = None,
+    ) -> AuditLog:
+        """Add an audit log entry for a balance change."""
+        audit = AuditLog(
+            user_id=user_id,
+            asset=asset.upper(),
+            log_type=log_type,
+            amount=amount,
+            balance_before=balance_before,
+            balance_after=balance_after,
+            reference_type=reference_type,
+            reference_id=reference_id,
+            description=description,
+            tx_hash=tx_hash,
+            metadata_json=metadata_json,
+            actor_type=actor_type,
+            actor_id=actor_id,
+        )
+        self.session.add(audit)
+        await self.session.flush()
+        return audit
+
+    async def get_user_audit_logs(
+        self, user_id: int, asset: Optional[str] = None, limit: int = 50
+    ) -> list[AuditLog]:
+        """Get audit logs for a user."""
+        stmt = select(AuditLog).where(AuditLog.user_id == user_id)
+        if asset:
+            stmt = stmt.where(AuditLog.asset == asset.upper())
+        stmt = stmt.order_by(AuditLog.created_at.desc()).limit(limit)
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_audit_logs_by_reference(
+        self, reference_type: str, reference_id: int
+    ) -> list[AuditLog]:
+        """Get audit logs for a specific transaction."""
+        stmt = (
+            select(AuditLog)
+            .where(
+                AuditLog.reference_type == reference_type,
+                AuditLog.reference_id == reference_id,
+            )
+            .order_by(AuditLog.created_at)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    # Processed transaction helper for reconciliation
+    async def record_processed_transaction(
+        self,
+        chain: str,
+        tx_hash: str,
+        tx_index: int,
+        source: str,
+        amount: Decimal,
+        to_address: str,
+        deposit_id: Optional[int] = None,
+        raw_payload: Optional[str] = None,
+    ) -> ProcessedTransaction:
+        """Record a processed transaction (alias for mark_transaction_processed)."""
+        return await self.mark_transaction_processed(
+            chain=chain,
+            tx_hash=tx_hash,
+            amount=amount,
+            to_address=to_address,
+            source=source,
+            tx_index=tx_index,
+            deposit_id=deposit_id,
+            raw_payload=raw_payload,
+        )
+
+    # Hot Wallet Balance tracking
+    async def get_hot_wallet_balance(self, asset: str) -> Optional[HotWalletBalance]:
+        """Get hot wallet balance record."""
+        stmt = select(HotWalletBalance).where(HotWalletBalance.asset == asset.upper())
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def update_hot_wallet_balance(
+        self,
+        asset: str,
+        address: str,
+        expected_balance: Decimal,
+        blockchain_balance: Optional[Decimal] = None,
+    ) -> HotWalletBalance:
+        """Update or create hot wallet balance record."""
+        record = await self.get_hot_wallet_balance(asset)
+
+        if record is None:
+            record = HotWalletBalance(
+                asset=asset.upper(),
+                address=address,
+                expected_balance=expected_balance,
+            )
+            self.session.add(record)
+        else:
+            record.expected_balance = expected_balance
+            record.address = address
+
+        if blockchain_balance is not None:
+            record.last_blockchain_balance = blockchain_balance
+            record.last_reconciled_at = datetime.utcnow()
+            record.discrepancy = blockchain_balance - expected_balance
+
+        await self.session.flush()
+        return record
+
+    # System Config operations
+    async def get_config(self, key: str) -> Optional[str]:
+        """Get a system config value."""
+        stmt = select(SystemConfig).where(SystemConfig.key == key)
+        result = await self.session.execute(stmt)
+        config = result.scalar_one_or_none()
+        return config.value if config else None
+
+    async def set_config(
+        self, key: str, value: str, description: Optional[str] = None, updated_by: Optional[str] = None
+    ) -> SystemConfig:
+        """Set a system config value."""
+        stmt = select(SystemConfig).where(SystemConfig.key == key)
+        result = await self.session.execute(stmt)
+        config = result.scalar_one_or_none()
+
+        if config is None:
+            config = SystemConfig(
+                key=key,
+                value=value,
+                description=description,
+                updated_by=updated_by,
+            )
+            self.session.add(config)
+        else:
+            config.value = value
+            if description:
+                config.description = description
+            config.updated_by = updated_by
+
+        await self.session.flush()
+        return config
+
+    async def get_all_configs(self) -> list[SystemConfig]:
+        """Get all system configs."""
+        stmt = select(SystemConfig).order_by(SystemConfig.key)
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    # Admin operations
+    async def get_all_users(self, limit: int = 100, offset: int = 0) -> list[User]:
+        """Get all users (admin)."""
+        stmt = select(User).order_by(User.created_at.desc()).limit(limit).offset(offset)
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_user_count(self) -> int:
+        """Get total user count."""
+        from sqlalchemy import func
+        stmt = select(func.count(User.id))
+        result = await self.session.execute(stmt)
+        return result.scalar() or 0
+
+    async def get_total_balance_by_asset(self, asset: str) -> Decimal:
+        """Get total balance across all users for an asset."""
+        from sqlalchemy import func
+        stmt = select(func.sum(Balance.amount)).where(Balance.asset == asset.upper())
+        result = await self.session.execute(stmt)
+        return result.scalar() or Decimal("0")
