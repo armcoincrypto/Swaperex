@@ -1,12 +1,15 @@
 """Admin API endpoints (token-protected)."""
 
+from typing import Optional
+
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func, select
 
 from swaperex.config import get_settings
 from swaperex.ledger.database import get_db
-from swaperex.ledger.models import Balance, Deposit, Swap, User
+from swaperex.ledger.models import Balance, Deposit, Swap, User, Withdrawal, WithdrawalStatus
+from swaperex.ledger.repository import LedgerRepository
 from swaperex.providers import get_provider
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -152,6 +155,221 @@ async def list_users(
 
         return {
             "users": user_list,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        }
+
+
+# ==============================================================================
+# Withdrawal Management (Manual Processing)
+# ==============================================================================
+
+
+class WithdrawalInfo(BaseModel):
+    """Withdrawal details for admin view."""
+
+    id: int
+    reference: str
+    user_id: int
+    telegram_id: int
+    username: Optional[str]
+    asset: str
+    amount: str
+    fee_amount: str
+    net_amount: str
+    destination_address: str
+    status: str
+    tx_hash: Optional[str]
+    created_at: str
+    completed_at: Optional[str]
+
+
+class CompleteWithdrawalRequest(BaseModel):
+    """Request to mark withdrawal as completed."""
+
+    tx_hash: str
+
+
+class CancelWithdrawalRequest(BaseModel):
+    """Request to cancel withdrawal."""
+
+    reason: Optional[str] = None
+
+
+@router.get("/withdrawals/pending")
+async def list_pending_withdrawals(
+    _: bool = Depends(require_admin_token),
+) -> dict:
+    """List all pending withdrawals awaiting manual processing.
+
+    Use this to see which withdrawals need to be sent from Electrum/Trust Wallet.
+    """
+    async with get_db() as session:
+        repo = LedgerRepository(session)
+        withdrawals = await repo.get_pending_withdrawals()
+
+        items = []
+        for w in withdrawals:
+            user = await session.get(User, w.user_id)
+            items.append(
+                WithdrawalInfo(
+                    id=w.id,
+                    reference=f"W-{w.id:06d}",
+                    user_id=w.user_id,
+                    telegram_id=user.telegram_id if user else 0,
+                    username=user.username if user else None,
+                    asset=w.asset,
+                    amount=str(w.amount),
+                    fee_amount=str(w.fee_amount),
+                    net_amount=str(w.net_amount),
+                    destination_address=w.destination_address,
+                    status=w.status.value if isinstance(w.status, WithdrawalStatus) else w.status,
+                    tx_hash=w.tx_hash,
+                    created_at=w.created_at.isoformat() if w.created_at else "",
+                    completed_at=w.completed_at.isoformat() if w.completed_at else None,
+                )
+            )
+
+        return {
+            "pending_count": len(items),
+            "withdrawals": [w.model_dump() for w in items],
+        }
+
+
+@router.get("/withdrawals/{withdrawal_id}")
+async def get_withdrawal_details(
+    withdrawal_id: int,
+    _: bool = Depends(require_admin_token),
+) -> WithdrawalInfo:
+    """Get details of a specific withdrawal."""
+    async with get_db() as session:
+        repo = LedgerRepository(session)
+        w = await repo.get_withdrawal_by_id(withdrawal_id)
+
+        if not w:
+            raise HTTPException(status_code=404, detail="Withdrawal not found")
+
+        user = await session.get(User, w.user_id)
+
+        return WithdrawalInfo(
+            id=w.id,
+            reference=f"W-{w.id:06d}",
+            user_id=w.user_id,
+            telegram_id=user.telegram_id if user else 0,
+            username=user.username if user else None,
+            asset=w.asset,
+            amount=str(w.amount),
+            fee_amount=str(w.fee_amount),
+            net_amount=str(w.net_amount),
+            destination_address=w.destination_address,
+            status=w.status.value if isinstance(w.status, WithdrawalStatus) else w.status,
+            tx_hash=w.tx_hash,
+            created_at=w.created_at.isoformat() if w.created_at else "",
+            completed_at=w.completed_at.isoformat() if w.completed_at else None,
+        )
+
+
+@router.post("/withdrawals/{withdrawal_id}/complete")
+async def complete_withdrawal(
+    withdrawal_id: int,
+    request: CompleteWithdrawalRequest,
+    _: bool = Depends(require_admin_token),
+) -> dict:
+    """Mark withdrawal as completed after sending from Electrum/Trust Wallet.
+
+    Call this after you've manually sent the transaction and have the tx hash.
+    """
+    async with get_db() as session:
+        repo = LedgerRepository(session)
+
+        try:
+            w = await repo.complete_withdrawal(
+                withdrawal_id=withdrawal_id,
+                tx_hash=request.tx_hash,
+            )
+
+            return {
+                "success": True,
+                "message": f"Withdrawal W-{w.id:06d} marked as completed",
+                "tx_hash": w.tx_hash,
+                "status": w.status.value if isinstance(w.status, WithdrawalStatus) else w.status,
+            }
+
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/withdrawals/{withdrawal_id}/cancel")
+async def cancel_withdrawal(
+    withdrawal_id: int,
+    request: CancelWithdrawalRequest,
+    _: bool = Depends(require_admin_token),
+) -> dict:
+    """Cancel a pending withdrawal and refund user balance."""
+    async with get_db() as session:
+        repo = LedgerRepository(session)
+
+        try:
+            w = await repo.cancel_withdrawal(withdrawal_id=withdrawal_id)
+
+            return {
+                "success": True,
+                "message": f"Withdrawal W-{w.id:06d} cancelled and refunded",
+                "status": w.status.value if isinstance(w.status, WithdrawalStatus) else w.status,
+            }
+
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/withdrawals")
+async def list_all_withdrawals(
+    status: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    _: bool = Depends(require_admin_token),
+) -> dict:
+    """List all withdrawals with optional status filter."""
+    async with get_db() as session:
+        stmt = select(Withdrawal).order_by(Withdrawal.created_at.desc())
+
+        if status:
+            try:
+                status_enum = WithdrawalStatus(status)
+                stmt = stmt.where(Withdrawal.status == status_enum)
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
+
+        stmt = stmt.limit(limit).offset(offset)
+        result = await session.execute(stmt)
+        withdrawals = result.scalars().all()
+
+        items = []
+        for w in withdrawals:
+            user = await session.get(User, w.user_id)
+            items.append({
+                "id": w.id,
+                "reference": f"W-{w.id:06d}",
+                "user_id": w.user_id,
+                "telegram_id": user.telegram_id if user else 0,
+                "username": user.username if user else None,
+                "asset": w.asset,
+                "amount": str(w.amount),
+                "net_amount": str(w.net_amount),
+                "destination_address": w.destination_address,
+                "status": w.status.value if isinstance(w.status, WithdrawalStatus) else w.status,
+                "tx_hash": w.tx_hash,
+                "created_at": w.created_at.isoformat() if w.created_at else "",
+            })
+
+        count_stmt = select(func.count(Withdrawal.id))
+        if status:
+            count_stmt = count_stmt.where(Withdrawal.status == WithdrawalStatus(status))
+        total = await session.scalar(count_stmt) or 0
+
+        return {
+            "withdrawals": items,
             "total": total,
             "limit": limit,
             "offset": offset,
