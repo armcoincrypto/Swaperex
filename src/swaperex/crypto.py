@@ -5,11 +5,22 @@ Uses Fernet (AES-128-CBC with HMAC) for symmetric encryption.
 
 import base64
 import hashlib
+import logging
 import os
 import secrets
 from typing import Optional
 
-from cryptography.fernet import Fernet, InvalidToken
+logger = logging.getLogger(__name__)
+
+# Try to import cryptography, fallback to no-op if unavailable
+try:
+    from cryptography.fernet import Fernet, InvalidToken
+    CRYPTO_AVAILABLE = True
+except ImportError:
+    CRYPTO_AVAILABLE = False
+    Fernet = None
+    InvalidToken = Exception
+    logger.warning("cryptography package not available - xpub encryption disabled")
 
 
 def generate_master_key() -> str:
@@ -18,6 +29,8 @@ def generate_master_key() -> str:
     Returns:
         Base64-encoded 32-byte key suitable for Fernet
     """
+    if not CRYPTO_AVAILABLE:
+        raise RuntimeError("cryptography package required for key generation")
     return Fernet.generate_key().decode()
 
 
@@ -63,6 +76,8 @@ class XpubEncryptor:
         Args:
             master_key: Base64-encoded Fernet key (32 bytes)
         """
+        if not CRYPTO_AVAILABLE:
+            raise RuntimeError("cryptography package required for encryption")
         self._fernet = Fernet(master_key.encode())
 
     def encrypt(self, xpub: str) -> str:
@@ -151,6 +166,10 @@ def decrypt_xpub(encrypted: str) -> str:
     # Fernet-encrypted values start with 'gAAAAA' (base64-encoded prefix)
     if not encrypted.startswith("gAAAAA"):
         # Not encrypted, return as-is
+        return encrypted
+
+    if not CRYPTO_AVAILABLE:
+        logger.warning("Cannot decrypt xpub - cryptography package not available")
         return encrypted
 
     encryptor = get_encryptor()

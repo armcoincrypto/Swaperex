@@ -323,6 +323,201 @@ async def cancel_withdrawal(
             raise HTTPException(status_code=400, detail=str(e))
 
 
+# ==============================================================================
+# Deposit Management
+# ==============================================================================
+
+
+class ManualDepositRequest(BaseModel):
+    """Request to manually credit a deposit."""
+
+    telegram_id: int
+    asset: str
+    amount: str
+    tx_hash: Optional[str] = None
+    note: Optional[str] = None
+
+
+class DepositInfo(BaseModel):
+    """Deposit details for admin view."""
+
+    id: int
+    user_id: int
+    telegram_id: int
+    username: Optional[str]
+    asset: str
+    amount: str
+    tx_hash: Optional[str]
+    to_address: Optional[str]
+    status: str
+    created_at: str
+    confirmed_at: Optional[str]
+
+
+@router.get("/deposits")
+async def list_deposits(
+    status: Optional[str] = None,
+    asset: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    _: bool = Depends(require_admin_token),
+) -> dict:
+    """List all deposits with optional filters."""
+    async with get_db() as session:
+        from sqlalchemy import select
+        from swaperex.ledger.models import DepositStatus
+
+        stmt = select(Deposit).order_by(Deposit.created_at.desc())
+
+        if status:
+            try:
+                status_enum = DepositStatus(status)
+                stmt = stmt.where(Deposit.status == status_enum)
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
+
+        if asset:
+            stmt = stmt.where(Deposit.asset == asset.upper())
+
+        stmt = stmt.limit(limit).offset(offset)
+        result = await session.execute(stmt)
+        deposits = result.scalars().all()
+
+        items = []
+        for d in deposits:
+            user = await session.get(User, d.user_id)
+            items.append({
+                "id": d.id,
+                "user_id": d.user_id,
+                "telegram_id": user.telegram_id if user else 0,
+                "username": user.username if user else None,
+                "asset": d.asset,
+                "amount": str(d.amount),
+                "tx_hash": d.tx_hash,
+                "to_address": d.to_address,
+                "status": d.status.value if hasattr(d.status, 'value') else str(d.status),
+                "created_at": d.created_at.isoformat() if d.created_at else "",
+                "confirmed_at": d.confirmed_at.isoformat() if d.confirmed_at else None,
+            })
+
+        from sqlalchemy import func
+        count_stmt = select(func.count(Deposit.id))
+        total = await session.scalar(count_stmt) or 0
+
+        return {
+            "deposits": items,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        }
+
+
+@router.post("/deposits/credit")
+async def manual_credit_deposit(
+    request: ManualDepositRequest,
+    _: bool = Depends(require_admin_token),
+) -> dict:
+    """Manually credit a deposit to a user's balance.
+
+    Use this when:
+    - A deposit was received but not detected by scanner
+    - You need to credit funds manually
+    - Testing with real transactions
+
+    Args:
+        telegram_id: User's Telegram ID
+        asset: Asset symbol (BTC, DASH, ETH, etc.)
+        amount: Amount to credit
+        tx_hash: Optional real transaction hash for reference
+        note: Optional note for records
+    """
+    from decimal import Decimal, InvalidOperation
+    from swaperex.ledger.models import DepositStatus
+
+    try:
+        amount = Decimal(request.amount)
+        if amount <= 0:
+            raise ValueError("Amount must be positive")
+    except (InvalidOperation, ValueError) as e:
+        raise HTTPException(status_code=400, detail=f"Invalid amount: {e}")
+
+    async with get_db() as session:
+        repo = LedgerRepository(session)
+
+        # Get or create user
+        user = await repo.get_or_create_user(telegram_id=request.telegram_id)
+
+        # Get or create deposit address for records
+        addr = await repo.get_or_create_deposit_address(user.id, request.asset.upper())
+
+        # Create deposit record
+        tx_hash = request.tx_hash or f"manual_{user.id}_{request.asset}_{amount}"
+        deposit = await repo.create_deposit(
+            user_id=user.id,
+            asset=request.asset.upper(),
+            amount=amount,
+            to_address=addr.address,
+            tx_hash=tx_hash,
+            status=DepositStatus.PENDING,
+        )
+
+        # Confirm and credit balance
+        await repo.confirm_deposit(deposit.id)
+
+        return {
+            "success": True,
+            "deposit_id": deposit.id,
+            "message": f"Credited {amount} {request.asset.upper()} to user {request.telegram_id}",
+            "user_id": user.id,
+            "telegram_id": user.telegram_id,
+            "balance_credited": str(amount),
+            "note": request.note,
+        }
+
+
+@router.get("/addresses")
+async def list_deposit_addresses(
+    asset: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
+    _: bool = Depends(require_admin_token),
+) -> dict:
+    """List all deposit addresses (useful for finding user by address)."""
+    from swaperex.ledger.models import DepositAddress
+
+    async with get_db() as session:
+        stmt = select(DepositAddress).order_by(DepositAddress.created_at.desc())
+
+        if asset:
+            stmt = stmt.where(DepositAddress.asset == asset.upper())
+
+        stmt = stmt.limit(limit).offset(offset)
+        result = await session.execute(stmt)
+        addresses = result.scalars().all()
+
+        items = []
+        for a in addresses:
+            user = await session.get(User, a.user_id)
+            items.append({
+                "id": a.id,
+                "user_id": a.user_id,
+                "telegram_id": user.telegram_id if user else 0,
+                "username": user.username if user else None,
+                "asset": a.asset,
+                "address": a.address,
+                "derivation_path": a.derivation_path if hasattr(a, 'derivation_path') else None,
+                "derivation_index": a.derivation_index if hasattr(a, 'derivation_index') else None,
+                "created_at": a.created_at.isoformat() if a.created_at else "",
+            })
+
+        return {
+            "addresses": items,
+            "count": len(items),
+            "limit": limit,
+            "offset": offset,
+        }
+
+
 @router.get("/withdrawals")
 async def list_all_withdrawals(
     status: Optional[str] = None,
