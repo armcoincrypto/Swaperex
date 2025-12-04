@@ -35,10 +35,18 @@ class DepositStatus(str, Enum):
 class SwapStatus(str, Enum):
     """Status of a swap."""
 
-    PENDING = "pending"
-    ROUTING = "routing"
-    COMPLETED = "completed"
-    FAILED = "failed"
+    CREATED = "created"           # Initial state
+    RESERVED = "reserved"         # Funds reserved
+    MM2_WAITING = "mm2_waiting"   # Waiting for mm2 P2P match
+    MM2_INPROGRESS = "mm2_inprogress"  # mm2 swap in progress
+    THOR_PENDING = "thor_pending"      # THORChain swap pending
+    DEX_PENDING = "dex_pending"        # DEX swap pending
+    BROADCASTED = "broadcasted"        # Transaction broadcasted
+    PENDING = "pending"           # Legacy - waiting
+    ROUTING = "routing"           # Finding best route
+    COMPLETED = "completed"       # Swap completed
+    FAILED = "failed"             # Swap failed
+    REFUNDED = "refunded"         # Funds refunded to user
 
 
 class WithdrawalStatus(str, Enum):
@@ -230,21 +238,34 @@ class Swap(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    client_ref: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, unique=True)  # Idempotency key
     from_asset: Mapped[str] = mapped_column(String(20), nullable=False)
     to_asset: Mapped[str] = mapped_column(String(20), nullable=False)
     from_amount: Mapped[Decimal] = mapped_column(Numeric(36, 18), nullable=False)
     to_amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(36, 18), nullable=True)
     expected_to_amount: Mapped[Decimal] = mapped_column(Numeric(36, 18), nullable=False)
-    route: Mapped[str] = mapped_column(String(50), nullable=False)  # e.g., "thorchain", "1inch"
+    dest_address: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # For cross-chain swaps
+    route: Mapped[str] = mapped_column(String(50), nullable=False)  # mm2, thorchain, dex, dry_run
     route_details: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON route info
     fee_asset: Mapped[str] = mapped_column(String(20), nullable=False)
     fee_amount: Mapped[Decimal] = mapped_column(Numeric(36, 18), nullable=False)
     status: Mapped[SwapStatus] = mapped_column(
-        String(20), default=SwapStatus.PENDING, nullable=False
+        String(20), default=SwapStatus.CREATED, nullable=False
     )
+
+    # Hybrid swap engine fields
+    mm2_order_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    inbound_txid: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # Tx to THORChain/DEX
+    outbound_txid: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # Tx from THORChain/DEX
+    vault_address: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # THORChain vault
+    memo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # THORChain memo
+
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
