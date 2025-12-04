@@ -53,13 +53,15 @@ def back_keyboard(callback_data: str = "back") -> InlineKeyboardMarkup:
 
 def deposit_asset_keyboard() -> InlineKeyboardMarkup:
     """Create deposit asset selection keyboard."""
-    assets = ["BTC", "ETH", "LTC", "DASH", "TRX", "USDT", "USDC", "USDT-TRC20"]
+    # All assets with working deposit scanners
+    assets = ["BTC", "ETH", "LTC", "DASH", "TRX", "USDT-ERC20", "USDC", "USDT-TRC20", "BSC"]
     return asset_selection_keyboard(assets, "deposit")
 
 
 def withdraw_asset_keyboard() -> InlineKeyboardMarkup:
     """Create withdrawal asset selection keyboard."""
-    assets = ["BTC", "ETH", "LTC", "DASH", "USDT-ERC20", "USDT-TRC20", "TRX"]
+    # All assets with working withdrawal handlers
+    assets = ["BTC", "ETH", "LTC", "DASH", "TRX", "USDT-ERC20", "USDC", "USDT-TRC20", "BSC"]
     return asset_selection_keyboard(assets, "withdraw")
 
 
