@@ -9,7 +9,7 @@ from typing import Optional
 from swaperex.config import get_settings
 from swaperex.hdwallet.base import HDWalletProvider, SimulatedHDWallet
 from swaperex.hdwallet.btc import BTCHDWallet, LTCHDWallet
-from swaperex.hdwallet.eth import BSCHDWallet, ETHHDWallet, TRXHDWallet
+from swaperex.hdwallet.eth import BSCHDWallet, ETHHDWallet, SOLHDWallet, TRXHDWallet
 
 # Asset to wallet class mapping
 WALLET_CLASSES: dict[str, type[HDWalletProvider]] = {
@@ -19,11 +19,11 @@ WALLET_CLASSES: dict[str, type[HDWalletProvider]] = {
     "BSC": BSCHDWallet,
     "BNB": BSCHDWallet,  # Alias for BSC
     "TRX": TRXHDWallet,
+    "SOL": SOLHDWallet,
     "USDT": ETHHDWallet,  # Default USDT is ERC-20 (use ETH address)
     "USDT-TRC20": TRXHDWallet,
     "USDT-ERC20": ETHHDWallet,
     "USDC": ETHHDWallet,
-    "SOL": None,  # Not yet implemented - will use simulated
 }
 
 # Cache for wallet instances

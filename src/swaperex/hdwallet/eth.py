@@ -302,3 +302,124 @@ class TRXHDWallet(HDWalletProvider):
             change=change,
             script_type="trx_address_simulated",
         )
+
+
+class SOLHDWallet(HDWalletProvider):
+    """Solana HD Wallet using SLIP-44.
+
+    Derivation path: m/44'/501'/0'/0'
+    Address format: Base58 encoded 32-byte public key
+
+    Note: Solana uses Ed25519 curve, not secp256k1.
+    """
+
+    def __init__(self, xpub: str, testnet: bool = False):
+        self._xpub = xpub
+        self._testnet = testnet
+        self._bip32_ctx: Optional[object] = None
+
+        if xpub:
+            self._validate_xpub()
+
+    def _validate_xpub(self) -> None:
+        """Validate SOL xpub and initialize BIP32 context."""
+        if not self._xpub:
+            return
+
+        valid_prefixes = ["xpub", "tpub"]
+        if not any(self._xpub.startswith(p) for p in valid_prefixes):
+            raise ValueError("Invalid SOL xpub prefix")
+
+        if HAS_BIP_UTILS:
+            try:
+                from bip_utils import Bip32Slip10Ed25519, Bip32KeyNetVersions
+
+                # Use Ed25519 curve for Solana
+                key_net_ver = Bip32KeyNetVersions(
+                    b'\x04\x88\xb2\x1e',  # xpub
+                    b'\x04\x88\xad\xe4'   # xprv (not used)
+                )
+                self._bip32_ctx = Bip32Slip10Ed25519.FromExtendedKey(
+                    self._xpub, key_net_ver
+                )
+            except Exception as e:
+                raise ValueError(f"Invalid SOL xpub: {e}")
+
+    @property
+    def xpub(self) -> str:
+        return self._xpub
+
+    @xpub.setter
+    def xpub(self, value: str) -> None:
+        self._xpub = value
+        if value:
+            self._validate_xpub()
+
+    @property
+    def testnet(self) -> bool:
+        return self._testnet
+
+    @testnet.setter
+    def testnet(self, value: bool) -> None:
+        self._testnet = value
+
+    @property
+    def asset(self) -> str:
+        return "SOL"
+
+    @property
+    def coin_type(self) -> int:
+        return 501  # SLIP-44 for Solana
+
+    @property
+    def purpose(self) -> int:
+        return 44
+
+    def derive_address(self, index: int, change: int = 0) -> AddressInfo:
+        """Derive SOL address."""
+        if HAS_BIP_UTILS and self._bip32_ctx:
+            return self._derive_with_bip32(index, change)
+        else:
+            return self._derive_simulated(index, change)
+
+    def _derive_with_bip32(self, index: int, change: int) -> AddressInfo:
+        """Derive address using Ed25519 and SOL address encoding."""
+        from bip_utils import SolAddrEncoder
+
+        # Derive child key (Solana typically uses hardened derivation)
+        # Standard path: m/44'/501'/0'/0'
+        child = self._bip32_ctx.DerivePath(f"{change}'/{index}'")
+
+        # Get raw public key (32 bytes for Ed25519)
+        pubkey = child.PublicKey().RawCompressed().ToBytes()
+
+        # Encode as SOL address (base58 encoded public key)
+        address = SolAddrEncoder.EncodeKey(pubkey)
+
+        return AddressInfo(
+            address=address,
+            asset=self.asset,
+            derivation_path=self.get_derivation_path(index, change),
+            index=index,
+            change=change,
+            script_type="sol_address",
+        )
+
+    def _derive_simulated(self, index: int, change: int) -> AddressInfo:
+        """Generate deterministic simulated address."""
+        import base58
+
+        seed = f"{self._xpub}:{change}:{index}"
+        hash_bytes = hashlib.sha256(seed.encode()).digest()
+
+        # SOL addresses are 32-byte base58 encoded
+        address = base58.b58encode(hash_bytes).decode()
+
+        return AddressInfo(
+            address=address,
+            asset=self.asset,
+            derivation_path=self.get_derivation_path(index, change),
+            index=index,
+            change=change,
+            script_type="sol_address_simulated",
+        )

@@ -21,6 +21,7 @@ dependencies = [
     "httpx>=0.26.0",
     "cryptography>=42.0.0",  # For xpub encryption
     "bip_utils>=2.9.0",  # For HD wallet address derivation
+    "base58>=2.1.0",  # For Solana address encoding
 ]
 
 [project.optional-dependencies]
