@@ -1,4 +1,7 @@
-"""Swap handlers with quote comparison."""
+"""Swap handlers with quote comparison.
+
+Uses MM2 (AtomicDEX) as the default provider for trustless atomic swaps.
+"""
 
 import json
 from decimal import Decimal, InvalidOperation
@@ -12,7 +15,7 @@ from aiogram.types import Message, CallbackQuery
 from swaperex.bot.keyboards import swap_from_keyboard, swap_to_keyboard, confirm_swap_keyboard
 from swaperex.ledger.database import get_db
 from swaperex.ledger.repository import LedgerRepository
-from swaperex.routing.dry_run import create_default_aggregator
+from swaperex.routing.factory import create_default_aggregator
 
 router = Router()
 
@@ -141,6 +144,7 @@ async def handle_swap_amount(message: Message, state: FSMContext) -> None:
                 "fee_asset": q.fee_asset,
                 "slippage_percent": str(q.slippage_percent),
                 "estimated_time": q.estimated_time_seconds,
+                "is_simulated": q.is_simulated,
             }
             for q in quotes
         ],
@@ -150,22 +154,26 @@ async def handle_swap_amount(message: Message, state: FSMContext) -> None:
 
     # Build quote comparison text
     lines = [
-        f"Swap Quote: {amount} {from_asset} -> {to_asset}\n",
-        "Available Routes:\n",
+        f"💱 Swap Quote: {amount} {from_asset} → {to_asset}\n",
+        "📊 Available Routes:\n",
     ]
 
     for i, q in enumerate(quotes):
-        best_marker = "[BEST] " if i == 0 else "       "
+        best_marker = "🏆 [BEST] " if i == 0 else "         "
+        sim_marker = " (simulated)" if q.is_simulated else ""
         lines.append(
-            f"{best_marker}{q.provider}\n"
-            f"   Receive: {q.to_amount:.8f} {to_asset}\n"
-            f"   Fee: ${q.fee_amount:.2f}\n"
-            f"   Slippage: {q.slippage_percent:.2f}%\n"
-            f"   Time: ~{q.estimated_time_seconds}s\n"
+            f"{best_marker}{q.provider}{sim_marker}\n"
+            f"   💰 Receive: {q.to_amount:.8f} {to_asset}\n"
+            f"   💸 Fee: {q.fee_amount:.8f} {q.fee_asset}\n"
+            f"   📉 Slippage: {q.slippage_percent:.2f}%\n"
+            f"   ⏱️ Time: ~{q.estimated_time_seconds // 60}min\n"
         )
 
-    lines.append("\nBest rate selected automatically.")
-    lines.append("(Simulated quote - PoC)")
+    lines.append("\n✅ Best rate selected automatically.")
+
+    # Show if MM2 is being used
+    if best_quote.provider.startswith("MM2"):
+        lines.append("🔗 Using MM2 AtomicDEX (trustless atomic swap)")
 
     await message.answer("\n".join(lines), reply_markup=confirm_swap_keyboard("best"))
 
@@ -208,18 +216,29 @@ async def handle_confirm_swap(callback: CallbackQuery, state: FSMContext) -> Non
                 route_details=json.dumps(selected_quote),
             )
 
-            # In PoC, immediately complete the swap
+            # Complete the swap
             completed_swap = await repo.complete_swap(
                 swap.id,
                 actual_to_amount=Decimal(selected_quote["to_amount"]),
             )
 
+            is_simulated = selected_quote.get("is_simulated", False)
+            provider = selected_quote["provider"]
+
+            if is_simulated:
+                status_line = "⚠️ Simulated swap (MM2 not connected)"
+            elif provider.startswith("MM2"):
+                status_line = "🔗 Atomic swap via MM2 AtomicDEX"
+            else:
+                status_line = f"✅ Swapped via {provider}"
+
             text = (
-                f"Swap Completed!\n\n"
-                f"{amount} {from_asset} -> {completed_swap.to_amount:.8f} {to_asset}\n\n"
-                f"Route: {selected_quote['provider']}\n"
-                f"Fee: ${selected_quote['fee_amount']}\n\n"
-                f"(Simulated swap - PoC)\n\n"
+                f"✅ Swap Completed!\n\n"
+                f"📤 Sent: {amount} {from_asset}\n"
+                f"📥 Received: {completed_swap.to_amount:.8f} {to_asset}\n\n"
+                f"🔄 Route: {provider}\n"
+                f"💸 Fee: {selected_quote['fee_amount']} {selected_quote['fee_asset']}\n\n"
+                f"{status_line}\n\n"
                 f"Use /wallet to check your balance."
             )
 
