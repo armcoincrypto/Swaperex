@@ -129,7 +129,8 @@ async def handle_deposit_asset(callback: CallbackQuery) -> None:
                 )
             except Exception:
                 # Address may already exist for another asset (same chain)
-                pass
+                # Rollback to allow session to continue
+                await session.rollback()
 
     # Determine network info for tokens
     network_info = ""
