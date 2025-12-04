@@ -14,22 +14,11 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from decimal import Decimal
-from enum import Enum
 from typing import Optional
 
+from swaperex.ledger.models import WithdrawalStatus
+
 logger = logging.getLogger(__name__)
-
-
-class WithdrawalStatus(str, Enum):
-    """Withdrawal transaction status."""
-    PENDING = "pending"          # Awaiting confirmation
-    CONFIRMED = "confirmed"      # User confirmed, ready to process
-    BUILDING = "building"        # Building transaction
-    SIGNED = "signed"            # Transaction signed
-    BROADCAST = "broadcast"      # Transaction broadcast to network
-    CONFIRMING = "confirming"    # Waiting for confirmations
-    COMPLETED = "completed"      # Successfully completed
-    FAILED = "failed"            # Failed at some stage
 
 
 @dataclass

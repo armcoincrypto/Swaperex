@@ -45,6 +45,7 @@ class WithdrawalStatus(str, Enum):
     """Status of a withdrawal."""
 
     PENDING = "pending"          # Created, waiting for processing
+    CONFIRMED = "confirmed"      # User confirmed, ready to process
     BUILDING = "building"        # Building transaction
     SIGNED = "signed"            # Transaction signed
     BROADCAST = "broadcast"      # Sent to network

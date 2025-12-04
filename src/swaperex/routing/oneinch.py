@@ -282,11 +282,3 @@ class OneInchProvider(RouteProvider):
 
         except Exception as e:
             return {"success": False, "error": str(e)}
-
-
-def create_oneinch_provider(
-    api_key: Optional[str] = None,
-    chain: str = "ethereum",
-) -> OneInchProvider:
-    """Create a 1inch provider instance."""
-    return OneInchProvider(api_key=api_key, chain=chain)

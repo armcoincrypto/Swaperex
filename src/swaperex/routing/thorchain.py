@@ -258,8 +258,3 @@ class THORChainProvider(RouteProvider):
             logger.error(f"Failed to get inbound addresses: {e}")
 
         return []
-
-
-def create_thorchain_provider(stagenet: bool = False) -> THORChainProvider:
-    """Create a THORChain provider instance."""
-    return THORChainProvider(stagenet=stagenet)

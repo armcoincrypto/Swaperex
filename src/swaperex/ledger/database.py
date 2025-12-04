@@ -17,6 +17,7 @@ from swaperex.ledger.models import (  # noqa: F401
     ProcessedTransaction,
     Swap,
     User,
+    Withdrawal,
     XpubKey,
 )
 
