@@ -63,15 +63,19 @@ class SwapStates(StatesGroup):
 
 def get_swap_router() -> SwapRouter:
     """Get configured swap router with adapters."""
+    from swaperex.swap_engine.mm2_adapter import MM2Adapter
+
     config = SwapConfig(
-        mm2_enabled=False,  # TODO: Enable when mm2 is running
+        mm2_enabled=True,   # Always try mm2 first
+        mm2_wait_ms=180000, # 3 minutes wait for counterparty
         thor_enabled=True,
         dex_enabled=False,  # TODO: Enable when DEX adapter ready
         min_swap_usd=MIN_THOR_USD,
     )
 
     swap_router = SwapRouter(config=config)
-    swap_router.thor = THORChainSwapAdapter()
+    swap_router.mm2 = MM2Adapter()  # Primary: mm2 P2P
+    swap_router.thor = THORChainSwapAdapter()  # Fallback for UTXO
 
     return swap_router
 
@@ -184,50 +188,85 @@ async def handle_swap_amount(message: Message, state: FSMContext) -> None:
             )
             return
 
-    # Check minimum for THORChain
+    # Calculate USD value for minimum checks
     usd_value = get_usd_value(from_asset, amount)
-    use_real_swap = from_asset.upper() in UTXO_CHAINS and usd_value >= MIN_THOR_USD
 
-    if from_asset.upper() in UTXO_CHAINS and usd_value < MIN_THOR_USD:
-        await message.answer(
-            f"⚠️ Amount too small for THORChain\n\n"
-            f"Your amount: ${usd_value:.2f}\n"
-            f"Minimum: ${MIN_THOR_USD}\n\n"
-            f"THORChain fees would eat most of your swap.\n"
-            f"Either deposit more {from_asset} or use simulated swap for testing."
-        )
-        # Continue with simulated swap for testing
-        use_real_swap = False
-
-    # Get quotes
+    # Get quotes using hybrid strategy:
+    # 1. Always try mm2 first (P2P atomic swap - cheapest)
+    # 2. If no mm2 liquidity: UTXO → THORChain, EVM → DEX
     quotes_data = []
 
-    if use_real_swap:
-        # Get real THORChain quote
-        await message.answer("🔄 Fetching THORChain quote...")
+    await message.answer("🔄 Checking swap routes...")
 
-        try:
-            thor = THORChainSwapAdapter()
-            quote = await thor.get_quote(from_asset, to_asset, amount)
+    # Step 1: Try mm2 (always first - no fees!)
+    from swaperex.swap_engine.mm2_adapter import MM2Adapter
+    mm2 = MM2Adapter()
 
-            if quote:
+    try:
+        if await mm2.is_available():
+            mm2_quote = await mm2.get_quote(from_asset, to_asset, amount)
+            if mm2_quote:
                 quotes_data.append({
-                    "provider": "THORChain",
-                    "route": "thorchain",
-                    "to_amount": str(quote.to_amount),
-                    "fee_usd": str(quote.fee_usd),
+                    "provider": "mm2 (P2P Atomic)",
+                    "route": "mm2",
+                    "to_amount": str(mm2_quote.to_amount),
+                    "fee_usd": "0",  # mm2 has no platform fees!
                     "fee_asset": to_asset,
-                    "slippage_percent": str(quote.slippage_pct),
-                    "estimated_time": quote.estimated_time_seconds,
-                    "vault_address": quote.thor_vault_address,
-                    "memo": quote.thor_memo,
+                    "slippage_percent": "0",
+                    "estimated_time": 60,  # ~1 minute for atomic swap
+                    "mm2_order_id": mm2_quote.mm2_order_id,
                     "real": True,
-                    "warning": quote.extra.get("warning"),
+                    "warning": None,
                 })
-        except Exception as e:
-            await message.answer(f"⚠️ THORChain quote error: {e}\nFalling back to simulated...")
+                await message.answer("✅ mm2 liquidity found! Best rate available.")
+        else:
+            await message.answer("ℹ️ mm2 not running, checking fallback routes...")
+    except Exception as e:
+        await message.answer(f"ℹ️ mm2 check: {e}")
 
-    # Add simulated quote as fallback or for testing
+    # Step 2: If no mm2, check fallback based on chain type
+    if not quotes_data:
+        if from_asset.upper() in UTXO_CHAINS:
+            # UTXO chains → THORChain
+            if usd_value < MIN_THOR_USD:
+                await message.answer(
+                    f"⚠️ Amount too small for THORChain\n\n"
+                    f"Your amount: ${usd_value:.2f}\n"
+                    f"Minimum: ${MIN_THOR_USD}\n\n"
+                    f"THORChain fees would eat your swap.\n"
+                    f"Using simulated swap for testing."
+                )
+            else:
+                # Get real THORChain quote
+                try:
+                    thor = THORChainSwapAdapter()
+                    quote = await thor.get_quote(from_asset, to_asset, amount)
+
+                    if quote:
+                        quotes_data.append({
+                            "provider": "THORChain",
+                            "route": "thorchain",
+                            "to_amount": str(quote.to_amount),
+                            "fee_usd": str(quote.fee_usd),
+                            "fee_asset": to_asset,
+                            "slippage_percent": str(quote.slippage_pct),
+                            "estimated_time": quote.estimated_time_seconds,
+                            "vault_address": quote.thor_vault_address,
+                            "memo": quote.thor_memo,
+                            "real": True,
+                            "warning": quote.extra.get("warning"),
+                        })
+                except Exception as e:
+                    await message.answer(f"⚠️ THORChain error: {e}")
+
+        else:
+            # EVM chains → DEX (Uniswap/PancakeSwap via 1inch)
+            await message.answer(
+                f"ℹ️ DEX swap for {from_asset} coming soon!\n"
+                f"Will use: Uniswap (ETH), PancakeSwap (BSC), SunSwap (TRX)"
+            )
+
+    # Step 3: Fallback to simulated for testing
     if not quotes_data:
         aggregator = create_default_aggregator()
         sim_quotes = await aggregator.get_all_quotes(from_asset, to_asset, amount)
@@ -331,7 +370,20 @@ async def handle_confirm_swap(callback: CallbackQuery, state: FSMContext) -> Non
                 route_details=json.dumps(selected_quote),
             )
 
-            if is_real and selected_quote.get("vault_address"):
+            route = selected_quote.get("route", "simulated")
+
+            if route == "mm2" and is_real:
+                # Execute mm2 atomic swap
+                text = await execute_mm2_swap(
+                    swap_id=swap.id,
+                    from_asset=from_asset,
+                    to_asset=to_asset,
+                    amount=amount,
+                    expected_out=Decimal(selected_quote["to_amount"]),
+                    callback=callback,
+                    repo=repo,
+                )
+            elif route == "thorchain" and is_real and selected_quote.get("vault_address"):
                 # Execute real THORChain swap
                 text = await execute_thorchain_swap(
                     swap_id=swap.id,
@@ -364,6 +416,106 @@ async def handle_confirm_swap(callback: CallbackQuery, state: FSMContext) -> Non
 
     await callback.message.edit_text(text)
     await state.clear()
+
+
+async def execute_mm2_swap(
+    swap_id: int,
+    from_asset: str,
+    to_asset: str,
+    amount: Decimal,
+    expected_out: Decimal,
+    callback: CallbackQuery,
+    repo: LedgerRepository,
+) -> str:
+    """Execute mm2 P2P atomic swap.
+
+    1. Create taker order
+    2. Wait up to 3 minutes for match
+    3. If matched, execute atomic swap
+    4. If no match, return failure (caller will fallback)
+    """
+    import asyncio
+    from swaperex.swap_engine.mm2_adapter import MM2Adapter
+
+    mm2 = MM2Adapter()
+
+    # Step 1: Create order
+    await callback.message.edit_text(
+        f"🔄 mm2 Swap: Creating order...\n\n"
+        f"{amount} {from_asset} → {to_asset}\n"
+        f"Waiting for P2P counterparty..."
+    )
+
+    order = await mm2.create_order(from_asset, to_asset, amount)
+
+    if not order:
+        return (
+            f"❌ mm2 Swap Failed\n\n"
+            f"Could not create order.\n"
+            f"Try again or wait for THORChain fallback."
+        )
+
+    order_id = order.get("order_id")
+
+    # Step 2: Wait for match (up to 3 minutes)
+    wait_seconds = 180
+    poll_interval = 5
+
+    for elapsed in range(0, wait_seconds, poll_interval):
+        remaining = wait_seconds - elapsed
+
+        await callback.message.edit_text(
+            f"🔄 mm2 Swap: Waiting for counterparty...\n\n"
+            f"{amount} {from_asset} → {to_asset}\n\n"
+            f"⏱️ Time remaining: {remaining}s\n"
+            f"Order ID: {order_id[:16]}..."
+        )
+
+        status = await mm2.check_order_status(order_id)
+
+        if status.get("matched"):
+            # Step 3: Execute the swap
+            await callback.message.edit_text(
+                f"✅ mm2: Counterparty found!\n\n"
+                f"Executing atomic swap..."
+            )
+
+            result = await mm2.execute_swap(order_id)
+
+            if result.get("success"):
+                return (
+                    f"✅ mm2 Swap Completed!\n\n"
+                    f"{amount} {from_asset} → {result.get('to_amount', expected_out)} {to_asset}\n\n"
+                    f"Route: mm2 (P2P Atomic)\n"
+                    f"Fee: $0 (no fees!)\n\n"
+                    f"Maker TX: {result.get('maker_txid', 'N/A')[:16]}...\n"
+                    f"Taker TX: {result.get('taker_txid', 'N/A')[:16]}...\n\n"
+                    f"Use /wallet to check your balance."
+                )
+            else:
+                return (
+                    f"❌ mm2 Swap Failed\n\n"
+                    f"Error: {result.get('error', 'Unknown error')}\n"
+                    f"Your funds are safe (atomic swap)."
+                )
+
+        if status.get("failed"):
+            await mm2.cancel_order(order_id)
+            return (
+                f"❌ mm2 Order Failed\n\n"
+                f"Error: {status.get('error', 'Order cancelled')}"
+            )
+
+        await asyncio.sleep(poll_interval)
+
+    # Timeout - cancel order
+    await mm2.cancel_order(order_id)
+
+    return (
+        f"⏱️ mm2 Timeout\n\n"
+        f"No counterparty found in 3 minutes.\n"
+        f"Falling back to THORChain/DEX..."
+    )
 
 
 async def execute_thorchain_swap(
