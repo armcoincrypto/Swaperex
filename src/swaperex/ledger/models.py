@@ -41,6 +41,19 @@ class SwapStatus(str, Enum):
     FAILED = "failed"
 
 
+class WithdrawalStatus(str, Enum):
+    """Status of a withdrawal."""
+
+    PENDING = "pending"          # Created, waiting for processing
+    BUILDING = "building"        # Building transaction
+    SIGNED = "signed"            # Transaction signed
+    BROADCAST = "broadcast"      # Sent to network
+    CONFIRMING = "confirming"    # Waiting for confirmations
+    COMPLETED = "completed"      # Fully confirmed
+    FAILED = "failed"            # Failed at any stage
+    CANCELLED = "cancelled"      # Cancelled by user/admin
+
+
 class User(Base):
     """User account linked to Telegram."""
 
@@ -61,6 +74,7 @@ class User(Base):
     balances: Mapped[list["Balance"]] = relationship(back_populates="user", lazy="selectin")
     deposits: Mapped[list["Deposit"]] = relationship(back_populates="user", lazy="selectin")
     swaps: Mapped[list["Swap"]] = relationship(back_populates="user", lazy="selectin")
+    withdrawals: Mapped[list["Withdrawal"]] = relationship(back_populates="user", lazy="selectin")
     deposit_addresses: Mapped[list["DepositAddress"]] = relationship(
         back_populates="user", lazy="selectin"
     )
@@ -236,3 +250,31 @@ class Swap(Base):
 
     # Relationships
     user: Mapped["User"] = relationship(back_populates="swaps")
+
+
+class Withdrawal(Base):
+    """Record of a withdrawal transaction."""
+
+    __tablename__ = "withdrawals"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    asset: Mapped[str] = mapped_column(String(20), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(36, 18), nullable=False)
+    fee_amount: Mapped[Decimal] = mapped_column(Numeric(36, 18), nullable=False)
+    net_amount: Mapped[Decimal] = mapped_column(Numeric(36, 18), nullable=False)  # amount - fee
+    destination_address: Mapped[str] = mapped_column(String(255), nullable=False)
+    tx_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
+    status: Mapped[WithdrawalStatus] = mapped_column(
+        String(20), default=WithdrawalStatus.PENDING, nullable=False
+    )
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    confirmations: Mapped[int] = mapped_column(default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    broadcast_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Relationships
+    user: Mapped["User"] = relationship(back_populates="withdrawals")

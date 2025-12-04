@@ -267,19 +267,75 @@ async def handle_confirm_withdraw(callback: CallbackQuery, state: FSMContext) ->
         repo = LedgerRepository(session)
         user = await repo.get_or_create_user(telegram_id=callback.from_user.id)
 
-        # Deduct from balance
+        # Calculate total deduction
         deduct_amount = amount
         if fee_asset == asset:
             deduct_amount = amount + total_fee
 
         try:
-            # In PoC mode, we simulate the withdrawal
-            if settings.dry_run:
-                # Deduct balance
-                await repo.update_balance(user.id, asset, -deduct_amount)
-                txid = f"sim_{secrets.token_hex(32)}"
+            # Create withdrawal record (this debits balance)
+            withdrawal = await repo.create_withdrawal(
+                user_id=user.id,
+                asset=asset,
+                amount=deduct_amount,
+                fee_amount=total_fee if fee_asset == asset else Decimal("0"),
+                destination_address=destination,
+            )
 
-                text = f"""Withdrawal Submitted!
+            # Try to execute the withdrawal
+            handler = get_withdrawal_handler(asset)
+            txid = None
+            executed = False
+
+            if handler and not settings.dry_run:
+                try:
+                    # Attempt real execution
+                    result = await handler.execute_withdrawal(
+                        destination_address=destination,
+                        amount=amount,
+                    )
+
+                    if result.success:
+                        txid = result.txid
+                        executed = True
+                        # Update withdrawal status
+                        from swaperex.ledger.models import WithdrawalStatus
+                        await repo.update_withdrawal_status(
+                            withdrawal.id,
+                            WithdrawalStatus.BROADCAST,
+                            tx_hash=txid,
+                        )
+                    else:
+                        # Execution failed - refund
+                        await repo.fail_withdrawal(
+                            withdrawal.id,
+                            error_message=result.error or "Unknown error",
+                            refund=True,
+                        )
+                        text = f"""Withdrawal Failed
+
+Error: {result.error or 'Transaction could not be broadcast'}
+
+Your balance has been refunded.
+
+Use /wallet to check your balance."""
+                        await callback.message.edit_text(text)
+                        await state.clear()
+                        await callback.answer()
+                        return
+
+                except Exception as e:
+                    # Handler error - keep as pending for manual processing
+                    from swaperex.ledger.models import WithdrawalStatus
+                    await repo.update_withdrawal_status(
+                        withdrawal.id,
+                        WithdrawalStatus.PENDING,
+                        error_message=f"Auto-execution failed: {str(e)}",
+                    )
+
+            # Build response message
+            if executed and txid:
+                text = f"""Withdrawal Broadcast!
 
 Asset: {asset}
 Amount: {amount:.8f}
@@ -287,30 +343,48 @@ To: {destination[:10]}...{destination[-6:]}
 
 TXID: {txid[:20]}...
 
-Status: Pending (simulated)
+Status: Broadcast to network
+Waiting for confirmations...
+
+Use /wallet to check your balance."""
+
+            elif settings.dry_run:
+                # Simulated mode
+                sim_txid = f"sim_{secrets.token_hex(32)}"
+                from swaperex.ledger.models import WithdrawalStatus
+                await repo.update_withdrawal_status(
+                    withdrawal.id,
+                    WithdrawalStatus.COMPLETED,
+                    tx_hash=sim_txid,
+                )
+                text = f"""Withdrawal Submitted!
+
+Asset: {asset}
+Amount: {amount:.8f}
+To: {destination[:10]}...{destination[-6:]}
+
+TXID: {sim_txid[:20]}...
+
+Status: Completed (simulated)
 
 Use /wallet to check your balance.
 
 (Simulated withdrawal - PoC mode)"""
 
             else:
-                # Real withdrawal would require private key from secure storage
-                # For now, still simulate but mark as not dry-run ready
-                await repo.update_balance(user.id, asset, -deduct_amount)
-                txid = f"pending_{secrets.token_hex(16)}"
-
+                # Queued for manual processing
                 text = f"""Withdrawal Queued!
 
 Asset: {asset}
 Amount: {amount:.8f}
 To: {destination[:10]}...{destination[-6:]}
 
-Reference: {txid}
+Reference: W-{withdrawal.id}
 
 Status: Queued for processing
+Your balance has been deducted.
 
-Note: Real withdrawals require HSM integration.
-Balance has been deducted.
+The withdrawal will be processed by an operator.
 
 Use /wallet to check your balance."""
 

@@ -59,7 +59,7 @@ def deposit_asset_keyboard() -> InlineKeyboardMarkup:
 
 def withdraw_asset_keyboard() -> InlineKeyboardMarkup:
     """Create withdrawal asset selection keyboard."""
-    assets = ["BTC", "ETH", "USDT-ERC20", "USDT-TRC20", "TRX"]
+    assets = ["BTC", "ETH", "LTC", "DASH", "USDT-ERC20", "USDT-TRC20", "TRX"]
     return asset_selection_keyboard(assets, "withdraw")
 
 

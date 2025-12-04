@@ -19,6 +19,8 @@ from swaperex.ledger.models import (
     Swap,
     SwapStatus,
     User,
+    Withdrawal,
+    WithdrawalStatus,
     XpubKey,
 )
 
@@ -558,3 +560,174 @@ class LedgerRepository:
         balance.amount = new_amount
         await self.session.flush()
         return balance
+
+    # Withdrawal operations
+    async def create_withdrawal(
+        self,
+        user_id: int,
+        asset: str,
+        amount: Decimal,
+        fee_amount: Decimal,
+        destination_address: str,
+    ) -> Withdrawal:
+        """Create a new withdrawal and debit user balance.
+
+        Deducts the full amount (including fee) from user balance.
+        """
+        net_amount = amount - fee_amount
+
+        # Debit the full amount from balance
+        await self.debit_balance(user_id, asset, amount)
+
+        withdrawal = Withdrawal(
+            user_id=user_id,
+            asset=asset.upper(),
+            amount=amount,
+            fee_amount=fee_amount,
+            net_amount=net_amount,
+            destination_address=destination_address,
+            status=WithdrawalStatus.PENDING,
+        )
+        self.session.add(withdrawal)
+        await self.session.flush()
+        return withdrawal
+
+    async def update_withdrawal_status(
+        self,
+        withdrawal_id: int,
+        status: WithdrawalStatus,
+        tx_hash: Optional[str] = None,
+        error_message: Optional[str] = None,
+    ) -> Withdrawal:
+        """Update withdrawal status."""
+        stmt = select(Withdrawal).where(Withdrawal.id == withdrawal_id)
+        result = await self.session.execute(stmt)
+        withdrawal = result.scalar_one_or_none()
+
+        if withdrawal is None:
+            raise ValueError(f"Withdrawal {withdrawal_id} not found")
+
+        withdrawal.status = status
+
+        if tx_hash:
+            withdrawal.tx_hash = tx_hash
+
+        if error_message:
+            withdrawal.error_message = error_message
+
+        if status == WithdrawalStatus.BROADCAST:
+            withdrawal.broadcast_at = datetime.utcnow()
+        elif status == WithdrawalStatus.COMPLETED:
+            withdrawal.completed_at = datetime.utcnow()
+
+        await self.session.flush()
+        return withdrawal
+
+    async def complete_withdrawal(
+        self, withdrawal_id: int, tx_hash: str, confirmations: int = 1
+    ) -> Withdrawal:
+        """Mark withdrawal as completed."""
+        stmt = select(Withdrawal).where(Withdrawal.id == withdrawal_id)
+        result = await self.session.execute(stmt)
+        withdrawal = result.scalar_one_or_none()
+
+        if withdrawal is None:
+            raise ValueError(f"Withdrawal {withdrawal_id} not found")
+
+        withdrawal.status = WithdrawalStatus.COMPLETED
+        withdrawal.tx_hash = tx_hash
+        withdrawal.confirmations = confirmations
+        withdrawal.completed_at = datetime.utcnow()
+
+        await self.session.flush()
+        return withdrawal
+
+    async def fail_withdrawal(
+        self, withdrawal_id: int, error_message: str, refund: bool = True
+    ) -> Withdrawal:
+        """Mark withdrawal as failed and optionally refund user."""
+        stmt = select(Withdrawal).where(Withdrawal.id == withdrawal_id)
+        result = await self.session.execute(stmt)
+        withdrawal = result.scalar_one_or_none()
+
+        if withdrawal is None:
+            raise ValueError(f"Withdrawal {withdrawal_id} not found")
+
+        withdrawal.status = WithdrawalStatus.FAILED
+        withdrawal.error_message = error_message
+
+        # Refund the full amount if requested
+        if refund:
+            await self.credit_balance(
+                withdrawal.user_id, withdrawal.asset, withdrawal.amount
+            )
+
+        await self.session.flush()
+        return withdrawal
+
+    async def cancel_withdrawal(self, withdrawal_id: int) -> Withdrawal:
+        """Cancel a pending withdrawal and refund user."""
+        stmt = select(Withdrawal).where(Withdrawal.id == withdrawal_id)
+        result = await self.session.execute(stmt)
+        withdrawal = result.scalar_one_or_none()
+
+        if withdrawal is None:
+            raise ValueError(f"Withdrawal {withdrawal_id} not found")
+
+        if withdrawal.status not in (WithdrawalStatus.PENDING, WithdrawalStatus.BUILDING):
+            raise ValueError(f"Cannot cancel withdrawal in status {withdrawal.status}")
+
+        withdrawal.status = WithdrawalStatus.CANCELLED
+
+        # Refund the full amount
+        await self.credit_balance(
+            withdrawal.user_id, withdrawal.asset, withdrawal.amount
+        )
+
+        await self.session.flush()
+        return withdrawal
+
+    async def get_withdrawal_by_id(self, withdrawal_id: int) -> Optional[Withdrawal]:
+        """Get withdrawal by ID."""
+        stmt = select(Withdrawal).where(Withdrawal.id == withdrawal_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_user_withdrawals(
+        self, user_id: int, limit: int = 20, offset: int = 0
+    ) -> list[Withdrawal]:
+        """Get withdrawal history for a user."""
+        stmt = (
+            select(Withdrawal)
+            .where(Withdrawal.user_id == user_id)
+            .order_by(Withdrawal.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_pending_withdrawals(self) -> list[Withdrawal]:
+        """Get all pending withdrawals (for processing)."""
+        stmt = (
+            select(Withdrawal)
+            .where(Withdrawal.status == WithdrawalStatus.PENDING)
+            .order_by(Withdrawal.created_at)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_confirming_withdrawals(self) -> list[Withdrawal]:
+        """Get all withdrawals waiting for confirmations."""
+        stmt = (
+            select(Withdrawal)
+            .where(
+                Withdrawal.status.in_([
+                    WithdrawalStatus.BROADCAST,
+                    WithdrawalStatus.CONFIRMING,
+                ])
+            )
+            .order_by(Withdrawal.broadcast_at)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
