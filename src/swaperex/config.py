@@ -42,7 +42,8 @@ class Settings(BaseSettings):
     # Routing (Stage 2)
     thorchain_api_url: Optional[str] = Field(default=None, description="THORChain API URL")
     dex_aggregator_api_url: Optional[str] = Field(default=None, description="DEX aggregator URL")
-    mm2_rpc_url: Optional[str] = Field(default=None, description="MM2 RPC URL")
+    mm2_rpc_url: Optional[str] = Field(default="http://127.0.0.1:7762", description="MM2 RPC URL")
+    mm2_userpass: Optional[str] = Field(default="test", description="MM2 RPC userpass")
 
     # Deposit Provider (Stage 2)
     deposit_webhook_secret: Optional[str] = Field(

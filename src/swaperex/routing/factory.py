@@ -35,10 +35,13 @@ def create_mm2_provider(
     """
     settings = get_settings()
     rpc_url = rpc_url or settings.mm2_rpc_url
+    userpass = userpass or settings.mm2_userpass
 
     try:
         from swaperex.routing.mm2 import MM2Provider
-        return MM2Provider(rpc_url=rpc_url, userpass=userpass)
+        provider = MM2Provider(rpc_url=rpc_url, userpass=userpass)
+        logger.info(f"MM2 provider created with RPC: {rpc_url}")
+        return provider
     except Exception as e:
         logger.warning(f"Failed to create MM2 provider: {e}")
         # MM2 provider includes its own fallback simulation
