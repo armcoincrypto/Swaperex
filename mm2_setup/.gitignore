@@ -1,0 +1,10 @@
+# Never commit these files - they contain secrets!
+MM2.json
+mm2.log
+mm2_output.log
+DB/
+
+# Binary files
+mm2
+kdf
+*.zip
