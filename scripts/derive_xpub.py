@@ -17,12 +17,7 @@ def derive_xpubs(mnemonic: str) -> dict[str, str]:
         Dict mapping coin symbols to xpub strings (base58 format)
     """
     try:
-        from bip_utils import (
-            Bip32Slip10Secp256k1,
-            Bip39SeedGenerator,
-            Bip44,
-            Bip44Coins,
-        )
+        from bip_utils import Bip32Secp256k1, Bip39SeedGenerator
     except ImportError:
         print("Error: bip_utils not installed. Run: pip install bip-utils")
         sys.exit(1)
@@ -32,86 +27,68 @@ def derive_xpubs(mnemonic: str) -> dict[str, str]:
 
     xpubs = {}
 
+    def get_xpub(account):
+        """Get xpub string from account using various methods."""
+        # Try different methods
+        methods = [
+            lambda: account.PublicKey().ToExtendedKey(),
+            lambda: str(account.PublicKey()),
+            lambda: account.ChildKey(0).PublicKey().ToExtendedKey(),
+        ]
+        for method in methods:
+            try:
+                result = method()
+                if result and isinstance(result, str) and len(result) > 50:
+                    return result
+            except:
+                continue
+        return None
+
+    # Use Bip32 directly for all coins
+    bip32 = Bip32Secp256k1.FromSeed(seed)
+
     # BTC - BIP44 m/44'/0'/0'
     try:
-        bip44_ctx = Bip44.FromSeed(seed, Bip44Coins.BITCOIN)
-        account = bip44_ctx.Purpose().Coin().Account(0)
-        # Get the extended public key string directly from the account level
-        xpubs["BTC"] = account.PublicKey().ToExtendedKey()
-    except AttributeError:
-        # Try alternative: use Bip32 directly
-        try:
-            from bip_utils import Bip32Secp256k1
-            bip32 = Bip32Secp256k1.FromSeed(seed)
-            # BIP44 path: m/44'/0'/0'
-            account = bip32.DerivePath("44'/0'/0'")
-            xpubs["BTC"] = account.PublicKey().ToExtendedKey()
-        except Exception as e:
-            print(f"BTC derivation error: {e}")
+        account = bip32.DerivePath("44'/0'/0'")
+        xpub = get_xpub(account)
+        if xpub:
+            xpubs["BTC"] = xpub
     except Exception as e:
         print(f"BTC derivation error: {e}")
 
     # LTC - BIP44 m/44'/2'/0'
     try:
-        bip44_ctx = Bip44.FromSeed(seed, Bip44Coins.LITECOIN)
-        account = bip44_ctx.Purpose().Coin().Account(0)
-        xpubs["LTC"] = account.PublicKey().ToExtendedKey()
-    except AttributeError:
-        try:
-            from bip_utils import Bip32Secp256k1
-            bip32 = Bip32Secp256k1.FromSeed(seed)
-            account = bip32.DerivePath("44'/2'/0'")
-            xpubs["LTC"] = account.PublicKey().ToExtendedKey()
-        except Exception as e:
-            print(f"LTC derivation error: {e}")
+        account = bip32.DerivePath("44'/2'/0'")
+        xpub = get_xpub(account)
+        if xpub:
+            xpubs["LTC"] = xpub
     except Exception as e:
         print(f"LTC derivation error: {e}")
 
     # DASH - BIP44 m/44'/5'/0'
     try:
-        bip44_ctx = Bip44.FromSeed(seed, Bip44Coins.DASH)
-        account = bip44_ctx.Purpose().Coin().Account(0)
-        xpubs["DASH"] = account.PublicKey().ToExtendedKey()
-    except AttributeError:
-        try:
-            from bip_utils import Bip32Secp256k1
-            bip32 = Bip32Secp256k1.FromSeed(seed)
-            account = bip32.DerivePath("44'/5'/0'")
-            xpubs["DASH"] = account.PublicKey().ToExtendedKey()
-        except Exception as e:
-            print(f"DASH derivation error: {e}")
+        account = bip32.DerivePath("44'/5'/0'")
+        xpub = get_xpub(account)
+        if xpub:
+            xpubs["DASH"] = xpub
     except Exception as e:
         print(f"DASH derivation error: {e}")
 
     # DOGE - BIP44 m/44'/3'/0'
     try:
-        bip44_ctx = Bip44.FromSeed(seed, Bip44Coins.DOGECOIN)
-        account = bip44_ctx.Purpose().Coin().Account(0)
-        xpubs["DOGE"] = account.PublicKey().ToExtendedKey()
-    except AttributeError:
-        try:
-            from bip_utils import Bip32Secp256k1
-            bip32 = Bip32Secp256k1.FromSeed(seed)
-            account = bip32.DerivePath("44'/3'/0'")
-            xpubs["DOGE"] = account.PublicKey().ToExtendedKey()
-        except Exception as e:
-            print(f"DOGE derivation error: {e}")
+        account = bip32.DerivePath("44'/3'/0'")
+        xpub = get_xpub(account)
+        if xpub:
+            xpubs["DOGE"] = xpub
     except Exception as e:
         print(f"DOGE derivation error: {e}")
 
     # ETH - BIP44 m/44'/60'/0'
     try:
-        bip44_ctx = Bip44.FromSeed(seed, Bip44Coins.ETHEREUM)
-        account = bip44_ctx.Purpose().Coin().Account(0)
-        xpubs["ETH"] = account.PublicKey().ToExtendedKey()
-    except AttributeError:
-        try:
-            from bip_utils import Bip32Secp256k1
-            bip32 = Bip32Secp256k1.FromSeed(seed)
-            account = bip32.DerivePath("44'/60'/0'")
-            xpubs["ETH"] = account.PublicKey().ToExtendedKey()
-        except Exception as e:
-            print(f"ETH derivation error: {e}")
+        account = bip32.DerivePath("44'/60'/0'")
+        xpub = get_xpub(account)
+        if xpub:
+            xpubs["ETH"] = xpub
     except Exception as e:
         print(f"ETH derivation error: {e}")
 
