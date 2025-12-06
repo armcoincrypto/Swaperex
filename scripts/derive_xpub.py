@@ -21,7 +21,6 @@ def derive_xpubs(mnemonic: str) -> dict[str, str]:
             Bip39SeedGenerator,
             Bip44,
             Bip44Coins,
-            Bip44Changes,
         )
     except ImportError:
         print("Error: bip_utils not installed. Run: pip install bip-utils")
@@ -36,7 +35,14 @@ def derive_xpubs(mnemonic: str) -> dict[str, str]:
     try:
         bip44_btc = Bip44.FromSeed(seed, Bip44Coins.BITCOIN)
         account = bip44_btc.Purpose().Coin().Account(0)
+        # Get xpub string using ToExtendedKey on the Bip44 object itself
         xpubs["BTC"] = account.PublicKey().ToExtendedKey()
+    except AttributeError:
+        try:
+            # Newer API
+            xpubs["BTC"] = str(account.PublicKey())
+        except Exception as e:
+            print(f"BTC derivation error: {e}")
     except Exception as e:
         print(f"BTC derivation error: {e}")
 
@@ -44,7 +50,7 @@ def derive_xpubs(mnemonic: str) -> dict[str, str]:
     try:
         bip44_ltc = Bip44.FromSeed(seed, Bip44Coins.LITECOIN)
         account = bip44_ltc.Purpose().Coin().Account(0)
-        xpubs["LTC"] = account.PublicKey().ToExtendedKey()
+        xpubs["LTC"] = str(account.PublicKey())
     except Exception as e:
         print(f"LTC derivation error: {e}")
 
@@ -52,7 +58,7 @@ def derive_xpubs(mnemonic: str) -> dict[str, str]:
     try:
         bip44_dash = Bip44.FromSeed(seed, Bip44Coins.DASH)
         account = bip44_dash.Purpose().Coin().Account(0)
-        xpubs["DASH"] = account.PublicKey().ToExtendedKey()
+        xpubs["DASH"] = str(account.PublicKey())
     except Exception as e:
         print(f"DASH derivation error: {e}")
 
@@ -60,7 +66,7 @@ def derive_xpubs(mnemonic: str) -> dict[str, str]:
     try:
         bip44_doge = Bip44.FromSeed(seed, Bip44Coins.DOGECOIN)
         account = bip44_doge.Purpose().Coin().Account(0)
-        xpubs["DOGE"] = account.PublicKey().ToExtendedKey()
+        xpubs["DOGE"] = str(account.PublicKey())
     except Exception as e:
         print(f"DOGE derivation error: {e}")
 
@@ -68,7 +74,7 @@ def derive_xpubs(mnemonic: str) -> dict[str, str]:
     try:
         bip44_eth = Bip44.FromSeed(seed, Bip44Coins.ETHEREUM)
         account = bip44_eth.Purpose().Coin().Account(0)
-        xpubs["ETH"] = account.PublicKey().ToExtendedKey()
+        xpubs["ETH"] = str(account.PublicKey())
     except Exception as e:
         print(f"ETH derivation error: {e}")
 
