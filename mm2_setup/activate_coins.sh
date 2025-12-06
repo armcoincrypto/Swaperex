@@ -32,11 +32,11 @@ activate_utxo() {
     echo ""
 }
 
-# Activate DASH
+# Activate DASH (using cipig.net servers)
 activate_utxo "DASH" \
-    "electrum.dash.org:50002" \
-    "drk.p2pay.com:50002" \
-    "electrum.masternode.io:50002"
+    "electrum1.cipig.net:10061" \
+    "electrum2.cipig.net:10061" \
+    "electrum3.cipig.net:10061"
 
 # Activate KMD
 activate_utxo "KMD" \
@@ -50,10 +50,11 @@ activate_utxo "BTC" \
     "electrum2.cipig.net:10000" \
     "electrum3.cipig.net:10000"
 
-# Activate LTC
+# Activate LTC (using cipig.net servers)
 activate_utxo "LTC" \
-    "electrum-ltc.bysh.me:50002" \
-    "electrum.ltc.xurious.com:50002"
+    "electrum1.cipig.net:10063" \
+    "electrum2.cipig.net:10063" \
+    "electrum3.cipig.net:10063"
 
 # Activate DOGE
 activate_utxo "DOGE" \
