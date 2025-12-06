@@ -31,9 +31,8 @@ def derive_xpubs(mnemonic: str) -> dict[str, str]:
         """Get xpub string from account using various methods."""
         # Try different methods
         methods = [
-            lambda: account.PublicKey().ToExtendedKey(),
+            lambda: account.PublicKey().ToExtended(),  # Correct method name
             lambda: str(account.PublicKey()),
-            lambda: account.ChildKey(0).PublicKey().ToExtendedKey(),
         ]
         for method in methods:
             try:
