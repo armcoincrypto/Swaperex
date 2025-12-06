@@ -85,6 +85,20 @@ def get_scanner(asset: str) -> DepositScanner:
             else "https://api.bscscan.com/api"
         )
 
+    # DASH
+    elif asset_upper == "DASH":
+        from swaperex.scanner.dash import DashScanner
+        api_key = os.environ.get("BLOCKCYPHER_API_KEY")
+        scanner = DashScanner(api_key=api_key)
+
+    # DOGE (similar to DASH, uses BlockCypher)
+    elif asset_upper == "DOGE":
+        from swaperex.scanner.dash import DashScanner
+        api_key = os.environ.get("BLOCKCYPHER_API_KEY")
+        scanner = DashScanner(api_key=api_key)
+        scanner.asset = "DOGE"
+        scanner.blockcypher_url = "https://api.blockcypher.com/v1/doge/main"
+
     else:
         # Fall back to simulated for unsupported assets
         scanner = SimulatedScanner(asset_upper)
@@ -104,6 +118,8 @@ def get_supported_scanner_assets() -> list[str]:
         "TRX",
         "USDT-TRC20",
         "BSC",
+        "DASH",
+        "DOGE",
     ]
 
 
