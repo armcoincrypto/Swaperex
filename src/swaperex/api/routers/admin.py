@@ -197,6 +197,48 @@ class CancelWithdrawalRequest(BaseModel):
     reason: Optional[str] = None
 
 
+class CreditBalanceRequest(BaseModel):
+    """Request to credit user balance (for admin sync with MM2)."""
+
+    telegram_id: int
+    asset: str
+    amount: float
+
+
+@router.post("/credit")
+async def credit_user_balance(
+    request: CreditBalanceRequest,
+    _: bool = Depends(require_admin_token),
+) -> dict:
+    """Credit balance to a user (admin only).
+
+    Use this to sync internal balance with MM2 wallet balance.
+    """
+    from decimal import Decimal
+
+    async with get_db() as session:
+        repo = LedgerRepository(session)
+        user = await repo.get_user_by_telegram_id(request.telegram_id)
+
+        if not user:
+            raise HTTPException(status_code=404, detail=f"User with telegram_id {request.telegram_id} not found")
+
+        balance = await repo.credit_balance(
+            user_id=user.id,
+            asset=request.asset.upper(),
+            amount=Decimal(str(request.amount)),
+        )
+
+        return {
+            "success": True,
+            "user_id": user.id,
+            "telegram_id": request.telegram_id,
+            "asset": request.asset.upper(),
+            "credited": request.amount,
+            "new_balance": float(balance.amount),
+        }
+
+
 @router.get("/withdrawals/pending")
 async def list_pending_withdrawals(
     _: bool = Depends(require_admin_token),
