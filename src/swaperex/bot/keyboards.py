@@ -78,20 +78,24 @@ def confirm_withdraw_keyboard(withdraw_id: str) -> InlineKeyboardMarkup:
 def swap_from_keyboard() -> InlineKeyboardMarkup:
     """Create swap 'from' asset selection keyboard.
 
-    Includes coins supported by MM2 (AtomicDEX) for atomic swaps.
+    Supported by:
+    - Internal Reserve: DASH <-> USDT
+    - THORChain: BTC, ETH, LTC, BCH, DOGE, AVAX, ATOM, BNB, RUNE
     """
-    # MM2 supported coins - DASH first for testing
-    assets = ["DASH", "BTC", "ETH", "LTC", "DOGE", "USDT", "KMD", "BNB", "MATIC"]
+    # DASH first for internal reserve, then THORChain coins
+    assets = ["DASH", "BTC", "ETH", "LTC", "USDT", "DOGE", "BCH", "AVAX", "ATOM", "BNB"]
     return asset_selection_keyboard(assets, "swap_from")
 
 
 def swap_to_keyboard(exclude_asset: str) -> InlineKeyboardMarkup:
     """Create swap 'to' asset selection keyboard.
 
-    Includes coins supported by MM2 (AtomicDEX) for atomic swaps.
+    Supported by:
+    - Internal Reserve: DASH <-> USDT
+    - THORChain: BTC, ETH, LTC, BCH, DOGE, AVAX, ATOM, BNB, RUNE
     """
-    # MM2 supported coins - USDT first for testing DASH->USDT
-    all_assets = ["USDT", "BTC", "ETH", "LTC", "DASH", "DOGE", "KMD", "BNB", "MATIC"]
+    # USDT first for DASH->USDT internal reserve, then THORChain coins
+    all_assets = ["USDT", "BTC", "ETH", "LTC", "DASH", "DOGE", "BCH", "AVAX", "ATOM", "BNB"]
     assets = [a for a in all_assets if a != exclude_asset]
     return asset_selection_keyboard(assets, "swap_to")
 

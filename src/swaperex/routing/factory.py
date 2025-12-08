@@ -1,17 +1,13 @@
 """Factory for creating swap route providers and aggregators.
 
-Creates real providers when API keys are available, otherwise
-falls back to simulated providers.
-
-Provider priority (default):
-1. MM2 (AtomicDEX) - Trustless atomic swaps, default for all pairs
-2. THORChain - Cross-chain native swaps
-3. 1inch - EVM DEX aggregation
-4. DryRun - Simulated fallback
+Provider architecture:
+1. THORChain - Cross-chain native swaps (BTC, ETH, LTC, BCH, DOGE, AVAX, ATOM, BNB, RUNE)
+2. Internal Reserve - DASH swaps via operator's liquidity reserve with CoinGecko pricing
+3. DryRun - Simulated fallback for testing
 """
 
 import logging
-import os
+from decimal import Decimal
 from typing import Optional
 
 from swaperex.config import get_settings
@@ -20,39 +16,11 @@ from swaperex.routing.base import RouteAggregator, RouteProvider
 logger = logging.getLogger(__name__)
 
 
-def create_mm2_provider(
-    rpc_url: Optional[str] = None,
-    userpass: Optional[str] = None,
-) -> RouteProvider:
-    """Create MM2 (AtomicDEX) provider.
-
-    MM2 is the default provider for all pairs as it supports trustless
-    atomic swaps across the widest range of assets.
-
-    Args:
-        rpc_url: MM2 RPC endpoint (uses config or default if not provided)
-        userpass: MM2 userpass for authentication
-    """
-    settings = get_settings()
-    rpc_url = rpc_url or settings.mm2_rpc_url
-    userpass = userpass or settings.mm2_userpass
-
-    try:
-        from swaperex.routing.mm2 import MM2Provider
-        provider = MM2Provider(rpc_url=rpc_url, userpass=userpass)
-        logger.info(f"MM2 provider created with RPC: {rpc_url}")
-        return provider
-    except Exception as e:
-        logger.warning(f"Failed to create MM2 provider: {e}")
-        # MM2 provider includes its own fallback simulation
-        from swaperex.routing.mm2 import MM2Provider
-        return MM2Provider()
-
-
 def create_thorchain_provider(use_real: bool = True) -> RouteProvider:
     """Create THORChain provider.
 
     THORChain doesn't require API keys, so real provider is default.
+    Supports: BTC, ETH, LTC, BCH, DOGE, AVAX, ATOM, BNB, RUNE
     """
     settings = get_settings()
     stagenet = not settings.is_production
@@ -69,46 +37,42 @@ def create_thorchain_provider(use_real: bool = True) -> RouteProvider:
     return SimulatedThorChainRouter()
 
 
-def create_oneinch_provider(
-    chain: str = "ethereum",
-    api_key: Optional[str] = None,
+def create_internal_reserve_provider(
+    spread_percent: Optional[Decimal] = None,
 ) -> RouteProvider:
-    """Create 1inch DEX aggregator provider.
+    """Create Internal Reserve provider for DASH swaps.
+
+    The operator maintains DASH + USDT reserves and acts as market maker.
+    Uses CoinGecko for live pricing with configurable spread.
 
     Args:
-        chain: Chain to use (ethereum, bsc, polygon, etc.)
-        api_key: 1inch API key (uses ONEINCH_API_KEY env var if not provided)
+        spread_percent: Spread percentage (default from DASH_SPREAD_PCT env or 1.0%)
     """
-    settings = get_settings()
-    api_key = api_key or os.environ.get("ONEINCH_API_KEY")
+    import os
 
-    if api_key and not settings.dry_run:
-        try:
-            from swaperex.routing.oneinch import OneInchProvider
-            return OneInchProvider(api_key=api_key, chain=chain)
-        except Exception as e:
-            logger.warning(f"Failed to create real 1inch provider: {e}")
+    from swaperex.routing.internal_reserve import InternalReserveProvider
 
-    # Fallback to simulated
-    from swaperex.routing.dry_run import SimulatedDexAggregator
-    return SimulatedDexAggregator()
+    # Get spread from environment or use default
+    if spread_percent is None:
+        spread_str = os.environ.get("DASH_SPREAD_PCT", "1.0")
+        spread_percent = Decimal(spread_str)
+
+    provider = InternalReserveProvider(spread_percent=spread_percent)
+    logger.info(f"Internal Reserve provider created with {spread_percent}% spread")
+    return provider
 
 
 def create_aggregator(
-    include_mm2: bool = True,
     include_thorchain: bool = True,
-    include_oneinch: bool = True,
-    oneinch_chains: Optional[list[str]] = None,
+    include_internal_reserve: bool = True,
+    include_dry_run: bool = True,
 ) -> RouteAggregator:
     """Create a route aggregator with configured providers.
 
-    MM2 is added first as the default provider for all pairs.
-
     Args:
-        include_mm2: Include MM2 provider (default, highest priority)
-        include_thorchain: Include THORChain provider
-        include_oneinch: Include 1inch providers
-        oneinch_chains: List of chains for 1inch (default: ethereum, bsc, polygon)
+        include_thorchain: Include THORChain for cross-chain swaps
+        include_internal_reserve: Include Internal Reserve for DASH swaps
+        include_dry_run: Include dry-run fallback provider
 
     Returns:
         Configured RouteAggregator
@@ -116,30 +80,23 @@ def create_aggregator(
     settings = get_settings()
     aggregator = RouteAggregator()
 
-    # Add MM2 first as the default provider for all pairs
-    # MM2 supports the widest range of assets via atomic swaps
-    if include_mm2:
-        provider = create_mm2_provider()
+    # Add Internal Reserve for DASH swaps (highest priority for DASH)
+    if include_internal_reserve:
+        provider = create_internal_reserve_provider()
         aggregator.add_provider(provider)
-        logger.info(f"Added {provider.name} provider (default)")
+        logger.info(f"Added {provider.name} provider (DASH swaps)")
 
     # Add THORChain for cross-chain swaps
     if include_thorchain:
         provider = create_thorchain_provider(use_real=not settings.dry_run)
         aggregator.add_provider(provider)
-        logger.info(f"Added {provider.name} provider")
-
-    # Add 1inch for EVM DEX swaps
-    if include_oneinch:
-        chains = oneinch_chains or ["ethereum"]
-        for chain in chains:
-            provider = create_oneinch_provider(chain=chain)
-            aggregator.add_provider(provider)
-            logger.info(f"Added {provider.name} provider")
+        logger.info(f"Added {provider.name} provider (cross-chain)")
 
     # Add dry-run provider as fallback
-    from swaperex.routing.dry_run import DryRunRouter
-    aggregator.add_provider(DryRunRouter())
+    if include_dry_run:
+        from swaperex.routing.dry_run import DryRunRouter
+        aggregator.add_provider(DryRunRouter())
+        logger.info("Added DryRun provider (fallback)")
 
     return aggregator
 
@@ -147,27 +104,25 @@ def create_aggregator(
 def create_production_aggregator() -> RouteAggregator:
     """Create aggregator with all production providers enabled.
 
-    MM2 is the default provider for all pairs.
+    - Internal Reserve for DASH <-> USDT
+    - THORChain for BTC, ETH, LTC, BCH, DOGE, AVAX, ATOM, BNB, RUNE
     """
     return create_aggregator(
-        include_mm2=True,
         include_thorchain=True,
-        include_oneinch=True,
-        oneinch_chains=["ethereum", "bsc", "polygon"],
+        include_internal_reserve=True,
+        include_dry_run=False,  # No fallback in production
     )
 
 
 def create_default_aggregator() -> RouteAggregator:
-    """Create default aggregator with MM2 as primary provider.
+    """Create default aggregator for most use cases.
 
-    This is the recommended aggregator for most use cases.
-    MM2 provides trustless atomic swaps for all supported pairs.
+    Includes all providers with dry-run fallback.
     """
     return create_aggregator(
-        include_mm2=True,
         include_thorchain=True,
-        include_oneinch=True,
-        oneinch_chains=["ethereum"],
+        include_internal_reserve=True,
+        include_dry_run=True,
     )
 
 
@@ -179,13 +134,25 @@ def create_minimal_aggregator() -> RouteAggregator:
     return aggregator
 
 
-def create_mm2_only_aggregator() -> RouteAggregator:
-    """Create aggregator with only MM2 provider.
+def create_dash_only_aggregator() -> RouteAggregator:
+    """Create aggregator with only Internal Reserve provider.
 
-    Use this for pure atomic swap routing without other providers.
+    Use this for DASH-only swaps without cross-chain.
     """
     return create_aggregator(
-        include_mm2=True,
         include_thorchain=False,
-        include_oneinch=False,
+        include_internal_reserve=True,
+        include_dry_run=True,
+    )
+
+
+def create_thorchain_only_aggregator() -> RouteAggregator:
+    """Create aggregator with only THORChain provider.
+
+    Use this for cross-chain swaps without DASH internal reserve.
+    """
+    return create_aggregator(
+        include_thorchain=True,
+        include_internal_reserve=False,
+        include_dry_run=True,
     )

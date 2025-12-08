@@ -198,7 +198,7 @@ class CancelWithdrawalRequest(BaseModel):
 
 
 class CreditBalanceRequest(BaseModel):
-    """Request to credit user balance (for admin sync with MM2)."""
+    """Request to credit user balance (admin operation)."""
 
     telegram_id: int
     asset: str
@@ -212,7 +212,8 @@ async def credit_user_balance(
 ) -> dict:
     """Credit balance to a user (admin only).
 
-    Use this to sync internal balance with MM2 wallet balance.
+    Use this to manually adjust user balances for operations like
+    internal reserve swaps or deposit reconciliation.
     """
     from decimal import Decimal
 

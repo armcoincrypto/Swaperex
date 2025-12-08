@@ -39,11 +39,13 @@ class Settings(BaseSettings):
         default="", description="Comma-separated list of admin Telegram user IDs"
     )
 
-    # Routing (Stage 2)
+    # Routing
     thorchain_api_url: Optional[str] = Field(default=None, description="THORChain API URL")
-    dex_aggregator_api_url: Optional[str] = Field(default=None, description="DEX aggregator URL")
-    mm2_rpc_url: Optional[str] = Field(default="http://127.0.0.1:7762", description="MM2 RPC URL")
-    mm2_userpass: Optional[str] = Field(default="test", description="MM2 RPC userpass")
+
+    # Internal DASH Reserve (operator liquidity)
+    dash_spread_pct: float = Field(default=1.0, description="DASH swap spread percentage")
+    dash_hot_wallet_address: Optional[str] = Field(default=None, description="DASH hot wallet address")
+    dash_hot_wallet_wif: Optional[str] = Field(default=None, description="DASH hot wallet WIF key")
 
     # Deposit Provider (Stage 2)
     deposit_webhook_secret: Optional[str] = Field(
@@ -101,8 +103,8 @@ class Settings(BaseSettings):
             "admin_token": "***" if self.admin_token else "(not set)",
             "hot_wallet_threshold": self.hot_wallet_threshold,
             "thorchain_api_url": self.thorchain_api_url or "(not set)",
-            "dex_aggregator_api_url": self.dex_aggregator_api_url or "(not set)",
-            "mm2_rpc_url": self.mm2_rpc_url or "(not set)",
+            "dash_spread_pct": self.dash_spread_pct,
+            "dash_hot_wallet_address": self.dash_hot_wallet_address or "(not set)",
         }
         return data
 

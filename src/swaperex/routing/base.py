@@ -10,7 +10,7 @@ from typing import Optional
 class Quote:
     """A swap quote from a routing provider."""
 
-    provider: str  # e.g., "thorchain", "1inch", "mm2"
+    provider: str  # e.g., "THORChain", "Internal Reserve"
     from_asset: str
     to_asset: str
     from_amount: Decimal

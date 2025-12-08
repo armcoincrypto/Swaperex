@@ -1,6 +1,8 @@
 """Swap handlers with quote comparison.
 
-Uses MM2 (AtomicDEX) as the default provider for trustless atomic swaps.
+Uses:
+- Internal Reserve for DASH <-> USDT swaps (instant, operator liquidity)
+- THORChain for cross-chain swaps (BTC, ETH, LTC, BCH, DOGE, AVAX, ATOM, BNB)
 """
 
 import json
@@ -171,9 +173,11 @@ async def handle_swap_amount(message: Message, state: FSMContext) -> None:
 
     lines.append("\n✅ Best rate selected automatically.")
 
-    # Show if MM2 is being used
-    if best_quote.provider.startswith("MM2"):
-        lines.append("🔗 Using MM2 AtomicDEX (trustless atomic swap)")
+    # Show provider info
+    if best_quote.provider == "Internal Reserve":
+        lines.append("💎 Using Internal Reserve (instant DASH swap)")
+    elif best_quote.provider.startswith("THORChain"):
+        lines.append("⚡ Using THORChain (cross-chain swap)")
 
     await message.answer("\n".join(lines), reply_markup=confirm_swap_keyboard("best"))
 
@@ -226,9 +230,11 @@ async def handle_confirm_swap(callback: CallbackQuery, state: FSMContext) -> Non
             provider = selected_quote["provider"]
 
             if is_simulated:
-                status_line = "⚠️ Simulated swap (MM2 not connected)"
-            elif provider.startswith("MM2"):
-                status_line = "🔗 Atomic swap via MM2 AtomicDEX"
+                status_line = "⚠️ Simulated swap (dry-run mode)"
+            elif provider == "Internal Reserve":
+                status_line = "💎 Instant swap via Internal Reserve"
+            elif provider.startswith("THORChain"):
+                status_line = "⚡ Cross-chain swap via THORChain"
             else:
                 status_line = f"✅ Swapped via {provider}"
 
