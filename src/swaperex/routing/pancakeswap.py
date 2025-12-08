@@ -268,6 +268,9 @@ class UniswapProvider(RouteProvider):
         "USDC": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",  # USDC
         "DAI": "0x6B175474E89094C44Da98b954EescdCB505d05",    # DAI
         "WBTC": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",  # WBTC
+        "LINK": "0x514910771AF9Ca656af840dff83E8264EcF986CA",  # Chainlink
+        "USDT-ERC20": "0xdAC17F958D2ee523a2206206994597C13D831ec7",  # USDT
+        "USDC-ERC20": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",  # USDC
     }
 
     def __init__(
@@ -339,12 +342,14 @@ class UniswapProvider(RouteProvider):
 
     async def _get_price(self, symbol: str) -> Optional[Decimal]:
         """Get token price."""
-        if symbol.upper() in ["USDT", "USDC", "DAI"]:
+        # Normalize stablecoin symbols
+        if symbol.upper() in ["USDT", "USDC", "DAI", "USDT-ERC20", "USDC-ERC20"]:
             return Decimal("1.0")
 
         coingecko_ids = {
             "ETH": "ethereum",
             "WBTC": "bitcoin",
+            "LINK": "chainlink",
         }
 
         cg_id = coingecko_ids.get(symbol.upper())

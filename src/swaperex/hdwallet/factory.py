@@ -23,25 +23,19 @@ _wallet_cache: dict[str, HDWalletProvider] = {}
 
 def get_supported_assets() -> list[str]:
     """Get list of supported HD wallet assets."""
-    return ["BTC", "LTC", "ETH", "SOL", "BNB", "ATOM", "AVAX", "MATIC",
-            "USDT", "USDT-ERC20", "USDC", "USDC-ERC20",
-            "USDT-BEP20", "USDC-BEP20", "USDT-SPL", "USDC-SPL",
-            "USDT-AVAX", "USDC-AVAX", "USDT-MATIC", "USDC-MATIC"]
+    return ["BTC", "LTC", "ETH", "SOL", "BNB", "ATOM", "ADA", "LINK", "HYPE",
+            "USDT-ERC20", "USDC-ERC20"]
 
 
 def get_core_coins() -> list[str]:
     """Get list of core supported coins (not stablecoins)."""
-    return ["BTC", "LTC", "ETH", "SOL", "BNB", "ATOM", "AVAX", "MATIC"]
+    return ["BTC", "LTC", "ETH", "SOL", "BNB", "ATOM", "ADA", "LINK", "HYPE"]
 
 
 def get_stablecoins() -> dict[str, list[str]]:
-    """Get stablecoins by chain."""
+    """Get stablecoins by chain (ERC-20 only for DEX support)."""
     return {
         "ETH": ["USDT-ERC20", "USDC-ERC20"],
-        "BSC": ["USDT-BEP20", "USDC-BEP20"],
-        "SOL": ["USDT-SPL", "USDC-SPL"],
-        "AVAX": ["USDT-AVAX", "USDC-AVAX"],
-        "MATIC": ["USDT-MATIC", "USDC-MATIC"],
     }
 
 
@@ -84,30 +78,32 @@ class SeedPhraseWallet(HDWalletProvider):
         coin_types = {
             "BTC": 0, "LTC": 2, "ETH": 60, "BNB": 60, "BSC": 60,
             "AVAX": 60, "MATIC": 60, "SOL": 501, "ATOM": 118,
+            "ADA": 1815, "HYPE": 60, "LINK": 60,  # ADA uses CIP-1852, HYPE/LINK are EVM
         }
         base_asset = self._get_base_asset()
         return coin_types.get(base_asset, 60)
 
     @property
     def purpose(self) -> int:
-        """BIP44/84 purpose."""
+        """BIP44/84/1852 purpose."""
         if self._asset in ["BTC", "LTC"]:
             return 84  # Native SegWit
+        if self._asset == "ADA":
+            return 1852  # CIP-1852 Shelley
         return 44  # Standard
 
     def _get_base_asset(self) -> str:
-        """Get base asset for stablecoins."""
+        """Get base asset for stablecoins and ERC-20 tokens."""
         asset = self._asset
-        if asset in ["USDT", "USDC", "USDT-ERC20", "USDC-ERC20"]:
+        # ERC-20 stablecoins and tokens use ETH derivation
+        if asset in ["USDT-ERC20", "USDC-ERC20", "LINK"]:
             return "ETH"
-        if asset in ["USDT-BEP20", "USDC-BEP20", "BNB", "BSC"]:
-            return "ETH"
-        if asset in ["USDT-SPL", "USDC-SPL"]:
-            return "SOL"
-        if asset in ["USDT-AVAX", "USDC-AVAX", "AVAX"]:
-            return "ETH"
-        if asset in ["USDT-MATIC", "USDC-MATIC", "MATIC", "POLYGON"]:
-            return "ETH"
+        # HYPE is EVM compatible
+        if asset == "HYPE":
+            return "HYPE"
+        # ADA has its own derivation
+        if asset == "ADA":
+            return "ADA"
         return asset
 
     def derive_address(self, index: int, change: int = 0) -> AddressInfo:
@@ -139,7 +135,7 @@ class SeedPhraseWallet(HDWalletProvider):
         """Derive address using bip_utils."""
         from bip_utils import (
             Bip39SeedGenerator, Bip44, Bip84, Bip44Coins, Bip84Coins,
-            Bip44Changes,
+            Bip44Changes, Cip1852, Cip1852Coins,
         )
 
         # Generate seed from mnemonic
@@ -161,8 +157,15 @@ class SeedPhraseWallet(HDWalletProvider):
             address = account.AddressIndex(index).PublicKey().ToAddress()
             return address
 
-        # ETH and EVM chains (ETH, BNB, AVAX, MATIC)
+        # ETH and EVM chains (ETH, LINK, etc.)
         if base_asset == "ETH":
+            bip44 = Bip44.FromSeed(seed, Bip44Coins.ETHEREUM)
+            account = bip44.Purpose().Coin().Account(0).Change(Bip44Changes.CHAIN_EXT)
+            address = account.AddressIndex(index).PublicKey().ToAddress()
+            return address
+
+        # HYPE - Hyperliquid (EVM compatible)
+        if base_asset == "HYPE":
             bip44 = Bip44.FromSeed(seed, Bip44Coins.ETHEREUM)
             account = bip44.Purpose().Coin().Account(0).Change(Bip44Changes.CHAIN_EXT)
             address = account.AddressIndex(index).PublicKey().ToAddress()
@@ -178,6 +181,20 @@ class SeedPhraseWallet(HDWalletProvider):
         # ATOM
         if base_asset == "ATOM":
             bip44 = Bip44.FromSeed(seed, Bip44Coins.COSMOS)
+            account = bip44.Purpose().Coin().Account(0).Change(Bip44Changes.CHAIN_EXT)
+            address = account.AddressIndex(index).PublicKey().ToAddress()
+            return address
+
+        # ADA - Cardano (CIP-1852 Shelley)
+        if base_asset == "ADA":
+            cip1852 = Cip1852.FromSeed(seed, Cip1852Coins.CARDANO_ICARUS)
+            account = cip1852.Purpose().Coin().Account(0).Change(Bip44Changes.CHAIN_EXT)
+            address = account.AddressIndex(index).PublicKey().ToAddress()
+            return address
+
+        # BNB - Same as ETH (EVM)
+        if base_asset == "BNB":
+            bip44 = Bip44.FromSeed(seed, Bip44Coins.ETHEREUM)
             account = bip44.Purpose().Coin().Account(0).Change(Bip44Changes.CHAIN_EXT)
             address = account.AddressIndex(index).PublicKey().ToAddress()
             return address
@@ -222,21 +239,17 @@ def _get_xpub_for_asset(asset: str) -> Optional[str]:
     if xpub:
         return xpub
 
-    # Try generic xpub for chain families
-    if asset in ["USDT", "USDT-ERC20", "USDC", "USDC-ERC20"]:
+    # ERC-20 tokens use ETH xpub
+    if asset in ["USDT-ERC20", "USDC-ERC20", "LINK"]:
         return os.environ.get("XPUB_ETH")
 
-    if asset in ["BNB", "BSC", "USDT-BEP20", "USDC-BEP20"]:
-        return os.environ.get("XPUB_BSC") or os.environ.get("XPUB_ETH")
+    # BNB uses ETH xpub (EVM compatible)
+    if asset == "BNB":
+        return os.environ.get("XPUB_BNB") or os.environ.get("XPUB_ETH")
 
-    if asset in ["USDT-SPL", "USDC-SPL"]:
-        return os.environ.get("XPUB_SOL")
-
-    if asset in ["AVAX", "USDT-AVAX", "USDC-AVAX"]:
-        return os.environ.get("XPUB_AVAX") or os.environ.get("XPUB_ETH")
-
-    if asset in ["MATIC", "POLYGON", "USDT-MATIC", "USDC-MATIC"]:
-        return os.environ.get("XPUB_MATIC") or os.environ.get("XPUB_ETH")
+    # HYPE uses ETH xpub (EVM compatible)
+    if asset == "HYPE":
+        return os.environ.get("XPUB_HYPE") or os.environ.get("XPUB_ETH")
 
     return None
 
@@ -244,9 +257,7 @@ def _get_xpub_for_asset(asset: str) -> Optional[str]:
 def _create_xpub_wallet(asset: str, xpub: str, testnet: bool) -> HDWalletProvider:
     """Create wallet from xpub."""
     from swaperex.hdwallet.btc import BTCHDWallet, LTCHDWallet
-    from swaperex.hdwallet.eth import (
-        ETHHDWallet, BSCHDWallet, SOLHDWallet, AVAXHDWallet, MATICHDWallet,
-    )
+    from swaperex.hdwallet.eth import ETHHDWallet, BSCHDWallet, SOLHDWallet
     from swaperex.hdwallet.chains import ATOMHDWallet
 
     wallet_map = {
@@ -254,25 +265,17 @@ def _create_xpub_wallet(asset: str, xpub: str, testnet: bool) -> HDWalletProvide
         "LTC": LTCHDWallet,
         "ETH": ETHHDWallet,
         "BNB": BSCHDWallet,
-        "BSC": BSCHDWallet,
         "SOL": SOLHDWallet,
         "ATOM": ATOMHDWallet,
-        "AVAX": AVAXHDWallet,
-        "MATIC": MATICHDWallet,
+        "HYPE": ETHHDWallet,  # EVM compatible
+        "LINK": ETHHDWallet,  # ERC-20 token
+        "ADA": None,  # Cardano uses different derivation (handled by seed phrase)
     }
 
-    # Get base asset for stablecoins
+    # Get base asset for ERC-20 tokens
     base_asset = asset
-    if asset in ["USDT", "USDC", "USDT-ERC20", "USDC-ERC20"]:
+    if asset in ["USDT-ERC20", "USDC-ERC20", "LINK"]:
         base_asset = "ETH"
-    elif asset in ["USDT-BEP20", "USDC-BEP20"]:
-        base_asset = "BSC"
-    elif asset in ["USDT-SPL", "USDC-SPL"]:
-        base_asset = "SOL"
-    elif asset in ["USDT-AVAX", "USDC-AVAX"]:
-        base_asset = "AVAX"
-    elif asset in ["USDT-MATIC", "USDC-MATIC", "POLYGON"]:
-        base_asset = "MATIC"
 
     wallet_class = wallet_map.get(base_asset)
     if wallet_class:

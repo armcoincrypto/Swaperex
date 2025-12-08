@@ -1,15 +1,14 @@
 """Factory for creating swap route providers and aggregators.
 
 Provider architecture:
-1. Internal Reserve - DASH swaps + USDT bridging (instant, operator liquidity)
-2. PancakeSwap - BSC DEX swaps (cheap)
-3. Uniswap - Ethereum DEX swaps
-4. Jupiter - Solana DEX aggregator (cheapest)
-5. Osmosis - Cosmos ecosystem swaps
-6. Trader Joe - Avalanche DEX swaps (cheap, fast)
-7. QuickSwap - Polygon DEX swaps (cheapest, fastest)
-8. THORChain - Cross-chain native swaps
-9. DryRun - Simulated fallback for testing
+1. PancakeSwap - BSC DEX swaps (cheap)
+2. Uniswap - Ethereum DEX swaps (ETH, LINK, USDT-ERC20, USDC-ERC20)
+3. Jupiter - Solana DEX aggregator (cheapest)
+4. Osmosis - Cosmos ecosystem swaps (ATOM)
+5. THORChain - Cross-chain native swaps (BTC, LTC)
+6. Minswap - Cardano DEX (ADA)
+7. Hyperliquid - Native L1 DEX (HYPE)
+8. DryRun - Simulated fallback for testing
 """
 
 import logging
@@ -162,6 +161,36 @@ def create_quickswap_provider(
     return provider
 
 
+def create_minswap_provider() -> RouteProvider:
+    """Create Minswap provider for Cardano (ADA) swaps.
+
+    Supports: ADA
+    Very low fees (~0.2 ADA)
+    """
+    from swaperex.routing.minswap import MinswapProvider
+
+    provider = MinswapProvider()
+    logger.info("Minswap provider created (Cardano)")
+    return provider
+
+
+def create_hyperliquid_provider(
+    private_key: Optional[str] = None,
+) -> RouteProvider:
+    """Create Hyperliquid provider for HYPE swaps.
+
+    Supports: HYPE, USDC
+    Sub-second finality, very low fees
+    """
+    from swaperex.routing.hyperliquid import HyperliquidProvider
+
+    private_key = private_key or os.environ.get("HYPE_PRIVATE_KEY")
+
+    provider = HyperliquidProvider(private_key=private_key)
+    logger.info("Hyperliquid provider created")
+    return provider
+
+
 def create_thorchain_provider(use_real: bool = True) -> RouteProvider:
     """Create THORChain provider for cross-chain swaps.
 
@@ -183,23 +212,24 @@ def create_thorchain_provider(use_real: bool = True) -> RouteProvider:
 
 
 def create_aggregator(
-    include_internal_reserve: bool = True,
+    include_internal_reserve: bool = False,  # Disabled - no DASH support
     include_pancakeswap: bool = True,
     include_uniswap: bool = True,
     include_jupiter: bool = True,
     include_osmosis: bool = True,
-    include_traderjoe: bool = True,
-    include_quickswap: bool = True,
+    include_traderjoe: bool = False,  # Disabled - no AVAX in coin list
+    include_quickswap: bool = False,  # Disabled - no MATIC in coin list
     include_thorchain: bool = True,
+    include_minswap: bool = True,
+    include_hyperliquid: bool = True,
     include_dry_run: bool = True,
 ) -> RouteAggregator:
     """Create a route aggregator with configured providers.
 
     Priority order (first match wins for same pair):
-    1. Internal Reserve (DASH + USDT bridging)
-    2. Chain-specific DEXes (PancakeSwap, Uniswap, Jupiter, Osmosis, Trader Joe, QuickSwap)
-    3. THORChain (cross-chain fallback)
-    4. DryRun (testing fallback)
+    1. Chain-specific DEXes (PancakeSwap, Uniswap, Jupiter, Osmosis, Minswap, Hyperliquid)
+    2. THORChain (cross-chain for BTC, LTC)
+    3. DryRun (testing fallback)
     """
     settings = get_settings()
     aggregator = RouteAggregator()
@@ -267,6 +297,24 @@ def create_aggregator(
         except Exception as e:
             logger.warning(f"Failed to add QuickSwap: {e}")
 
+    # Minswap - Cardano (ADA) swaps
+    if include_minswap:
+        try:
+            provider = create_minswap_provider()
+            aggregator.add_provider(provider)
+            logger.info(f"Added {provider.name} provider")
+        except Exception as e:
+            logger.warning(f"Failed to add Minswap: {e}")
+
+    # Hyperliquid - HYPE swaps
+    if include_hyperliquid:
+        try:
+            provider = create_hyperliquid_provider()
+            aggregator.add_provider(provider)
+            logger.info(f"Added {provider.name} provider")
+        except Exception as e:
+            logger.warning(f"Failed to add Hyperliquid: {e}")
+
     # THORChain - cross-chain
     if include_thorchain:
         try:
@@ -291,14 +339,16 @@ def create_production_aggregator() -> RouteAggregator:
     No dry-run fallback - real swaps only.
     """
     return create_aggregator(
-        include_internal_reserve=True,
+        include_internal_reserve=False,
         include_pancakeswap=True,
         include_uniswap=True,
         include_jupiter=True,
         include_osmosis=True,
-        include_traderjoe=True,
-        include_quickswap=True,
+        include_traderjoe=False,
+        include_quickswap=False,
         include_thorchain=True,
+        include_minswap=True,
+        include_hyperliquid=True,
         include_dry_run=False,
     )
 
@@ -306,17 +356,19 @@ def create_production_aggregator() -> RouteAggregator:
 def create_default_aggregator() -> RouteAggregator:
     """Create default aggregator for most use cases.
 
-    Includes all providers with dry-run fallback.
+    Includes all DEX providers with dry-run fallback.
     """
     return create_aggregator(
-        include_internal_reserve=True,
+        include_internal_reserve=False,
         include_pancakeswap=True,
         include_uniswap=True,
         include_jupiter=True,
         include_osmosis=True,
-        include_traderjoe=True,
-        include_quickswap=True,
+        include_traderjoe=False,
+        include_quickswap=False,
         include_thorchain=True,
+        include_minswap=True,
+        include_hyperliquid=True,
         include_dry_run=True,
     )
 

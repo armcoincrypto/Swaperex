@@ -173,6 +173,35 @@ CHAINS: dict[str, ChainConfig] = {
         usdt_address="ibc/4ABBEF4C8926DDDB320AE5188CFD63267ABBCEFC0583E4AE05D6E5AA2401DDAB",  # axlUSDT
         usdc_address="ibc/D189335C6E4A68B513C10AB227BF1C1D38C746766278BA3EEB4FB14124F1D858",  # axlUSDC
     ),
+
+    # Cardano - Minswap DEX
+    "ADA": ChainConfig(
+        name="Cardano",
+        symbol="ADA",
+        rpc_url=os.getenv("ADA_RPC_URL", "https://cardano-mainnet.blockfrost.io/api/v0"),
+        explorer_url="https://cardanoscan.io",
+        dex_name="Minswap",
+        coin_type=1815,  # CIP-1852: m/1852'/1815'/0'/0/0
+        chain_id=None,
+        rpc_url_backup="https://mainnet.koios.rest/api/v0",
+        explorer_api_url="https://cardanoscan.io/api",
+        decimals=6,
+        address_prefix="addr1",
+    ),
+
+    # Hyperliquid - Native DEX (Layer 1)
+    "HYPE": ChainConfig(
+        name="Hyperliquid",
+        symbol="HYPE",
+        rpc_url=os.getenv("HYPE_RPC_URL", "https://api.hyperliquid.xyz"),
+        explorer_url="https://app.hyperliquid.xyz",
+        dex_name="Hyperliquid",
+        coin_type=60,  # EVM compatible
+        chain_id=999,  # Hyperliquid L1 chain ID
+        rpc_url_backup="https://rpc.hyperliquid.xyz",
+        explorer_api_url="https://api.hyperliquid.xyz",
+        decimals=18,
+    ),
 }
 
 
@@ -234,6 +263,9 @@ DERIVATION_PATHS = {
     "MATIC": "m/44'/60'/0'/0/{index}",   # Same as ETH (EVM)
     "SOL": "m/44'/501'/0'/0/{index}",    # Solana
     "ATOM": "m/44'/118'/0'/0/{index}",   # Cosmos
+    "ADA": "m/1852'/1815'/0'/0/{index}", # Cardano (CIP-1852 Shelley)
+    "HYPE": "m/44'/60'/0'/0/{index}",    # Hyperliquid (EVM compatible)
+    "LINK": "m/44'/60'/0'/0/{index}",    # Chainlink (ERC-20 on ETH)
 }
 
 
