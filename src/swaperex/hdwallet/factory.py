@@ -14,7 +14,7 @@ import os
 from typing import Optional
 
 from swaperex.config import get_settings
-from swaperex.hdwallet.base import HDWalletProvider, SimulatedHDWallet
+from swaperex.hdwallet.base import HDWalletProvider, SimulatedHDWallet, AddressInfo
 
 
 # Cache for wallet instances
@@ -48,19 +48,35 @@ def get_stablecoins() -> dict[str, list[str]]:
 class SeedPhraseWallet(HDWalletProvider):
     """HD Wallet that derives addresses from seed phrase."""
 
-    def __init__(self, seed_phrase: str, asset: str, testnet: bool = False):
+    def __init__(self, seed_phrase: str, asset_symbol: str, testnet: bool = False):
         self.seed_phrase = seed_phrase
-        self.asset = asset.upper()
+        self._asset = asset_symbol.upper()
         self._testnet = testnet
-        self._xpub = f"seed:{asset}"  # Marker that we're using seed
+        self._xpub = f"seed:{asset_symbol}"  # Marker that we're using seed
+
+    def _validate_xpub(self) -> None:
+        """No xpub validation needed for seed phrase wallet."""
+        pass
 
     @property
     def xpub(self) -> str:
         return self._xpub
 
+    @xpub.setter
+    def xpub(self, value: str) -> None:
+        self._xpub = value
+
     @property
     def testnet(self) -> bool:
         return self._testnet
+
+    @testnet.setter
+    def testnet(self, value: bool) -> None:
+        self._testnet = value
+
+    @property
+    def asset(self) -> str:
+        return self._asset
 
     @property
     def coin_type(self) -> int:
@@ -69,39 +85,55 @@ class SeedPhraseWallet(HDWalletProvider):
             "BTC": 0, "LTC": 2, "ETH": 60, "BNB": 60, "BSC": 60,
             "AVAX": 60, "MATIC": 60, "SOL": 501, "ATOM": 118,
         }
-        # For stablecoins, use parent chain's coin type
         base_asset = self._get_base_asset()
         return coin_types.get(base_asset, 60)
 
     @property
     def purpose(self) -> int:
         """BIP44/84 purpose."""
-        if self.asset in ["BTC", "LTC"]:
+        if self._asset in ["BTC", "LTC"]:
             return 84  # Native SegWit
         return 44  # Standard
 
     def _get_base_asset(self) -> str:
         """Get base asset for stablecoins."""
-        asset = self.asset
+        asset = self._asset
         if asset in ["USDT", "USDC", "USDT-ERC20", "USDC-ERC20"]:
             return "ETH"
         if asset in ["USDT-BEP20", "USDC-BEP20", "BNB", "BSC"]:
-            return "ETH"  # Same derivation as ETH
+            return "ETH"
         if asset in ["USDT-SPL", "USDC-SPL"]:
             return "SOL"
         if asset in ["USDT-AVAX", "USDC-AVAX", "AVAX"]:
-            return "ETH"  # EVM compatible
+            return "ETH"
         if asset in ["USDT-MATIC", "USDC-MATIC", "MATIC", "POLYGON"]:
-            return "ETH"  # EVM compatible
+            return "ETH"
         return asset
 
-    def derive_address(self, index: int) -> str:
+    def derive_address(self, index: int, change: int = 0) -> AddressInfo:
         """Derive address at index from seed phrase."""
         try:
-            return self._derive_from_seed(index)
+            address = self._derive_from_seed(index)
+            return AddressInfo(
+                address=address,
+                asset=self._asset,
+                derivation_path=self.get_derivation_path(index, change),
+                index=index,
+                change=change,
+                script_type="seed",
+            )
         except Exception as e:
             # Fallback to simulated if derivation fails
-            return f"sim:{self.asset.lower()}:{index}:{str(index).zfill(6)}"
+            prefix = "sim" if not self._testnet else "tsim"
+            address = f"{prefix}:{self._asset.lower()}:{change}:{index:06d}"
+            return AddressInfo(
+                address=address,
+                asset=self._asset,
+                derivation_path=self.get_derivation_path(index, change),
+                index=index,
+                change=change,
+                script_type="simulated_fallback",
+            )
 
     def _derive_from_seed(self, index: int) -> str:
         """Derive address using bip_utils."""
@@ -142,8 +174,7 @@ class SeedPhraseWallet(HDWalletProvider):
 
         # SOL
         if base_asset == "SOL":
-            from bip_utils import Bip44Coins as SolCoins
-            bip44 = Bip44.FromSeed(seed, SolCoins.SOLANA)
+            bip44 = Bip44.FromSeed(seed, Bip44Coins.SOLANA)
             # Solana uses different derivation - m/44'/501'/index'/0'
             address = bip44.Purpose().Coin().Account(index).PublicKey().ToAddress()
             return address
@@ -155,7 +186,7 @@ class SeedPhraseWallet(HDWalletProvider):
             address = account.AddressIndex(index).PublicKey().ToAddress()
             return address
 
-        raise ValueError(f"Unsupported asset: {self.asset}")
+        raise ValueError(f"Unsupported asset: {self._asset}")
 
 
 def get_hd_wallet(asset: str) -> HDWalletProvider:
