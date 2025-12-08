@@ -1,30 +1,60 @@
 """HD Wallet factory for creating wallet instances.
 
-This module provides a factory function to create HD wallet instances
-based on asset type and configuration.
+Supported coins: BTC, LTC, ETH, SOL, BNB, ATOM, AVAX, MATIC (8 coins)
+Plus stablecoins: USDT, USDC on respective chains
+
+All coins have DEX swap support:
+- BTC, LTC: THORChain
+- ETH: Uniswap
+- SOL: Jupiter
+- BNB: PancakeSwap
+- ATOM: Osmosis
+- AVAX: Trader Joe
+- MATIC: QuickSwap
 """
 
 from typing import Optional
 
 from swaperex.config import get_settings
 from swaperex.hdwallet.base import HDWalletProvider, SimulatedHDWallet
-from swaperex.hdwallet.btc import BTCHDWallet, DASHHDWallet, LTCHDWallet
-from swaperex.hdwallet.eth import BSCHDWallet, ETHHDWallet, SOLHDWallet, TRXHDWallet
+from swaperex.hdwallet.btc import BTCHDWallet, LTCHDWallet
+from swaperex.hdwallet.eth import (
+    BSCHDWallet, ETHHDWallet, SOLHDWallet,
+    AVAXHDWallet, MATICHDWallet,
+)
+from swaperex.hdwallet.chains import ATOMHDWallet
 
 # Asset to wallet class mapping
+# Core coins: BTC, LTC, ETH, SOL, BNB, ATOM, AVAX, MATIC (all have DEX support)
 WALLET_CLASSES: dict[str, type[HDWalletProvider]] = {
+    # Native coins
     "BTC": BTCHDWallet,
     "LTC": LTCHDWallet,
     "ETH": ETHHDWallet,
-    "BSC": BSCHDWallet,
-    "BNB": BSCHDWallet,  # Alias for BSC
-    "TRX": TRXHDWallet,
     "SOL": SOLHDWallet,
-    "DASH": DASHHDWallet,
-    "USDT": ETHHDWallet,  # Default USDT is ERC-20 (use ETH address)
-    "USDT-TRC20": TRXHDWallet,
+    "BNB": BSCHDWallet,
+    "BSC": BSCHDWallet,  # Alias
+    "ATOM": ATOMHDWallet,
+    "AVAX": AVAXHDWallet,
+    "MATIC": MATICHDWallet,
+    "POLYGON": MATICHDWallet,  # Alias
+    # ETH stablecoins (ERC-20)
+    "USDT": ETHHDWallet,
     "USDT-ERC20": ETHHDWallet,
     "USDC": ETHHDWallet,
+    "USDC-ERC20": ETHHDWallet,
+    # BSC stablecoins (BEP-20)
+    "USDT-BEP20": BSCHDWallet,
+    "USDC-BEP20": BSCHDWallet,
+    # SOL stablecoins (SPL)
+    "USDT-SPL": SOLHDWallet,
+    "USDC-SPL": SOLHDWallet,
+    # AVAX stablecoins
+    "USDT-AVAX": AVAXHDWallet,
+    "USDC-AVAX": AVAXHDWallet,
+    # MATIC stablecoins
+    "USDT-MATIC": MATICHDWallet,
+    "USDC-MATIC": MATICHDWallet,
 }
 
 # Cache for wallet instances
@@ -36,18 +66,24 @@ def get_supported_assets() -> list[str]:
     return list(WALLET_CLASSES.keys())
 
 
+def get_core_coins() -> list[str]:
+    """Get list of core supported coins (not stablecoins)."""
+    return ["BTC", "LTC", "ETH", "SOL", "BNB", "ATOM", "AVAX", "MATIC"]
+
+
+def get_stablecoins() -> dict[str, list[str]]:
+    """Get stablecoins by chain."""
+    return {
+        "ETH": ["USDT-ERC20", "USDC-ERC20"],
+        "BSC": ["USDT-BEP20", "USDC-BEP20"],
+        "SOL": ["USDT-SPL", "USDC-SPL"],
+        "AVAX": ["USDT-AVAX", "USDC-AVAX"],
+        "MATIC": ["USDT-MATIC", "USDC-MATIC"],
+    }
+
+
 def get_hd_wallet(asset: str) -> HDWalletProvider:
-    """Get HD wallet instance for an asset.
-
-    Args:
-        asset: Asset symbol (BTC, ETH, etc.)
-
-    Returns:
-        HDWalletProvider instance for the asset
-
-    Raises:
-        ValueError: If asset is not supported
-    """
+    """Get HD wallet instance for an asset."""
     asset_upper = asset.upper()
 
     # Check cache
@@ -80,12 +116,7 @@ def get_hd_wallet(asset: str) -> HDWalletProvider:
 
 
 def _get_xpub_for_asset(asset: str, settings) -> Optional[str]:
-    """Get xpub for a specific asset.
-
-    Priority:
-    1. Database (encrypted xpub_keys table)
-    2. Environment variables (XPUB_BTC, etc.)
-    """
+    """Get xpub for a specific asset."""
     import os
 
     # Try to load from database first
@@ -99,21 +130,34 @@ def _get_xpub_for_asset(asset: str, settings) -> Optional[str]:
         return xpub
 
     # Try generic xpub for chain families
-    if asset in ["USDT", "USDT-ERC20", "USDC"]:
+    # ETH-based tokens use ETH xpub
+    if asset in ["USDT", "USDT-ERC20", "USDC", "USDC-ERC20"]:
         return _load_xpub_from_db("ETH") or os.environ.get("XPUB_ETH")
-    if asset in ["USDT-TRC20"]:
-        return _load_xpub_from_db("TRX") or os.environ.get("XPUB_TRX")
-    if asset in ["BNB", "BSC"]:
-        return _load_xpub_from_db("BSC") or _load_xpub_from_db("ETH") or os.environ.get("XPUB_BSC") or os.environ.get("XPUB_ETH")
+
+    # BSC-based tokens use BSC or ETH xpub (same derivation)
+    if asset in ["BNB", "BSC", "USDT-BEP20", "USDC-BEP20"]:
+        return (_load_xpub_from_db("BSC") or _load_xpub_from_db("ETH") or
+                os.environ.get("XPUB_BSC") or os.environ.get("XPUB_ETH"))
+
+    # SOL-based tokens use SOL xpub
+    if asset in ["USDT-SPL", "USDC-SPL"]:
+        return _load_xpub_from_db("SOL") or os.environ.get("XPUB_SOL")
+
+    # AVAX-based tokens use AVAX or ETH xpub (EVM-compatible)
+    if asset in ["AVAX", "USDT-AVAX", "USDC-AVAX"]:
+        return (_load_xpub_from_db("AVAX") or _load_xpub_from_db("ETH") or
+                os.environ.get("XPUB_AVAX") or os.environ.get("XPUB_ETH"))
+
+    # MATIC-based tokens use MATIC or ETH xpub (EVM-compatible)
+    if asset in ["MATIC", "POLYGON", "USDT-MATIC", "USDC-MATIC"]:
+        return (_load_xpub_from_db("MATIC") or _load_xpub_from_db("ETH") or
+                os.environ.get("XPUB_MATIC") or os.environ.get("XPUB_ETH"))
 
     return None
 
 
 def _load_xpub_from_db(asset: str) -> Optional[str]:
-    """Load and decrypt xpub from database.
-
-    Uses synchronous database access for compatibility with factory pattern.
-    """
+    """Load and decrypt xpub from database."""
     import asyncio
 
     try:
@@ -133,20 +177,16 @@ def _load_xpub_from_db(asset: str) -> Optional[str]:
                     return decrypt_xpub(row[0])
             return None
 
-        # Run async function
         try:
             loop = asyncio.get_running_loop()
-            # If we're already in an async context, create a task
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor() as pool:
                 future = pool.submit(asyncio.run, fetch_xpub())
                 return future.result(timeout=5)
         except RuntimeError:
-            # No running loop, safe to use asyncio.run
             return asyncio.run(fetch_xpub())
 
     except Exception:
-        # If anything fails, return None and fall back to env vars
         return None
 
 
@@ -156,11 +196,7 @@ def reset_wallet_cache() -> None:
 
 
 def get_wallet_info(asset: str) -> dict:
-    """Get information about the HD wallet for an asset.
-
-    Returns:
-        Dict with wallet info including whether it's configured
-    """
+    """Get information about the HD wallet for an asset."""
     wallet = get_hd_wallet(asset)
 
     return {

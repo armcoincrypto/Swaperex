@@ -6,8 +6,10 @@ Provider architecture:
 3. Uniswap - Ethereum DEX swaps
 4. Jupiter - Solana DEX aggregator (cheapest)
 5. Osmosis - Cosmos ecosystem swaps
-6. THORChain - Cross-chain native swaps
-7. DryRun - Simulated fallback for testing
+6. Trader Joe - Avalanche DEX swaps (cheap, fast)
+7. QuickSwap - Polygon DEX swaps (cheapest, fastest)
+8. THORChain - Cross-chain native swaps
+9. DryRun - Simulated fallback for testing
 """
 
 import logging
@@ -126,6 +128,40 @@ def create_osmosis_provider(
     return provider
 
 
+def create_traderjoe_provider(
+    private_key: Optional[str] = None,
+) -> RouteProvider:
+    """Create Trader Joe provider for Avalanche swaps.
+
+    Supports: AVAX, USDT-AVAX, USDC-AVAX, WETH, WBTC, JOE
+    Low gas fees (~$0.01)
+    """
+    from swaperex.routing.traderjoe import TraderJoeProvider
+
+    private_key = private_key or os.environ.get("AVAX_PRIVATE_KEY")
+
+    provider = TraderJoeProvider(private_key=private_key)
+    logger.info("Trader Joe provider created (Avalanche)")
+    return provider
+
+
+def create_quickswap_provider(
+    private_key: Optional[str] = None,
+) -> RouteProvider:
+    """Create QuickSwap provider for Polygon swaps.
+
+    Supports: MATIC, USDT-MATIC, USDC-MATIC, WETH, WBTC, QUICK
+    Lowest gas fees (~$0.001)
+    """
+    from swaperex.routing.quickswap import QuickSwapProvider
+
+    private_key = private_key or os.environ.get("MATIC_PRIVATE_KEY")
+
+    provider = QuickSwapProvider(private_key=private_key)
+    logger.info("QuickSwap provider created (Polygon)")
+    return provider
+
+
 def create_thorchain_provider(use_real: bool = True) -> RouteProvider:
     """Create THORChain provider for cross-chain swaps.
 
@@ -152,6 +188,8 @@ def create_aggregator(
     include_uniswap: bool = True,
     include_jupiter: bool = True,
     include_osmosis: bool = True,
+    include_traderjoe: bool = True,
+    include_quickswap: bool = True,
     include_thorchain: bool = True,
     include_dry_run: bool = True,
 ) -> RouteAggregator:
@@ -159,7 +197,7 @@ def create_aggregator(
 
     Priority order (first match wins for same pair):
     1. Internal Reserve (DASH + USDT bridging)
-    2. Chain-specific DEXes (PancakeSwap, Uniswap, Jupiter, Osmosis)
+    2. Chain-specific DEXes (PancakeSwap, Uniswap, Jupiter, Osmosis, Trader Joe, QuickSwap)
     3. THORChain (cross-chain fallback)
     4. DryRun (testing fallback)
     """
@@ -211,6 +249,24 @@ def create_aggregator(
         except Exception as e:
             logger.warning(f"Failed to add Osmosis: {e}")
 
+    # Trader Joe - Avalanche swaps (cheap, fast)
+    if include_traderjoe:
+        try:
+            provider = create_traderjoe_provider()
+            aggregator.add_provider(provider)
+            logger.info(f"Added {provider.name} provider")
+        except Exception as e:
+            logger.warning(f"Failed to add Trader Joe: {e}")
+
+    # QuickSwap - Polygon swaps (cheapest, fastest)
+    if include_quickswap:
+        try:
+            provider = create_quickswap_provider()
+            aggregator.add_provider(provider)
+            logger.info(f"Added {provider.name} provider")
+        except Exception as e:
+            logger.warning(f"Failed to add QuickSwap: {e}")
+
     # THORChain - cross-chain
     if include_thorchain:
         try:
@@ -240,6 +296,8 @@ def create_production_aggregator() -> RouteAggregator:
         include_uniswap=True,
         include_jupiter=True,
         include_osmosis=True,
+        include_traderjoe=True,
+        include_quickswap=True,
         include_thorchain=True,
         include_dry_run=False,
     )
@@ -256,6 +314,8 @@ def create_default_aggregator() -> RouteAggregator:
         include_uniswap=True,
         include_jupiter=True,
         include_osmosis=True,
+        include_traderjoe=True,
+        include_quickswap=True,
         include_thorchain=True,
         include_dry_run=True,
     )
@@ -272,7 +332,7 @@ def create_minimal_aggregator() -> RouteAggregator:
 def create_evm_aggregator() -> RouteAggregator:
     """Create aggregator with only EVM DEXes.
 
-    PancakeSwap (BSC) + Uniswap (ETH)
+    PancakeSwap (BSC) + Uniswap (ETH) + Trader Joe (AVAX) + QuickSwap (MATIC)
     """
     return create_aggregator(
         include_internal_reserve=False,
@@ -280,6 +340,8 @@ def create_evm_aggregator() -> RouteAggregator:
         include_uniswap=True,
         include_jupiter=False,
         include_osmosis=False,
+        include_traderjoe=True,
+        include_quickswap=True,
         include_thorchain=False,
         include_dry_run=True,
     )
@@ -288,7 +350,7 @@ def create_evm_aggregator() -> RouteAggregator:
 def create_cheap_aggregator() -> RouteAggregator:
     """Create aggregator with only cheap DEXes.
 
-    Internal Reserve + PancakeSwap (BSC) + Jupiter (Solana)
+    Internal Reserve + PancakeSwap (BSC) + Jupiter (Solana) + QuickSwap (MATIC) + Trader Joe (AVAX)
     """
     return create_aggregator(
         include_internal_reserve=True,
@@ -296,6 +358,8 @@ def create_cheap_aggregator() -> RouteAggregator:
         include_uniswap=False,  # Expensive
         include_jupiter=True,
         include_osmosis=True,
+        include_traderjoe=True,
+        include_quickswap=True,  # Very cheap
         include_thorchain=False,  # Can be expensive
         include_dry_run=True,
     )

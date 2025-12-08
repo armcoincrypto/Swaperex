@@ -1,4 +1,14 @@
-"""Factory for creating deposit scanners."""
+"""Factory for creating deposit scanners.
+
+Supported scanners:
+- BTC, LTC: Blockstream API
+- ETH, ERC-20 tokens: Etherscan API
+- BSC, BEP-20 tokens: BscScan API
+- SOL, SPL tokens: Solana RPC / Helius API
+- ATOM: Cosmos LCD API
+- AVAX: Snowtrace API (same as Etherscan)
+- MATIC: Polygonscan API (same as Etherscan)
+"""
 
 import os
 
@@ -99,6 +109,68 @@ def get_scanner(asset: str) -> DepositScanner:
         scanner.asset = "DOGE"
         scanner.blockcypher_url = "https://api.blockcypher.com/v1/doge/main"
 
+    # SOL (Solana)
+    elif asset_upper == "SOL":
+        from swaperex.scanner.multichain import SolanaScanner
+        api_key = os.environ.get("HELIUS_API_KEY")
+        scanner = SolanaScanner(api_key=api_key, testnet=testnet)
+
+    # SPL tokens (Solana)
+    elif asset_upper in ("USDT-SPL", "USDC-SPL"):
+        from swaperex.scanner.multichain import SolanaScanner
+        api_key = os.environ.get("HELIUS_API_KEY")
+        scanner = SolanaScanner(api_key=api_key, testnet=testnet)
+        scanner._asset = asset_upper  # Override asset name
+
+    # ATOM (Cosmos)
+    elif asset_upper == "ATOM":
+        from swaperex.scanner.multichain import ATOMScanner
+        scanner = ATOMScanner(testnet=testnet)
+
+    # AVAX (Avalanche C-Chain) - uses Snowtrace (Etherscan-compatible)
+    elif asset_upper == "AVAX":
+        from swaperex.scanner.etherscan import EtherscanScanner
+        api_key = os.environ.get("SNOWTRACE_API_KEY")
+        scanner = EtherscanScanner(testnet=testnet, api_key=api_key)
+        scanner.asset = "AVAX"
+        scanner.base_url = (
+            "https://api-testnet.snowtrace.io/api" if testnet
+            else "https://api.snowtrace.io/api"
+        )
+
+    # AVAX stablecoins
+    elif asset_upper in ("USDT-AVAX", "USDC-AVAX"):
+        from swaperex.scanner.etherscan import EtherscanScanner
+        api_key = os.environ.get("SNOWTRACE_API_KEY")
+        scanner = EtherscanScanner(testnet=testnet, api_key=api_key)
+        scanner.asset = asset_upper
+        scanner.base_url = (
+            "https://api-testnet.snowtrace.io/api" if testnet
+            else "https://api.snowtrace.io/api"
+        )
+
+    # MATIC (Polygon) - uses Polygonscan (Etherscan-compatible)
+    elif asset_upper in ("MATIC", "POLYGON"):
+        from swaperex.scanner.etherscan import EtherscanScanner
+        api_key = os.environ.get("POLYGONSCAN_API_KEY")
+        scanner = EtherscanScanner(testnet=testnet, api_key=api_key)
+        scanner.asset = "MATIC"
+        scanner.base_url = (
+            "https://api-testnet.polygonscan.com/api" if testnet
+            else "https://api.polygonscan.com/api"
+        )
+
+    # MATIC stablecoins
+    elif asset_upper in ("USDT-MATIC", "USDC-MATIC"):
+        from swaperex.scanner.etherscan import EtherscanScanner
+        api_key = os.environ.get("POLYGONSCAN_API_KEY")
+        scanner = EtherscanScanner(testnet=testnet, api_key=api_key)
+        scanner.asset = asset_upper
+        scanner.base_url = (
+            "https://api-testnet.polygonscan.com/api" if testnet
+            else "https://api.polygonscan.com/api"
+        )
+
     else:
         # Fall back to simulated for unsupported assets
         scanner = SimulatedScanner(asset_upper)
@@ -110,14 +182,35 @@ def get_scanner(asset: str) -> DepositScanner:
 def get_supported_scanner_assets() -> list[str]:
     """Get list of assets with real scanner support."""
     return [
+        # Core coins
         "BTC",
         "LTC",
         "ETH",
+        "SOL",
+        "BSC",
+        "BNB",
+        "ATOM",
+        "AVAX",
+        "MATIC",
+        # ETH stablecoins
         "USDT-ERC20",
+        "USDC-ERC20",
+        # BSC stablecoins
+        "USDT-BEP20",
+        "USDC-BEP20",
+        # SOL stablecoins
+        "USDT-SPL",
+        "USDC-SPL",
+        # AVAX stablecoins
+        "USDT-AVAX",
+        "USDC-AVAX",
+        # MATIC stablecoins
+        "USDT-MATIC",
+        "USDC-MATIC",
+        # Legacy (kept for backwards compatibility)
         "USDC",
         "TRX",
         "USDT-TRC20",
-        "BSC",
         "DASH",
         "DOGE",
     ]

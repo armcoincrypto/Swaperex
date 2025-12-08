@@ -179,6 +179,7 @@ class BSCHDWallet(ETHHDWallet):
     """Binance Smart Chain HD Wallet.
 
     Uses same derivation as ETH (EVM-compatible).
+    DEX support: PancakeSwap
     """
 
     def __init__(self, xpub: str, testnet: bool = False):
@@ -187,6 +188,36 @@ class BSCHDWallet(ETHHDWallet):
     @property
     def coin_type(self) -> int:
         return 60  # Same as ETH
+
+
+class AVAXHDWallet(ETHHDWallet):
+    """Avalanche C-Chain HD Wallet.
+
+    Uses same derivation as ETH (EVM-compatible).
+    DEX support: Trader Joe
+    """
+
+    def __init__(self, xpub: str, testnet: bool = False):
+        super().__init__(xpub, testnet, chain="AVAX")
+
+    @property
+    def coin_type(self) -> int:
+        return 60  # EVM-compatible, uses ETH coin type
+
+
+class MATICHDWallet(ETHHDWallet):
+    """Polygon (MATIC) HD Wallet.
+
+    Uses same derivation as ETH (EVM-compatible).
+    DEX support: QuickSwap
+    """
+
+    def __init__(self, xpub: str, testnet: bool = False):
+        super().__init__(xpub, testnet, chain="MATIC")
+
+    @property
+    def coin_type(self) -> int:
+        return 60  # EVM-compatible, uses ETH coin type
 
 
 class TRXHDWallet(HDWalletProvider):
