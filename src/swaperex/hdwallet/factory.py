@@ -139,14 +139,10 @@ class SeedPhraseWallet(HDWalletProvider):
         """Derive address using bip_utils."""
         from bip_utils import (
             Bip39SeedGenerator, Bip44, Bip84, Bip44Coins, Bip84Coins,
-            Bip44Changes, Bip39MnemonicValidator,
+            Bip44Changes,
         )
 
-        # Validate mnemonic
-        if not Bip39MnemonicValidator(self.seed_phrase).IsValid():
-            raise ValueError("Invalid seed phrase")
-
-        # Generate seed
+        # Generate seed from mnemonic
         seed = Bip39SeedGenerator(self.seed_phrase).Generate()
 
         base_asset = self._get_base_asset()
