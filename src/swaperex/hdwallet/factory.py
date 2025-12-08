@@ -187,9 +187,19 @@ class SeedPhraseWallet(HDWalletProvider):
 
         # ADA - Cardano (CIP-1852 Shelley)
         if base_asset == "ADA":
+            from bip_utils import (
+                CardanoShelley, CardanoShelleyAddrTypes,
+            )
+            # Derive using CIP-1852 for Cardano Shelley
             cip1852 = Cip1852.FromSeed(seed, Cip1852Coins.CARDANO_ICARUS)
-            account = cip1852.Purpose().Coin().Account(0).Change(Bip44Changes.CHAIN_EXT)
-            address = account.AddressIndex(index).PublicKey().ToAddress()
+            # Account 0, external chain (receiving addresses)
+            account = cip1852.Purpose().Coin().Account(0)
+            # Get payment key from external chain
+            payment_key = account.Change(Bip44Changes.CHAIN_EXT).AddressIndex(index)
+            # Get staking key from account (index 0 for staking)
+            staking_key = account.StakingKey()
+            # Generate Shelley base address (payment + staking)
+            address = CardanoShelley.FromCip1852Object(payment_key, staking_key).ToAddress()
             return address
 
         # BNB - Same as ETH (EVM)
