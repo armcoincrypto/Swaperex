@@ -51,7 +51,7 @@ class HyperliquidProvider(RouteProvider):
     @property
     def supported_assets(self) -> list[str]:
         """List of supported assets on Hyperliquid."""
-        return ["HYPE", "USDC"]
+        return ["HYPE"]
 
     async def get_quote(
         self,

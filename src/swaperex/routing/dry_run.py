@@ -8,19 +8,23 @@ from swaperex.routing.base import Quote, RouteProvider, SwapRoute
 
 
 # Simulated market prices in USD
+# Updated for DEX-only supported coins
 SIMULATED_PRICES: dict[str, Decimal] = {
-    "BTC": Decimal("67500.00"),
-    "ETH": Decimal("3450.00"),
-    "SOL": Decimal("185.00"),
+    # Core DEX-supported coins
+    "BTC": Decimal("100000.00"),
+    "LTC": Decimal("120.00"),
+    "ETH": Decimal("3800.00"),
+    "SOL": Decimal("220.00"),
+    "BNB": Decimal("700.00"),
+    "ATOM": Decimal("12.00"),
+    "ADA": Decimal("1.10"),
+    "LINK": Decimal("25.00"),
+    "HYPE": Decimal("30.00"),
+    # Stablecoins
     "USDT": Decimal("1.00"),
     "USDC": Decimal("1.00"),
-    "ATOM": Decimal("9.50"),
-    "RUNE": Decimal("5.80"),
-    "AVAX": Decimal("42.00"),
-    "MATIC": Decimal("0.58"),
-    "DOT": Decimal("7.20"),
-    "LINK": Decimal("14.50"),
-    "UNI": Decimal("12.80"),
+    "USDT-ERC20": Decimal("1.00"),
+    "USDC-ERC20": Decimal("1.00"),
 }
 
 
@@ -47,7 +51,7 @@ class DryRunRouter(RouteProvider):
 
     @property
     def name(self) -> str:
-        return "dry_run"
+        return "DryRun"
 
     @property
     def supported_assets(self) -> list[str]:

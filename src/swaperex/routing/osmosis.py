@@ -75,7 +75,8 @@ class OsmosisProvider(RouteProvider):
 
     @property
     def supported_assets(self) -> list[str]:
-        return list(OSMOSIS_DENOMS.keys())
+        # Only ATOM is supported in our DEX-only coin list
+        return ["ATOM"]
 
     def _get_denom(self, symbol: str) -> Optional[str]:
         """Get Osmosis denom for symbol."""
