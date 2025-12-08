@@ -9,7 +9,7 @@ Trust Wallet compatible - uses standard BIP44/BIP84 derivation paths.
 """
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 
@@ -17,30 +17,21 @@ from typing import Optional
 class ChainConfig:
     """Configuration for a blockchain."""
 
+    # Required fields (no defaults) - must come first
     name: str
     symbol: str
-    chain_id: Optional[int]  # EVM chains only
-
-    # RPC endpoints
     rpc_url: str
-    rpc_url_backup: Optional[str] = None
-
-    # Block explorer
     explorer_url: str
-    explorer_api_url: Optional[str] = None
-
-    # DEX info
     dex_name: str
-    dex_router: Optional[str] = None  # EVM router contract
-
-    # Native token info
-    decimals: int = 18
-
-    # HD Wallet derivation
     coin_type: int  # BIP44 coin type (SLIP-44)
-    address_prefix: Optional[str] = None  # For non-EVM chains
 
-    # Stablecoins on this chain
+    # Optional fields (with defaults)
+    chain_id: Optional[int] = None  # EVM chains only
+    rpc_url_backup: Optional[str] = None
+    explorer_api_url: Optional[str] = None
+    dex_router: Optional[str] = None  # EVM router contract
+    decimals: int = 18
+    address_prefix: Optional[str] = None  # For non-EVM chains
     usdt_address: Optional[str] = None
     usdc_address: Optional[str] = None
 
@@ -54,14 +45,14 @@ CHAINS: dict[str, ChainConfig] = {
     "BTC": ChainConfig(
         name="Bitcoin",
         symbol="BTC",
-        chain_id=None,
         rpc_url="https://blockstream.info/api",
-        rpc_url_backup="https://mempool.space/api",
         explorer_url="https://blockstream.info",
-        explorer_api_url="https://blockstream.info/api",
         dex_name="THORChain",
-        decimals=8,
         coin_type=0,  # BIP44: m/84'/0'/0'
+        chain_id=None,
+        rpc_url_backup="https://mempool.space/api",
+        explorer_api_url="https://blockstream.info/api",
+        decimals=8,
         address_prefix="bc1",  # Native SegWit
     ),
 
@@ -69,14 +60,14 @@ CHAINS: dict[str, ChainConfig] = {
     "LTC": ChainConfig(
         name="Litecoin",
         symbol="LTC",
-        chain_id=None,
         rpc_url="https://litecoinspace.org/api",
-        rpc_url_backup="https://ltc.bitaps.com/api",
         explorer_url="https://litecoinspace.org",
-        explorer_api_url="https://litecoinspace.org/api",
         dex_name="THORChain",
-        decimals=8,
         coin_type=2,  # BIP44: m/84'/2'/0'
+        chain_id=None,
+        rpc_url_backup="https://ltc.bitaps.com/api",
+        explorer_api_url="https://litecoinspace.org/api",
+        decimals=8,
         address_prefix="ltc1",  # Native SegWit
     ),
 
@@ -84,15 +75,15 @@ CHAINS: dict[str, ChainConfig] = {
     "ETH": ChainConfig(
         name="Ethereum",
         symbol="ETH",
-        chain_id=1,
         rpc_url=os.getenv("ETH_RPC_URL", "https://eth.llamarpc.com"),
-        rpc_url_backup="https://rpc.ankr.com/eth",
         explorer_url="https://etherscan.io",
-        explorer_api_url="https://api.etherscan.io/api",
         dex_name="Uniswap",
+        coin_type=60,  # BIP44: m/44'/60'/0'/0
+        chain_id=1,
+        rpc_url_backup="https://rpc.ankr.com/eth",
+        explorer_api_url="https://api.etherscan.io/api",
         dex_router="0xE592427A0AEce92De3Edee1F18E0157C05861564",  # Uniswap V3
         decimals=18,
-        coin_type=60,  # BIP44: m/44'/60'/0'/0
         usdt_address="0xdAC17F958D2ee523a2206206994597C13D831ec7",
         usdc_address="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
     ),
@@ -101,15 +92,15 @@ CHAINS: dict[str, ChainConfig] = {
     "BNB": ChainConfig(
         name="BNB Smart Chain",
         symbol="BNB",
-        chain_id=56,
         rpc_url=os.getenv("BSC_RPC_URL", "https://bsc-dataseed.binance.org"),
-        rpc_url_backup="https://bsc-dataseed1.defibit.io",
         explorer_url="https://bscscan.com",
-        explorer_api_url="https://api.bscscan.com/api",
         dex_name="PancakeSwap",
+        coin_type=60,  # Same as ETH (EVM compatible)
+        chain_id=56,
+        rpc_url_backup="https://bsc-dataseed1.defibit.io",
+        explorer_api_url="https://api.bscscan.com/api",
         dex_router="0x10ED43C718714eb63d5aA57B78B54704E256024E",  # PancakeSwap V2
         decimals=18,
-        coin_type=60,  # Same as ETH (EVM compatible)
         usdt_address="0x55d398326f99059fF775485246999027B3197955",
         usdc_address="0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
     ),
@@ -118,15 +109,15 @@ CHAINS: dict[str, ChainConfig] = {
     "AVAX": ChainConfig(
         name="Avalanche",
         symbol="AVAX",
-        chain_id=43114,
         rpc_url=os.getenv("AVAX_RPC_URL", "https://api.avax.network/ext/bc/C/rpc"),
-        rpc_url_backup="https://rpc.ankr.com/avalanche",
         explorer_url="https://snowtrace.io",
-        explorer_api_url="https://api.snowtrace.io/api",
         dex_name="Trader Joe",
+        coin_type=60,  # Same as ETH (EVM compatible)
+        chain_id=43114,
+        rpc_url_backup="https://rpc.ankr.com/avalanche",
+        explorer_api_url="https://api.snowtrace.io/api",
         dex_router="0x60aE616a2155Ee3d9A68541Ba4544862310933d4",  # Trader Joe V1
         decimals=18,
-        coin_type=60,  # Same as ETH (EVM compatible)
         usdt_address="0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7",  # USDT.e
         usdc_address="0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",  # USDC native
     ),
@@ -135,15 +126,15 @@ CHAINS: dict[str, ChainConfig] = {
     "MATIC": ChainConfig(
         name="Polygon",
         symbol="MATIC",
-        chain_id=137,
         rpc_url=os.getenv("MATIC_RPC_URL", "https://polygon-rpc.com"),
-        rpc_url_backup="https://rpc.ankr.com/polygon",
         explorer_url="https://polygonscan.com",
-        explorer_api_url="https://api.polygonscan.com/api",
         dex_name="QuickSwap",
+        coin_type=60,  # Same as ETH (EVM compatible)
+        chain_id=137,
+        rpc_url_backup="https://rpc.ankr.com/polygon",
+        explorer_api_url="https://api.polygonscan.com/api",
         dex_router="0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff",  # QuickSwap V2
         decimals=18,
-        coin_type=60,  # Same as ETH (EVM compatible)
         usdt_address="0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
         usdc_address="0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",  # USDC.e
     ),
@@ -152,14 +143,14 @@ CHAINS: dict[str, ChainConfig] = {
     "SOL": ChainConfig(
         name="Solana",
         symbol="SOL",
-        chain_id=None,
         rpc_url=os.getenv("SOL_RPC_URL", "https://api.mainnet-beta.solana.com"),
-        rpc_url_backup="https://solana-mainnet.rpc.extrnode.com",
         explorer_url="https://solscan.io",
-        explorer_api_url="https://api.solscan.io",
         dex_name="Jupiter",
-        decimals=9,
         coin_type=501,  # BIP44: m/44'/501'/0'/0'
+        chain_id=None,
+        rpc_url_backup="https://solana-mainnet.rpc.extrnode.com",
+        explorer_api_url="https://api.solscan.io",
+        decimals=9,
         # SPL Token addresses
         usdt_address="Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
         usdc_address="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
@@ -169,14 +160,14 @@ CHAINS: dict[str, ChainConfig] = {
     "ATOM": ChainConfig(
         name="Cosmos Hub",
         symbol="ATOM",
-        chain_id=None,
         rpc_url=os.getenv("ATOM_RPC_URL", "https://cosmos-rest.publicnode.com"),
-        rpc_url_backup="https://rest.cosmos.directory/cosmoshub",
         explorer_url="https://www.mintscan.io/cosmos",
-        explorer_api_url="https://cosmos-rest.publicnode.com",
         dex_name="Osmosis",
-        decimals=6,
         coin_type=118,  # BIP44: m/44'/118'/0'/0
+        chain_id=None,
+        rpc_url_backup="https://rest.cosmos.directory/cosmoshub",
+        explorer_api_url="https://cosmos-rest.publicnode.com",
+        decimals=6,
         address_prefix="cosmos",
         # Osmosis IBC tokens
         usdt_address="ibc/4ABBEF4C8926DDDB320AE5188CFD63267ABBCEFC0583E4AE05D6E5AA2401DDAB",  # axlUSDT
