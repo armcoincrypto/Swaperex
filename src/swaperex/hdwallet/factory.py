@@ -1,9 +1,6 @@
-"""HD Wallet factory for creating wallet instances.
+"""HD Wallet factory for creating wallet instances from seed phrase.
 
-Supported coins: BTC, LTC, ETH, SOL, BNB, ATOM, AVAX, MATIC (8 coins)
-Plus stablecoins: USDT, USDC on respective chains
-
-All coins have DEX swap support:
+Supports Trust Wallet seed phrase to derive addresses for all 8 chains:
 - BTC, LTC: THORChain
 - ETH: Uniswap
 - SOL: Jupiter
@@ -13,49 +10,12 @@ All coins have DEX swap support:
 - MATIC: QuickSwap
 """
 
+import os
 from typing import Optional
 
 from swaperex.config import get_settings
 from swaperex.hdwallet.base import HDWalletProvider, SimulatedHDWallet
-from swaperex.hdwallet.btc import BTCHDWallet, LTCHDWallet
-from swaperex.hdwallet.eth import (
-    BSCHDWallet, ETHHDWallet, SOLHDWallet,
-    AVAXHDWallet, MATICHDWallet,
-)
-from swaperex.hdwallet.chains import ATOMHDWallet
 
-# Asset to wallet class mapping
-# Core coins: BTC, LTC, ETH, SOL, BNB, ATOM, AVAX, MATIC (all have DEX support)
-WALLET_CLASSES: dict[str, type[HDWalletProvider]] = {
-    # Native coins
-    "BTC": BTCHDWallet,
-    "LTC": LTCHDWallet,
-    "ETH": ETHHDWallet,
-    "SOL": SOLHDWallet,
-    "BNB": BSCHDWallet,
-    "BSC": BSCHDWallet,  # Alias
-    "ATOM": ATOMHDWallet,
-    "AVAX": AVAXHDWallet,
-    "MATIC": MATICHDWallet,
-    "POLYGON": MATICHDWallet,  # Alias
-    # ETH stablecoins (ERC-20)
-    "USDT": ETHHDWallet,
-    "USDT-ERC20": ETHHDWallet,
-    "USDC": ETHHDWallet,
-    "USDC-ERC20": ETHHDWallet,
-    # BSC stablecoins (BEP-20)
-    "USDT-BEP20": BSCHDWallet,
-    "USDC-BEP20": BSCHDWallet,
-    # SOL stablecoins (SPL)
-    "USDT-SPL": SOLHDWallet,
-    "USDC-SPL": SOLHDWallet,
-    # AVAX stablecoins
-    "USDT-AVAX": AVAXHDWallet,
-    "USDC-AVAX": AVAXHDWallet,
-    # MATIC stablecoins
-    "USDT-MATIC": MATICHDWallet,
-    "USDC-MATIC": MATICHDWallet,
-}
 
 # Cache for wallet instances
 _wallet_cache: dict[str, HDWalletProvider] = {}
@@ -63,7 +23,10 @@ _wallet_cache: dict[str, HDWalletProvider] = {}
 
 def get_supported_assets() -> list[str]:
     """Get list of supported HD wallet assets."""
-    return list(WALLET_CLASSES.keys())
+    return ["BTC", "LTC", "ETH", "SOL", "BNB", "ATOM", "AVAX", "MATIC",
+            "USDT", "USDT-ERC20", "USDC", "USDC-ERC20",
+            "USDT-BEP20", "USDC-BEP20", "USDT-SPL", "USDC-SPL",
+            "USDT-AVAX", "USDC-AVAX", "USDT-MATIC", "USDC-MATIC"]
 
 
 def get_core_coins() -> list[str]:
@@ -82,6 +45,119 @@ def get_stablecoins() -> dict[str, list[str]]:
     }
 
 
+class SeedPhraseWallet(HDWalletProvider):
+    """HD Wallet that derives addresses from seed phrase."""
+
+    def __init__(self, seed_phrase: str, asset: str, testnet: bool = False):
+        self.seed_phrase = seed_phrase
+        self.asset = asset.upper()
+        self._testnet = testnet
+        self._xpub = f"seed:{asset}"  # Marker that we're using seed
+
+    @property
+    def xpub(self) -> str:
+        return self._xpub
+
+    @property
+    def testnet(self) -> bool:
+        return self._testnet
+
+    @property
+    def coin_type(self) -> int:
+        """BIP44 coin type."""
+        coin_types = {
+            "BTC": 0, "LTC": 2, "ETH": 60, "BNB": 60, "BSC": 60,
+            "AVAX": 60, "MATIC": 60, "SOL": 501, "ATOM": 118,
+        }
+        # For stablecoins, use parent chain's coin type
+        base_asset = self._get_base_asset()
+        return coin_types.get(base_asset, 60)
+
+    @property
+    def purpose(self) -> int:
+        """BIP44/84 purpose."""
+        if self.asset in ["BTC", "LTC"]:
+            return 84  # Native SegWit
+        return 44  # Standard
+
+    def _get_base_asset(self) -> str:
+        """Get base asset for stablecoins."""
+        asset = self.asset
+        if asset in ["USDT", "USDC", "USDT-ERC20", "USDC-ERC20"]:
+            return "ETH"
+        if asset in ["USDT-BEP20", "USDC-BEP20", "BNB", "BSC"]:
+            return "ETH"  # Same derivation as ETH
+        if asset in ["USDT-SPL", "USDC-SPL"]:
+            return "SOL"
+        if asset in ["USDT-AVAX", "USDC-AVAX", "AVAX"]:
+            return "ETH"  # EVM compatible
+        if asset in ["USDT-MATIC", "USDC-MATIC", "MATIC", "POLYGON"]:
+            return "ETH"  # EVM compatible
+        return asset
+
+    def derive_address(self, index: int) -> str:
+        """Derive address at index from seed phrase."""
+        try:
+            return self._derive_from_seed(index)
+        except Exception as e:
+            # Fallback to simulated if derivation fails
+            return f"sim:{self.asset.lower()}:{index}:{str(index).zfill(6)}"
+
+    def _derive_from_seed(self, index: int) -> str:
+        """Derive address using bip_utils."""
+        from bip_utils import (
+            Bip39SeedGenerator, Bip44, Bip84, Bip44Coins, Bip84Coins,
+            Bip44Changes, Bip39MnemonicValidator,
+        )
+
+        # Validate mnemonic
+        if not Bip39MnemonicValidator(self.seed_phrase).IsValid():
+            raise ValueError("Invalid seed phrase")
+
+        # Generate seed
+        seed = Bip39SeedGenerator(self.seed_phrase).Generate()
+
+        base_asset = self._get_base_asset()
+
+        # BTC - BIP84 Native SegWit
+        if base_asset == "BTC":
+            bip84 = Bip84.FromSeed(seed, Bip84Coins.BITCOIN)
+            account = bip84.Purpose().Coin().Account(0).Change(Bip44Changes.CHAIN_EXT)
+            address = account.AddressIndex(index).PublicKey().ToAddress()
+            return address
+
+        # LTC - BIP84 Native SegWit
+        if base_asset == "LTC":
+            bip84 = Bip84.FromSeed(seed, Bip84Coins.LITECOIN)
+            account = bip84.Purpose().Coin().Account(0).Change(Bip44Changes.CHAIN_EXT)
+            address = account.AddressIndex(index).PublicKey().ToAddress()
+            return address
+
+        # ETH and EVM chains (ETH, BNB, AVAX, MATIC)
+        if base_asset == "ETH":
+            bip44 = Bip44.FromSeed(seed, Bip44Coins.ETHEREUM)
+            account = bip44.Purpose().Coin().Account(0).Change(Bip44Changes.CHAIN_EXT)
+            address = account.AddressIndex(index).PublicKey().ToAddress()
+            return address
+
+        # SOL
+        if base_asset == "SOL":
+            from bip_utils import Bip44Coins as SolCoins
+            bip44 = Bip44.FromSeed(seed, SolCoins.SOLANA)
+            # Solana uses different derivation - m/44'/501'/index'/0'
+            address = bip44.Purpose().Coin().Account(index).PublicKey().ToAddress()
+            return address
+
+        # ATOM
+        if base_asset == "ATOM":
+            bip44 = Bip44.FromSeed(seed, Bip44Coins.COSMOS)
+            account = bip44.Purpose().Coin().Account(0).Change(Bip44Changes.CHAIN_EXT)
+            address = account.AddressIndex(index).PublicKey().ToAddress()
+            return address
+
+        raise ValueError(f"Unsupported asset: {self.asset}")
+
+
 def get_hd_wallet(asset: str) -> HDWalletProvider:
     """Get HD wallet instance for an asset."""
     asset_upper = asset.upper()
@@ -90,104 +166,92 @@ def get_hd_wallet(asset: str) -> HDWalletProvider:
     if asset_upper in _wallet_cache:
         return _wallet_cache[asset_upper]
 
-    # Get wallet class
-    wallet_class = WALLET_CLASSES.get(asset_upper)
-    if wallet_class is None:
-        # Fall back to simulated wallet for unsupported assets
-        wallet = SimulatedHDWallet(asset_upper)
-        _wallet_cache[asset_upper] = wallet
-        return wallet
-
-    # Get xpub from settings
     settings = get_settings()
-    xpub = _get_xpub_for_asset(asset_upper, settings)
     testnet = not settings.is_production
 
-    if not xpub:
-        # No xpub configured - use simulated wallet
-        wallet = SimulatedHDWallet(asset_upper, testnet=testnet)
+    # Try seed phrase first
+    seed_phrase = settings.wallet_seed_phrase
+    if seed_phrase and len(seed_phrase.split()) >= 12:
+        wallet = SeedPhraseWallet(seed_phrase, asset_upper, testnet=testnet)
         _wallet_cache[asset_upper] = wallet
         return wallet
 
-    # Create real wallet
-    wallet = wallet_class(xpub=xpub, testnet=testnet)
+    # Fall back to xpub from environment
+    xpub = _get_xpub_for_asset(asset_upper)
+    if xpub:
+        wallet = _create_xpub_wallet(asset_upper, xpub, testnet)
+        _wallet_cache[asset_upper] = wallet
+        return wallet
+
+    # No wallet configured - use simulated
+    wallet = SimulatedHDWallet(asset_upper, testnet=testnet)
     _wallet_cache[asset_upper] = wallet
     return wallet
 
 
-def _get_xpub_for_asset(asset: str, settings) -> Optional[str]:
-    """Get xpub for a specific asset."""
-    import os
-
-    # Try to load from database first
-    xpub = _load_xpub_from_db(asset.upper())
-    if xpub:
-        return xpub
-
-    # Fall back to environment variables
+def _get_xpub_for_asset(asset: str) -> Optional[str]:
+    """Get xpub for a specific asset from environment."""
     xpub = os.environ.get(f"XPUB_{asset.upper()}")
     if xpub:
         return xpub
 
     # Try generic xpub for chain families
-    # ETH-based tokens use ETH xpub
     if asset in ["USDT", "USDT-ERC20", "USDC", "USDC-ERC20"]:
-        return _load_xpub_from_db("ETH") or os.environ.get("XPUB_ETH")
+        return os.environ.get("XPUB_ETH")
 
-    # BSC-based tokens use BSC or ETH xpub (same derivation)
     if asset in ["BNB", "BSC", "USDT-BEP20", "USDC-BEP20"]:
-        return (_load_xpub_from_db("BSC") or _load_xpub_from_db("ETH") or
-                os.environ.get("XPUB_BSC") or os.environ.get("XPUB_ETH"))
+        return os.environ.get("XPUB_BSC") or os.environ.get("XPUB_ETH")
 
-    # SOL-based tokens use SOL xpub
     if asset in ["USDT-SPL", "USDC-SPL"]:
-        return _load_xpub_from_db("SOL") or os.environ.get("XPUB_SOL")
+        return os.environ.get("XPUB_SOL")
 
-    # AVAX-based tokens use AVAX or ETH xpub (EVM-compatible)
     if asset in ["AVAX", "USDT-AVAX", "USDC-AVAX"]:
-        return (_load_xpub_from_db("AVAX") or _load_xpub_from_db("ETH") or
-                os.environ.get("XPUB_AVAX") or os.environ.get("XPUB_ETH"))
+        return os.environ.get("XPUB_AVAX") or os.environ.get("XPUB_ETH")
 
-    # MATIC-based tokens use MATIC or ETH xpub (EVM-compatible)
     if asset in ["MATIC", "POLYGON", "USDT-MATIC", "USDC-MATIC"]:
-        return (_load_xpub_from_db("MATIC") or _load_xpub_from_db("ETH") or
-                os.environ.get("XPUB_MATIC") or os.environ.get("XPUB_ETH"))
+        return os.environ.get("XPUB_MATIC") or os.environ.get("XPUB_ETH")
 
     return None
 
 
-def _load_xpub_from_db(asset: str) -> Optional[str]:
-    """Load and decrypt xpub from database."""
-    import asyncio
+def _create_xpub_wallet(asset: str, xpub: str, testnet: bool) -> HDWalletProvider:
+    """Create wallet from xpub."""
+    from swaperex.hdwallet.btc import BTCHDWallet, LTCHDWallet
+    from swaperex.hdwallet.eth import (
+        ETHHDWallet, BSCHDWallet, SOLHDWallet, AVAXHDWallet, MATICHDWallet,
+    )
+    from swaperex.hdwallet.chains import ATOMHDWallet
 
-    try:
-        from swaperex.crypto import decrypt_xpub
-        from swaperex.ledger.database import get_engine
-        from sqlalchemy import text
+    wallet_map = {
+        "BTC": BTCHDWallet,
+        "LTC": LTCHDWallet,
+        "ETH": ETHHDWallet,
+        "BNB": BSCHDWallet,
+        "BSC": BSCHDWallet,
+        "SOL": SOLHDWallet,
+        "ATOM": ATOMHDWallet,
+        "AVAX": AVAXHDWallet,
+        "MATIC": MATICHDWallet,
+    }
 
-        async def fetch_xpub():
-            engine = get_engine()
-            async with engine.connect() as conn:
-                result = await conn.execute(
-                    text("SELECT encrypted_xpub FROM xpub_keys WHERE asset = :asset"),
-                    {"asset": asset.upper()}
-                )
-                row = result.fetchone()
-                if row:
-                    return decrypt_xpub(row[0])
-            return None
+    # Get base asset for stablecoins
+    base_asset = asset
+    if asset in ["USDT", "USDC", "USDT-ERC20", "USDC-ERC20"]:
+        base_asset = "ETH"
+    elif asset in ["USDT-BEP20", "USDC-BEP20"]:
+        base_asset = "BSC"
+    elif asset in ["USDT-SPL", "USDC-SPL"]:
+        base_asset = "SOL"
+    elif asset in ["USDT-AVAX", "USDC-AVAX"]:
+        base_asset = "AVAX"
+    elif asset in ["USDT-MATIC", "USDC-MATIC", "POLYGON"]:
+        base_asset = "MATIC"
 
-        try:
-            loop = asyncio.get_running_loop()
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                future = pool.submit(asyncio.run, fetch_xpub())
-                return future.result(timeout=5)
-        except RuntimeError:
-            return asyncio.run(fetch_xpub())
+    wallet_class = wallet_map.get(base_asset)
+    if wallet_class:
+        return wallet_class(xpub=xpub, testnet=testnet)
 
-    except Exception:
-        return None
+    return SimulatedHDWallet(asset, testnet=testnet)
 
 
 def reset_wallet_cache() -> None:
@@ -206,5 +270,5 @@ def get_wallet_info(asset: str) -> dict:
         "coin_type": wallet.coin_type,
         "purpose": wallet.purpose,
         "testnet": wallet.testnet,
-        "has_xpub": bool(wallet.xpub) and not wallet.xpub.startswith("sim_"),
+        "has_seed": isinstance(wallet, SeedPhraseWallet),
     }
