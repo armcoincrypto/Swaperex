@@ -35,11 +35,23 @@ class ChainSigner:
 class EVMSigner(ChainSigner):
     """Signer for EVM-compatible chains (ETH, BNB, LINK, HYPE)."""
 
+    # Class-level nonce cache to prevent race conditions
+    _nonce_cache: dict[str, int] = {}
+    _nonce_lock = None  # Will be initialized lazily
+
     def __init__(self, seed_phrase: str, rpc_url: str):
         super().__init__(seed_phrase)
         self.rpc_url = rpc_url
         self._web3 = None
         self._account = None
+
+    @classmethod
+    def _get_lock(cls):
+        """Get or create thread lock for nonce management."""
+        import threading
+        if cls._nonce_lock is None:
+            cls._nonce_lock = threading.Lock()
+        return cls._nonce_lock
 
     @property
     def web3(self):
@@ -48,6 +60,32 @@ class EVMSigner(ChainSigner):
             from web3 import Web3
             self._web3 = Web3(Web3.HTTPProvider(self.rpc_url))
         return self._web3
+
+    def _get_next_nonce(self, address: str) -> int:
+        """Get next nonce for address with thread-safe caching.
+
+        Prevents race condition where concurrent transactions get same nonce.
+        """
+        with self._get_lock():
+            # Get current on-chain nonce
+            chain_nonce = self.web3.eth.get_transaction_count(address, 'pending')
+
+            # Get cached nonce (might be higher if we have pending txs)
+            cached_nonce = self._nonce_cache.get(address, 0)
+
+            # Use the higher of chain nonce or cached nonce
+            next_nonce = max(chain_nonce, cached_nonce)
+
+            # Update cache for next call
+            self._nonce_cache[address] = next_nonce + 1
+
+            return next_nonce
+
+    def _reset_nonce_cache(self, address: str):
+        """Reset nonce cache for address (call after confirmed tx)."""
+        with self._get_lock():
+            if address in self._nonce_cache:
+                del self._nonce_cache[address]
 
     def get_private_key(self, index: int = 0) -> bytes:
         """Derive EVM private key from seed phrase."""
@@ -93,11 +131,14 @@ class EVMSigner(ChainSigner):
 
         account = self.get_account(index)
 
-        # Add from address and nonce if not present
+        # Add from address if not present
         if 'from' not in tx_params:
             tx_params['from'] = account.address
+
+        # Use thread-safe nonce management to prevent race conditions
         if 'nonce' not in tx_params:
-            tx_params['nonce'] = self.web3.eth.get_transaction_count(account.address)
+            tx_params['nonce'] = self._get_next_nonce(account.address)
+
         if 'chainId' not in tx_params:
             tx_params['chainId'] = self.web3.eth.chain_id
 
@@ -113,9 +154,50 @@ class EVMSigner(ChainSigner):
         signed_tx = account.sign_transaction(tx_params)
 
         # Send transaction
-        tx_hash = self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        try:
+            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            return tx_hash.hex()
+        except Exception as e:
+            # Reset nonce cache on failure so next tx gets fresh nonce
+            self._reset_nonce_cache(account.address)
+            raise
 
-        return tx_hash.hex()
+    def _get_uniswap_fee_tier(self, token_in: str, token_out: str) -> int:
+        """Get optimal Uniswap V3 fee tier for token pair.
+
+        Fee tiers:
+        - 100 (0.01%): Very stable pairs (USDC/USDT, DAI/USDC)
+        - 500 (0.05%): Stable pairs, stablecoin/major token
+        - 3000 (0.3%): Standard pairs (most common)
+        - 10000 (1%): Exotic/volatile pairs
+        """
+        # Stablecoin addresses (Ethereum mainnet)
+        STABLECOINS = {
+            "0xdAC17F958D2ee523a2206206994597C13D831ec7".lower(),  # USDT
+            "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".lower(),  # USDC
+            "0x6B175474E89094C44Da98b954EescdeCB5BE3e31f".lower(),  # DAI
+        }
+
+        # Major tokens that work well with 0.3%
+        MAJOR_TOKENS = {
+            "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".lower(),  # WETH
+            "0x514910771AF9Ca656af840dff83E8264EcF986CA".lower(),  # LINK
+        }
+
+        token_in_lower = token_in.lower()
+        token_out_lower = token_out.lower()
+
+        # Stablecoin to stablecoin: use 0.01% or 0.05%
+        if token_in_lower in STABLECOINS and token_out_lower in STABLECOINS:
+            return 100  # 0.01%
+
+        # Stablecoin to major token: use 0.05%
+        if (token_in_lower in STABLECOINS and token_out_lower in MAJOR_TOKENS) or \
+           (token_out_lower in STABLECOINS and token_in_lower in MAJOR_TOKENS):
+            return 500  # 0.05%
+
+        # Standard pairs (default)
+        return 3000  # 0.3%
 
     async def swap_on_uniswap(
         self,
@@ -126,8 +208,20 @@ class EVMSigner(ChainSigner):
         recipient: str,
         deadline: int,
         index: int = 0,
+        fee_tier: Optional[int] = None,
     ) -> str:
-        """Execute swap on Uniswap V3."""
+        """Execute swap on Uniswap V3.
+
+        Args:
+            token_in: Input token address
+            token_out: Output token address
+            amount_in: Amount in smallest units
+            min_amount_out: Minimum output amount (slippage protection)
+            recipient: Address to receive output tokens
+            deadline: Unix timestamp deadline
+            index: Derivation index for signing
+            fee_tier: Optional fee tier (100, 500, 3000, 10000). Auto-detected if None.
+        """
         # Uniswap V3 SwapRouter address
         SWAP_ROUTER = "0xE592427A0AEce92De3Edee1F18E0157C05861564"
 
@@ -162,11 +256,15 @@ class EVMSigner(ChainSigner):
             abi=SWAP_ABI
         )
 
+        # Auto-detect fee tier if not provided
+        if fee_tier is None:
+            fee_tier = self._get_uniswap_fee_tier(token_in, token_out)
+
         # Build swap params
         params = {
             "tokenIn": self.web3.to_checksum_address(token_in),
             "tokenOut": self.web3.to_checksum_address(token_out),
-            "fee": 3000,  # 0.3% fee tier
+            "fee": fee_tier,
             "recipient": self.web3.to_checksum_address(recipient),
             "deadline": deadline,
             "amountIn": amount_in,
@@ -195,16 +293,21 @@ class SolanaSigner(ChainSigner):
     """Signer for Solana transactions."""
 
     def get_keypair(self, index: int = 0):
-        """Derive Solana keypair from seed phrase."""
+        """Derive Solana keypair from seed phrase.
+
+        Uses standard BIP44 path: m/44'/501'/account'/change'
+        Trust Wallet uses: m/44'/501'/0'/0' for main account
+        Additional addresses: m/44'/501'/index'/0'
+        """
         from bip_utils import (
-            Bip39SeedGenerator, Bip44, Bip44Coins
+            Bip39SeedGenerator, Bip44, Bip44Coins, Bip44Changes
         )
         from solders.keypair import Keypair
 
         seed = Bip39SeedGenerator(self.seed_phrase).Generate()
         bip44 = Bip44.FromSeed(seed, Bip44Coins.SOLANA)
-        # Solana uses m/44'/501'/index'/0'
-        account = bip44.Purpose().Coin().Account(index)
+        # Correct path: m/44'/501'/index'/0' (account at index, change=0)
+        account = bip44.Purpose().Coin().Account(index).Change(Bip44Changes.CHAIN_EXT)
         private_key = account.PrivateKey().Raw().ToBytes()
 
         # Solana keypair from 32-byte seed

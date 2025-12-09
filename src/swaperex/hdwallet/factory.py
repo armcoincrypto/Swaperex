@@ -171,11 +171,12 @@ class SeedPhraseWallet(HDWalletProvider):
             address = account.AddressIndex(index).PublicKey().ToAddress()
             return address
 
-        # SOL
+        # SOL - Solana uses m/44'/501'/index'/0'
         if base_asset == "SOL":
             bip44 = Bip44.FromSeed(seed, Bip44Coins.SOLANA)
-            # Solana uses different derivation - m/44'/501'/index'/0'
-            address = bip44.Purpose().Coin().Account(index).PublicKey().ToAddress()
+            # Trust Wallet path: m/44'/501'/index'/0'
+            account = bip44.Purpose().Coin().Account(index).Change(Bip44Changes.CHAIN_EXT)
+            address = account.PublicKey().ToAddress()
             return address
 
         # ATOM

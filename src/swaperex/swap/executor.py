@@ -11,6 +11,7 @@ Handles actual swap execution across different DEXes:
 """
 
 import logging
+import re
 import time
 from decimal import Decimal
 from typing import Optional
@@ -21,6 +22,75 @@ from swaperex.routing.base import Quote, SwapRoute, RouteProvider
 from swaperex.routing.factory import create_default_aggregator
 
 logger = logging.getLogger(__name__)
+
+
+def validate_address(address: str, asset: str) -> tuple[bool, str]:
+    """Validate address format for a given asset.
+
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    if not address or not isinstance(address, str):
+        return False, "Address is required"
+
+    address = address.strip()
+
+    # Get base asset for tokens
+    base_asset = asset.upper()
+    if base_asset in ["USDT-ERC20", "USDC-ERC20", "LINK"]:
+        base_asset = "ETH"
+    elif base_asset == "HYPE":
+        base_asset = "ETH"  # Hyperliquid uses EVM addresses
+
+    # EVM addresses (ETH, BNB, etc.)
+    if base_asset in ["ETH", "BNB"]:
+        if not re.match(r"^0x[a-fA-F0-9]{40}$", address):
+            return False, f"Invalid EVM address format for {asset}"
+        return True, ""
+
+    # Bitcoin (native segwit)
+    if base_asset == "BTC":
+        # bc1 for mainnet, tb1 for testnet
+        if not re.match(r"^(bc1|tb1)[a-zA-HJ-NP-Z0-9]{25,87}$", address):
+            # Also accept legacy formats
+            if not re.match(r"^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$", address):
+                return False, f"Invalid Bitcoin address format"
+        return True, ""
+
+    # Litecoin
+    if base_asset == "LTC":
+        # ltc1 for native segwit, L/M/3 for legacy
+        if not re.match(r"^(ltc1|L|M|3)[a-km-zA-HJ-NP-Z1-9]{25,87}$", address):
+            return False, f"Invalid Litecoin address format"
+        return True, ""
+
+    # Solana
+    if base_asset == "SOL":
+        # Base58 encoded, 32-44 chars
+        if not re.match(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$", address):
+            return False, f"Invalid Solana address format"
+        return True, ""
+
+    # Cosmos/ATOM
+    if base_asset == "ATOM":
+        if not address.startswith("cosmos1"):
+            return False, f"Invalid Cosmos address: must start with 'cosmos1'"
+        if not re.match(r"^cosmos1[a-z0-9]{38}$", address):
+            return False, f"Invalid Cosmos address format"
+        return True, ""
+
+    # Cardano
+    if base_asset == "ADA":
+        # Shelley addresses start with addr1
+        if not address.startswith("addr1"):
+            return False, f"Invalid Cardano address: must start with 'addr1'"
+        if len(address) < 50:
+            return False, f"Invalid Cardano address: too short"
+        return True, ""
+
+    # Unknown asset - allow any non-empty address
+    logger.warning(f"No address validation for asset {asset}, allowing any format")
+    return True, ""
 
 
 @dataclass
@@ -114,6 +184,32 @@ class SwapExecutor:
             SwapResult with execution details
         """
         provider_name = quote.provider
+
+        # Check if quote has expired
+        if quote.is_expired:
+            seconds_ago = abs(quote.seconds_until_expiry)
+            return SwapResult(
+                success=False,
+                provider=provider_name,
+                from_asset=quote.from_asset,
+                to_asset=quote.to_asset,
+                from_amount=quote.from_amount,
+                error=f"Quote expired {seconds_ago:.0f} seconds ago. Please request a new quote.",
+                status="expired",
+            )
+
+        # Validate destination address matches output asset chain
+        is_valid, error_msg = validate_address(destination_address, quote.to_asset)
+        if not is_valid:
+            return SwapResult(
+                success=False,
+                provider=provider_name,
+                from_asset=quote.from_asset,
+                to_asset=quote.to_asset,
+                from_amount=quote.from_amount,
+                error=f"Invalid destination address: {error_msg}",
+                status="failed",
+            )
 
         # Find the provider
         provider = self._find_provider(provider_name)
@@ -485,6 +581,25 @@ class SwapExecutor:
                 status="failed",
             )
 
+    def _get_osmosis_pool_id(self, from_asset: str, to_asset: str) -> Optional[int]:
+        """Get Osmosis pool ID for a token pair.
+
+        Pool IDs for common pairs (Osmosis mainnet):
+        - Pool 1: ATOM/OSMO
+        - Pool 678: USDC/OSMO
+        - Pool 704: USDT/OSMO
+        """
+        # Normalized pair lookup (sorted alphabetically)
+        pair = tuple(sorted([from_asset.upper(), to_asset.upper()]))
+
+        POOL_IDS = {
+            ("ATOM", "OSMO"): 1,
+            ("OSMO", "USDC"): 678,
+            ("OSMO", "USDT"): 704,
+        }
+
+        return POOL_IDS.get(pair)
+
     async def _execute_osmosis_swap(
         self,
         route: SwapRoute,
@@ -501,6 +616,8 @@ class SwapExecutor:
             DENOMS = {
                 "ATOM": "ibc/27394FB092D2ECCD56123C74F36E4C1F926001CEADA9CA97EA622B25F41E5EB2",
                 "OSMO": "uosmo",
+                "USDC": "ibc/D189335C6E4A68B513C10AB227BF1C1D38C746766278BA3EEB4FB14124F1D858",
+                "USDT": "ibc/8242AD24008032E457D2E12D46588FD39FB54FB29680C6C7663D296B383C37C4",
             }
 
             token_in_denom = DENOMS.get(quote.from_asset)
@@ -513,16 +630,26 @@ class SwapExecutor:
                     from_asset=quote.from_asset,
                     to_asset=quote.to_asset,
                     from_amount=quote.from_amount,
-                    error="Token not supported on Osmosis",
+                    error=f"Token not supported on Osmosis: {quote.from_asset} or {quote.to_asset}",
+                    status="failed",
+                )
+
+            # Find pool ID for this pair
+            pool_id = self._get_osmosis_pool_id(quote.from_asset, quote.to_asset)
+            if pool_id is None:
+                return SwapResult(
+                    success=False,
+                    provider="Osmosis",
+                    from_asset=quote.from_asset,
+                    to_asset=quote.to_asset,
+                    from_amount=quote.from_amount,
+                    error=f"No Osmosis pool found for {quote.from_asset}/{quote.to_asset}",
                     status="failed",
                 )
 
             decimals = TOKEN_DECIMALS.get(quote.from_asset, 6)
             amount_in = int(quote.from_amount * Decimal(10 ** decimals))
             min_amount_out = int(quote.to_amount * Decimal(10 ** decimals) * Decimal("0.99"))
-
-            # ATOM/OSMO pool ID is 1
-            pool_id = 1
 
             tx_hash = await signer.execute_osmosis_swap(
                 pool_id=pool_id,

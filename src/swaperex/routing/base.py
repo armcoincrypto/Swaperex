@@ -1,5 +1,6 @@
 """Abstract routing interface for swap providers."""
 
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -21,6 +22,8 @@ class Quote:
     estimated_time_seconds: int
     route_details: Optional[dict] = field(default_factory=dict)
     is_simulated: bool = False
+    timestamp: float = field(default_factory=time.time)  # When quote was created
+    ttl_seconds: int = 60  # Quote validity period (1 minute default)
 
     @property
     def effective_rate(self) -> Decimal:
@@ -33,6 +36,16 @@ class Quote:
     def total_fee_usd(self) -> Optional[Decimal]:
         """Get total fee in USD (if available in route_details)."""
         return self.route_details.get("fee_usd") if self.route_details else None
+
+    @property
+    def is_expired(self) -> bool:
+        """Check if quote has expired."""
+        return time.time() > (self.timestamp + self.ttl_seconds)
+
+    @property
+    def seconds_until_expiry(self) -> float:
+        """Get seconds until quote expires (negative if expired)."""
+        return (self.timestamp + self.ttl_seconds) - time.time()
 
 
 @dataclass

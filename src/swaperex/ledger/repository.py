@@ -67,6 +67,20 @@ class LedgerRepository:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_balance_for_update(self, user_id: int, asset: str) -> Optional[Balance]:
+        """Get user balance with row lock (SELECT FOR UPDATE).
+
+        Use this when you need to read-then-write to prevent race conditions.
+        The row is locked until the transaction commits/rollbacks.
+        """
+        stmt = (
+            select(Balance)
+            .where(Balance.user_id == user_id, Balance.asset == asset.upper())
+            .with_for_update()
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def get_all_balances(self, user_id: int) -> list[Balance]:
         """Get all balances for a user."""
         stmt = select(Balance).where(Balance.user_id == user_id).order_by(Balance.asset)
@@ -82,6 +96,17 @@ class LedgerRepository:
             await self.session.flush()
         return balance
 
+    async def get_or_create_balance_for_update(self, user_id: int, asset: str) -> Balance:
+        """Get or create balance with row lock for atomic operations."""
+        balance = await self.get_balance_for_update(user_id, asset)
+        if balance is None:
+            balance = Balance(user_id=user_id, asset=asset.upper(), amount=Decimal("0"))
+            self.session.add(balance)
+            await self.session.flush()
+            # Re-fetch with lock
+            balance = await self.get_balance_for_update(user_id, asset)
+        return balance
+
     async def credit_balance(self, user_id: int, asset: str, amount: Decimal) -> Balance:
         """Add amount to user balance."""
         balance = await self.get_or_create_balance(user_id, asset)
@@ -90,8 +115,12 @@ class LedgerRepository:
         return balance
 
     async def debit_balance(self, user_id: int, asset: str, amount: Decimal) -> Balance:
-        """Subtract amount from user balance. Raises ValueError if insufficient."""
-        balance = await self.get_or_create_balance(user_id, asset)
+        """Subtract amount from user balance. Raises ValueError if insufficient.
+
+        Uses row locking (SELECT FOR UPDATE) to prevent double-spend race conditions.
+        """
+        # Lock the row to prevent concurrent modifications
+        balance = await self.get_or_create_balance_for_update(user_id, asset)
         if balance.available < amount:
             raise ValueError(
                 f"Insufficient balance: have {balance.available} {asset}, need {amount}"
@@ -101,8 +130,12 @@ class LedgerRepository:
         return balance
 
     async def lock_balance(self, user_id: int, asset: str, amount: Decimal) -> Balance:
-        """Lock amount for pending swap. Raises ValueError if insufficient."""
-        balance = await self.get_or_create_balance(user_id, asset)
+        """Lock amount for pending swap. Raises ValueError if insufficient.
+
+        Uses row locking (SELECT FOR UPDATE) to prevent race conditions.
+        """
+        # Lock the row to prevent concurrent modifications
+        balance = await self.get_or_create_balance_for_update(user_id, asset)
         if balance.available < amount:
             raise ValueError(
                 f"Insufficient available balance: have {balance.available} {asset}, need {amount}"
@@ -112,8 +145,12 @@ class LedgerRepository:
         return balance
 
     async def unlock_balance(self, user_id: int, asset: str, amount: Decimal) -> Balance:
-        """Unlock previously locked amount."""
-        balance = await self.get_balance(user_id, asset)
+        """Unlock previously locked amount.
+
+        Uses row locking (SELECT FOR UPDATE) to prevent race conditions.
+        """
+        # Lock the row to prevent concurrent modifications
+        balance = await self.get_balance_for_update(user_id, asset)
         if balance is None:
             raise ValueError(f"No balance found for {asset}")
         balance.locked_amount = max(Decimal("0"), balance.locked_amount - amount)
