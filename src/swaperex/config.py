@@ -92,6 +92,7 @@ class Settings(BaseSettings):
     snowtrace_api_key: str = Field(default="", description="SnowTrace API key")
     polygonscan_api_key: str = Field(default="", description="PolygonScan API key")
     solscan_api_key: str = Field(default="", description="Solscan API key")
+    blockfrost_api_key: str = Field(default="", description="Blockfrost API key for Cardano")
 
     # ======================
     # DEX Configuration
