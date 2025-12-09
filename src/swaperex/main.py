@@ -39,6 +39,9 @@ class Application:
         logger.info("Starting Swaperex...")
         logger.info(f"Environment: {self.settings.environment}")
 
+        # Production safety checks
+        self._validate_production_settings()
+
         # Initialize database
         await init_db()
         logger.info("Database initialized")
@@ -139,6 +142,80 @@ class Application:
 
         await close_db()
         logger.info("Cleanup complete")
+
+    def _validate_production_settings(self):
+        """Validate settings for production safety.
+
+        Logs warnings for dangerous configurations and blocks
+        certain combinations that could lead to fund loss.
+        """
+        is_prod = self.settings.is_production
+
+        # Log current security configuration
+        logger.info("=== Security Configuration ===")
+        logger.info(f"  Environment: {self.settings.environment}")
+        logger.info(f"  Debug mode: {self.settings.debug}")
+        logger.info(f"  Dry-run mode: {self.settings.dry_run}")
+        logger.info(f"  Wallet configured: {self.settings.has_wallet}")
+        logger.info(f"  Max swap amount: ${self.settings.max_swap_amount}")
+        logger.info("==============================")
+
+        warnings = []
+        errors = []
+
+        # Check debug mode in production
+        if is_prod and self.settings.debug:
+            warnings.append(
+                "DEBUG mode is enabled in PRODUCTION! "
+                "This exposes sensitive information in logs. "
+                "Set DEBUG=false for production."
+            )
+
+        # Check dry-run disabled in production without safety measures
+        if is_prod and not self.settings.dry_run:
+            if not self.settings.has_wallet:
+                errors.append(
+                    "CRITICAL: Production mode with DRY_RUN=false but no wallet configured! "
+                    "Set WALLET_SEED_PHRASE or enable DRY_RUN=true."
+                )
+            elif self.settings.max_swap_amount > 50000:
+                warnings.append(
+                    f"High max swap amount (${self.settings.max_swap_amount}) in production. "
+                    "Consider lowering MAX_SWAP_AMOUNT for safety."
+                )
+
+        # Check admin token in production
+        if is_prod and not self.settings.admin_token:
+            warnings.append(
+                "No ADMIN_TOKEN configured in production! "
+                "API endpoints may be unprotected."
+            )
+
+        # Check API binding in production
+        if is_prod and self.settings.api_host == "0.0.0.0":
+            warnings.append(
+                "API bound to 0.0.0.0 in production. "
+                "Consider binding to 127.0.0.1 and using a reverse proxy."
+            )
+
+        # Log warnings
+        for warning in warnings:
+            logger.warning(f"⚠️  {warning}")
+
+        # Log and potentially block on errors
+        for error in errors:
+            logger.error(f"🚨 {error}")
+
+        if errors:
+            logger.error(
+                "Critical configuration errors detected! "
+                "Fix the issues above or set ENVIRONMENT=development to bypass."
+            )
+            if is_prod:
+                raise SystemExit(
+                    "Cannot start in production with critical configuration errors. "
+                    "See logs above for details."
+                )
 
     def shutdown(self):
         """Signal shutdown."""

@@ -147,52 +147,24 @@ async def estimate_fee(request: FeeEstimateRequest) -> FeeEstimateResponse:
 @router.post("/execute", response_model=WithdrawalResponse)
 async def execute_withdrawal(
     request: WithdrawalRequest,
-    private_key: str = Header(None, alias="X-Private-Key"),
     _: bool = Depends(require_admin_token),
 ) -> WithdrawalResponse:
-    """Execute a withdrawal (admin only).
+    """DEPRECATED: This endpoint has been disabled for security.
 
-    WARNING: This endpoint is for testing. In production, private keys
-    should NEVER be sent over the network. Use HSM or secure enclave.
+    Use /api/v1/withdraw/secure instead which uses the configured
+    signer backend (HD wallet seed phrase) without exposing private keys.
+
+    SECURITY: Never send private keys over HTTP. This endpoint previously
+    accepted X-Private-Key header which is a critical security vulnerability.
     """
-    if not private_key:
-        raise HTTPException(
-            status_code=400,
-            detail="Private key required (X-Private-Key header)",
-        )
-
-    handler = get_withdrawal_handler(request.asset)
-
-    if not handler:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported asset: {request.asset}",
-        )
-
-    try:
-        amount = Decimal(request.amount)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid amount")
-
-    # Validate address
-    if not await handler.validate_address(request.destination):
-        raise HTTPException(status_code=400, detail="Invalid destination address")
-
-    # Execute withdrawal
-    result = await handler.execute_withdrawal(
-        private_key=private_key,
-        destination=request.destination,
-        amount=amount,
-        fee_priority=request.priority,
-    )
-
-    return WithdrawalResponse(
-        success=result.success,
-        txid=result.txid,
-        status=result.status.value,
-        message=result.message,
-        error=result.error,
-        fee_paid=str(result.fee_paid) if result.fee_paid else None,
+    raise HTTPException(
+        status_code=410,  # Gone
+        detail=(
+            "This endpoint is disabled for security reasons. "
+            "Private keys must NEVER be sent over HTTP. "
+            "Use POST /api/v1/withdraw/secure instead, which uses "
+            "the configured secure signer (HD wallet seed phrase)."
+        ),
     )
 
 

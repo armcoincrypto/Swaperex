@@ -117,12 +117,72 @@ class EVMSigner(ChainSigner):
         private_key = self.get_private_key(index)
         return Account.from_key(private_key)
 
-    async def sign_and_send_transaction(self, tx_params: dict, index: int = 0) -> str:
+    async def wait_for_confirmation(
+        self,
+        tx_hash: str,
+        timeout: int = 120,
+        confirmations: int = 1,
+    ) -> dict:
+        """Wait for transaction to be confirmed.
+
+        Args:
+            tx_hash: Transaction hash to wait for
+            timeout: Maximum seconds to wait
+            confirmations: Number of block confirmations required
+
+        Returns:
+            Transaction receipt dict
+
+        Raises:
+            TimeoutError: If transaction not confirmed within timeout
+            Exception: If transaction failed
+        """
+        import asyncio
+
+        start_time = asyncio.get_event_loop().time()
+
+        while True:
+            elapsed = asyncio.get_event_loop().time() - start_time
+            if elapsed > timeout:
+                raise TimeoutError(f"Transaction {tx_hash} not confirmed after {timeout}s")
+
+            try:
+                receipt = self.web3.eth.get_transaction_receipt(tx_hash)
+                if receipt is not None:
+                    # Check if we have enough confirmations
+                    current_block = self.web3.eth.block_number
+                    tx_block = receipt['blockNumber']
+                    confirms = current_block - tx_block + 1
+
+                    if confirms >= confirmations:
+                        # Check transaction status
+                        if receipt['status'] == 0:
+                            raise Exception(f"Transaction {tx_hash} failed (reverted)")
+                        return dict(receipt)
+
+            except Exception as e:
+                if "not confirmed" not in str(e).lower() and "timeout" not in str(e).lower():
+                    # Re-raise unexpected errors
+                    if "failed" in str(e).lower() or "reverted" in str(e).lower():
+                        raise
+
+            # Wait before checking again
+            await asyncio.sleep(2)
+
+    async def sign_and_send_transaction(
+        self,
+        tx_params: dict,
+        index: int = 0,
+        wait_for_confirmation: bool = False,
+        confirmation_timeout: int = 120,
+    ) -> str:
         """Sign and send EVM transaction.
 
         Args:
             tx_params: Transaction parameters (to, value, data, gas, etc.)
             index: Derivation index
+            wait_for_confirmation: Whether to wait for tx to be mined
+            confirmation_timeout: Seconds to wait for confirmation
 
         Returns:
             Transaction hash
@@ -156,7 +216,13 @@ class EVMSigner(ChainSigner):
         # Send transaction
         try:
             tx_hash = self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-            return tx_hash.hex()
+            tx_hash_hex = tx_hash.hex()
+
+            # Optionally wait for confirmation
+            if wait_for_confirmation:
+                await self.wait_for_confirmation(tx_hash_hex, confirmation_timeout)
+
+            return tx_hash_hex
         except Exception as e:
             # Reset nonce cache on failure so next tx gets fresh nonce
             self._reset_nonce_cache(account.address)

@@ -1,10 +1,13 @@
 """Abstract routing interface for swap providers."""
 
+import logging
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -152,13 +155,20 @@ class RouteAggregator:
 
         Returns the quote with the highest to_amount (best rate).
         """
+        logger.info(f"Finding best quote: {amount} {from_asset} -> {to_asset}")
         quotes = await self.get_all_quotes(from_asset, to_asset, amount, slippage_tolerance)
 
         if not quotes:
+            logger.warning(f"No quotes found for {amount} {from_asset} -> {to_asset}")
             return None
 
         # Sort by to_amount descending (best rate first)
-        return max(quotes, key=lambda q: q.to_amount)
+        best = max(quotes, key=lambda q: q.to_amount)
+        logger.info(
+            f"Selected best quote: {best.provider} - {best.to_amount} {best.to_asset} "
+            f"(effective rate: {best.effective_rate:.6f}, expires in {best.seconds_until_expiry:.0f}s)"
+        )
+        return best
 
     async def get_all_quotes(
         self,
@@ -169,17 +179,47 @@ class RouteAggregator:
     ) -> list[Quote]:
         """Get quotes from all providers that support the pair."""
         quotes = []
+        errors = []
+
+        logger.debug(
+            f"Getting quotes for {amount} {from_asset} -> {to_asset} "
+            f"(slippage: {slippage_tolerance * 100}%)"
+        )
 
         for provider in self.providers:
             if provider.supports_pair(from_asset, to_asset):
                 try:
+                    logger.debug(f"Requesting quote from {provider.name}...")
                     quote = await provider.get_quote(
                         from_asset, to_asset, amount, slippage_tolerance
                     )
                     if quote:
+                        logger.info(
+                            f"Quote from {provider.name}: {quote.from_amount} {quote.from_asset} -> "
+                            f"{quote.to_amount} {quote.to_asset} (rate: {quote.effective_rate:.6f})"
+                        )
                         quotes.append(quote)
-                except Exception:
-                    # Log error but continue with other providers
+                    else:
+                        logger.debug(f"{provider.name} returned no quote for {from_asset}->{to_asset}")
+                except Exception as e:
+                    error_msg = f"{provider.name} quote failed: {type(e).__name__}: {e}"
+                    logger.warning(error_msg)
+                    errors.append(error_msg)
                     continue
+
+        # Log summary
+        if quotes:
+            best = max(quotes, key=lambda q: q.to_amount)
+            logger.info(
+                f"Got {len(quotes)} quote(s) for {from_asset}->{to_asset}. "
+                f"Best: {best.provider} ({best.to_amount} {best.to_asset})"
+            )
+        elif errors:
+            logger.error(
+                f"No quotes available for {from_asset}->{to_asset}. "
+                f"Errors: {'; '.join(errors)}"
+            )
+        else:
+            logger.warning(f"No providers support {from_asset}->{to_asset} pair")
 
         return quotes
