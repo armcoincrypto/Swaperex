@@ -200,39 +200,90 @@ class THORChainProvider(RouteProvider):
         Returns:
             Dictionary with inbound details for the user to send funds
         """
-        details = route.quote.route_details or {}
-
-        inbound_address = details.get("inbound_address")
-        memo = details.get("memo")
-        router = details.get("router")
-        expiry = details.get("expiry", 0)
-
-        if not inbound_address or not memo:
+        # Re-fetch quote with destination address to get inbound_address and memo
+        destination = route.destination_address
+        if not destination:
             return {
                 "success": False,
-                "error": "Missing inbound address or memo from quote",
+                "error": "Destination address is required for THORChain swaps",
             }
 
-        return {
-            "success": True,
-            "provider": self.name,
-            "instructions": {
-                "action": "Send funds to inbound address with memo",
-                "inbound_address": inbound_address,
-                "memo": memo,
-                "router": router,
-                "amount": str(route.quote.from_amount),
-                "asset": route.quote.from_asset,
-                "expiry_timestamp": expiry,
-            },
-            "expected_output": {
-                "amount": str(route.quote.to_amount),
-                "asset": route.quote.to_asset,
-                "destination": route.destination_address,
-            },
-            "estimated_time_seconds": route.quote.estimated_time_seconds,
-            "warning": details.get("warning", ""),
-        }
+        tc_from = self._get_thorchain_asset(route.quote.from_asset)
+        tc_to = self._get_thorchain_asset(route.quote.to_asset)
+
+        if not tc_from or not tc_to:
+            return {
+                "success": False,
+                "error": f"Asset not supported: {route.quote.from_asset} or {route.quote.to_asset}",
+            }
+
+        amount_base = int(route.quote.from_amount * Decimal("100000000"))
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                # Fetch quote WITH destination to get inbound_address and memo
+                response = await client.get(
+                    f"{self.thornode_url}/thorchain/quote/swap",
+                    params={
+                        "from_asset": tc_from,
+                        "to_asset": tc_to,
+                        "amount": str(amount_base),
+                        "destination": destination,
+                    },
+                )
+
+                if response.status_code != 200:
+                    return {
+                        "success": False,
+                        "error": f"THORChain API error: {response.status_code}",
+                    }
+
+                data = response.json()
+
+                if "error" in data:
+                    return {
+                        "success": False,
+                        "error": f"THORChain error: {data['error']}",
+                    }
+
+                inbound_address = data.get("inbound_address")
+                memo = data.get("memo")
+                router = data.get("router")
+                expiry = data.get("expiry", 0)
+
+                if not inbound_address or not memo:
+                    return {
+                        "success": False,
+                        "error": "THORChain did not return inbound address or memo",
+                    }
+
+                return {
+                    "success": True,
+                    "provider": self.name,
+                    "instructions": {
+                        "action": "Send funds to inbound address with memo",
+                        "inbound_address": inbound_address,
+                        "memo": memo,
+                        "router": router,
+                        "amount": str(route.quote.from_amount),
+                        "asset": route.quote.from_asset,
+                        "expiry_timestamp": expiry,
+                    },
+                    "expected_output": {
+                        "amount": str(route.quote.to_amount),
+                        "asset": route.quote.to_asset,
+                        "destination": destination,
+                    },
+                    "estimated_time_seconds": route.quote.estimated_time_seconds,
+                    "warning": data.get("warning", ""),
+                }
+
+        except Exception as e:
+            logger.error(f"THORChain execute_swap error: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+            }
 
     async def get_pools(self) -> list[dict]:
         """Get all active liquidity pools."""
