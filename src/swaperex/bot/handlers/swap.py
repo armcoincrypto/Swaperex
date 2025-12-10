@@ -305,6 +305,13 @@ async def handle_confirm_swap(callback: CallbackQuery, state: FSMContext) -> Non
                         swap.id,
                         actual_to_amount=result.to_amount or quote.to_amount,
                     )
+                elif result.status == "pending" and result.tx_hash:
+                    # THORChain auto-send: tx sent, complete swap to unlock balance
+                    # Output will arrive at destination address via THORChain
+                    await repo.complete_swap(
+                        swap.id,
+                        actual_to_amount=result.to_amount or quote.to_amount,
+                    )
 
             # Build response message
             text = _build_swap_result_message(result, quote, destination_address)
