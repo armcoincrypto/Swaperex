@@ -292,7 +292,7 @@ class SwapExecutor:
         """Execute THORChain cross-chain swap.
 
         THORChain swaps work by sending funds to inbound address with memo.
-        We can auto-send from the user's HD wallet.
+        Auto-sends for EVM chains (BNB, ETH), manual for BTC/LTC.
         """
         result = await provider.execute_swap(route)
 
@@ -310,9 +310,72 @@ class SwapExecutor:
         instructions = result.get("instructions", {})
         inbound_address = instructions.get("inbound_address")
         memo = instructions.get("memo")
+        router = instructions.get("router")
 
-        # For now, return instructions for manual send
-        # Auto-send requires UTXO management for BTC/LTC
+        from_asset = route.quote.from_asset.upper()
+
+        # Auto-send for EVM chains (BNB, ETH)
+        if from_asset in ["BNB", "ETH"]:
+            try:
+                from swaperex.swap.signer import get_signer_factory
+
+                # Get the appropriate signer
+                chain = "BNB" if from_asset == "BNB" else "ETH"
+                signer = get_signer_factory().get_evm_signer(chain)
+
+                # Convert amount to wei (18 decimals for BNB/ETH)
+                amount_wei = int(route.quote.from_amount * Decimal("1000000000000000000"))
+
+                # Encode memo as bytes for transaction data
+                memo_bytes = memo.encode('utf-8') if memo else b''
+
+                # Build transaction to THORChain vault
+                tx_params = {
+                    'to': signer.web3.to_checksum_address(inbound_address),
+                    'value': amount_wei,
+                    'data': memo_bytes,
+                    'gas': 80000,  # Standard gas for simple transfer with memo
+                }
+
+                # Sign and send
+                tx_hash = await signer.sign_and_send_transaction(
+                    tx_params,
+                    index=0,
+                    wait_for_confirmation=False,
+                )
+
+                logger.info(f"THORChain swap sent: {tx_hash} ({from_asset} -> {route.quote.to_asset})")
+
+                return SwapResult(
+                    success=True,
+                    provider=provider.name,
+                    from_asset=route.quote.from_asset,
+                    to_asset=route.quote.to_asset,
+                    from_amount=route.quote.from_amount,
+                    to_amount=route.quote.to_amount,
+                    tx_hash=tx_hash,
+                    status="pending",
+                    instructions={
+                        "type": "thorchain_auto",
+                        "note": f"Transaction sent to THORChain. Output will arrive at {route.destination_address}",
+                        "estimated_time_seconds": route.quote.estimated_time_seconds,
+                    },
+                )
+
+            except Exception as e:
+                logger.error(f"THORChain auto-send failed: {e}")
+                # Fall back to manual instructions
+                return SwapResult(
+                    success=False,
+                    provider=provider.name,
+                    from_asset=route.quote.from_asset,
+                    to_asset=route.quote.to_asset,
+                    from_amount=route.quote.from_amount,
+                    error=f"Auto-send failed: {str(e)}",
+                    status="failed",
+                )
+
+        # For BTC/LTC - return instructions for manual send (UTXO management required)
         return SwapResult(
             success=True,
             provider=provider.name,
