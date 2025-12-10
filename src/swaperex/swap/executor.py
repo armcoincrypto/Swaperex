@@ -19,7 +19,7 @@ from dataclasses import dataclass
 
 from swaperex.config import get_settings
 from swaperex.routing.base import Quote, SwapRoute, RouteProvider
-from swaperex.routing.factory import create_default_aggregator
+from swaperex.routing.factory import create_default_aggregator, create_production_aggregator
 
 logger = logging.getLogger(__name__)
 
@@ -141,7 +141,11 @@ class SwapExecutor:
 
     def __init__(self):
         self.settings = get_settings()
-        self.aggregator = create_default_aggregator()
+        # Use production aggregator (no DryRun) when DRY_RUN=false
+        if self.settings.dry_run:
+            self.aggregator = create_default_aggregator()
+        else:
+            self.aggregator = create_production_aggregator()
 
     async def get_quote(
         self,
