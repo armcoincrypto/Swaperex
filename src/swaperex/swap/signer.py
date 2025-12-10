@@ -215,7 +215,9 @@ class EVMSigner(ChainSigner):
 
         # Send transaction
         try:
-            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            # web3.py 6.x uses raw_transaction, older versions use rawTransaction
+            raw_tx = getattr(signed_tx, 'raw_transaction', None) or signed_tx.rawTransaction
+            tx_hash = self.web3.eth.send_raw_transaction(raw_tx)
             tx_hash_hex = tx_hash.hex()
 
             # Optionally wait for confirmation
