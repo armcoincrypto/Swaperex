@@ -205,6 +205,49 @@ class CreditBalanceRequest(BaseModel):
     amount: float
 
 
+class UnlockBalanceRequest(BaseModel):
+    """Request to unlock user balance (admin operation)."""
+
+    telegram_id: int
+    asset: str
+    amount: float
+
+
+@router.post("/unlock")
+async def unlock_user_balance(
+    request: UnlockBalanceRequest,
+    _: bool = Depends(require_admin_token),
+) -> dict:
+    """Unlock locked balance for a user (admin only).
+
+    Use this to release funds locked from failed/stuck swaps.
+    """
+    from decimal import Decimal
+
+    async with get_db() as session:
+        repo = LedgerRepository(session)
+        user = await repo.get_user_by_telegram_id(request.telegram_id)
+
+        if not user:
+            raise HTTPException(status_code=404, detail=f"User with telegram_id {request.telegram_id} not found")
+
+        balance = await repo.unlock_balance(
+            user_id=user.id,
+            asset=request.asset.upper(),
+            amount=Decimal(str(request.amount)),
+        )
+
+        return {
+            "success": True,
+            "user_id": user.id,
+            "telegram_id": request.telegram_id,
+            "asset": request.asset.upper(),
+            "unlocked": request.amount,
+            "new_locked_amount": float(balance.locked_amount),
+            "available_balance": float(balance.available),
+        }
+
+
 @router.post("/credit")
 async def credit_user_balance(
     request: CreditBalanceRequest,
