@@ -205,6 +205,15 @@ class CreditBalanceRequest(BaseModel):
     amount: float
 
 
+class SetBalanceRequest(BaseModel):
+    """Request to set user balance directly (admin operation)."""
+
+    telegram_id: int
+    asset: str
+    amount: float
+    locked_amount: float = 0.0
+
+
 class UnlockBalanceRequest(BaseModel):
     """Request to unlock user balance (admin operation)."""
 
@@ -280,6 +289,41 @@ async def credit_user_balance(
             "asset": request.asset.upper(),
             "credited": request.amount,
             "new_balance": float(balance.amount),
+        }
+
+
+@router.post("/set-balance")
+async def set_user_balance(
+    request: SetBalanceRequest,
+    _: bool = Depends(require_admin_token),
+) -> dict:
+    """Set user balance directly (admin only).
+
+    Use this to sync bot's internal balance with on-chain reality.
+    Sets both total amount and locked amount directly.
+    """
+    from decimal import Decimal
+
+    async with get_db() as session:
+        repo = LedgerRepository(session)
+        user = await repo.get_user_by_telegram_id(request.telegram_id)
+
+        if not user:
+            raise HTTPException(status_code=404, detail=f"User with telegram_id {request.telegram_id} not found")
+
+        balance = await repo.get_or_create_balance(user.id, request.asset.upper())
+        balance.amount = Decimal(str(request.amount))
+        balance.locked_amount = Decimal(str(request.locked_amount))
+        await session.flush()
+
+        return {
+            "success": True,
+            "user_id": user.id,
+            "telegram_id": request.telegram_id,
+            "asset": request.asset.upper(),
+            "amount": float(balance.amount),
+            "locked_amount": float(balance.locked_amount),
+            "available": float(balance.available),
         }
 
 
