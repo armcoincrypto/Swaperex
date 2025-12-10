@@ -10,7 +10,7 @@ from typing import Optional
 
 import httpx
 
-from swaperex.scanner.base import DepositInfo, DepositScanner
+from swaperex.scanner.base import TransactionInfo, DepositScanner
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ class SolanaScanner(DepositScanner):
         self,
         address: str,
         limit: int = 10,
-    ) -> list[DepositInfo]:
+    ) -> list[TransactionInfo]:
         """Get recent transactions for a Solana address."""
         deposits = []
 
@@ -102,7 +102,7 @@ class SolanaScanner(DepositScanner):
 
         return deposits
 
-    def _parse_transaction(self, tx_data: dict, address: str) -> Optional[DepositInfo]:
+    def _parse_transaction(self, tx_data: dict, address: str) -> Optional[TransactionInfo]:
         """Parse Solana transaction for deposits."""
         try:
             meta = tx_data.get("meta", {})
@@ -124,9 +124,9 @@ class SolanaScanner(DepositScanner):
                         amount_lamports = post_balances[i] - pre_balances[i]
                         if amount_lamports > 0:
                             amount = Decimal(amount_lamports) / Decimal(10 ** 9)
-                            return DepositInfo(
-                                tx_hash=signature,
-                                address=address,
+                            return TransactionInfo(
+                                txid=signature,
+                                to_address=address,
                                 amount=amount,
                                 asset="SOL",
                                 confirmations=32,  # Assume finalized
@@ -192,7 +192,7 @@ class ATOMScanner(DepositScanner):
         self,
         address: str,
         limit: int = 10,
-    ) -> list[DepositInfo]:
+    ) -> list[TransactionInfo]:
         """Get recent ATOM transactions for address."""
         deposits = []
 
@@ -224,9 +224,9 @@ class ATOMScanner(DepositScanner):
                                             if "uatom" in amount_str:
                                                 amount_uatom = int(amount_str.replace("uatom", ""))
                                                 amount = Decimal(amount_uatom) / Decimal(10 ** 6)
-                                                deposits.append(DepositInfo(
-                                                    tx_hash=tx.get("txhash"),
-                                                    address=address,
+                                                deposits.append(TransactionInfo(
+                                                    txid=tx.get("txhash"),
+                                                    to_address=address,
                                                     amount=amount,
                                                     asset="ATOM",
                                                     confirmations=1,
