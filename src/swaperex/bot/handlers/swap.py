@@ -382,6 +382,38 @@ def _build_swap_result_message(result: SwapResult, quote: Quote, destination: st
                 "For now, manual execution required.",
             ])
 
+        elif result.status == "pending":
+            # THORChain auto-send - transaction sent, awaiting cross-chain completion
+            instr = result.instructions or {}
+            lines.extend([
+                "✅ Swap Sent!\n",
+                "━━━━━━━━━━━━━━━━━━━━━━━━",
+                f"📤 Sent: {result.from_amount} {result.from_asset}",
+                f"📥 Expected: ~{result.to_amount:.8f} {result.to_asset}",
+                f"🔄 Route: {result.provider}",
+                "━━━━━━━━━━━━━━━━━━━━━━━━\n",
+            ])
+
+            if result.tx_hash:
+                lines.append(f"🔗 TX: `{result.tx_hash}`\n")
+
+            # Show tracking link for THORChain
+            if "THORChain" in result.provider or instr.get("type") == "thorchain_auto":
+                lines.extend([
+                    "📊 Track your swap:",
+                    f"https://track.ninerealms.com/\n",
+                ])
+
+                est_time = instr.get("estimated_time_seconds", 600)
+                if est_time:
+                    mins = est_time // 60
+                    lines.append(f"⏱️ Estimated time: ~{mins} minutes")
+
+            lines.extend([
+                f"\n📬 Output address:\n`{destination}`",
+                "\n✨ Swap is processing! Funds will arrive automatically.",
+            ])
+
         else:
             lines.extend([
                 f"🔄 Swap Status: {result.status}",
