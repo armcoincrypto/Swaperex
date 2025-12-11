@@ -51,6 +51,38 @@ CHAIN_INFO = {
 }
 
 
+def _get_destination_address(provider: str, to_asset: str, chain: str = None) -> str:
+    """Get the correct destination address based on swap context.
+
+    For same-chain swaps (PancakeSwap, Uniswap), the output token
+    goes to that chain's address regardless of token name.
+    For cross-chain swaps (THORChain), use the destination chain's address.
+    """
+    # Map providers to their chains
+    provider_chains = {
+        "PancakeSwap": "BNB",
+        "Uniswap": "ETH",
+        "Jupiter": "SOL",
+        "Osmosis": "ATOM",
+    }
+
+    # Determine which chain's wallet to use
+    if provider in provider_chains:
+        # Same-chain swap: use that chain's native wallet
+        wallet_asset = provider_chains[provider]
+    elif "THORChain" in provider or chain == "THOR":
+        # Cross-chain: use destination asset's native chain
+        wallet_asset = to_asset
+    else:
+        # Fallback: use chain if provided, otherwise to_asset
+        wallet_asset = chain if chain else to_asset
+
+    # Get the wallet for this chain
+    wallet = get_hd_wallet(wallet_asset)
+    addr_info = wallet.derive_address(0)
+    return addr_info.address
+
+
 def _quote_to_dict(q: Quote) -> dict:
     """Convert Quote to serializable dict."""
     return {
@@ -309,11 +341,12 @@ async def handle_confirm_swap(callback: CallbackQuery, state: FSMContext) -> Non
 
     selected_quote_data = quotes_data[0]  # Best quote
     quote = _dict_to_quote(selected_quote_data)
+    chain = data.get("chain")
 
-    # Get user's destination address for the output asset
-    wallet = get_hd_wallet(to_asset)
-    dest_address_info = wallet.derive_address(0)  # User's first address
-    destination_address = dest_address_info.address
+    # Get user's destination address based on chain, not output asset
+    # For same-chain swaps (BSC, ETH), output goes to that chain's address
+    # For cross-chain (THORChain), output goes to the destination chain
+    destination_address = _get_destination_address(quote.provider, to_asset, chain)
 
     await callback.message.edit_text("⏳ Executing swap...")
 
