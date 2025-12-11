@@ -374,6 +374,197 @@ class EVMSigner(ChainSigner):
 
         return await self.sign_and_send_transaction(tx, index)
 
+    async def swap_on_pancakeswap(
+        self,
+        token_in: str,
+        token_out: str,
+        amount_in: int,
+        min_amount_out: int,
+        recipient: str,
+        deadline: int,
+        index: int = 0,
+    ) -> str:
+        """Execute swap on PancakeSwap V2 (BSC).
+
+        Args:
+            token_in: Input token address (use WBNB address for native BNB)
+            token_out: Output token address
+            amount_in: Amount in smallest units (wei)
+            min_amount_out: Minimum output amount (slippage protection)
+            recipient: Address to receive output tokens
+            deadline: Unix timestamp deadline
+            index: Derivation index for signing
+        """
+        # PancakeSwap V2 Router on BSC
+        ROUTER = "0x10ED43C718714eb63d5aA57B78B54704E256024E"
+        WBNB = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"
+
+        # PancakeSwap V2 Router ABI
+        ROUTER_ABI = [
+            {
+                "inputs": [
+                    {"name": "amountOutMin", "type": "uint256"},
+                    {"name": "path", "type": "address[]"},
+                    {"name": "to", "type": "address"},
+                    {"name": "deadline", "type": "uint256"},
+                ],
+                "name": "swapExactETHForTokens",
+                "outputs": [{"name": "amounts", "type": "uint256[]"}],
+                "stateMutability": "payable",
+                "type": "function",
+            },
+            {
+                "inputs": [
+                    {"name": "amountIn", "type": "uint256"},
+                    {"name": "amountOutMin", "type": "uint256"},
+                    {"name": "path", "type": "address[]"},
+                    {"name": "to", "type": "address"},
+                    {"name": "deadline", "type": "uint256"},
+                ],
+                "name": "swapExactTokensForETH",
+                "outputs": [{"name": "amounts", "type": "uint256[]"}],
+                "stateMutability": "nonpayable",
+                "type": "function",
+            },
+            {
+                "inputs": [
+                    {"name": "amountIn", "type": "uint256"},
+                    {"name": "amountOutMin", "type": "uint256"},
+                    {"name": "path", "type": "address[]"},
+                    {"name": "to", "type": "address"},
+                    {"name": "deadline", "type": "uint256"},
+                ],
+                "name": "swapExactTokensForTokens",
+                "outputs": [{"name": "amounts", "type": "uint256[]"}],
+                "stateMutability": "nonpayable",
+                "type": "function",
+            },
+        ]
+
+        contract = self.web3.eth.contract(
+            address=self.web3.to_checksum_address(ROUTER),
+            abi=ROUTER_ABI
+        )
+
+        account = self.get_account(index)
+        token_in_checksum = self.web3.to_checksum_address(token_in)
+        token_out_checksum = self.web3.to_checksum_address(token_out)
+        recipient_checksum = self.web3.to_checksum_address(recipient)
+
+        # Determine swap type based on tokens
+        is_native_in = token_in.lower() == WBNB.lower()
+        is_native_out = token_out.lower() == WBNB.lower()
+
+        path = [token_in_checksum, token_out_checksum]
+
+        if is_native_in:
+            # BNB -> Token: swapExactETHForTokens
+            tx = contract.functions.swapExactETHForTokens(
+                min_amount_out,
+                path,
+                recipient_checksum,
+                deadline,
+            ).build_transaction({
+                'from': account.address,
+                'value': amount_in,
+                'nonce': self._get_next_nonce(account.address),
+                'gas': 250000,
+                'gasPrice': self.web3.eth.gas_price,
+            })
+        elif is_native_out:
+            # Token -> BNB: swapExactTokensForETH
+            # First approve router
+            await self._approve_token_for_router(token_in, amount_in, ROUTER, index)
+
+            tx = contract.functions.swapExactTokensForETH(
+                amount_in,
+                min_amount_out,
+                path,
+                recipient_checksum,
+                deadline,
+            ).build_transaction({
+                'from': account.address,
+                'nonce': self._get_next_nonce(account.address),
+                'gas': 250000,
+                'gasPrice': self.web3.eth.gas_price,
+            })
+        else:
+            # Token -> Token: swapExactTokensForTokens
+            # First approve router
+            await self._approve_token_for_router(token_in, amount_in, ROUTER, index)
+
+            tx = contract.functions.swapExactTokensForTokens(
+                amount_in,
+                min_amount_out,
+                path,
+                recipient_checksum,
+                deadline,
+            ).build_transaction({
+                'from': account.address,
+                'nonce': self._get_next_nonce(account.address),
+                'gas': 250000,
+                'gasPrice': self.web3.eth.gas_price,
+            })
+
+        return await self.sign_and_send_transaction(tx, index)
+
+    async def _approve_token_for_router(
+        self,
+        token_address: str,
+        amount: int,
+        router_address: str,
+        index: int = 0,
+    ) -> Optional[str]:
+        """Approve token spending for DEX router if needed."""
+        ERC20_ABI = [
+            {
+                "inputs": [{"name": "owner", "type": "address"}, {"name": "spender", "type": "address"}],
+                "name": "allowance",
+                "outputs": [{"name": "", "type": "uint256"}],
+                "stateMutability": "view",
+                "type": "function",
+            },
+            {
+                "inputs": [{"name": "spender", "type": "address"}, {"name": "amount", "type": "uint256"}],
+                "name": "approve",
+                "outputs": [{"name": "", "type": "bool"}],
+                "stateMutability": "nonpayable",
+                "type": "function",
+            },
+        ]
+
+        token = self.web3.eth.contract(
+            address=self.web3.to_checksum_address(token_address),
+            abi=ERC20_ABI
+        )
+
+        account = self.get_account(index)
+        router = self.web3.to_checksum_address(router_address)
+
+        # Check current allowance
+        current_allowance = token.functions.allowance(account.address, router).call()
+
+        if current_allowance >= amount:
+            return None  # Already approved
+
+        # Approve max uint256 for future swaps
+        max_uint = 2**256 - 1
+        tx = token.functions.approve(router, max_uint).build_transaction({
+            'from': account.address,
+            'nonce': self._get_next_nonce(account.address),
+            'gas': 100000,
+            'gasPrice': self.web3.eth.gas_price,
+        })
+
+        tx_hash = await self.sign_and_send_transaction(tx, index)
+        logger.info(f"Token approval tx: {tx_hash}")
+
+        # Wait a bit for approval to be mined
+        import asyncio
+        await asyncio.sleep(3)
+
+        return tx_hash
+
 
 class SolanaSigner(ChainSigner):
     """Signer for Solana transactions."""

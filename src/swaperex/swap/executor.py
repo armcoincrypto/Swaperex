@@ -492,25 +492,24 @@ class SwapExecutor:
         route: SwapRoute,
         user_id: int,
     ) -> SwapResult:
-        """Execute PancakeSwap swap on BSC."""
+        """Execute PancakeSwap V2 swap on BSC."""
         try:
             from swaperex.swap.signer import get_signer_factory
 
             quote = route.quote
             signer = get_signer_factory().get_evm_signer("BNB")
 
-            # PancakeSwap Router V2
-            ROUTER = "0x10ED43C718714eb63d5aA57B78B54704E256024E"
+            # Get token addresses - use WBNB for native BNB
+            WBNB = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"
 
-            # Get token addresses
             from_token = EVM_TOKENS.get("BNB", {}).get(quote.from_asset)
             to_token = EVM_TOKENS.get("BNB", {}).get(quote.to_asset)
 
-            # Default to WBNB for BNB
+            # Native BNB uses WBNB address (router wraps/unwraps automatically)
             if quote.from_asset == "BNB":
-                from_token = EVM_TOKENS["BNB"]["WBNB"]
+                from_token = WBNB
             if quote.to_asset == "BNB":
-                to_token = EVM_TOKENS["BNB"]["WBNB"]
+                to_token = WBNB
 
             if not from_token or not to_token:
                 return SwapResult(
@@ -519,11 +518,11 @@ class SwapExecutor:
                     from_asset=quote.from_asset,
                     to_asset=quote.to_asset,
                     from_amount=quote.from_amount,
-                    error=f"Token not supported on BSC",
+                    error=f"Token not supported on BSC: {quote.from_asset} or {quote.to_asset}",
                     status="failed",
                 )
 
-            # Build swap transaction
+            # Calculate amounts with proper decimals
             from_decimals = TOKEN_DECIMALS.get(quote.from_asset, 18)
             to_decimals = TOKEN_DECIMALS.get(quote.to_asset, 18)
             amount_in = int(quote.from_amount * Decimal(10 ** from_decimals))
@@ -531,9 +530,8 @@ class SwapExecutor:
 
             deadline = int(time.time()) + 300
 
-            # PancakeSwap uses swapExactTokensForTokens
-            # For simplicity, using same pattern as Uniswap
-            tx_hash = await signer.swap_on_uniswap(
+            # Use proper PancakeSwap V2 swap method (handles BNB/token/token swaps)
+            tx_hash = await signer.swap_on_pancakeswap(
                 token_in=from_token,
                 token_out=to_token,
                 amount_in=amount_in,
@@ -887,41 +885,20 @@ class SwapExecutor:
         return tokens.get(asset)
 
     async def _approve_token(self, signer, token_address: str, amount: int) -> str:
-        """Approve token spending for DEX router."""
-        # ERC20 approve ABI
-        APPROVE_ABI = [
-            {
-                "inputs": [
-                    {"name": "spender", "type": "address"},
-                    {"name": "amount", "type": "uint256"},
-                ],
-                "name": "approve",
-                "outputs": [{"name": "", "type": "bool"}],
-                "stateMutability": "nonpayable",
-                "type": "function",
-            }
-        ]
+        """Approve token spending for Uniswap V3 router.
 
+        Uses the signer's shared _approve_token_for_router method for
+        thread-safe nonce management and proper allowance checking.
+        """
         # Uniswap V3 Router
         ROUTER = "0xE592427A0AEce92De3Edee1F18E0157C05861564"
 
-        contract = signer.web3.eth.contract(
-            address=signer.web3.to_checksum_address(token_address),
-            abi=APPROVE_ABI
+        return await signer._approve_token_for_router(
+            token_address=token_address,
+            amount=amount,
+            router_address=ROUTER,
+            index=0,
         )
-
-        account = signer.get_account(0)
-        tx = contract.functions.approve(
-            signer.web3.to_checksum_address(ROUTER),
-            amount
-        ).build_transaction({
-            'from': account.address,
-            'nonce': signer.web3.eth.get_transaction_count(account.address),
-            'gas': 100000,
-            'gasPrice': signer.web3.eth.gas_price,
-        })
-
-        return await signer.sign_and_send_transaction(tx)
 
 
 # Singleton instance
