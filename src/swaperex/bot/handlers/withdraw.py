@@ -212,11 +212,11 @@ async def handle_withdraw_amount(message: Message, state: FSMContext) -> None:
 
     # Calculate receive amount
     if fee_asset == asset:
-        receive_amount = amount
-        deducted = amount + total_fee
+        receive_amount = amount - total_fee  # User receives amount minus fee
+        deducted = amount  # Deducted from balance is the amount (fee taken from it)
     else:
-        receive_amount = amount
-        deducted = amount
+        receive_amount = amount  # Fee in different asset, user receives full amount
+        deducted = amount  # Deducted is just the amount (fee charged separately)
 
     settings = get_settings()
     poc_note = "\n(Simulated - PoC mode)" if settings.dry_run else ""

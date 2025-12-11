@@ -312,6 +312,12 @@ async def handle_confirm_swap(callback: CallbackQuery, state: FSMContext) -> Non
                         swap.id,
                         actual_to_amount=result.to_amount or quote.to_amount,
                     )
+            else:
+                # Swap failed - unlock the locked balance
+                await repo.fail_swap(
+                    swap.id,
+                    error_message=result.error or "Swap execution failed",
+                )
 
             # Build response message
             text = _build_swap_result_message(result, quote, destination_address)

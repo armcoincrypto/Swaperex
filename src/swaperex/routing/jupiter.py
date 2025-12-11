@@ -315,7 +315,11 @@ class JupiterProvider(RouteProvider):
             }
 
     def _get_public_key(self) -> str:
-        """Get Solana public key from private key."""
-        # In production, derive from private key
-        # For now, return placeholder
-        return "placeholder_public_key"
+        """Get Solana public key from seed phrase."""
+        try:
+            from swaperex.swap.signer import get_signer_factory
+            signer = get_signer_factory().get_solana_signer()
+            return signer.get_address(0)
+        except Exception as e:
+            logger.error(f"Failed to derive Solana public key: {e}")
+            raise ValueError("Solana wallet not configured - check WALLET_SEED_PHRASE")

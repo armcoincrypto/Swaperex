@@ -65,10 +65,28 @@ class EVMSigner(ChainSigner):
         """Get next nonce for address with thread-safe caching.
 
         Prevents race condition where concurrent transactions get same nonce.
+        Includes retry logic for RPC failures.
         """
+        import time
+        max_retries = 3
+
         with self._get_lock():
-            # Get current on-chain nonce
-            chain_nonce = self.web3.eth.get_transaction_count(address, 'pending')
+            chain_nonce = None
+            last_error = None
+
+            # Retry RPC call with exponential backoff
+            for attempt in range(max_retries):
+                try:
+                    chain_nonce = self.web3.eth.get_transaction_count(address, 'pending')
+                    break
+                except Exception as e:
+                    last_error = e
+                    if attempt < max_retries - 1:
+                        time.sleep(1 * (attempt + 1))  # 1s, 2s, 3s backoff
+                        logger.warning(f"RPC error getting nonce (attempt {attempt + 1}): {e}")
+
+            if chain_nonce is None:
+                raise Exception(f"Failed to get nonce after {max_retries} attempts: {last_error}")
 
             # Get cached nonce (might be higher if we have pending txs)
             cached_nonce = self._nonce_cache.get(address, 0)
@@ -344,7 +362,7 @@ class EVMSigner(ChainSigner):
         account = self.get_account(index)
         tx = contract.functions.exactInputSingle(params).build_transaction({
             'from': account.address,
-            'nonce': self.web3.eth.get_transaction_count(account.address),
+            'nonce': self._get_next_nonce(account.address),  # Use thread-safe nonce
             'gas': 300000,
             'gasPrice': self.web3.eth.gas_price,
         })
@@ -509,6 +527,7 @@ class CosmosSigner(ChainSigner):
             # Build swap message
             from cosmpy.protos.osmosis.gamm.v1beta1.tx_pb2 import MsgSwapExactAmountIn
             from cosmpy.protos.cosmos.base.v1beta1.coin_pb2 import Coin
+            from cosmpy.aerial.tx import Transaction
 
             msg = MsgSwapExactAmountIn(
                 sender=str(wallet.address()),
@@ -520,16 +539,17 @@ class CosmosSigner(ChainSigner):
                 token_out_min_amount=str(min_amount_out),
             )
 
-            # Submit transaction
-            tx = client.send_tokens(
-                wallet.address(),
-                wallet.address(),
-                amount=0,
-                denom="uosmo",
-                memo="Swaperex",
-            )
+            # Submit swap transaction
+            tx = Transaction()
+            tx.add_message(msg)
 
-            return tx.tx_hash
+            # Sign and broadcast
+            tx_response = client.broadcast_tx(tx.sign(wallet))
+
+            if tx_response.tx_hash:
+                return tx_response.tx_hash
+            else:
+                raise Exception("Failed to broadcast Osmosis swap transaction")
 
         except ImportError:
             logger.error("cosmpy not installed. Run: pip install cosmpy")

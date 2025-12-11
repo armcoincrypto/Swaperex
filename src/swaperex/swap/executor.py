@@ -367,16 +367,28 @@ class SwapExecutor:
                 )
 
             except Exception as e:
-                logger.error(f"THORChain auto-send failed: {e}")
-                # Fall back to manual instructions
+                logger.error(f"THORChain auto-send failed: {e}, falling back to manual instructions")
+                # Fall back to manual instructions instead of failing
                 return SwapResult(
-                    success=False,
+                    success=True,
                     provider=provider.name,
                     from_asset=route.quote.from_asset,
                     to_asset=route.quote.to_asset,
                     from_amount=route.quote.from_amount,
-                    error=f"Auto-send failed: {str(e)}",
-                    status="failed",
+                    to_amount=route.quote.to_amount,
+                    status="awaiting_deposit",
+                    instructions={
+                        "type": "thorchain_manual_fallback",
+                        "action": "Auto-send failed. Please send funds manually.",
+                        "inbound_address": inbound_address,
+                        "memo": memo,
+                        "amount": str(route.quote.from_amount),
+                        "asset": route.quote.from_asset,
+                        "expected_output": str(route.quote.to_amount),
+                        "output_asset": route.quote.to_asset,
+                        "destination": route.destination_address,
+                        "auto_send_error": str(e),
+                    },
                 )
 
         # For BTC/LTC - return instructions for manual send (UTXO management required)
