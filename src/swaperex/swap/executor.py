@@ -192,6 +192,10 @@ TOKEN_DECIMALS = {
 class SwapExecutor:
     """Executes swaps across different DEXes with full chain integration."""
 
+    # Minimum gas requirements (in native token units)
+    MIN_GAS_BNB = Decimal("0.003")  # ~$1-2 for BSC swap
+    MIN_GAS_ETH = Decimal("0.005")  # ~$15-20 for ETH swap
+
     def __init__(self):
         self.settings = get_settings()
         # Use production aggregator (no DryRun) when DRY_RUN=false
@@ -199,6 +203,64 @@ class SwapExecutor:
             self.aggregator = create_default_aggregator()
         else:
             self.aggregator = create_production_aggregator()
+
+    async def _check_gas_balance(
+        self,
+        chain: str,
+        swap_amount: Decimal,
+        is_native_swap: bool,
+    ) -> tuple[bool, str, Decimal]:
+        """Check if user has sufficient balance for gas fees.
+
+        Args:
+            chain: "BNB" or "ETH"
+            swap_amount: Amount being swapped (only matters if swapping native token)
+            is_native_swap: True if swapping native token (BNB/ETH)
+
+        Returns:
+            Tuple of (has_enough, error_message, current_balance)
+        """
+        from swaperex.swap.signer import get_signer_factory
+
+        try:
+            signer = get_signer_factory().get_evm_signer(chain)
+            address = signer.get_address(0)
+
+            # Get current balance
+            balance_wei = signer.web3.eth.get_balance(address)
+            balance = Decimal(balance_wei) / Decimal(10 ** 18)
+
+            # Determine minimum required
+            min_gas = self.MIN_GAS_BNB if chain == "BNB" else self.MIN_GAS_ETH
+            gas_name = "BNB" if chain == "BNB" else "ETH"
+
+            if is_native_swap:
+                # Swapping native token: need swap_amount + gas
+                required = swap_amount + min_gas
+                if balance < required:
+                    return (
+                        False,
+                        f"Insufficient {gas_name} balance. You have {balance:.6f} {gas_name}, "
+                        f"but need {swap_amount} for swap + ~{min_gas} for gas = {required:.6f} {gas_name}. "
+                        f"Try swapping a smaller amount (max ~{balance - min_gas:.6f} {gas_name})",
+                        balance,
+                    )
+            else:
+                # Swapping token: just need gas
+                if balance < min_gas:
+                    return (
+                        False,
+                        f"Insufficient {gas_name} for gas fees. You have {balance:.6f} {gas_name}, "
+                        f"but need at least ~{min_gas} {gas_name} for transaction fees",
+                        balance,
+                    )
+
+            return True, "", balance
+
+        except Exception as e:
+            logger.warning(f"Gas balance check failed: {e}")
+            # Don't block swap if we can't check - let the RPC error through
+            return True, "", Decimal("0")
 
     async def get_quote(
         self,
@@ -478,6 +540,26 @@ class SwapExecutor:
             from swaperex.swap.signer import get_signer_factory
 
             quote = route.quote
+
+            # Check gas balance before attempting swap
+            is_native_swap = quote.from_asset.upper() == "ETH"
+            has_gas, gas_error, balance = await self._check_gas_balance(
+                chain="ETH",
+                swap_amount=quote.from_amount,
+                is_native_swap=is_native_swap,
+            )
+
+            if not has_gas:
+                return SwapResult(
+                    success=False,
+                    provider="Uniswap",
+                    from_asset=quote.from_asset,
+                    to_asset=quote.to_asset,
+                    from_amount=quote.from_amount,
+                    error=gas_error,
+                    status="failed",
+                )
+
             signer = get_signer_factory().get_evm_signer("ETH")
 
             # Get token addresses
@@ -551,6 +633,26 @@ class SwapExecutor:
             from swaperex.swap.signer import get_signer_factory
 
             quote = route.quote
+
+            # Check gas balance before attempting swap
+            is_native_swap = quote.from_asset.upper() == "BNB"
+            has_gas, gas_error, balance = await self._check_gas_balance(
+                chain="BNB",
+                swap_amount=quote.from_amount,
+                is_native_swap=is_native_swap,
+            )
+
+            if not has_gas:
+                return SwapResult(
+                    success=False,
+                    provider="PancakeSwap",
+                    from_asset=quote.from_asset,
+                    to_asset=quote.to_asset,
+                    from_amount=quote.from_amount,
+                    error=gas_error,
+                    status="failed",
+                )
+
             signer = get_signer_factory().get_evm_signer("BNB")
 
             # Get token addresses - use WBNB for native BNB
