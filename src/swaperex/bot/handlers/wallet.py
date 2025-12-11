@@ -84,6 +84,14 @@ async def sync_user_balances(repo: LedgerRepository, user_id: int, addresses: li
     Returns dict of {asset: (old_balance, new_balance)} for changed balances.
     """
     changes = {}
+    synced_assets = set()
+
+    # Find user's EVM address (same for ETH/BNB/etc)
+    evm_address = None
+    for addr in addresses:
+        if addr.asset in ["ETH", "BNB", "BSC"]:
+            evm_address = addr.address
+            break
 
     for addr in addresses:
         address = addr.address
@@ -104,14 +112,11 @@ async def sync_user_balances(repo: LedgerRepository, user_id: int, addresses: li
                     contract, decimals = TOKENS["ETH"]["USDC"]
                     on_chain = await get_erc20_balance(address, contract, rpc_url, decimals)
 
-            elif asset in ["BNB", "BSC", "USDT-BEP20", "USDC-BEP20", "DOGE"]:
+            elif asset in ["BNB", "BSC", "USDT-BEP20", "USDC-BEP20"]:
                 rpc_url = BSC_RPC
                 if asset in ["BNB", "BSC"]:
                     on_chain = await get_evm_balance(address, rpc_url)
                     asset = "BNB"  # Normalize
-                elif asset == "DOGE":
-                    contract, decimals = TOKENS["BNB"]["DOGE"]
-                    on_chain = await get_erc20_balance(address, contract, rpc_url, decimals)
 
             if on_chain is not None:
                 # Get current database balance
@@ -122,9 +127,43 @@ async def sync_user_balances(repo: LedgerRepository, user_id: int, addresses: li
                 if on_chain != current:
                     await repo.set_balance(user_id, asset, on_chain)
                     changes[asset] = (current, on_chain)
+                synced_assets.add(asset)
 
         except Exception as e:
             logger.error(f"Sync error for {asset}: {e}")
+
+    # Also sync token balances that may have come from swaps (not deposits)
+    # Use the EVM address to check for tokens like DOGE-BEP20
+    if evm_address:
+        # Get all user balances to find tokens that need syncing
+        all_balances = await repo.get_all_balances(user_id)
+        for bal in all_balances:
+            asset = bal.asset
+            if asset in synced_assets:
+                continue  # Already synced
+
+            try:
+                on_chain: Optional[Decimal] = None
+
+                # Check BSC tokens
+                if asset == "DOGE":
+                    contract, decimals = TOKENS["BNB"]["DOGE"]
+                    on_chain = await get_erc20_balance(evm_address, contract, BSC_RPC, decimals)
+                elif asset == "USDT-BEP20":
+                    contract, decimals = TOKENS["BNB"]["USDT"]
+                    on_chain = await get_erc20_balance(evm_address, contract, BSC_RPC, decimals)
+                elif asset == "USDC-BEP20":
+                    contract, decimals = TOKENS["BNB"]["USDC"]
+                    on_chain = await get_erc20_balance(evm_address, contract, BSC_RPC, decimals)
+
+                if on_chain is not None:
+                    current = bal.amount
+                    if on_chain != current:
+                        await repo.set_balance(user_id, asset, on_chain)
+                        changes[asset] = (current, on_chain)
+
+            except Exception as e:
+                logger.error(f"Sync error for token {asset}: {e}")
 
     return changes
 
