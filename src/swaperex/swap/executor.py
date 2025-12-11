@@ -24,8 +24,11 @@ from swaperex.routing.factory import create_default_aggregator, create_productio
 logger = logging.getLogger(__name__)
 
 
-def validate_address(address: str, asset: str) -> tuple[bool, str]:
-    """Validate address format for a given asset.
+def validate_address(address: str, asset: str, provider: str = None) -> tuple[bool, str]:
+    """Validate address format for a given asset and provider context.
+
+    For same-chain DEX swaps (PancakeSwap, Uniswap), validation is based on chain.
+    For cross-chain swaps, validation is based on destination asset.
 
     Returns:
         Tuple of (is_valid, error_message)
@@ -35,12 +38,38 @@ def validate_address(address: str, asset: str) -> tuple[bool, str]:
 
     address = address.strip()
 
-    # Get base asset for tokens
+    # Determine validation type based on provider context
+    # For same-chain DEXes, validate based on chain, not asset
+    if provider == "PancakeSwap":
+        # All PancakeSwap destinations are BSC/EVM addresses
+        if not re.match(r"^0x[a-fA-F0-9]{40}$", address):
+            return False, f"Invalid BSC address format"
+        return True, ""
+
+    if provider == "Uniswap":
+        # All Uniswap destinations are Ethereum/EVM addresses
+        if not re.match(r"^0x[a-fA-F0-9]{40}$", address):
+            return False, f"Invalid Ethereum address format"
+        return True, ""
+
+    if provider == "Jupiter":
+        # All Jupiter destinations are Solana addresses
+        if not re.match(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$", address):
+            return False, f"Invalid Solana address format"
+        return True, ""
+
+    if provider == "Osmosis":
+        # All Osmosis destinations are Cosmos addresses
+        if not address.startswith("osmo1") and not address.startswith("cosmos1"):
+            return False, f"Invalid Cosmos/Osmosis address"
+        return True, ""
+
+    # For cross-chain or unknown provider, validate by asset
     base_asset = asset.upper()
     if base_asset in ["USDT-ERC20", "USDC-ERC20", "LINK"]:
         base_asset = "ETH"
     elif base_asset == "HYPE":
-        base_asset = "ETH"  # Hyperliquid uses EVM addresses
+        base_asset = "ETH"
 
     # EVM addresses (ETH, BNB, etc.)
     if base_asset in ["ETH", "BNB"]:
@@ -50,23 +79,19 @@ def validate_address(address: str, asset: str) -> tuple[bool, str]:
 
     # Bitcoin (native segwit)
     if base_asset == "BTC":
-        # bc1 for mainnet, tb1 for testnet
         if not re.match(r"^(bc1|tb1)[a-zA-HJ-NP-Z0-9]{25,87}$", address):
-            # Also accept legacy formats
             if not re.match(r"^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$", address):
                 return False, f"Invalid Bitcoin address format"
         return True, ""
 
     # Litecoin
     if base_asset == "LTC":
-        # ltc1 for native segwit, L/M/3 for legacy
         if not re.match(r"^(ltc1|L|M|3)[a-km-zA-HJ-NP-Z1-9]{25,87}$", address):
             return False, f"Invalid Litecoin address format"
         return True, ""
 
     # Solana
     if base_asset == "SOL":
-        # Base58 encoded, 32-44 chars
         if not re.match(r"^[1-9A-HJ-NP-Za-km-z]{32,44}$", address):
             return False, f"Invalid Solana address format"
         return True, ""
@@ -79,9 +104,8 @@ def validate_address(address: str, asset: str) -> tuple[bool, str]:
             return False, f"Invalid Cosmos address format"
         return True, ""
 
-    # Cardano
-    if base_asset == "ADA":
-        # Shelley addresses start with addr1
+    # Cardano (only for native Cardano, not BSC tokens)
+    if base_asset == "ADA" and provider not in ["PancakeSwap", None]:
         if not address.startswith("addr1"):
             return False, f"Invalid Cardano address: must start with 'addr1'"
         if len(address) < 50:
@@ -232,7 +256,8 @@ class SwapExecutor:
             )
 
         # Validate destination address matches output asset chain
-        is_valid, error_msg = validate_address(destination_address, quote.to_asset)
+        # Pass provider for context-aware validation (BSC tokens use EVM addresses)
+        is_valid, error_msg = validate_address(destination_address, quote.to_asset, provider_name)
         if not is_valid:
             return SwapResult(
                 success=False,
