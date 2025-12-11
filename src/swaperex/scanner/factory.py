@@ -85,14 +85,15 @@ def get_scanner(asset: str) -> DepositScanner:
         scanner = get_usdt_trc20_scanner(testnet=testnet, api_key=api_key)
 
     # BSC (Binance Smart Chain) - uses BscScan (same API as Etherscan)
+    # Note: BscScan V1 is deprecated, use V2 endpoint
     elif asset_upper in ("BSC", "BNB"):
         from swaperex.scanner.etherscan import EtherscanScanner
         api_key = os.environ.get("BSCSCAN_API_KEY")
         scanner = EtherscanScanner(testnet=testnet, api_key=api_key)
-        scanner.asset = "BSC"
+        scanner.asset = "BNB"
         scanner.base_url = (
-            "https://api-testnet.bscscan.com/api" if testnet
-            else "https://api.bscscan.com/api"
+            "https://api-testnet.bscscan.com/v2/api" if testnet
+            else "https://api.bscscan.com/v2/api"
         )
 
     # DASH
