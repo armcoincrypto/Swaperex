@@ -123,7 +123,12 @@ class DepositScannerRunner:
         # Find user by address
         async with get_db() as session:
             repo = LedgerRepository(session)
-            addr_record = await repo.get_deposit_address_record(tx.to_address)
+            # Pass asset to handle shared EVM addresses (ETH, BNB, etc. share same address)
+            addr_record = await repo.get_deposit_address_record(tx.to_address, asset=tx.asset)
+
+            if not addr_record:
+                # Try without asset filter (address might be registered under parent chain)
+                addr_record = await repo.get_deposit_address_record(tx.to_address)
 
             if not addr_record:
                 logger.warning(f"Address {tx.to_address} not found in database")

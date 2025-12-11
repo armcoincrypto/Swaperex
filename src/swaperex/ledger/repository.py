@@ -195,18 +195,36 @@ class LedgerRepository:
         return addr
 
     async def get_user_by_deposit_address(self, address: str) -> Optional[User]:
-        """Find user by deposit address."""
+        """Find user by deposit address.
+
+        Note: Same address may exist for multiple assets (e.g., ETH and BNB share EVM address).
+        Returns the user from the first matching record.
+        """
         stmt = (
             select(User)
             .join(DepositAddress)
             .where(DepositAddress.address == address)
+            .limit(1)
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_deposit_address_record(self, address: str) -> Optional[DepositAddress]:
-        """Get deposit address record by address string."""
+    async def get_deposit_address_record(
+        self, address: str, asset: Optional[str] = None
+    ) -> Optional[DepositAddress]:
+        """Get deposit address record by address string.
+
+        Args:
+            address: The deposit address
+            asset: Optional asset filter (recommended for EVM addresses)
+
+        Note: Same address may exist for multiple assets. If asset is not specified,
+        returns the first matching record.
+        """
         stmt = select(DepositAddress).where(DepositAddress.address == address)
+        if asset:
+            stmt = stmt.where(DepositAddress.asset == asset)
+        stmt = stmt.limit(1)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
