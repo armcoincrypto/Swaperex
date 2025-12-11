@@ -90,23 +90,39 @@ class Application:
             raise
 
     async def _run_api(self):
-        """Run the FastAPI server."""
-        try:
-            app = create_app()
-            config = uvicorn.Config(
-                app,
-                host=self.settings.api_host,
-                port=self.settings.api_port,
-                log_level="debug" if self.settings.debug else "info",
-            )
-            server = uvicorn.Server(config)
-            logger.info(f"Starting API server on {self.settings.api_host}:{self.settings.api_port}")
-            await server.serve()
-        except asyncio.CancelledError:
-            logger.info("API server cancelled")
-        except Exception as e:
-            logger.error(f"API error: {e}")
-            raise
+        """Run the FastAPI server with port fallback."""
+        app = create_app()
+        # Try multiple ports if the primary one is busy
+        ports_to_try = [self.settings.api_port, 8001, 8002, 8003]
+
+        for port in ports_to_try:
+            try:
+                config = uvicorn.Config(
+                    app,
+                    host=self.settings.api_host,
+                    port=port,
+                    log_level="debug" if self.settings.debug else "info",
+                )
+                server = uvicorn.Server(config)
+                logger.info(f"Starting API server on {self.settings.api_host}:{port}")
+                await server.serve()
+                return  # Server started successfully
+            except asyncio.CancelledError:
+                logger.info("API server cancelled")
+                return
+            except OSError as e:
+                if "address already in use" in str(e).lower() or e.errno == 98:
+                    logger.warning(f"Port {port} is busy, trying next port...")
+                    continue
+                logger.error(f"API error: {e}")
+                # Don't crash the bot for API errors
+                return
+            except Exception as e:
+                logger.error(f"API error: {e}")
+                # Don't crash the bot for API errors
+                return
+
+        logger.error("All API ports are busy, API server not started (bot will continue)")
 
     async def _load_xpubs(self):
         """Load xpubs from database into environment variables."""
