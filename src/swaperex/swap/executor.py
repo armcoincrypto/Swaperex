@@ -193,8 +193,8 @@ class SwapExecutor:
     """Executes swaps across different DEXes with full chain integration."""
 
     # Minimum gas requirements (in native token units)
-    MIN_GAS_BNB = Decimal("0.003")  # ~$1-2 for BSC swap
-    MIN_GAS_ETH = Decimal("0.005")  # ~$15-20 for ETH swap
+    MIN_GAS_BNB = Decimal("0.001")  # ~$0.50 for BSC swap (actual ~0.0005-0.0008)
+    MIN_GAS_ETH = Decimal("0.002")  # ~$6-8 for ETH swap (actual ~0.001-0.0015)
 
     def __init__(self):
         self.settings = get_settings()
