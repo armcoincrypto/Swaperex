@@ -25,9 +25,15 @@ BSC_TOKENS = {
     "USDT": "0x55d398326f99059fF775485246999027B3197955",  # USDT-BEP20
     "USDC": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",  # USDC-BEP20
     "BUSD": "0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56",  # BUSD
+    "DAI": "0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3",   # DAI on BSC
     "ETH": "0x2170Ed0880ac9A755fd29B2688956BD959F933F8",   # ETH-BEP20
     "BTCB": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",  # BTCB
     "CAKE": "0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82",  # CAKE
+    "XRP": "0x1D2F0da169ceB9fC7B3144628dB156f3F6c60dBE",   # XRP on BSC
+    "DOGE": "0xbA2aE424d960c26247Dd6c32edC70B295c744C43",  # DOGE on BSC
+    "ADA": "0x3EE2200Efb3400fAbB9AacF31297cBdD1d435D47",   # ADA on BSC
+    "DOT": "0x7083609fCE4d1d8Dc0C979AAb8c869Ea2C873402",   # DOT on BSC
+    "MATIC": "0xCC42724C6683B7E57334c4E856f4c9965ED682bD", # MATIC on BSC
 }
 
 # Token decimals
@@ -36,9 +42,15 @@ TOKEN_DECIMALS = {
     "USDT": 18,
     "USDC": 18,
     "BUSD": 18,
+    "DAI": 18,
     "ETH": 18,
     "BTCB": 18,
     "CAKE": 18,
+    "XRP": 18,
+    "DOGE": 8,
+    "ADA": 18,
+    "DOT": 18,
+    "MATIC": 18,
 }
 
 
@@ -180,9 +192,15 @@ class PancakeSwapProvider(RouteProvider):
             "USDT": "tether",
             "USDC": "usd-coin",
             "BUSD": "binance-usd",
+            "DAI": "dai",
             "ETH": "ethereum",
             "BTCB": "bitcoin",
             "CAKE": "pancakeswap-token",
+            "XRP": "ripple",
+            "DOGE": "dogecoin",
+            "ADA": "cardano",
+            "DOT": "polkadot",
+            "MATIC": "matic-network",
         }
 
         cg_id = coingecko_ids.get(symbol.upper())
@@ -190,7 +208,7 @@ class PancakeSwapProvider(RouteProvider):
             return None
 
         # Stablecoins
-        if symbol.upper() in ["USDT", "USDC", "BUSD"]:
+        if symbol.upper() in ["USDT", "USDC", "BUSD", "DAI"]:
             return Decimal("1.0")
 
         try:
@@ -266,11 +284,15 @@ class UniswapProvider(RouteProvider):
         "ETH": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",  # WETH
         "USDT": "0xdAC17F958D2ee523a2206206994597C13D831ec7",  # USDT
         "USDC": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",  # USDC
-        "DAI": "0x6B175474E89094C44Da98b954EescdCB5BE3e31f",    # DAI
+        "DAI": "0x6B175474E89094C44Da98b954EedeCD5bE3e31f",    # DAI (fixed address)
         "WBTC": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",  # WBTC
         "LINK": "0x514910771AF9Ca656af840dff83E8264EcF986CA",  # Chainlink
-        "USDT-ERC20": "0xdAC17F958D2ee523a2206206994597C13D831ec7",  # USDT
-        "USDC-ERC20": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",  # USDC
+        "UNI": "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984",   # Uniswap
+        "AAVE": "0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9", # Aave
+        "SHIB": "0x95aD61b0a150d79219dCF64E1E6Cc01f0B64C4cE", # Shiba Inu
+        "PEPE": "0x6982508145454Ce325dDbE47a25d4ec3d2311933", # Pepe
+        "USDT-ERC20": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+        "USDC-ERC20": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
     }
 
     def __init__(
@@ -350,6 +372,10 @@ class UniswapProvider(RouteProvider):
             "ETH": "ethereum",
             "WBTC": "bitcoin",
             "LINK": "chainlink",
+            "UNI": "uniswap",
+            "AAVE": "aave",
+            "SHIB": "shiba-inu",
+            "PEPE": "pepe",
         }
 
         cg_id = coingecko_ids.get(symbol.upper())
