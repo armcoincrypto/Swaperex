@@ -88,28 +88,77 @@ def confirm_withdraw_keyboard(withdraw_id: str) -> InlineKeyboardMarkup:
     )
 
 
-def swap_from_keyboard() -> InlineKeyboardMarkup:
+def swap_chain_keyboard() -> InlineKeyboardMarkup:
+    """Create chain selection keyboard for swap dashboard."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="🟡 BNB Chain", callback_data="swap_chain:BNB"),
+                InlineKeyboardButton(text="🔵 Ethereum", callback_data="swap_chain:ETH"),
+            ],
+            [
+                InlineKeyboardButton(text="🔗 Cross-Chain (THORChain)", callback_data="swap_chain:THOR"),
+            ],
+            [
+                InlineKeyboardButton(text="🟣 Solana", callback_data="swap_chain:SOL"),
+                InlineKeyboardButton(text="⚛️ Cosmos", callback_data="swap_chain:ATOM"),
+            ],
+            [InlineKeyboardButton(text="❌ Cancel", callback_data="cancel")],
+        ]
+    )
+
+
+# Chain-specific tokens
+BSC_TOKENS = ["BNB", "USDT", "USDC", "BUSD", "DAI", "CAKE", "XRP", "DOGE", "ADA", "DOT", "MATIC", "ETH", "BTCB"]
+ETH_TOKENS = ["ETH", "USDT", "USDC", "DAI", "LINK", "UNI", "WBTC", "AAVE", "SHIB", "PEPE"]
+SOL_TOKENS = ["SOL", "USDT", "USDC"]
+ATOM_TOKENS = ["ATOM", "OSMO", "USDC"]
+THOR_ASSETS = ["BTC", "LTC", "ETH", "BNB", "ATOM", "USDT-ERC20", "USDC-ERC20"]
+
+
+def swap_from_keyboard(chain: str = None) -> InlineKeyboardMarkup:
     """Create swap 'from' asset selection keyboard.
 
-    DEX providers:
-    - THORChain: BTC, LTC (cross-chain)
-    - Uniswap: ETH, LINK, USDT-ERC20, USDC-ERC20
-    - Jupiter: SOL
-    - PancakeSwap: BNB
-    - Osmosis: ATOM
-    - Minswap: ADA
-    - Hyperliquid: HYPE
+    If chain is specified, show chain-specific tokens.
+    Otherwise show all supported assets.
     """
-    assets = ["BTC", "LTC", "ETH", "SOL", "BNB", "ATOM", "ADA", "LINK", "HYPE", "USDT-ERC20", "USDC-ERC20"]
+    if chain == "BNB":
+        assets = BSC_TOKENS
+    elif chain == "ETH":
+        assets = ETH_TOKENS
+    elif chain == "SOL":
+        assets = SOL_TOKENS
+    elif chain == "ATOM":
+        assets = ATOM_TOKENS
+    elif chain == "THOR":
+        assets = THOR_ASSETS
+    else:
+        # Legacy: show all
+        assets = ["BTC", "LTC", "ETH", "SOL", "BNB", "ATOM", "ADA", "LINK", "HYPE", "USDT-ERC20", "USDC-ERC20"]
+
     return asset_selection_keyboard(assets, "swap_from")
 
 
-def swap_to_keyboard(exclude_asset: str) -> InlineKeyboardMarkup:
+def swap_to_keyboard(exclude_asset: str, chain: str = None) -> InlineKeyboardMarkup:
     """Create swap 'to' asset selection keyboard.
 
-    Same DEX providers as swap_from. Excludes the 'from' asset.
+    If chain is specified, show chain-specific tokens (excluding from asset).
+    For THORChain, show cross-chain destination options.
     """
-    all_assets = ["BTC", "LTC", "ETH", "SOL", "BNB", "ATOM", "ADA", "LINK", "HYPE", "USDT-ERC20", "USDC-ERC20"]
+    if chain == "BNB":
+        all_assets = BSC_TOKENS
+    elif chain == "ETH":
+        all_assets = ETH_TOKENS
+    elif chain == "SOL":
+        all_assets = SOL_TOKENS
+    elif chain == "ATOM":
+        all_assets = ATOM_TOKENS
+    elif chain == "THOR":
+        # Cross-chain: can swap to any supported chain
+        all_assets = ["BTC", "LTC", "ETH", "BNB", "ATOM", "SOL", "USDT-ERC20", "USDC-ERC20"]
+    else:
+        all_assets = ["BTC", "LTC", "ETH", "SOL", "BNB", "ATOM", "ADA", "LINK", "HYPE", "USDT-ERC20", "USDC-ERC20"]
+
     assets = [a for a in all_assets if a != exclude_asset]
     return asset_selection_keyboard(assets, "swap_to")
 
