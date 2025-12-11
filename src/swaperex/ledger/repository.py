@@ -166,6 +166,15 @@ class LedgerRepository:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_user_deposit_addresses(self, user_id: int) -> list[DepositAddress]:
+        """Get all deposit addresses for a user."""
+        stmt = select(DepositAddress).where(
+            DepositAddress.user_id == user_id,
+            DepositAddress.status == "active"
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
     async def get_or_create_deposit_address(self, user_id: int, asset: str) -> DepositAddress:
         """Get or generate a unique deposit address for user/asset."""
         addr = await self.get_deposit_address(user_id, asset)
@@ -613,6 +622,13 @@ class LedgerRepository:
         if new_amount < 0:
             raise ValueError(f"Insufficient balance for {asset}")
         balance.amount = new_amount
+        await self.session.flush()
+        return balance
+
+    async def set_balance(self, user_id: int, asset: str, amount: Decimal) -> Balance:
+        """Set balance to exact amount (for chain sync)."""
+        balance = await self.get_or_create_balance(user_id, asset)
+        balance.amount = amount
         await self.session.flush()
         return balance
 

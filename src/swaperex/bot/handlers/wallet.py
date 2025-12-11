@@ -1,5 +1,9 @@
 """Wallet and balance handlers."""
 
+import logging
+from decimal import Decimal
+
+import httpx
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
@@ -11,6 +15,7 @@ from swaperex.ledger.database import get_db
 from swaperex.ledger.repository import LedgerRepository
 
 router = Router()
+logger = logging.getLogger(__name__)
 
 
 @router.message(Command("wallet"))
@@ -48,6 +53,153 @@ Use /deposit to add funds!"""
         text = "\n".join(lines)
 
     await message.answer(text)
+
+
+async def get_evm_balance(address: str, rpc_url: str) -> Decimal:
+    """Get native token balance from EVM chain via RPC."""
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            payload = {
+                "jsonrpc": "2.0",
+                "method": "eth_getBalance",
+                "params": [address, "latest"],
+                "id": 1
+            }
+            response = await client.post(rpc_url, json=payload)
+            if response.status_code == 200:
+                data = response.json()
+                balance_wei = int(data.get("result", "0x0"), 16)
+                return Decimal(balance_wei) / Decimal("1000000000000000000")
+    except Exception as e:
+        logger.error(f"Error getting balance from {rpc_url}: {e}")
+    return Decimal("0")
+
+
+async def get_erc20_balance(address: str, token_contract: str, rpc_url: str, decimals: int = 18) -> Decimal:
+    """Get ERC20 token balance from EVM chain via RPC."""
+    try:
+        # balanceOf(address) function signature
+        data = f"0x70a08231000000000000000000000000{address[2:].lower()}"
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            payload = {
+                "jsonrpc": "2.0",
+                "method": "eth_call",
+                "params": [{"to": token_contract, "data": data}, "latest"],
+                "id": 1
+            }
+            response = await client.post(rpc_url, json=payload)
+            if response.status_code == 200:
+                result = response.json()
+                balance_raw = int(result.get("result", "0x0"), 16)
+                return Decimal(balance_raw) / Decimal(10 ** decimals)
+    except Exception as e:
+        logger.error(f"Error getting ERC20 balance: {e}")
+    return Decimal("0")
+
+
+@router.message(Command("sync"))
+@router.message(F.text == "🔄 Sync")
+async def cmd_sync(message: Message) -> None:
+    """Sync wallet balances from blockchain."""
+    if not message.from_user:
+        return
+
+    await message.answer("🔄 Syncing balances from blockchain...")
+
+    # RPC endpoints
+    BSC_RPC = "https://bsc-dataseed.binance.org"
+    ETH_RPC = "https://eth.llamarpc.com"
+
+    # Token contracts
+    TOKENS = {
+        "BNB": {
+            "USDT": ("0x55d398326f99059fF775485246999027B3197955", 18),  # USDT-BEP20
+            "USDC": ("0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d", 18),  # USDC-BEP20
+            "DOGE": ("0xbA2aE424d960c26247Dd6c32edC70B295c744C43", 8),   # DOGE-BEP20
+        },
+        "ETH": {
+            "USDT": ("0xdAC17F958D2ee523a2206206994597C13D831ec7", 6),   # USDT-ERC20
+            "USDC": ("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", 6),   # USDC-ERC20
+        }
+    }
+
+    synced = []
+    errors = []
+
+    async with get_db() as session:
+        repo = LedgerRepository(session)
+        user = await repo.get_or_create_user(
+            telegram_id=message.from_user.id,
+            username=message.from_user.username,
+            first_name=message.from_user.first_name,
+        )
+
+        # Get all deposit addresses for user
+        addresses = await repo.get_user_deposit_addresses(user.id)
+
+        for addr in addresses:
+            address = addr.address
+            asset = addr.asset
+
+            try:
+                # Determine which chain to query
+                if asset in ["ETH", "USDT-ERC20", "USDC-ERC20"]:
+                    rpc_url = ETH_RPC
+                    if asset == "ETH":
+                        on_chain = await get_evm_balance(address, rpc_url)
+                    elif asset == "USDT-ERC20":
+                        contract, decimals = TOKENS["ETH"]["USDT"]
+                        on_chain = await get_erc20_balance(address, contract, rpc_url, decimals)
+                    elif asset == "USDC-ERC20":
+                        contract, decimals = TOKENS["ETH"]["USDC"]
+                        on_chain = await get_erc20_balance(address, contract, rpc_url, decimals)
+                    else:
+                        continue
+
+                elif asset in ["BNB", "BSC", "USDT-BEP20", "USDC-BEP20", "DOGE"]:
+                    rpc_url = BSC_RPC
+                    if asset in ["BNB", "BSC"]:
+                        on_chain = await get_evm_balance(address, rpc_url)
+                        asset = "BNB"  # Normalize
+                    elif asset == "DOGE":
+                        contract, decimals = TOKENS["BNB"]["DOGE"]
+                        on_chain = await get_erc20_balance(address, contract, rpc_url, decimals)
+                    else:
+                        continue
+                else:
+                    # Skip non-EVM assets for now
+                    continue
+
+                # Get current database balance
+                db_balance = await repo.get_balance(user.id, asset)
+                current = db_balance.amount if db_balance else Decimal("0")
+
+                # Update if different
+                if on_chain != current:
+                    await repo.set_balance(user.id, asset, on_chain)
+                    synced.append(f"{asset}: {current:.8f} → {on_chain:.8f}")
+                else:
+                    synced.append(f"{asset}: {on_chain:.8f} (no change)")
+
+            except Exception as e:
+                errors.append(f"{asset}: {str(e)}")
+                logger.error(f"Sync error for {asset}: {e}")
+
+    # Build response
+    lines = ["✅ Sync Complete\n"]
+
+    if synced:
+        lines.append("Balances:")
+        lines.extend(synced)
+
+    if errors:
+        lines.append("\n⚠️ Errors:")
+        lines.extend(errors)
+
+    if not synced and not errors:
+        lines.append("No deposit addresses found. Use /deposit first.")
+
+    await message.answer("\n".join(lines))
 
 
 @router.message(Command("deposit"))
