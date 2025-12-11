@@ -2,6 +2,7 @@
 
 import logging
 from decimal import Decimal
+from typing import Optional
 
 import httpx
 from aiogram import F, Router
@@ -17,48 +18,28 @@ from swaperex.ledger.repository import LedgerRepository
 router = Router()
 logger = logging.getLogger(__name__)
 
+# RPC endpoints
+BSC_RPC = "https://bsc-dataseed.binance.org"
+ETH_RPC = "https://eth.llamarpc.com"
 
-@router.message(Command("wallet"))
-@router.message(F.text == "💰 Wallet")
-async def cmd_wallet(message: Message) -> None:
-    """Show user wallet balances."""
-    if not message.from_user:
-        return
-
-    async with get_db() as session:
-        repo = LedgerRepository(session)
-        user = await repo.get_or_create_user(
-            telegram_id=message.from_user.id,
-            username=message.from_user.username,
-            first_name=message.from_user.first_name,
-        )
-        balances = await repo.get_all_balances(user.id)
-
-    if not balances:
-        text = """Your Wallet
-
-No balances yet.
-
-Use /deposit to add funds!"""
-    else:
-        lines = ["Your Wallet\n"]
-        for bal in balances:
-            available = bal.available
-            locked = bal.locked_amount
-            line = f"{bal.asset}: {available:.8f}"
-            if locked > 0:
-                line += f" (locked: {locked:.8f})"
-            lines.append(line)
-
-        text = "\n".join(lines)
-
-    await message.answer(text)
+# Token contracts
+TOKENS = {
+    "BNB": {
+        "USDT": ("0x55d398326f99059fF775485246999027B3197955", 18),  # USDT-BEP20
+        "USDC": ("0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d", 18),  # USDC-BEP20
+        "DOGE": ("0xbA2aE424d960c26247Dd6c32edC70B295c744C43", 8),   # DOGE-BEP20
+    },
+    "ETH": {
+        "USDT": ("0xdAC17F958D2ee523a2206206994597C13D831ec7", 6),   # USDT-ERC20
+        "USDC": ("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", 6),   # USDC-ERC20
+    }
+}
 
 
 async def get_evm_balance(address: str, rpc_url: str) -> Decimal:
     """Get native token balance from EVM chain via RPC."""
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=10.0) as client:
             payload = {
                 "jsonrpc": "2.0",
                 "method": "eth_getBalance",
@@ -80,7 +61,7 @@ async def get_erc20_balance(address: str, token_contract: str, rpc_url: str, dec
     try:
         # balanceOf(address) function signature
         data = f"0x70a08231000000000000000000000000{address[2:].lower()}"
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=10.0) as client:
             payload = {
                 "jsonrpc": "2.0",
                 "method": "eth_call",
@@ -97,34 +78,109 @@ async def get_erc20_balance(address: str, token_contract: str, rpc_url: str, dec
     return Decimal("0")
 
 
+async def sync_user_balances(repo: LedgerRepository, user_id: int, addresses: list) -> dict:
+    """Sync balances from blockchain for a user's addresses.
+
+    Returns dict of {asset: (old_balance, new_balance)} for changed balances.
+    """
+    changes = {}
+
+    for addr in addresses:
+        address = addr.address
+        asset = addr.asset
+
+        try:
+            on_chain: Optional[Decimal] = None
+
+            # Determine which chain to query
+            if asset in ["ETH", "USDT-ERC20", "USDC-ERC20"]:
+                rpc_url = ETH_RPC
+                if asset == "ETH":
+                    on_chain = await get_evm_balance(address, rpc_url)
+                elif asset == "USDT-ERC20":
+                    contract, decimals = TOKENS["ETH"]["USDT"]
+                    on_chain = await get_erc20_balance(address, contract, rpc_url, decimals)
+                elif asset == "USDC-ERC20":
+                    contract, decimals = TOKENS["ETH"]["USDC"]
+                    on_chain = await get_erc20_balance(address, contract, rpc_url, decimals)
+
+            elif asset in ["BNB", "BSC", "USDT-BEP20", "USDC-BEP20", "DOGE"]:
+                rpc_url = BSC_RPC
+                if asset in ["BNB", "BSC"]:
+                    on_chain = await get_evm_balance(address, rpc_url)
+                    asset = "BNB"  # Normalize
+                elif asset == "DOGE":
+                    contract, decimals = TOKENS["BNB"]["DOGE"]
+                    on_chain = await get_erc20_balance(address, contract, rpc_url, decimals)
+
+            if on_chain is not None:
+                # Get current database balance
+                db_balance = await repo.get_balance(user_id, asset)
+                current = db_balance.amount if db_balance else Decimal("0")
+
+                # Update if different
+                if on_chain != current:
+                    await repo.set_balance(user_id, asset, on_chain)
+                    changes[asset] = (current, on_chain)
+
+        except Exception as e:
+            logger.error(f"Sync error for {asset}: {e}")
+
+    return changes
+
+
+@router.message(Command("wallet"))
+@router.message(F.text == "💰 Wallet")
+async def cmd_wallet(message: Message) -> None:
+    """Show user wallet balances (auto-syncs from blockchain)."""
+    if not message.from_user:
+        return
+
+    async with get_db() as session:
+        repo = LedgerRepository(session)
+        user = await repo.get_or_create_user(
+            telegram_id=message.from_user.id,
+            username=message.from_user.username,
+            first_name=message.from_user.first_name,
+        )
+
+        # Auto-sync balances from blockchain
+        addresses = await repo.get_user_deposit_addresses(user.id)
+        if addresses:
+            await sync_user_balances(repo, user.id, addresses)
+
+        # Get updated balances
+        balances = await repo.get_all_balances(user.id)
+
+    if not balances:
+        text = """💰 Wallet
+
+No balances yet.
+
+Use /deposit to add funds!"""
+    else:
+        lines = ["💰 Wallet\n"]
+        for bal in balances:
+            available = bal.available
+            locked = bal.locked_amount
+            line = f"{bal.asset}: {available:.8f}"
+            if locked > 0:
+                line += f" (locked: {locked:.8f})"
+            lines.append(line)
+
+        text = "\n".join(lines)
+
+    await message.answer(text)
+
+
 @router.message(Command("sync"))
 @router.message(F.text == "🔄 Sync")
 async def cmd_sync(message: Message) -> None:
-    """Sync wallet balances from blockchain."""
+    """Sync wallet balances from blockchain (with verbose output)."""
     if not message.from_user:
         return
 
     await message.answer("🔄 Syncing balances from blockchain...")
-
-    # RPC endpoints
-    BSC_RPC = "https://bsc-dataseed.binance.org"
-    ETH_RPC = "https://eth.llamarpc.com"
-
-    # Token contracts
-    TOKENS = {
-        "BNB": {
-            "USDT": ("0x55d398326f99059fF775485246999027B3197955", 18),  # USDT-BEP20
-            "USDC": ("0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d", 18),  # USDC-BEP20
-            "DOGE": ("0xbA2aE424d960c26247Dd6c32edC70B295c744C43", 8),   # DOGE-BEP20
-        },
-        "ETH": {
-            "USDT": ("0xdAC17F958D2ee523a2206206994597C13D831ec7", 6),   # USDT-ERC20
-            "USDC": ("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", 6),   # USDC-ERC20
-        }
-    }
-
-    synced = []
-    errors = []
 
     async with get_db() as session:
         repo = LedgerRepository(session)
@@ -137,67 +193,28 @@ async def cmd_sync(message: Message) -> None:
         # Get all deposit addresses for user
         addresses = await repo.get_user_deposit_addresses(user.id)
 
-        for addr in addresses:
-            address = addr.address
-            asset = addr.asset
+        if not addresses:
+            await message.answer("No deposit addresses found. Use /deposit first.")
+            return
 
-            try:
-                # Determine which chain to query
-                if asset in ["ETH", "USDT-ERC20", "USDC-ERC20"]:
-                    rpc_url = ETH_RPC
-                    if asset == "ETH":
-                        on_chain = await get_evm_balance(address, rpc_url)
-                    elif asset == "USDT-ERC20":
-                        contract, decimals = TOKENS["ETH"]["USDT"]
-                        on_chain = await get_erc20_balance(address, contract, rpc_url, decimals)
-                    elif asset == "USDC-ERC20":
-                        contract, decimals = TOKENS["ETH"]["USDC"]
-                        on_chain = await get_erc20_balance(address, contract, rpc_url, decimals)
-                    else:
-                        continue
+        # Sync and get changes
+        changes = await sync_user_balances(repo, user.id, addresses)
 
-                elif asset in ["BNB", "BSC", "USDT-BEP20", "USDC-BEP20", "DOGE"]:
-                    rpc_url = BSC_RPC
-                    if asset in ["BNB", "BSC"]:
-                        on_chain = await get_evm_balance(address, rpc_url)
-                        asset = "BNB"  # Normalize
-                    elif asset == "DOGE":
-                        contract, decimals = TOKENS["BNB"]["DOGE"]
-                        on_chain = await get_erc20_balance(address, contract, rpc_url, decimals)
-                    else:
-                        continue
-                else:
-                    # Skip non-EVM assets for now
-                    continue
-
-                # Get current database balance
-                db_balance = await repo.get_balance(user.id, asset)
-                current = db_balance.amount if db_balance else Decimal("0")
-
-                # Update if different
-                if on_chain != current:
-                    await repo.set_balance(user.id, asset, on_chain)
-                    synced.append(f"{asset}: {current:.8f} → {on_chain:.8f}")
-                else:
-                    synced.append(f"{asset}: {on_chain:.8f} (no change)")
-
-            except Exception as e:
-                errors.append(f"{asset}: {str(e)}")
-                logger.error(f"Sync error for {asset}: {e}")
+        # Get all balances after sync
+        balances = await repo.get_all_balances(user.id)
 
     # Build response
     lines = ["✅ Sync Complete\n"]
 
-    if synced:
-        lines.append("Balances:")
-        lines.extend(synced)
+    if changes:
+        lines.append("Updated:")
+        for asset, (old, new) in changes.items():
+            lines.append(f"  {asset}: {old:.8f} → {new:.8f}")
 
-    if errors:
-        lines.append("\n⚠️ Errors:")
-        lines.extend(errors)
-
-    if not synced and not errors:
-        lines.append("No deposit addresses found. Use /deposit first.")
+    if balances:
+        lines.append("\nCurrent Balances:")
+        for bal in balances:
+            lines.append(f"  {bal.asset}: {bal.amount:.8f}")
 
     await message.answer("\n".join(lines))
 
