@@ -457,6 +457,9 @@ class EVMSigner(ChainSigner):
 
         path = [token_in_checksum, token_out_checksum]
 
+        # BSC gas price cap: 5 Gwei max (normal is 3-5 Gwei)
+        gas_price = min(self.web3.eth.gas_price, 5_000_000_000)
+
         if is_native_in:
             # BNB -> Token: swapExactETHForTokens
             tx = contract.functions.swapExactETHForTokens(
@@ -468,8 +471,8 @@ class EVMSigner(ChainSigner):
                 'from': account.address,
                 'value': amount_in,
                 'nonce': self._get_next_nonce(account.address),
-                'gas': 250000,
-                'gasPrice': self.web3.eth.gas_price,
+                'gas': 150000,
+                'gasPrice': gas_price,
             })
         elif is_native_out:
             # Token -> BNB: swapExactTokensForETH
@@ -485,8 +488,8 @@ class EVMSigner(ChainSigner):
             ).build_transaction({
                 'from': account.address,
                 'nonce': self._get_next_nonce(account.address),
-                'gas': 250000,
-                'gasPrice': self.web3.eth.gas_price,
+                'gas': 150000,
+                'gasPrice': gas_price,
             })
         else:
             # Token -> Token: swapExactTokensForTokens
@@ -502,8 +505,8 @@ class EVMSigner(ChainSigner):
             ).build_transaction({
                 'from': account.address,
                 'nonce': self._get_next_nonce(account.address),
-                'gas': 250000,
-                'gasPrice': self.web3.eth.gas_price,
+                'gas': 150000,
+                'gasPrice': gas_price,
             })
 
         return await self.sign_and_send_transaction(tx, index)
