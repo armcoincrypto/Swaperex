@@ -372,7 +372,11 @@ class EVMSigner(ChainSigner):
         if token_in.lower() == WETH.lower():
             tx['value'] = amount_in
 
-        return await self.sign_and_send_transaction(tx, index)
+        # Wait for confirmation and verify transaction succeeded
+        tx_hash = await self.sign_and_send_transaction(
+            tx, index, wait_for_confirmation=True, confirmation_timeout=120
+        )
+        return tx_hash
 
     async def swap_on_pancakeswap(
         self,
@@ -509,7 +513,11 @@ class EVMSigner(ChainSigner):
                 'gasPrice': gas_price,
             })
 
-        return await self.sign_and_send_transaction(tx, index)
+        # Wait for confirmation and verify transaction succeeded
+        tx_hash = await self.sign_and_send_transaction(
+            tx, index, wait_for_confirmation=True, confirmation_timeout=120
+        )
+        return tx_hash
 
     async def _approve_token_for_router(
         self,
