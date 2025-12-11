@@ -93,9 +93,12 @@ async def handle_deposit_asset(callback: CallbackQuery) -> None:
         if existing_addr and (existing_addr.address.startswith("sim:") or existing_addr.address.startswith("tsim:")):
             existing_addr = None
 
-        # For ERC-20 tokens, also check if user has an ETH address (same address)
+        # For EVM chains and tokens, check if user has an existing ETH address (same address)
+        # All EVM chains (ETH, BSC, AVAX, MATIC) share the same address
         parent_chain = None
-        if asset in ["USDT", "USDC", "USDT-ERC20"]:
+        evm_assets = ["USDT", "USDC", "USDT-ERC20", "BNB", "BSC", "USDT-BEP20", "USDC-BEP20",
+                      "AVAX", "USDT-AVAX", "USDC-AVAX", "MATIC", "POLYGON", "USDT-MATIC", "USDC-MATIC"]
+        if asset in evm_assets:
             parent_chain = "ETH"
         elif asset == "USDT-TRC20":
             parent_chain = "TRX"
