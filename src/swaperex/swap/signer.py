@@ -475,7 +475,7 @@ class EVMSigner(ChainSigner):
                 'from': account.address,
                 'value': amount_in,
                 'nonce': self._get_next_nonce(account.address),
-                'gas': 150000,
+                'gas': 300000,  # Higher gas for complex DEX swaps
                 'gasPrice': gas_price,
             })
         elif is_native_out:
@@ -492,7 +492,7 @@ class EVMSigner(ChainSigner):
             ).build_transaction({
                 'from': account.address,
                 'nonce': self._get_next_nonce(account.address),
-                'gas': 150000,
+                'gas': 300000,  # Higher gas for complex DEX swaps
                 'gasPrice': gas_price,
             })
         else:
@@ -509,7 +509,7 @@ class EVMSigner(ChainSigner):
             ).build_transaction({
                 'from': account.address,
                 'nonce': self._get_next_nonce(account.address),
-                'gas': 150000,
+                'gas': 300000,  # Higher gas for complex DEX swaps
                 'gasPrice': gas_price,
             })
 
