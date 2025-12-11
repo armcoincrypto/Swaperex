@@ -581,7 +581,8 @@ class SwapExecutor:
             from_decimals = TOKEN_DECIMALS.get(quote.from_asset, 18)
             to_decimals = TOKEN_DECIMALS.get(quote.to_asset, 18)
             amount_in = int(quote.from_amount * Decimal(10 ** from_decimals))
-            min_amount_out = int(quote.to_amount * Decimal(10 ** to_decimals) * Decimal("0.99"))
+            # Use 3% slippage for ETH swaps (moderate liquidity)
+            min_amount_out = int(quote.to_amount * Decimal(10 ** to_decimals) * Decimal("0.97"))
 
             # Execute swap
             deadline = int(time.time()) + 300  # 5 minutes
@@ -682,7 +683,8 @@ class SwapExecutor:
             from_decimals = TOKEN_DECIMALS.get(quote.from_asset, 18)
             to_decimals = TOKEN_DECIMALS.get(quote.to_asset, 18)
             amount_in = int(quote.from_amount * Decimal(10 ** from_decimals))
-            min_amount_out = int(quote.to_amount * Decimal(10 ** to_decimals) * Decimal("0.99"))
+            # Use 5% slippage for BSC swaps (low liquidity pools like DOGE-BEP20 need more tolerance)
+            min_amount_out = int(quote.to_amount * Decimal(10 ** to_decimals) * Decimal("0.95"))
 
             deadline = int(time.time()) + 300
 
