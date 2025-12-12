@@ -30,6 +30,31 @@ from swaperex.hdwallet.factory import get_hd_wallet
 logger = logging.getLogger(__name__)
 router = Router()
 
+# Asset display names with chain info
+ASSET_DISPLAY = {
+    "BNB": "BNB (BSC)",
+    "ETH": "ETH (ERC20)",
+    "ETH-BEP20": "ETH (BEP20)",
+    "USDT": "USDT (ERC20)",
+    "USDT-ERC20": "USDT (ERC20)",
+    "USDT-BEP20": "USDT (BEP20)",
+    "USDC": "USDC (ERC20)",
+    "USDC-ERC20": "USDC (ERC20)",
+    "USDC-BEP20": "USDC (BEP20)",
+    "DOGE": "DOGE (BEP20)",
+    "SOL": "SOL (Solana)",
+    "ADA": "ADA (Cardano)",
+    "BTC": "BTC (Bitcoin)",
+    "LTC": "LTC (Litecoin)",
+    "ATOM": "ATOM (Cosmos)",
+    "LINK": "LINK (ERC20)",
+}
+
+
+def get_asset_display(asset: str) -> str:
+    """Get display name with chain info for an asset."""
+    return ASSET_DISPLAY.get(asset, asset)
+
 
 class SwapStates(StatesGroup):
     """FSM states for swap flow."""
@@ -457,15 +482,20 @@ def _build_swap_result_message(result: SwapResult, quote: Quote, destination: st
     """Build user-friendly swap result message."""
     lines = []
 
+    # Get display names with chain info
+    from_display = get_asset_display(result.from_asset)
+    to_display = get_asset_display(result.to_asset)
+    fee_display = get_asset_display(quote.fee_asset)
+
     if result.success:
         if result.status == "completed":
             # Swap completed instantly (dry-run or simulated)
             lines.extend([
                 "✅ Swap Completed!\n",
-                f"📤 Sent: {result.from_amount} {result.from_asset}",
-                f"📥 Received: {result.to_amount:.8f} {result.to_asset}",
+                f"📤 Sent: {result.from_amount} {from_display}",
+                f"📥 Received: {result.to_amount:.8f} {to_display}",
                 f"🔄 Route: {result.provider}",
-                f"💸 Fee: {quote.fee_amount:.6f} {quote.fee_asset}",
+                f"💸 Fee: {quote.fee_amount:.6f} {fee_display}",
             ])
 
             if result.tx_hash:
@@ -482,11 +512,11 @@ def _build_swap_result_message(result: SwapResult, quote: Quote, destination: st
             lines.extend([
                 "🔄 Swap Initiated!\n",
                 "━━━━━━━━━━━━━━━━━━━━━━━━",
-                f"📤 Send: {result.from_amount} {result.from_asset}",
-                f"📥 Receive: ~{result.to_amount:.8f} {result.to_asset}",
+                f"📤 Send: {result.from_amount} {from_display}",
+                f"📥 Receive: ~{result.to_amount:.8f} {to_display}",
                 "━━━━━━━━━━━━━━━━━━━━━━━━\n",
                 "📋 Instructions:\n",
-                f"Send exactly {instr.get('amount', result.from_amount)} {result.from_asset} to:\n",
+                f"Send exactly {instr.get('amount', result.from_amount)} {from_display} to:\n",
                 f"`{instr.get('inbound_address', 'N/A')}`\n",
             ])
 
@@ -510,8 +540,8 @@ def _build_swap_result_message(result: SwapResult, quote: Quote, destination: st
             # EVM/Solana - auto-execution pending
             lines.extend([
                 "⏳ Swap Pending\n",
-                f"📤 From: {result.from_amount} {result.from_asset}",
-                f"📥 To: ~{result.to_amount:.8f} {result.to_asset}",
+                f"📤 From: {result.from_amount} {from_display}",
+                f"📥 To: ~{result.to_amount:.8f} {to_display}",
                 f"🔄 Route: {result.provider}",
                 "\n⚡ Auto-execution coming soon!",
                 "For now, manual execution required.",
@@ -523,8 +553,8 @@ def _build_swap_result_message(result: SwapResult, quote: Quote, destination: st
             lines.extend([
                 "✅ Swap Sent!\n",
                 "━━━━━━━━━━━━━━━━━━━━━━━━",
-                f"📤 Sent: {result.from_amount} {result.from_asset}",
-                f"📥 Expected: ~{result.to_amount:.8f} {result.to_asset}",
+                f"📤 Sent: {result.from_amount} {from_display}",
+                f"📥 Expected: ~{result.to_amount:.8f} {to_display}",
                 f"🔄 Route: {result.provider}",
                 "━━━━━━━━━━━━━━━━━━━━━━━━\n",
             ])

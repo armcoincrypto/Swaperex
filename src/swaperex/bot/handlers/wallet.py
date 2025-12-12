@@ -287,12 +287,14 @@ async def cmd_sync(message: Message) -> None:
     if changes:
         lines.append("Updated:")
         for asset, (old, new) in changes.items():
-            lines.append(f"  {asset}: {old:.8f} → {new:.8f}")
+            display_name = ASSET_DISPLAY.get(asset, asset)
+            lines.append(f"  {display_name}: {old:.8f} → {new:.8f}")
 
     if balances:
         lines.append("\nCurrent Balances:")
         for bal in balances:
-            lines.append(f"  {bal.asset}: {bal.amount:.8f}")
+            display_name = ASSET_DISPLAY.get(bal.asset, bal.asset)
+            lines.append(f"  {display_name}: {bal.amount:.8f}")
 
     await message.answer("\n".join(lines))
 
@@ -455,20 +457,23 @@ async def cmd_history(message: Message) -> None:
         deposits = await repo.get_user_deposits(user.id, limit=5)
         swaps = await repo.get_user_swaps(user.id, limit=5)
 
-    lines = ["Transaction History\n"]
+    lines = ["📊 Transaction History\n"]
 
     if deposits:
         lines.append("Recent Deposits:")
         for d in deposits:
             status_emoji = "✅" if d.status == "confirmed" else "⏳"
-            lines.append(f"{status_emoji} {d.amount:.8f} {d.asset}")
+            asset_display = ASSET_DISPLAY.get(d.asset, d.asset)
+            lines.append(f"{status_emoji} {d.amount:.8f} {asset_display}")
 
     if swaps:
         lines.append("\nRecent Swaps:")
         for s in swaps:
             status_emoji = "✅" if s.status == "completed" else ("❌" if s.status == "failed" else "⏳")
+            from_display = ASSET_DISPLAY.get(s.from_asset, s.from_asset)
+            to_display = ASSET_DISPLAY.get(s.to_asset, s.to_asset)
             lines.append(
-                f"{status_emoji} {s.from_amount:.8f} {s.from_asset} -> {s.to_amount or s.expected_to_amount:.8f} {s.to_asset}"
+                f"{status_emoji} {s.from_amount:.8f} {from_display} → {s.to_amount or s.expected_to_amount:.8f} {to_display}"
             )
 
     if not deposits and not swaps:
