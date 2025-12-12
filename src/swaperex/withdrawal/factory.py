@@ -36,11 +36,15 @@ def get_withdrawal_handler(asset: str) -> Optional[WithdrawalHandler]:
         from swaperex.withdrawal.btc import BTCWithdrawalHandler
         handler = BTCWithdrawalHandler(testnet=testnet)
 
-    # LTC (uses similar structure to BTC)
+    # LTC
     elif asset_upper == "LTC":
-        from swaperex.withdrawal.btc import BTCWithdrawalHandler
-        handler = BTCWithdrawalHandler(testnet=testnet)
-        handler.asset = "LTC"
+        from swaperex.withdrawal.btc import LTCWithdrawalHandler
+        handler = LTCWithdrawalHandler(testnet=testnet)
+
+    # DASH
+    elif asset_upper == "DASH":
+        from swaperex.withdrawal.btc import DASHWithdrawalHandler
+        handler = DASHWithdrawalHandler(testnet=testnet)
 
     # ETH
     elif asset_upper == "ETH":
@@ -101,12 +105,13 @@ def get_supported_withdrawal_assets() -> list[str]:
     return [
         "BTC",
         "LTC",
+        "DASH",
         "ETH",
+        "BSC",
+        "TRX",
         "USDT-ERC20",
         "USDC",
-        "TRX",
         "USDT-TRC20",
-        "BSC",
     ]
 
 

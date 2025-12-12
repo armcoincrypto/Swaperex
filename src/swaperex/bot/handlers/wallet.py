@@ -8,6 +8,7 @@ from swaperex.bot.keyboards import back_keyboard, deposit_asset_keyboard
 from swaperex.config import get_settings
 from swaperex.hdwallet import get_hd_wallet
 from swaperex.ledger.database import get_db
+from swaperex.ledger.models import DepositStatus, SwapStatus
 from swaperex.ledger.repository import LedgerRepository
 
 router = Router()
@@ -30,21 +31,23 @@ async def cmd_wallet(message: Message) -> None:
         balances = await repo.get_all_balances(user.id)
 
     if not balances:
-        text = """Your Wallet
+        text = """💰 Your Wallet
 
 No balances yet.
 
 Use /deposit to add funds!"""
     else:
-        lines = ["Your Wallet\n"]
+        lines = ["💰 Your Wallet\n"]
+        total_usd = 0  # Placeholder for future USD valuation
         for bal in balances:
             available = bal.available
             locked = bal.locked_amount
-            line = f"{bal.asset}: {available:.8f}"
+            line = f"  {bal.asset}: {available:.8f}"
             if locked > 0:
-                line += f" (locked: {locked:.8f})"
+                line += f" (🔒 {locked:.8f})"
             lines.append(line)
 
+        lines.append("\n💡 Use /deposit to add funds")
         text = "\n".join(lines)
 
     await message.answer(text)
@@ -127,10 +130,22 @@ async def handle_deposit_asset(callback: CallbackQuery) -> None:
                     derivation_path=derivation_path,
                     derivation_index=index,
                 )
-            except Exception:
+            except Exception as e:
                 # Address may already exist for another asset (same chain)
-                # Rollback to allow session to continue
+                # Rollback and try to get existing address record
                 await session.rollback()
+
+                # Try to find existing address record
+                existing = await repo.get_deposit_address_record(address)
+                if existing:
+                    address = existing.address
+                    derivation_path = existing.derivation_path
+                else:
+                    # Log the error and use the derived address anyway
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        f"Failed to save deposit address for user {user.id}, asset {asset}: {e}"
+                    )
 
     # Determine network info for tokens
     network_info = ""
@@ -204,24 +219,39 @@ async def cmd_history(message: Message) -> None:
 
         deposits = await repo.get_user_deposits(user.id, limit=5)
         swaps = await repo.get_user_swaps(user.id, limit=5)
+        withdrawals = await repo.get_user_withdrawals(user.id, limit=5)
 
-    lines = ["Transaction History\n"]
+    lines = ["📜 Transaction History\n"]
 
     if deposits:
-        lines.append("Recent Deposits:")
+        lines.append("📥 Recent Deposits:")
         for d in deposits:
-            status_emoji = "✅" if d.status == "confirmed" else "⏳"
-            lines.append(f"{status_emoji} {d.amount:.8f} {d.asset}")
+            status_emoji = "✅" if d.status == DepositStatus.CONFIRMED else "⏳"
+            lines.append(f"  {status_emoji} {d.amount:.8f} {d.asset}")
 
     if swaps:
-        lines.append("\nRecent Swaps:")
+        lines.append("\n💱 Recent Swaps:")
         for s in swaps:
-            status_emoji = "✅" if s.status == "completed" else ("❌" if s.status == "failed" else "⏳")
+            status_emoji = "✅" if s.status == SwapStatus.COMPLETED else ("❌" if s.status == SwapStatus.FAILED else "⏳")
             lines.append(
-                f"{status_emoji} {s.from_amount:.8f} {s.from_asset} -> {s.to_amount or s.expected_to_amount:.8f} {s.to_asset}"
+                f"  {status_emoji} {s.from_amount:.8f} {s.from_asset} → {s.to_amount or s.expected_to_amount:.8f} {s.to_asset}"
             )
 
-    if not deposits and not swaps:
+    if withdrawals:
+        lines.append("\n📤 Recent Withdrawals:")
+        for w in withdrawals:
+            from swaperex.ledger.models import WithdrawalStatus
+            if w.status == WithdrawalStatus.COMPLETED:
+                status_emoji = "✅"
+            elif w.status == WithdrawalStatus.FAILED:
+                status_emoji = "❌"
+            elif w.status == WithdrawalStatus.CANCELLED:
+                status_emoji = "🚫"
+            else:
+                status_emoji = "⏳"
+            lines.append(f"  {status_emoji} {w.amount:.8f} {w.asset}")
+
+    if not deposits and not swaps and not withdrawals:
         lines.append("No transactions yet.")
 
     await message.answer("\n".join(lines))

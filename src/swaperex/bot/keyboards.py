@@ -52,14 +52,31 @@ def back_keyboard(callback_data: str = "back") -> InlineKeyboardMarkup:
 
 
 def deposit_asset_keyboard() -> InlineKeyboardMarkup:
-    """Create deposit asset selection keyboard."""
-    assets = ["BTC", "ETH", "LTC", "DASH", "TRX", "USDT", "USDC", "USDT-TRC20"]
+    """Create deposit asset selection keyboard.
+
+    Organized by category:
+    - Major coins: BTC, ETH, LTC, DASH
+    - Tron chain: TRX, USDT-TRC20
+    - ERC-20 tokens: USDT (ERC-20), USDC
+    """
+    # Major cryptocurrencies
+    assets = [
+        "BTC", "ETH", "LTC",      # Row 1: Major coins
+        "DASH", "TRX", "BSC",     # Row 2: Alt coins
+        "USDT", "USDC",           # Row 3: ERC-20 stablecoins (use ETH address)
+        "USDT-TRC20",             # Row 4: TRC-20 stablecoin (use TRX address)
+    ]
     return asset_selection_keyboard(assets, "deposit")
 
 
 def withdraw_asset_keyboard() -> InlineKeyboardMarkup:
     """Create withdrawal asset selection keyboard."""
-    assets = ["BTC", "ETH", "LTC", "DASH", "USDT-ERC20", "USDT-TRC20", "TRX"]
+    assets = [
+        "BTC", "ETH", "LTC",          # Major coins
+        "DASH", "TRX", "BSC",         # Alt coins
+        "USDT-ERC20", "USDC",         # ERC-20 tokens
+        "USDT-TRC20",                 # TRC-20 token
+    ]
     return asset_selection_keyboard(assets, "withdraw")
 
 
@@ -77,13 +94,23 @@ def confirm_withdraw_keyboard(withdraw_id: str) -> InlineKeyboardMarkup:
 
 def swap_from_keyboard() -> InlineKeyboardMarkup:
     """Create swap 'from' asset selection keyboard."""
-    assets = ["BTC", "ETH", "USDT", "USDC", "SOL", "ATOM", "RUNE"]
+    assets = [
+        "BTC", "ETH", "LTC",          # Major coins
+        "DASH", "TRX", "SOL",         # Alt coins
+        "USDT", "USDC",               # Stablecoins
+        "ATOM", "RUNE",               # Cosmos ecosystem
+    ]
     return asset_selection_keyboard(assets, "swap_from")
 
 
 def swap_to_keyboard(exclude_asset: str) -> InlineKeyboardMarkup:
     """Create swap 'to' asset selection keyboard."""
-    all_assets = ["BTC", "ETH", "USDT", "USDC", "SOL", "ATOM", "RUNE"]
+    all_assets = [
+        "BTC", "ETH", "LTC",
+        "DASH", "TRX", "SOL",
+        "USDT", "USDC",
+        "ATOM", "RUNE",
+    ]
     assets = [a for a in all_assets if a != exclude_asset]
     return asset_selection_keyboard(assets, "swap_to")
 

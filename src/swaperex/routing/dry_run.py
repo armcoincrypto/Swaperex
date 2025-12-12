@@ -7,20 +7,29 @@ from typing import Optional
 from swaperex.routing.base import Quote, RouteProvider, SwapRoute
 
 
-# Simulated market prices in USD
+# Simulated market prices in USD (approximate December 2024 values)
+# These are for demonstration purposes only and should not be used for real trading
 SIMULATED_PRICES: dict[str, Decimal] = {
-    "BTC": Decimal("67500.00"),
-    "ETH": Decimal("3450.00"),
-    "SOL": Decimal("185.00"),
+    # Major cryptocurrencies
+    "BTC": Decimal("100000.00"),
+    "ETH": Decimal("3900.00"),
+    "LTC": Decimal("115.00"),
+    "DASH": Decimal("48.00"),
+    # Layer 1 blockchains
+    "SOL": Decimal("225.00"),
+    "TRX": Decimal("0.27"),
+    "BSC": Decimal("710.00"),  # BNB
+    "AVAX": Decimal("52.00"),
+    "DOT": Decimal("9.50"),
+    # Stablecoins (pegged to USD)
     "USDT": Decimal("1.00"),
     "USDC": Decimal("1.00"),
-    "ATOM": Decimal("9.50"),
-    "RUNE": Decimal("5.80"),
-    "AVAX": Decimal("42.00"),
-    "MATIC": Decimal("0.58"),
-    "DOT": Decimal("7.20"),
-    "LINK": Decimal("14.50"),
-    "UNI": Decimal("12.80"),
+    # DeFi & Ecosystem tokens
+    "ATOM": Decimal("12.50"),
+    "RUNE": Decimal("6.80"),
+    "LINK": Decimal("28.00"),
+    "UNI": Decimal("17.50"),
+    "MATIC": Decimal("0.62"),
 }
 
 
@@ -160,8 +169,8 @@ class SimulatedThorChainRouter(RouteProvider):
 
     @property
     def supported_assets(self) -> list[str]:
-        # THORChain supports major assets
-        return ["BTC", "ETH", "USDT", "USDC", "ATOM", "RUNE", "AVAX"]
+        # THORChain supports major L1 assets
+        return ["BTC", "ETH", "LTC", "DASH", "USDT", "USDC", "ATOM", "RUNE", "AVAX", "BSC"]
 
     async def get_quote(
         self,
@@ -250,8 +259,8 @@ class SimulatedDexAggregator(RouteProvider):
 
     @property
     def supported_assets(self) -> list[str]:
-        # DEX aggregator for EVM tokens
-        return ["ETH", "USDT", "USDC", "MATIC", "LINK", "UNI", "AVAX"]
+        # DEX aggregator for EVM tokens (ETH, BSC, Polygon chains)
+        return ["ETH", "BSC", "USDT", "USDC", "MATIC", "LINK", "UNI", "AVAX", "TRX"]
 
     async def get_quote(
         self,

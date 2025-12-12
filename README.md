@@ -4,27 +4,48 @@ Telegram crypto wallet bot with multi-route swap aggregation for the best rates.
 
 ## Features
 
-- **Telegram Wallet**: Unique deposit addresses per user per asset
-- **Balance Tracking**: SQLite ledger for deposits, balances, and swaps
+- **HD Wallet Support**: BIP32/44/84 deterministic address generation (xpub only, no private keys stored)
+- **Multi-Chain**: BTC, ETH, LTC, DASH, TRX, BSC, SOL support
+- **Token Support**: USDT (ERC-20 & TRC-20), USDC
 - **Swap Aggregation**: Compare quotes from multiple routing providers
 - **Cheapest Routes**: Automatically selects the best rate (no internal spread)
-- **Admin Tools**: Debug commands and simulated deposits for testing
+- **Withdrawal System**: Multi-chain withdrawal with fee estimation
+- **Admin Dashboard**: Protected API endpoints for balance management
+- **Secure Architecture**: CORS protection, token-based auth, encrypted xpub storage
+
+## Supported Cryptocurrencies
+
+| Asset | Chain | Address Format | Status |
+|-------|-------|----------------|--------|
+| BTC | Bitcoin | bc1q... (SegWit) | ✓ |
+| ETH | Ethereum | 0x... | ✓ |
+| LTC | Litecoin | ltc1q... (SegWit) | ✓ |
+| DASH | Dash | X... | ✓ |
+| TRX | TRON | T... | ✓ |
+| BSC | BNB Smart Chain | 0x... | ✓ |
+| SOL | Solana | Base58 | ✓ |
+| USDT | ERC-20 | 0x... | ✓ |
+| USDC | ERC-20 | 0x... | ✓ |
+| USDT-TRC20 | TRC-20 | T... | ✓ |
 
 ## Stage 1 (PoC) - Current
 
 - Aiogram 3.x Telegram bot (polling mode)
-- FastAPI backend for deposit webhooks
-- SQLite database with async SQLAlchemy
-- Simulated routing (DryRunRouter, SimulatedThorChain, SimulatedDexAggregator)
-- No real funds - all balances are simulated
+- FastAPI backend for deposit webhooks and admin API
+- SQLite/PostgreSQL database with async SQLAlchemy
+- HD wallet address derivation (BIP32/44/84)
+- Simulated routing with multi-provider comparison
+- Withdrawal handlers for all supported chains
+- xpub encryption with Fernet (AES-128-CBC)
+- Multiple signing backends (Local, AWS KMS, HSM)
 
 ## Stage 2 (Planned)
 
-- Real routing adapters (THORChain, DEX aggregators, MM2)
+- Real routing adapters (THORChain, 1inch, AtomicDEX/MM2)
 - Real deposit provider integration (CryptoAPIs, NOWPayments)
-- HSM signing for secure key management (AWS KMS, GCP KMS)
-- Withdrawal support
-- Redis for FSM state (production)
+- Transaction broadcasting for withdrawals
+- Deposit scanning daemons per chain
+- Redis for FSM state (production scaling)
 
 ## Architecture
 
@@ -169,17 +190,34 @@ pytest tests/test_ledger.py -v
 
 ## API Endpoints
 
+### Public Endpoints
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/health` | GET | Basic health check |
 | `/health/detailed` | GET | Detailed health with config |
+
+### Deposit Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
 | `/api/v1/deposits/webhook` | POST | Deposit webhook (from provider) |
 | `/api/v1/deposits/simulate` | POST | Simulate deposit (dev only) |
 | `/api/v1/deposits/{id}` | GET | Get deposit details |
-| `/admin/balances` | GET | Aggregated balances (protected) |
-| `/admin/stats` | GET | System statistics (protected) |
-| `/admin/provider` | GET | Provider status (protected) |
-| `/admin/users` | GET | List users with balances (protected) |
+
+### Admin Endpoints (Token Protected)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/admin/balances` | GET | Aggregated balances |
+| `/admin/stats` | GET | System statistics |
+| `/admin/provider` | GET | Provider status |
+| `/admin/users` | GET | List users with balances |
+| `/admin/withdrawals` | GET | List all withdrawals |
+| `/admin/withdrawals/pending` | GET | List pending withdrawals |
+| `/admin/withdrawals/{id}` | GET | Get withdrawal details |
+| `/admin/withdrawals/{id}/complete` | POST | Mark withdrawal as completed |
+| `/admin/withdrawals/{id}/cancel` | POST | Cancel and refund withdrawal |
 
 ### Simulated Deposit (Development)
 
@@ -198,9 +236,10 @@ curl -X POST http://localhost:8000/api/v1/deposits/simulate \
 | `/start` | Start the bot, register user |
 | `/help` | Show help message |
 | `/wallet` | View all balances |
-| `/deposit` | Get deposit address |
+| `/deposit` | Get deposit address (HD wallet) |
+| `/withdraw` | Withdraw to external wallet |
 | `/swap` | Start swap flow |
-| `/quote <from> <to> <amount>` | Get swap quote |
+| `/quote <from> <to> <amount>` | Get quick swap quote |
 | `/history` | View transaction history |
 
 ### Admin Commands
@@ -209,11 +248,21 @@ curl -X POST http://localhost:8000/api/v1/deposits/simulate \
 |---------|-------------|
 | `/admin` | Show admin commands |
 | `/debug` | Show environment info |
-| `/dryrun <from> <to> <amount>` | Test swap quote |
-| `/simulate_deposit <asset> <amount>` | Add test funds |
+| `/dryrun <from> <to> <amount>` | Test swap quote with all providers |
+| `/simulate_deposit <asset> <amount>` | Add test funds to your balance |
 | `/stats` | Show system statistics |
 
 To enable admin commands, add your Telegram user ID to `ADMIN_USER_IDS` in `.env`.
+
+### Menu Buttons
+
+The bot also supports an interactive keyboard menu:
+- **Wallet** - View balances
+- **Swap** - Exchange coins
+- **Deposit** - Get deposit address
+- **Withdraw** - Send crypto out
+- **History** - Transaction log
+- **Settings** - Configure preferences
 
 ## Project Structure
 
@@ -221,20 +270,38 @@ To enable admin commands, add your Telegram user ID to `ADMIN_USER_IDS` in `.env
 swaperex/
 ├── src/swaperex/
 │   ├── api/              # FastAPI backend
-│   │   ├── app.py        # App factory
-│   │   └── routes/       # API endpoints
+│   │   ├── app.py        # App factory with lifespan
+│   │   ├── routes/       # Public API endpoints
+│   │   └── routers/      # Protected admin endpoints
 │   ├── bot/              # Telegram bot
-│   │   ├── bot.py        # Bot setup
+│   │   ├── bot.py        # Bot setup (aiogram 3.x)
 │   │   ├── keyboards.py  # Inline keyboards
 │   │   └── handlers/     # Command handlers
 │   ├── ledger/           # Database layer
 │   │   ├── models.py     # SQLAlchemy models
-│   │   ├── database.py   # DB connection
-│   │   └── repository.py # Data access
+│   │   ├── database.py   # Async DB connection
+│   │   └── repository.py # Data access patterns
+│   ├── hdwallet/         # HD wallet system
+│   │   ├── base.py       # Abstract interface
+│   │   ├── btc.py        # BTC, LTC, DASH wallets
+│   │   ├── eth.py        # ETH, BSC, TRX, SOL wallets
+│   │   └── factory.py    # Wallet factory
 │   ├── routing/          # Swap routing
 │   │   ├── base.py       # Abstract interface
-│   │   └── dry_run.py    # Simulated routers
-│   ├── config.py         # Settings
+│   │   └── dry_run.py    # Simulated providers
+│   ├── withdrawal/       # Withdrawal handlers
+│   │   ├── base.py       # Abstract interface
+│   │   ├── btc.py        # BTC, LTC, DASH handlers
+│   │   ├── eth.py        # ETH, BSC handlers
+│   │   ├── trx.py        # TRX, TRC-20 handlers
+│   │   └── factory.py    # Handler factory
+│   ├── signing/          # Transaction signing
+│   │   ├── base.py       # Abstract interface
+│   │   ├── local.py      # Hot wallet signer
+│   │   ├── kms.py        # AWS KMS signer
+│   │   └── hsm.py        # PKCS#11 HSM signer
+│   ├── crypto.py         # Encryption utilities (Fernet)
+│   ├── config.py         # Pydantic settings
 │   └── main.py           # Entry point
 ├── tests/                # Unit tests
 ├── scripts/              # Utility scripts
