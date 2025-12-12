@@ -25,6 +25,8 @@ SIMULATED_PRICES: dict[str, Decimal] = {
     # Stablecoins (pegged to USD)
     "USDT": Decimal("1.00"),
     "USDC": Decimal("1.00"),
+    "BUSD": Decimal("1.00"),
+    "DAI": Decimal("1.00"),
     # DeFi & Ecosystem tokens
     "ATOM": Decimal("12.50"),
     "RUNE": Decimal("6.80"),
@@ -32,6 +34,18 @@ SIMULATED_PRICES: dict[str, Decimal] = {
     "UNI": Decimal("17.50"),
     "MATIC": Decimal("0.62"),
     "POL": Decimal("0.62"),  # Polygon renamed MATIC to POL
+    "AAVE": Decimal("185.00"),
+    # BNB Chain (PancakeSwap) tokens
+    "CAKE": Decimal("2.80"),
+    "XRP": Decimal("2.35"),
+    "DOGE": Decimal("0.42"),
+    # Solana (Jupiter) tokens
+    "RAY": Decimal("5.20"),
+    "SRM": Decimal("0.035"),
+    # Cosmos (Osmosis) tokens
+    "OSMO": Decimal("1.15"),
+    "JUNO": Decimal("0.45"),
+    "STARS": Decimal("0.015"),
 }
 
 

@@ -97,25 +97,37 @@ def swap_from_keyboard(chain: str = None) -> InlineKeyboardMarkup:
 
     Args:
         chain: Optional DEX/chain filter. If provided, shows only assets
-               supported by that chain. Values: pancakeswap, uniswap,
-               thorchain, 1inch, or None for all assets.
+               supported by that chain.
+
+    Supported chains:
+        - pancakeswap: BNB Chain tokens (USDT, USDC, BUSD, CAKE, XRP, DOGE...)
+        - uniswap: Ethereum tokens (USDT, USDC, DAI, LINK, UNI, AAVE...)
+        - thorchain: Cross-chain (BTC, ETH, BNB, ATOM, LTC, DASH...)
+        - jupiter: Solana tokens (SOL, USDT, USDC...)
+        - osmosis: Cosmos ecosystem (ATOM, OSMO, USDC...)
     """
     # Chain-specific asset lists
     chain_assets = {
-        "pancakeswap": ["BNB", "BSC", "USDT", "USDC", "ETH", "MATIC"],  # BSC DEX
-        "uniswap": ["ETH", "USDT", "USDC", "LINK", "UNI", "MATIC"],     # ETH DEX
-        "thorchain": ["BTC", "ETH", "LTC", "DASH", "ATOM", "RUNE", "AVAX", "BNB"],  # Cross-chain
-        "1inch": ["ETH", "BNB", "USDT", "USDC", "MATIC", "AVAX"],       # Aggregator
+        # BNB Chain - PancakeSwap
+        "pancakeswap": ["BNB", "USDT", "USDC", "BUSD", "CAKE", "XRP", "DOGE", "ETH"],
+        # Ethereum - Uniswap V3
+        "uniswap": ["ETH", "USDT", "USDC", "DAI", "LINK", "UNI", "AAVE", "MATIC"],
+        # Cross-Chain - THORChain
+        "thorchain": ["BTC", "ETH", "BNB", "ATOM", "LTC", "DASH", "AVAX", "RUNE"],
+        # Solana - Jupiter
+        "jupiter": ["SOL", "USDT", "USDC", "RAY", "SRM"],
+        # Cosmos - Osmosis
+        "osmosis": ["ATOM", "OSMO", "USDC", "JUNO", "STARS"],
     }
 
     if chain and chain.lower() in chain_assets:
         assets = chain_assets[chain.lower()]
     else:
-        # Default: show all supported assets
+        # Default: show all major supported assets
         assets = [
             "BTC", "ETH", "BNB",          # Major coins
             "LTC", "DASH", "TRX",         # Alt coins
-            "SOL", "MATIC", "AVAX",       # Layer 1s
+            "SOL", "ATOM", "AVAX",        # Layer 1s
             "USDT", "USDC",               # Stablecoins
         ]
     return asset_selection_keyboard(assets, "swap_from")
@@ -128,12 +140,18 @@ def swap_to_keyboard(exclude_asset: str, chain: str = None) -> InlineKeyboardMar
         exclude_asset: Asset to exclude (the 'from' asset)
         chain: Optional DEX/chain filter for available assets
     """
-    # Chain-specific asset lists
+    # Chain-specific asset lists (same as swap_from_keyboard)
     chain_assets = {
-        "pancakeswap": ["BNB", "BSC", "USDT", "USDC", "ETH", "MATIC"],
-        "uniswap": ["ETH", "USDT", "USDC", "LINK", "UNI", "MATIC"],
-        "thorchain": ["BTC", "ETH", "LTC", "DASH", "ATOM", "RUNE", "AVAX", "BNB"],
-        "1inch": ["ETH", "BNB", "USDT", "USDC", "MATIC", "AVAX"],
+        # BNB Chain - PancakeSwap
+        "pancakeswap": ["BNB", "USDT", "USDC", "BUSD", "CAKE", "XRP", "DOGE", "ETH"],
+        # Ethereum - Uniswap V3
+        "uniswap": ["ETH", "USDT", "USDC", "DAI", "LINK", "UNI", "AAVE", "MATIC"],
+        # Cross-Chain - THORChain
+        "thorchain": ["BTC", "ETH", "BNB", "ATOM", "LTC", "DASH", "AVAX", "RUNE"],
+        # Solana - Jupiter
+        "jupiter": ["SOL", "USDT", "USDC", "RAY", "SRM"],
+        # Cosmos - Osmosis
+        "osmosis": ["ATOM", "OSMO", "USDC", "JUNO", "STARS"],
     }
 
     if chain and chain.lower() in chain_assets:
@@ -142,7 +160,7 @@ def swap_to_keyboard(exclude_asset: str, chain: str = None) -> InlineKeyboardMar
         all_assets = [
             "BTC", "ETH", "BNB",
             "LTC", "DASH", "TRX",
-            "SOL", "MATIC", "AVAX",
+            "SOL", "ATOM", "AVAX",
             "USDT", "USDC",
         ]
     assets = [a for a in all_assets if a != exclude_asset]
@@ -167,17 +185,37 @@ def quote_comparison_keyboard(quotes: list[dict]) -> InlineKeyboardMarkup:
 
 
 def swap_chain_keyboard() -> InlineKeyboardMarkup:
-    """Create swap chain/DEX selection keyboard."""
-    chains = [
-        ("🥞 PancakeSwap", "pancakeswap"),
-        ("🦄 Uniswap", "uniswap"),
-        ("🔄 THORChain", "thorchain"),
-        ("📊 1inch", "1inch"),
-    ]
-    buttons = []
-    for name, callback in chains:
-        buttons.append([InlineKeyboardButton(text=name, callback_data=f"swap_chain:{callback}")])
+    """Create swap chain/DEX selection keyboard.
 
-    buttons.append([InlineKeyboardButton(text="❌ Cancel", callback_data="cancel_swap")])
+    Swap Dashboard with chain-specific DEXes:
+    - BNB Chain: PancakeSwap
+    - Ethereum: Uniswap V3
+    - Cross-Chain: THORChain
+    - Solana: Jupiter
+    - Cosmos: Osmosis
+    """
+    buttons = [
+        [InlineKeyboardButton(
+            text="🟡 BNB Chain - PancakeSwap",
+            callback_data="swap_chain:pancakeswap"
+        )],
+        [InlineKeyboardButton(
+            text="🔵 Ethereum - Uniswap V3",
+            callback_data="swap_chain:uniswap"
+        )],
+        [InlineKeyboardButton(
+            text="🔗 Cross-Chain - THORChain",
+            callback_data="swap_chain:thorchain"
+        )],
+        [InlineKeyboardButton(
+            text="🟣 Solana - Jupiter",
+            callback_data="swap_chain:jupiter"
+        )],
+        [InlineKeyboardButton(
+            text="⚛️ Cosmos - Osmosis",
+            callback_data="swap_chain:osmosis"
+        )],
+        [InlineKeyboardButton(text="❌ Cancel", callback_data="cancel_swap")],
+    ]
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
