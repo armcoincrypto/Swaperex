@@ -92,25 +92,59 @@ def confirm_withdraw_keyboard(withdraw_id: str) -> InlineKeyboardMarkup:
     )
 
 
-def swap_from_keyboard() -> InlineKeyboardMarkup:
-    """Create swap 'from' asset selection keyboard."""
-    assets = [
-        "BTC", "ETH", "BNB",          # Major coins
-        "LTC", "DASH", "TRX",         # Alt coins
-        "SOL", "MATIC", "AVAX",       # Layer 1s
-        "USDT", "USDC",               # Stablecoins
-    ]
+def swap_from_keyboard(chain: str = None) -> InlineKeyboardMarkup:
+    """Create swap 'from' asset selection keyboard.
+
+    Args:
+        chain: Optional DEX/chain filter. If provided, shows only assets
+               supported by that chain. Values: pancakeswap, uniswap,
+               thorchain, 1inch, or None for all assets.
+    """
+    # Chain-specific asset lists
+    chain_assets = {
+        "pancakeswap": ["BNB", "BSC", "USDT", "USDC", "ETH", "MATIC"],  # BSC DEX
+        "uniswap": ["ETH", "USDT", "USDC", "LINK", "UNI", "MATIC"],     # ETH DEX
+        "thorchain": ["BTC", "ETH", "LTC", "DASH", "ATOM", "RUNE", "AVAX", "BNB"],  # Cross-chain
+        "1inch": ["ETH", "BNB", "USDT", "USDC", "MATIC", "AVAX"],       # Aggregator
+    }
+
+    if chain and chain.lower() in chain_assets:
+        assets = chain_assets[chain.lower()]
+    else:
+        # Default: show all supported assets
+        assets = [
+            "BTC", "ETH", "BNB",          # Major coins
+            "LTC", "DASH", "TRX",         # Alt coins
+            "SOL", "MATIC", "AVAX",       # Layer 1s
+            "USDT", "USDC",               # Stablecoins
+        ]
     return asset_selection_keyboard(assets, "swap_from")
 
 
-def swap_to_keyboard(exclude_asset: str) -> InlineKeyboardMarkup:
-    """Create swap 'to' asset selection keyboard."""
-    all_assets = [
-        "BTC", "ETH", "BNB",
-        "LTC", "DASH", "TRX",
-        "SOL", "MATIC", "AVAX",
-        "USDT", "USDC",
-    ]
+def swap_to_keyboard(exclude_asset: str, chain: str = None) -> InlineKeyboardMarkup:
+    """Create swap 'to' asset selection keyboard.
+
+    Args:
+        exclude_asset: Asset to exclude (the 'from' asset)
+        chain: Optional DEX/chain filter for available assets
+    """
+    # Chain-specific asset lists
+    chain_assets = {
+        "pancakeswap": ["BNB", "BSC", "USDT", "USDC", "ETH", "MATIC"],
+        "uniswap": ["ETH", "USDT", "USDC", "LINK", "UNI", "MATIC"],
+        "thorchain": ["BTC", "ETH", "LTC", "DASH", "ATOM", "RUNE", "AVAX", "BNB"],
+        "1inch": ["ETH", "BNB", "USDT", "USDC", "MATIC", "AVAX"],
+    }
+
+    if chain and chain.lower() in chain_assets:
+        all_assets = chain_assets[chain.lower()]
+    else:
+        all_assets = [
+            "BTC", "ETH", "BNB",
+            "LTC", "DASH", "TRX",
+            "SOL", "MATIC", "AVAX",
+            "USDT", "USDC",
+        ]
     assets = [a for a in all_assets if a != exclude_asset]
     return asset_selection_keyboard(assets, "swap_to")
 
