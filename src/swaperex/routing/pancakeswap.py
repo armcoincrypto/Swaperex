@@ -131,55 +131,46 @@ class PancakeSwapProvider(RouteProvider):
         amount_wei = int(amount * Decimal(10 ** from_decimals))
 
         try:
-            # Use PancakeSwap API for quote
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                # PancakeSwap uses their own API endpoint
-                response = await client.get(
-                    "https://api.pancakeswap.info/api/v2/tokens",
-                )
+            # Get token prices in USD
+            from_price = await self._get_token_price(from_asset)
+            to_price = await self._get_token_price(to_asset)
 
-                # For now, use a simple price calculation
-                # In production, you'd call the router contract's getAmountsOut
+            if not from_price or not to_price:
+                logger.warning(f"Missing price for {from_asset}->{to_asset}: from={from_price}, to={to_price}")
+                return None
 
-                # Get token prices in USD
-                from_price = await self._get_token_price(from_asset)
-                to_price = await self._get_token_price(to_asset)
+            # Calculate output amount
+            value_usd = amount * from_price
+            to_amount = value_usd / to_price
 
-                if not from_price or not to_price:
-                    return None
+            # Apply slippage
+            slippage_amount = to_amount * slippage_tolerance
+            min_output = to_amount - slippage_amount
 
-                # Calculate output amount
-                value_usd = amount * from_price
-                to_amount = value_usd / to_price
+            # Estimate gas fee (~0.001 BNB for swap)
+            gas_fee_bnb = Decimal("0.001")
 
-                # Apply slippage
-                slippage_amount = to_amount * slippage_tolerance
-                min_output = to_amount - slippage_amount
-
-                # Estimate gas fee (~0.001 BNB for swap)
-                gas_fee_bnb = Decimal("0.001")
-
-                return Quote(
-                    provider=self.name,
-                    from_asset=from_asset.upper(),
-                    to_asset=to_asset.upper(),
-                    from_amount=amount,
-                    to_amount=min_output,
-                    fee_asset="BNB",
-                    fee_amount=gas_fee_bnb,
-                    slippage_percent=slippage_tolerance * 100,
-                    estimated_time_seconds=15,  # BSC block time ~3s
-                    route_details={
-                        "router": self.router_address,
-                        "from_token": from_token,
-                        "to_token": to_token,
-                        "amount_in": str(amount_wei),
-                        "min_amount_out": str(int(min_output * Decimal(10 ** self._get_decimals(to_asset)))),
-                        "path": [from_token, to_token],
-                        "deadline": 300,  # 5 minutes
-                    },
-                    is_simulated=False,
-                )
+            return Quote(
+                provider=self.name,
+                from_asset=from_asset.upper(),
+                to_asset=to_asset.upper(),
+                from_amount=amount,
+                to_amount=min_output,
+                fee_asset="BNB",
+                fee_amount=gas_fee_bnb,
+                slippage_percent=slippage_tolerance * 100,
+                estimated_time_seconds=15,  # BSC block time ~3s
+                route_details={
+                    "router": self.router_address,
+                    "from_token": from_token,
+                    "to_token": to_token,
+                    "amount_in": str(amount_wei),
+                    "min_amount_out": str(int(min_output * Decimal(10 ** self._get_decimals(to_asset)))),
+                    "path": [from_token, to_token],
+                    "deadline": 300,  # 5 minutes
+                },
+                is_simulated=False,
+            )
 
         except Exception as e:
             logger.error(f"PancakeSwap quote error: {e}")
