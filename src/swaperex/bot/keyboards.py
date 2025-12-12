@@ -95,10 +95,10 @@ def confirm_withdraw_keyboard(withdraw_id: str) -> InlineKeyboardMarkup:
 def swap_from_keyboard() -> InlineKeyboardMarkup:
     """Create swap 'from' asset selection keyboard."""
     assets = [
-        "BTC", "ETH", "LTC",          # Major coins
-        "DASH", "TRX", "SOL",         # Alt coins
+        "BTC", "ETH", "BNB",          # Major coins
+        "LTC", "DASH", "TRX",         # Alt coins
+        "SOL", "MATIC", "AVAX",       # Layer 1s
         "USDT", "USDC",               # Stablecoins
-        "ATOM", "RUNE",               # Cosmos ecosystem
     ]
     return asset_selection_keyboard(assets, "swap_from")
 
@@ -106,10 +106,10 @@ def swap_from_keyboard() -> InlineKeyboardMarkup:
 def swap_to_keyboard(exclude_asset: str) -> InlineKeyboardMarkup:
     """Create swap 'to' asset selection keyboard."""
     all_assets = [
-        "BTC", "ETH", "LTC",
-        "DASH", "TRX", "SOL",
+        "BTC", "ETH", "BNB",
+        "LTC", "DASH", "TRX",
+        "SOL", "MATIC", "AVAX",
         "USDT", "USDC",
-        "ATOM", "RUNE",
     ]
     assets = [a for a in all_assets if a != exclude_asset]
     return asset_selection_keyboard(assets, "swap_to")
@@ -126,6 +126,23 @@ def quote_comparison_keyboard(quotes: list[dict]) -> InlineKeyboardMarkup:
 
         text = f"{provider}: {to_amount} (fee: ${fee})"
         buttons.append([InlineKeyboardButton(text=text, callback_data=f"select_quote:{i}")])
+
+    buttons.append([InlineKeyboardButton(text="❌ Cancel", callback_data="cancel_swap")])
+
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def swap_chain_keyboard() -> InlineKeyboardMarkup:
+    """Create swap chain/DEX selection keyboard."""
+    chains = [
+        ("🥞 PancakeSwap", "pancakeswap"),
+        ("🦄 Uniswap", "uniswap"),
+        ("🔄 THORChain", "thorchain"),
+        ("📊 1inch", "1inch"),
+    ]
+    buttons = []
+    for name, callback in chains:
+        buttons.append([InlineKeyboardButton(text=name, callback_data=f"swap_chain:{callback}")])
 
     buttons.append([InlineKeyboardButton(text="❌ Cancel", callback_data="cancel_swap")])
 
