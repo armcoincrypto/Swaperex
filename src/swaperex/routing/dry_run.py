@@ -18,7 +18,8 @@ SIMULATED_PRICES: dict[str, Decimal] = {
     # Layer 1 blockchains
     "SOL": Decimal("225.00"),
     "TRX": Decimal("0.27"),
-    "BSC": Decimal("710.00"),  # BNB
+    "BNB": Decimal("710.00"),  # BNB/BSC
+    "BSC": Decimal("710.00"),  # Alias for BNB
     "AVAX": Decimal("52.00"),
     "DOT": Decimal("9.50"),
     # Stablecoins (pegged to USD)
@@ -30,6 +31,7 @@ SIMULATED_PRICES: dict[str, Decimal] = {
     "LINK": Decimal("28.00"),
     "UNI": Decimal("17.50"),
     "MATIC": Decimal("0.62"),
+    "POL": Decimal("0.62"),  # Polygon renamed MATIC to POL
 }
 
 
@@ -170,7 +172,7 @@ class SimulatedThorChainRouter(RouteProvider):
     @property
     def supported_assets(self) -> list[str]:
         # THORChain supports major L1 assets
-        return ["BTC", "ETH", "LTC", "DASH", "USDT", "USDC", "ATOM", "RUNE", "AVAX", "BSC"]
+        return ["BTC", "ETH", "LTC", "DASH", "USDT", "USDC", "ATOM", "RUNE", "AVAX", "BSC", "BNB"]
 
     async def get_quote(
         self,
@@ -259,8 +261,8 @@ class SimulatedDexAggregator(RouteProvider):
 
     @property
     def supported_assets(self) -> list[str]:
-        # DEX aggregator for EVM tokens (ETH, BSC, Polygon chains)
-        return ["ETH", "BSC", "USDT", "USDC", "MATIC", "LINK", "UNI", "AVAX", "TRX"]
+        # DEX aggregator for EVM tokens (ETH, BSC/BNB, Polygon chains)
+        return ["ETH", "BSC", "BNB", "USDT", "USDC", "MATIC", "POL", "LINK", "UNI", "AVAX", "TRX"]
 
     async def get_quote(
         self,
