@@ -98,6 +98,36 @@ async def get_erc20_balance(address: str, token_contract: str, rpc_url: str, dec
     return Decimal("0")
 
 
+async def get_ada_balance(address: str) -> Decimal:
+    """Get ADA balance from Cardano via Blockfrost API."""
+    settings = get_settings()
+    api_key = settings.blockfrost_api_key
+
+    if not api_key:
+        logger.warning("Blockfrost API key not configured for ADA balance sync")
+        return Decimal("0")
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            headers = {"project_id": api_key}
+            url = f"https://cardano-mainnet.blockfrost.io/api/v0/addresses/{address}"
+            response = await client.get(url, headers=headers)
+
+            if response.status_code == 200:
+                data = response.json()
+                # Blockfrost returns lovelace (1 ADA = 1,000,000 lovelace)
+                lovelace = int(data.get("amount", [{"unit": "lovelace", "quantity": "0"}])[0].get("quantity", "0"))
+                return Decimal(lovelace) / Decimal("1000000")
+            elif response.status_code == 404:
+                # Address not found or no transactions yet
+                return Decimal("0")
+            else:
+                logger.error(f"Blockfrost API error: {response.status_code} - {response.text}")
+    except Exception as e:
+        logger.error(f"Error getting ADA balance: {e}")
+    return Decimal("0")
+
+
 async def sync_user_balances(repo: LedgerRepository, user_id: int, addresses: list) -> dict:
     """Sync balances from blockchain for a user's addresses.
 
@@ -137,6 +167,9 @@ async def sync_user_balances(repo: LedgerRepository, user_id: int, addresses: li
                 if asset in ["BNB", "BSC"]:
                     on_chain = await get_evm_balance(address, rpc_url)
                     asset = "BNB"  # Normalize
+
+            elif asset == "ADA":
+                on_chain = await get_ada_balance(address)
 
             if on_chain is not None:
                 # Get current database balance
