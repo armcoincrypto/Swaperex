@@ -28,11 +28,31 @@ TOKENS = {
         "USDT": ("0x55d398326f99059fF775485246999027B3197955", 18),  # USDT-BEP20
         "USDC": ("0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d", 18),  # USDC-BEP20
         "DOGE": ("0xbA2aE424d960c26247Dd6c32edC70B295c744C43", 8),   # DOGE-BEP20
+        "ETH": ("0x2170Ed0880ac9A755fd29B2688956BD959F933F8", 18),   # ETH-BEP20 (Binance-Peg ETH)
     },
     "ETH": {
         "USDT": ("0xdAC17F958D2ee523a2206206994597C13D831ec7", 6),   # USDT-ERC20
         "USDC": ("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", 6),   # USDC-ERC20
     }
+}
+
+# Asset display names with chain info
+ASSET_DISPLAY = {
+    "BNB": "BNB (BSC)",
+    "ETH": "ETH (ERC20)",
+    "ETH-BEP20": "ETH (BEP20)",
+    "USDT": "USDT (ERC20)",
+    "USDT-ERC20": "USDT (ERC20)",
+    "USDT-BEP20": "USDT (BEP20)",
+    "USDC": "USDC (ERC20)",
+    "USDC-ERC20": "USDC (ERC20)",
+    "USDC-BEP20": "USDC (BEP20)",
+    "DOGE": "DOGE (BEP20)",
+    "SOL": "SOL (Solana)",
+    "ADA": "ADA (Cardano)",
+    "BTC": "BTC (Bitcoin)",
+    "LTC": "LTC (Litecoin)",
+    "ATOM": "ATOM (Cosmos)",
 }
 
 
@@ -133,7 +153,7 @@ async def sync_user_balances(repo: LedgerRepository, user_id: int, addresses: li
             logger.error(f"Sync error for {asset}: {e}")
 
     # Also sync token balances that may have come from swaps (not deposits)
-    # Use the EVM address to check for tokens like DOGE-BEP20
+    # Use the EVM address to check for tokens like DOGE-BEP20, ETH-BEP20
     if evm_address:
         # Get all user balances to find tokens that need syncing
         all_balances = await repo.get_all_balances(user_id)
@@ -148,6 +168,9 @@ async def sync_user_balances(repo: LedgerRepository, user_id: int, addresses: li
                 # Check BSC tokens
                 if asset == "DOGE":
                     contract, decimals = TOKENS["BNB"]["DOGE"]
+                    on_chain = await get_erc20_balance(evm_address, contract, BSC_RPC, decimals)
+                elif asset == "ETH-BEP20":
+                    contract, decimals = TOKENS["BNB"]["ETH"]
                     on_chain = await get_erc20_balance(evm_address, contract, BSC_RPC, decimals)
                 elif asset == "USDT-BEP20":
                     contract, decimals = TOKENS["BNB"]["USDT"]
@@ -164,6 +187,20 @@ async def sync_user_balances(repo: LedgerRepository, user_id: int, addresses: li
 
             except Exception as e:
                 logger.error(f"Sync error for token {asset}: {e}")
+
+        # Also check for ETH-BEP20 even if not in balances yet (from swaps)
+        if "ETH-BEP20" not in synced_assets:
+            try:
+                contract, decimals = TOKENS["BNB"]["ETH"]
+                on_chain = await get_erc20_balance(evm_address, contract, BSC_RPC, decimals)
+                if on_chain > Decimal("0"):
+                    db_balance = await repo.get_balance(user_id, "ETH-BEP20")
+                    current = db_balance.amount if db_balance else Decimal("0")
+                    if on_chain != current:
+                        await repo.set_balance(user_id, "ETH-BEP20", on_chain)
+                        changes["ETH-BEP20"] = (current, on_chain)
+            except Exception as e:
+                logger.error(f"Sync error for ETH-BEP20: {e}")
 
     return changes
 
@@ -202,7 +239,9 @@ Use /deposit to add funds!"""
         for bal in balances:
             available = bal.available
             locked = bal.locked_amount
-            line = f"{bal.asset}: {available:.8f}"
+            # Show chain info in display name
+            display_name = ASSET_DISPLAY.get(bal.asset, bal.asset)
+            line = f"{display_name}: {available:.8f}"
             if locked > 0:
                 line += f" (locked: {locked:.8f})"
             lines.append(line)

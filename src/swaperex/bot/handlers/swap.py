@@ -233,6 +233,13 @@ async def handle_swap_amount(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     from_asset = data.get("from_asset")
     to_asset = data.get("to_asset")
+    chain = data.get("chain")
+
+    # Minimum gas requirements per chain
+    MIN_GAS = {
+        "BNB": Decimal("0.002"),  # ~0.002 BNB for PancakeSwap swap (~$1.20)
+        "ETH": Decimal("0.003"),  # ~0.003 ETH for Uniswap swap (~$10)
+    }
 
     # Check balance
     async with get_db() as session:
@@ -250,6 +257,42 @@ async def handle_swap_amount(message: Message, state: FSMContext) -> None:
                 f"Use /deposit to add funds."
             )
             return
+
+        # Check gas balance for EVM chains
+        gas_asset = None
+        if chain == "BNB" or from_asset in ["DOGE", "USDT-BEP20", "USDC-BEP20", "ETH-BEP20"]:
+            gas_asset = "BNB"
+        elif chain == "ETH" or from_asset in ["USDT-ERC20", "USDC-ERC20", "LINK"]:
+            gas_asset = "ETH"
+
+        if gas_asset:
+            min_gas = MIN_GAS.get(gas_asset, Decimal("0"))
+            gas_balance = await repo.get_balance(user.id, gas_asset)
+            gas_available = gas_balance.available if gas_balance else Decimal("0")
+
+            # If swapping native token, need extra for gas
+            if from_asset == gas_asset:
+                total_needed = amount + min_gas
+                if available < total_needed:
+                    await message.answer(
+                        f"⚠️ Insufficient {gas_asset} for swap + gas!\n\n"
+                        f"Available: {available:.8f} {gas_asset}\n"
+                        f"Swap amount: {amount:.8f} {gas_asset}\n"
+                        f"Gas needed: ~{min_gas:.6f} {gas_asset}\n"
+                        f"Total needed: {total_needed:.8f} {gas_asset}\n\n"
+                        f"Reduce swap amount or deposit more {gas_asset}."
+                    )
+                    return
+            else:
+                # Swapping token, need gas in native token
+                if gas_available < min_gas:
+                    await message.answer(
+                        f"⚠️ Insufficient {gas_asset} for gas fees!\n\n"
+                        f"Your {gas_asset} balance: {gas_available:.8f}\n"
+                        f"Minimum gas needed: ~{min_gas:.6f} {gas_asset}\n\n"
+                        f"Deposit at least {min_gas:.6f} {gas_asset} for gas fees."
+                    )
+                    return
 
     # Get quotes from all providers
     await message.answer("🔍 Getting quotes from DEXes...")
