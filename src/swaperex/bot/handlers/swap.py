@@ -215,6 +215,7 @@ async def handle_swap_amount(message: Message, state: FSMContext) -> None:
                 "fee_asset": q.fee_asset,
                 "slippage_percent": str(q.slippage_percent),
                 "estimated_time": q.estimated_time_seconds,
+                "is_simulated": getattr(q, 'is_simulated', True),
             }
             for q in quotes
         ],
@@ -239,7 +240,11 @@ async def handle_swap_amount(message: Message, state: FSMContext) -> None:
         )
 
     lines.append("\nBest rate selected automatically.")
-    lines.append("(Simulated quote - PoC)")
+    # Show if real or simulated
+    if best_quote.is_simulated:
+        lines.append("(Simulated quote - PoC)")
+    else:
+        lines.append("(Real DEX quote via API)")
 
     await message.answer("\n".join(lines), reply_markup=confirm_swap_keyboard("best"))
 
@@ -288,12 +293,16 @@ async def handle_confirm_swap(callback: CallbackQuery, state: FSMContext) -> Non
                 actual_to_amount=Decimal(selected_quote["to_amount"]),
             )
 
+            # Check if real or simulated
+            is_simulated = selected_quote.get('is_simulated', True)
+            swap_type = "(Simulated swap - PoC)" if is_simulated else "(Real DEX swap executed)"
+
             text = (
                 f"Swap Completed!\n\n"
                 f"{amount} {from_asset} -> {completed_swap.to_amount:.8f} {to_asset}\n\n"
                 f"Route: {selected_quote['provider']}\n"
                 f"Fee: ${selected_quote['fee_amount']}\n\n"
-                f"(Simulated swap - PoC)\n\n"
+                f"{swap_type}\n\n"
                 f"Use /wallet to check your balance."
             )
 
