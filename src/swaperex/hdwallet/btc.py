@@ -83,16 +83,14 @@ class BTCHDWallet(HDWalletProvider):
                     self._bip32_ctx = Bip32Secp256k1.FromExtendedKey(self._xpub, ZPUB_NET_VER)
                     self._use_bip32 = True
                 else:
-                    # Try standard BIP84 parsing for xpub/tpub
-                    self._use_bip32 = False
-                    if self._testnet:
-                        self._bip84_ctx = Bip84.FromExtendedKey(
-                            self._xpub, Bip84Coins.BITCOIN_TESTNET
-                        )
-                    else:
-                        self._bip84_ctx = Bip84.FromExtendedKey(
-                            self._xpub, Bip84Coins.BITCOIN
-                        )
+                    # Standard xpub/tpub format - use BIP32 directly
+                    self._use_bip32 = True
+                    key_net_ver = Bip32KeyNetVersions(
+                        b'\x04\x88\xb2\x1e', b'\x04\x88\xad\xe4'
+                    )
+                    self._bip32_ctx = Bip32Secp256k1.FromExtendedKey(
+                        self._xpub, key_net_ver
+                    )
             except Exception as e:
                 raise ValueError(f"Invalid BTC xpub: {e}")
 
