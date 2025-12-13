@@ -283,6 +283,41 @@ async def handle_deposit_asset(callback: CallbackQuery, state: FSMContext) -> No
         network_info = " (Cosmos Hub)"
     elif asset == "XRP":
         network_info = " (XRP Ledger)"
+    # Cosmos ecosystem
+    elif asset == "OSMO":
+        network_info = " (Osmosis)"
+    elif asset == "INJ":
+        network_info = " (Injective)"
+    elif asset == "TIA":
+        network_info = " (Celestia)"
+    elif asset == "JUNO":
+        network_info = " (Juno Network)"
+    elif asset == "SCRT":
+        network_info = " (Secret Network)"
+    # Other L1 chains
+    elif asset == "XLM":
+        network_info = " (Stellar)"
+    elif asset == "TON":
+        network_info = " (TON Network)"
+    elif asset == "NEAR":
+        network_info = " (NEAR Protocol)"
+    elif asset == "KAS":
+        network_info = " (Kaspa)"
+    elif asset == "ICP":
+        network_info = " (Internet Computer)"
+    elif asset == "ALGO":
+        network_info = " (Algorand)"
+    elif asset == "EGLD":
+        network_info = " (MultiversX)"
+    elif asset == "HBAR":
+        network_info = " (Hedera)"
+    elif asset == "VET":
+        network_info = " (VeChain)"
+    elif asset == "FTM":
+        network_info = " (Fantom)"
+    elif asset == "ROSE":
+        network_info = " (Oasis Network)"
+    # UTXO chains
     elif asset in ["BCH", "DOGE", "ZEC", "DGB", "RVN", "BTG", "NMC", "VIA",
                    "SYS", "KMD", "XEC", "MONA", "FIO"]:
         network_info = f" ({asset} Network)"
