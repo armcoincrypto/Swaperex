@@ -23,6 +23,19 @@ from swaperex.config import get_settings
 from swaperex.hdwallet.base import HDWalletProvider, SimulatedHDWallet
 from swaperex.hdwallet.btc import BTCHDWallet, DASHHDWallet, LTCHDWallet
 from swaperex.hdwallet.eth import BSCHDWallet, ETHHDWallet, SOLHDWallet, TRXHDWallet
+from swaperex.hdwallet.utxo import (
+    BCHHDWallet, DOGEHDWallet, ZECHDWallet, DGBHDWallet, RVNHDWallet,
+    BTGHDWallet, NMCHDWallet, VIAHDWallet, SYSHDWallet, KMDHDWallet,
+    XECHDWallet, MONAHDWallet, FIOHDWallet,
+)
+from swaperex.hdwallet.cosmos import (
+    ATOMHDWallet, OSMOHDWallet, INJHDWallet, TIAHDWallet, JUNOHDWallet, SCRTHDWallet,
+)
+from swaperex.hdwallet.altchains import (
+    XRPHDWallet, XLMHDWallet, TONHDWallet, NEARHDWallet, KASHDWallet,
+    ICPHDWallet, ALGOHDWallet, EGLDHDWallet, HBARHDWallet, VETHDWallet,
+    FTMHDWallet, ROSEHDWallet,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,19 +45,19 @@ WALLET_CLASSES: dict[str, type[HDWalletProvider]] = {
     "BTC": BTCHDWallet,
     "LTC": LTCHDWallet,
     "DASH": DASHHDWallet,
-    "BCH": None,      # Bitcoin Cash
-    "DOGE": None,     # Dogecoin
-    "ZEC": None,      # Zcash
-    "DGB": None,      # DigiByte
-    "RVN": None,      # Ravencoin
-    "BTG": None,      # Bitcoin Gold
-    "NMC": None,      # Namecoin
-    "VIA": None,      # Viacoin
-    "SYS": None,      # Syscoin
-    "KMD": None,      # Komodo
-    "XEC": None,      # eCash
-    "MONA": None,     # Monacoin
-    "FIO": None,      # FIO Protocol
+    "BCH": BCHHDWallet,
+    "DOGE": DOGEHDWallet,
+    "ZEC": ZECHDWallet,
+    "DGB": DGBHDWallet,
+    "RVN": RVNHDWallet,
+    "BTG": BTGHDWallet,
+    "NMC": NMCHDWallet,
+    "VIA": VIAHDWallet,
+    "SYS": SYSHDWallet,
+    "KMD": KMDHDWallet,
+    "XEC": XECHDWallet,
+    "MONA": MONAHDWallet,
+    "FIO": FIOHDWallet,
 
     # ========== Ethereum Network (EVM) ==========
     "ETH": ETHHDWallet,
@@ -159,26 +172,27 @@ WALLET_CLASSES: dict[str, type[HDWalletProvider]] = {
     "AUDIO-SOL": SOLHDWallet,
     "HNT": SOLHDWallet,
 
+    # ========== Cosmos Ecosystem ==========
+    "ATOM": ATOMHDWallet,
+    "OSMO": OSMOHDWallet,
+    "INJ": INJHDWallet,
+    "TIA": TIAHDWallet,
+    "JUNO": JUNOHDWallet,
+    "SCRT": SCRTHDWallet,
+
     # ========== Other L1 Chains ==========
-    "ATOM": None,     # Cosmos
-    "OSMO": None,     # Osmosis
-    "INJ": None,      # Injective
-    "TIA": None,      # Celestia
-    "JUNO": None,     # Juno
-    "SCRT": None,     # Secret
-    "XRP": None,      # XRP Ledger
-    "XLM": None,      # Stellar
-    "SOLO": None,     # Sologenic
-    "TON": None,      # TON
-    "NEAR": None,     # NEAR Protocol
-    "KAS": None,      # Kaspa
-    "ICP": None,      # Internet Computer
-    "ALGO": None,     # Algorand
-    "EGLD": None,     # MultiversX
-    "HBAR": None,     # Hedera
-    "VET": None,      # VeChain
-    "FTM": None,      # Fantom
-    "ROSE": None,     # Oasis
+    "XRP": XRPHDWallet,
+    "XLM": XLMHDWallet,
+    "TON": TONHDWallet,
+    "NEAR": NEARHDWallet,
+    "KAS": KASHDWallet,
+    "ICP": ICPHDWallet,
+    "ALGO": ALGOHDWallet,
+    "EGLD": EGLDHDWallet,
+    "HBAR": HBARHDWallet,
+    "VET": VETHDWallet,
+    "FTM": FTMHDWallet,
+    "ROSE": ROSEHDWallet,
 }
 
 # Cache for wallet instances
@@ -210,8 +224,9 @@ def derive_xpub_from_seed(seed_phrase: str, coin_type: int, purpose: int = 44) -
         # Generate seed from mnemonic
         seed = Bip39SeedGenerator(seed_phrase).Generate()
 
-        # Solana uses Ed25519 curve (coin_type 501)
-        if coin_type == 501:
+        # Ed25519 chains: SOL, XLM, TON, NEAR, ICP, ALGO, EGLD, HBAR, ROSE
+        ed25519_coin_types = {148, 501, 607, 397, 223, 283, 508, 3030, 474}
+        if coin_type in ed25519_coin_types:
             from bip_utils import Bip32Slip10Ed25519
             bip32_ctx = Bip32Slip10Ed25519.FromSeed(seed)
         else:
@@ -283,12 +298,34 @@ def get_xpub_from_seed_for_asset(asset: str) -> Optional[str]:
         "BNB": (60, 44),
         "MATIC": (60, 44),
         "AVAX": (60, 44),
+        "FTM": (60, 44),    # Fantom (EVM)
+        "VET": (818, 44),   # VeChain
 
         # TRX chain
         "TRX": (195, 44),
 
         # Solana
         "SOL": (501, 44),
+
+        # Cosmos ecosystem
+        "ATOM": (118, 44),
+        "OSMO": (118, 44),
+        "INJ": (60, 44),     # Uses EVM coin type
+        "TIA": (118, 44),
+        "JUNO": (118, 44),
+        "SCRT": (529, 44),
+
+        # Other L1 chains
+        "XRP": (144, 44),
+        "XLM": (148, 44),    # Ed25519
+        "TON": (607, 44),    # Ed25519
+        "NEAR": (397, 44),   # Ed25519
+        "KAS": (111111, 44), # Kaspa
+        "ICP": (223, 44),    # Ed25519
+        "ALGO": (283, 44),   # Ed25519
+        "EGLD": (508, 44),   # Ed25519
+        "HBAR": (3030, 44),  # Ed25519
+        "ROSE": (474, 44),   # Ed25519
     }
 
     # All ERC-20 tokens use ETH address (coin_type 60)
