@@ -204,9 +204,11 @@ class XLMHDWallet(HDWalletProvider):
     def _derive_with_bip32(self, index: int, change: int) -> AddressInfo:
         from bip_utils import XlmAddrEncoder, XlmAddrTypes
 
-        # Ed25519 uses hardened derivation
-        child = self._bip32_ctx.DerivePath(f"{change}'/{index}'")
-        pubkey = child.PublicKey().RawCompressed().ToBytes()
+        # Ed25519 can't do hardened derivation from public key
+        if index == 0 and change == 0:
+            pubkey = self._bip32_ctx.PublicKey().RawCompressed().ToBytes()
+        else:
+            return self._derive_simulated(index, change)
 
         address = XlmAddrEncoder.EncodeKey(pubkey, addr_type=XlmAddrTypes.PUB_KEY)
 
@@ -308,9 +310,12 @@ class TONHDWallet(HDWalletProvider):
     def _derive_with_bip32(self, index: int, change: int) -> AddressInfo:
         import base64
 
-        # Ed25519 hardened derivation
-        child = self._bip32_ctx.DerivePath(f"{change}'/{index}'")
-        pubkey = child.PublicKey().RawCompressed().ToBytes()
+        # Ed25519 can't do hardened derivation from public key
+        # Use account-level pubkey for index 0, simulated for others
+        if index == 0 and change == 0:
+            pubkey = self._bip32_ctx.PublicKey().RawCompressed().ToBytes()
+        else:
+            return self._derive_simulated(index, change)
 
         # TON address is derived from public key hash
         # Simplified: EQ + base64(sha256(pubkey)[:32])
@@ -417,9 +422,11 @@ class NEARHDWallet(HDWalletProvider):
     def _derive_with_bip32(self, index: int, change: int) -> AddressInfo:
         from bip_utils import NearAddrEncoder
 
-        # Ed25519 hardened derivation
-        child = self._bip32_ctx.DerivePath(f"{change}'/{index}'")
-        pubkey = child.PublicKey().RawCompressed().ToBytes()
+        # Ed25519 can't do hardened derivation from public key
+        if index == 0 and change == 0:
+            pubkey = self._bip32_ctx.PublicKey().RawCompressed().ToBytes()
+        else:
+            return self._derive_simulated(index, change)
 
         address = NearAddrEncoder.EncodeKey(pubkey)
 
@@ -626,8 +633,11 @@ class ICPHDWallet(HDWalletProvider):
     def _derive_with_bip32(self, index: int, change: int) -> AddressInfo:
         from bip_utils import IcpAddrEncoder
 
-        child = self._bip32_ctx.DerivePath(f"{change}'/{index}'")
-        pubkey = child.PublicKey().RawCompressed().ToBytes()
+        # Ed25519 can't do hardened derivation from public key
+        if index == 0 and change == 0:
+            pubkey = self._bip32_ctx.PublicKey().RawCompressed().ToBytes()
+        else:
+            return self._derive_simulated(index, change)
 
         address = IcpAddrEncoder.EncodeKey(pubkey)
 
@@ -731,8 +741,11 @@ class ALGOHDWallet(HDWalletProvider):
     def _derive_with_bip32(self, index: int, change: int) -> AddressInfo:
         from bip_utils import AlgoAddrEncoder
 
-        child = self._bip32_ctx.DerivePath(f"{change}'/{index}'")
-        pubkey = child.PublicKey().RawCompressed().ToBytes()
+        # Ed25519 can't do hardened derivation from public key
+        if index == 0 and change == 0:
+            pubkey = self._bip32_ctx.PublicKey().RawCompressed().ToBytes()
+        else:
+            return self._derive_simulated(index, change)
 
         address = AlgoAddrEncoder.EncodeKey(pubkey)
 
@@ -837,8 +850,11 @@ class EGLDHDWallet(HDWalletProvider):
     def _derive_with_bip32(self, index: int, change: int) -> AddressInfo:
         from bip_utils import EgldAddrEncoder
 
-        child = self._bip32_ctx.DerivePath(f"{change}'/{index}'")
-        pubkey = child.PublicKey().RawCompressed().ToBytes()
+        # Ed25519 can't do hardened derivation from public key
+        if index == 0 and change == 0:
+            pubkey = self._bip32_ctx.PublicKey().RawCompressed().ToBytes()
+        else:
+            return self._derive_simulated(index, change)
 
         address = EgldAddrEncoder.EncodeKey(pubkey)
 
@@ -940,8 +956,11 @@ class HBARHDWallet(HDWalletProvider):
         return self._derive_simulated(index, change)
 
     def _derive_with_bip32(self, index: int, change: int) -> AddressInfo:
-        child = self._bip32_ctx.DerivePath(f"{change}'/{index}'")
-        pubkey = child.PublicKey().RawCompressed().ToBytes()
+        # Ed25519 can't do hardened derivation from public key
+        if index == 0 and change == 0:
+            pubkey = self._bip32_ctx.PublicKey().RawCompressed().ToBytes()
+        else:
+            return self._derive_simulated(index, change)
 
         # HBAR alias is hex-encoded public key
         # Actual account ID requires on-chain registration
@@ -1252,8 +1271,11 @@ class ROSEHDWallet(HDWalletProvider):
         return self._derive_simulated(index, change)
 
     def _derive_with_bip32(self, index: int, change: int) -> AddressInfo:
-        child = self._bip32_ctx.DerivePath(f"{change}'/{index}'")
-        pubkey = child.PublicKey().RawCompressed().ToBytes()
+        # Ed25519 can't do hardened derivation from public key
+        if index == 0 and change == 0:
+            pubkey = self._bip32_ctx.PublicKey().RawCompressed().ToBytes()
+        else:
+            return self._derive_simulated(index, change)
 
         # Oasis uses bech32 encoding
         address = f"oasis1{hashlib.sha256(pubkey).digest()[:20].hex()}"
