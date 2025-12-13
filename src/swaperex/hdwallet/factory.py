@@ -92,8 +92,8 @@ def derive_xpub_from_seed(seed_phrase: str, coin_type: int, purpose: int = 44) -
         path = f"{purpose}'/{coin_type}'/0'"
         account_ctx = bip32_ctx.DerivePath(path)
 
-        # Get extended public key (Bip32PublicKey has ToExtendedKey)
-        return account_ctx.PublicKey().ToExtendedKey()
+        # Get extended public key (bip_utils 2.x uses ToExtended, not ToExtendedKey)
+        return account_ctx.PublicKey().ToExtended()
 
     except ImportError:
         logger.warning("bip_utils not installed, cannot derive xpub from seed")
