@@ -12,6 +12,13 @@ from typing import Optional
 import os
 import logging
 
+# Load .env file into os.environ for seed phrase access
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv not installed, rely on system environment
+
 from swaperex.config import get_settings
 from swaperex.hdwallet.base import HDWalletProvider, SimulatedHDWallet
 from swaperex.hdwallet.btc import BTCHDWallet, DASHHDWallet, LTCHDWallet
