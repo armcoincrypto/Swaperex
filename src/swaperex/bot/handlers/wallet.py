@@ -158,13 +158,34 @@ async def handle_deposit_asset(callback: CallbackQuery, state: FSMContext) -> No
         if existing_addr and (existing_addr.address.startswith("sim:") or existing_addr.address.startswith("tsim:")):
             existing_addr = None
 
-        # For ERC-20/BEP-20 tokens, also check if user has parent chain address
+        # For ERC-20/BEP-20/TRC-20 tokens, check if user has parent chain address
         parent_chain = None
-        if asset in ["USDT", "USDC", "USDT-ERC20", "DAI", "LINK", "UNI", "AAVE"]:
+        # ERC-20 tokens use ETH address
+        erc20_tokens = [
+            "USDT", "USDT-ERC20", "USDC", "DAI", "LINK", "UNI", "AAVE",
+            "WBTC", "LDO", "MKR", "COMP", "SNX", "CRV", "SUSHI", "1INCH",
+            "GRT", "ENS", "PEPE", "SHIB", "LRC", "BAT", "ZRX", "YFI", "BAL", "OMG"
+        ]
+        # BEP-20 tokens use BNB address
+        bep20_tokens = [
+            "BUSD", "CAKE", "USDT-BEP20", "USDC-BEP20", "TUSD-BEP20", "FDUSD",
+            "BTCB", "ETH-BEP20", "XRP-BEP20", "ADA-BEP20", "DOGE-BEP20",
+            "DOT-BEP20", "LTC-BEP20", "SHIB-BEP20", "FLOKI", "BABYDOGE",
+            "ALPACA", "XVS", "GMT", "SFP"
+        ]
+        # TRC-20 tokens use TRX address
+        trc20_tokens = [
+            "USDT-TRC20", "USDC-TRC20", "TUSD-TRC20", "USDJ", "BTT", "JST",
+            "SUN", "WIN", "NFT-TRC20", "APENFT", "BTC-TRC20", "ETH-TRC20",
+            "LTC-TRC20", "DOGE-TRC20", "XRP-TRC20", "ADA-TRC20", "EOS-TRC20",
+            "DOT-TRC20", "FIL-TRC20"
+        ]
+
+        if asset in erc20_tokens:
             parent_chain = "ETH"
-        elif asset in ["BUSD", "CAKE"]:
+        elif asset in bep20_tokens:
             parent_chain = "BNB"
-        elif asset == "USDT-TRC20":
+        elif asset in trc20_tokens:
             parent_chain = "TRX"
 
         if not existing_addr and parent_chain:
@@ -205,34 +226,35 @@ async def handle_deposit_asset(callback: CallbackQuery, state: FSMContext) -> No
 
     # Determine network info for tokens
     network_info = ""
-    if asset == "USDT":
+    # ERC-20 tokens
+    if asset in ["USDT", "USDT-ERC20", "USDC", "DAI", "LINK", "UNI", "AAVE",
+                 "WBTC", "LDO", "MKR", "COMP", "SNX", "CRV", "SUSHI", "1INCH",
+                 "GRT", "ENS", "PEPE", "SHIB", "LRC", "BAT", "ZRX", "YFI", "BAL", "OMG"]:
         network_info = " (ERC-20 on Ethereum)"
-    elif asset == "USDC":
-        network_info = " (ERC-20 on Ethereum)"
-    elif asset == "USDT-TRC20":
+    # BEP-20 tokens
+    elif asset in ["BUSD", "CAKE", "USDT-BEP20", "USDC-BEP20", "TUSD-BEP20", "FDUSD",
+                   "BTCB", "ETH-BEP20", "XRP-BEP20", "ADA-BEP20", "DOGE-BEP20",
+                   "DOT-BEP20", "LTC-BEP20", "SHIB-BEP20", "FLOKI", "BABYDOGE",
+                   "ALPACA", "XVS", "GMT", "SFP"]:
+        network_info = " (BEP-20 on BNB Chain)"
+    # TRC-20 tokens
+    elif asset in ["USDT-TRC20", "USDC-TRC20", "TUSD-TRC20", "USDJ", "BTT", "JST",
+                   "SUN", "WIN", "NFT-TRC20", "APENFT", "BTC-TRC20", "ETH-TRC20",
+                   "LTC-TRC20", "DOGE-TRC20", "XRP-TRC20", "ADA-TRC20", "EOS-TRC20",
+                   "DOT-TRC20", "FIL-TRC20"]:
         network_info = " (TRC-20 on Tron)"
-    elif asset == "DAI":
-        network_info = " (ERC-20 on Ethereum)"
-    elif asset == "LINK":
-        network_info = " (ERC-20 on Ethereum)"
-    elif asset == "UNI":
-        network_info = " (ERC-20 on Ethereum)"
-    elif asset == "AAVE":
-        network_info = " (ERC-20 on Ethereum)"
-    elif asset == "BUSD":
-        network_info = " (BEP-20 on BNB Chain)"
-    elif asset == "CAKE":
-        network_info = " (BEP-20 on BNB Chain)"
+    # Native chains
     elif asset == "MATIC":
         network_info = " (Polygon Network)"
     elif asset == "AVAX":
         network_info = " (Avalanche C-Chain)"
     elif asset == "ATOM":
         network_info = " (Cosmos Hub)"
-    elif asset == "DOGE":
-        network_info = " (Dogecoin Network)"
     elif asset == "XRP":
         network_info = " (XRP Ledger)"
+    elif asset in ["BCH", "DOGE", "ZEC", "DGB", "RVN", "BTG", "NMC", "VIA",
+                   "SYS", "KMD", "XEC", "MONA", "FIO"]:
+        network_info = f" ({asset} Network)"
 
     # Build message
     lines = [

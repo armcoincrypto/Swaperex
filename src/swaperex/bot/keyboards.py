@@ -99,28 +99,45 @@ def deposit_asset_keyboard(chain: str = None) -> InlineKeyboardMarkup:
     Args:
         chain: Optional chain filter for assets.
 
-    Organized by chain (20+ coins total):
-    - bitcoin: BTC, LTC, DASH
-    - ethereum: ETH, USDT, USDC, DAI, LINK, UNI, AAVE
-    - bnb: BNB, BUSD, CAKE
-    - tron: TRX, USDT-TRC20
+    Organized by chain (80+ coins total):
+    - bitcoin: BTC, LTC, DASH, BCH, DOGE, ZEC, DGB, RVN, BTG, etc.
+    - ethereum: ETH, USDT, USDC, DAI, WBTC, LDO, MKR, etc.
+    - bnb: BNB, BUSD, CAKE, BTCB, FLOKI, etc.
+    - tron: TRX, USDT-TRC20, BTT, JST, etc.
     - solana: SOL
-    - other: AVAX, MATIC, ATOM, DOGE, XRP
+    - other: AVAX, MATIC, ATOM, XRP
     """
     # Chain-specific asset lists
     chain_assets = {
-        # Bitcoin Network
-        "bitcoin": ["BTC", "LTC", "DASH"],
+        # Bitcoin Network (UTXO-based)
+        "bitcoin": [
+            "BTC", "LTC", "DASH", "BCH", "DOGE", "ZEC", "DGB", "RVN",
+            "BTG", "NMC", "VIA", "SYS", "KMD", "XEC", "MONA", "FIO"
+        ],
         # Ethereum Network (ERC-20)
-        "ethereum": ["ETH", "USDT", "USDC", "DAI", "LINK", "UNI", "AAVE"],
+        "ethereum": [
+            "ETH", "USDT", "USDC", "DAI", "WBTC", "LINK", "UNI", "AAVE",
+            "LDO", "MKR", "COMP", "SNX", "CRV", "SUSHI", "1INCH", "GRT",
+            "ENS", "PEPE", "SHIB", "LRC", "BAT", "ZRX", "YFI", "BAL", "OMG"
+        ],
         # BNB Chain (BEP-20)
-        "bnb": ["BNB", "BUSD", "CAKE"],
+        "bnb": [
+            "BNB", "BUSD", "CAKE", "USDT-BEP20", "USDC-BEP20", "TUSD-BEP20",
+            "FDUSD", "BTCB", "ETH-BEP20", "XRP-BEP20", "ADA-BEP20",
+            "DOGE-BEP20", "DOT-BEP20", "LTC-BEP20", "SHIB-BEP20",
+            "FLOKI", "BABYDOGE", "ALPACA", "XVS", "GMT", "SFP"
+        ],
         # Tron Network (TRC-20)
-        "tron": ["TRX", "USDT-TRC20"],
+        "tron": [
+            "TRX", "USDT-TRC20", "USDC-TRC20", "TUSD-TRC20", "USDJ",
+            "BTT", "JST", "SUN", "WIN", "NFT-TRC20", "APENFT",
+            "BTC-TRC20", "ETH-TRC20", "LTC-TRC20", "DOGE-TRC20",
+            "XRP-TRC20", "ADA-TRC20", "EOS-TRC20", "DOT-TRC20", "FIL-TRC20"
+        ],
         # Solana
         "solana": ["SOL"],
         # Other Networks
-        "other": ["AVAX", "MATIC", "ATOM", "DOGE", "XRP"],
+        "other": ["AVAX", "MATIC", "ATOM", "XRP"],
     }
 
     if chain and chain.lower() in chain_assets:
@@ -136,14 +153,76 @@ def deposit_asset_keyboard(chain: str = None) -> InlineKeyboardMarkup:
     return asset_selection_keyboard(assets, "deposit")
 
 
-def withdraw_asset_keyboard() -> InlineKeyboardMarkup:
-    """Create withdrawal asset selection keyboard."""
-    assets = [
-        "BTC", "ETH", "LTC",          # Major coins
-        "DASH", "TRX", "BSC",         # Alt coins
-        "USDT-ERC20", "USDC",         # ERC-20 tokens
-        "USDT-TRC20",                 # TRC-20 token
+def withdraw_chain_keyboard() -> InlineKeyboardMarkup:
+    """Create withdrawal chain selection keyboard."""
+    buttons = [
+        [InlineKeyboardButton(
+            text="🟠 Bitcoin Network",
+            callback_data="withdraw_chain:bitcoin"
+        )],
+        [InlineKeyboardButton(
+            text="🔵 Ethereum Network",
+            callback_data="withdraw_chain:ethereum"
+        )],
+        [InlineKeyboardButton(
+            text="🟡 BNB Chain",
+            callback_data="withdraw_chain:bnb"
+        )],
+        [InlineKeyboardButton(
+            text="🔴 Tron Network",
+            callback_data="withdraw_chain:tron"
+        )],
+        [InlineKeyboardButton(
+            text="🟣 Solana",
+            callback_data="withdraw_chain:solana"
+        )],
+        [InlineKeyboardButton(
+            text="🌐 Other Networks",
+            callback_data="withdraw_chain:other"
+        )],
+        [InlineKeyboardButton(text="❌ Cancel", callback_data="cancel")],
     ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def withdraw_asset_keyboard(chain: str = None) -> InlineKeyboardMarkup:
+    """Create withdrawal asset selection keyboard."""
+    # Chain-specific asset lists (same as deposit)
+    chain_assets = {
+        "bitcoin": [
+            "BTC", "LTC", "DASH", "BCH", "DOGE", "ZEC", "DGB", "RVN",
+            "BTG", "NMC", "VIA", "SYS", "KMD", "XEC", "MONA", "FIO"
+        ],
+        "ethereum": [
+            "ETH", "USDT", "USDC", "DAI", "WBTC", "LINK", "UNI", "AAVE",
+            "LDO", "MKR", "COMP", "SNX", "CRV", "SUSHI", "1INCH", "GRT",
+            "ENS", "PEPE", "SHIB", "LRC", "BAT", "ZRX", "YFI", "BAL", "OMG"
+        ],
+        "bnb": [
+            "BNB", "BUSD", "CAKE", "USDT-BEP20", "USDC-BEP20", "TUSD-BEP20",
+            "FDUSD", "BTCB", "ETH-BEP20", "XRP-BEP20", "ADA-BEP20",
+            "DOGE-BEP20", "DOT-BEP20", "LTC-BEP20", "SHIB-BEP20",
+            "FLOKI", "BABYDOGE", "ALPACA", "XVS", "GMT", "SFP"
+        ],
+        "tron": [
+            "TRX", "USDT-TRC20", "USDC-TRC20", "TUSD-TRC20", "USDJ",
+            "BTT", "JST", "SUN", "WIN", "NFT-TRC20", "APENFT",
+            "BTC-TRC20", "ETH-TRC20", "LTC-TRC20", "DOGE-TRC20",
+            "XRP-TRC20", "ADA-TRC20", "EOS-TRC20", "DOT-TRC20", "FIL-TRC20"
+        ],
+        "solana": ["SOL"],
+        "other": ["AVAX", "MATIC", "ATOM", "XRP"],
+    }
+
+    if chain and chain.lower() in chain_assets:
+        assets = chain_assets[chain.lower()]
+    else:
+        assets = [
+            "BTC", "ETH", "LTC",
+            "DASH", "TRX", "BNB",
+            "USDT", "USDC",
+            "USDT-TRC20",
+        ]
     return asset_selection_keyboard(assets, "withdraw")
 
 
@@ -167,20 +246,31 @@ def swap_from_keyboard(chain: str = None) -> InlineKeyboardMarkup:
                supported by that chain.
 
     Supported chains:
-        - pancakeswap: BNB Chain tokens (USDT, USDC, BUSD, CAKE, XRP, DOGE...)
-        - uniswap: Ethereum tokens (USDT, USDC, DAI, LINK, UNI, AAVE...)
-        - thorchain: Cross-chain (BTC, ETH, BNB, ATOM, LTC, DASH...)
-        - jupiter: Solana tokens (SOL, USDT, USDC...)
-        - osmosis: Cosmos ecosystem (ATOM, OSMO, USDC...)
+        - pancakeswap: BNB Chain tokens
+        - uniswap: Ethereum tokens
+        - thorchain: Cross-chain
+        - jupiter: Solana tokens
+        - osmosis: Cosmos ecosystem
     """
     # Chain-specific asset lists
     chain_assets = {
         # BNB Chain - PancakeSwap
-        "pancakeswap": ["BNB", "USDT", "USDC", "BUSD", "CAKE", "XRP", "DOGE", "ETH"],
+        "pancakeswap": [
+            "BNB", "USDT", "USDC", "BUSD", "CAKE", "BTCB", "ETH",
+            "XRP-BEP20", "DOGE-BEP20", "ADA-BEP20", "DOT-BEP20",
+            "FDUSD", "FLOKI", "BABYDOGE", "XVS", "GMT"
+        ],
         # Ethereum - Uniswap V3
-        "uniswap": ["ETH", "USDT", "USDC", "DAI", "LINK", "UNI", "AAVE", "MATIC"],
+        "uniswap": [
+            "ETH", "USDT", "USDC", "DAI", "WBTC", "LINK", "UNI", "AAVE",
+            "LDO", "MKR", "COMP", "SNX", "CRV", "SUSHI", "1INCH",
+            "GRT", "ENS", "PEPE", "SHIB", "YFI", "BAL"
+        ],
         # Cross-Chain - THORChain
-        "thorchain": ["BTC", "ETH", "BNB", "ATOM", "LTC", "DASH", "AVAX", "RUNE"],
+        "thorchain": [
+            "BTC", "ETH", "BNB", "ATOM", "LTC", "DASH", "AVAX",
+            "BCH", "DOGE", "RUNE"
+        ],
         # Solana - Jupiter
         "jupiter": ["SOL", "USDT", "USDC", "RAY", "SRM"],
         # Cosmos - Osmosis
@@ -192,10 +282,10 @@ def swap_from_keyboard(chain: str = None) -> InlineKeyboardMarkup:
     else:
         # Default: show all major supported assets
         assets = [
-            "BTC", "ETH", "BNB",          # Major coins
-            "LTC", "DASH", "TRX",         # Alt coins
-            "SOL", "ATOM", "AVAX",        # Layer 1s
-            "USDT", "USDC",               # Stablecoins
+            "BTC", "ETH", "BNB",
+            "LTC", "DASH", "TRX",
+            "SOL", "ATOM", "AVAX",
+            "USDT", "USDC",
         ]
     return asset_selection_keyboard(assets, "swap_from")
 
@@ -210,11 +300,22 @@ def swap_to_keyboard(exclude_asset: str, chain: str = None) -> InlineKeyboardMar
     # Chain-specific asset lists (same as swap_from_keyboard)
     chain_assets = {
         # BNB Chain - PancakeSwap
-        "pancakeswap": ["BNB", "USDT", "USDC", "BUSD", "CAKE", "XRP", "DOGE", "ETH"],
+        "pancakeswap": [
+            "BNB", "USDT", "USDC", "BUSD", "CAKE", "BTCB", "ETH",
+            "XRP-BEP20", "DOGE-BEP20", "ADA-BEP20", "DOT-BEP20",
+            "FDUSD", "FLOKI", "BABYDOGE", "XVS", "GMT"
+        ],
         # Ethereum - Uniswap V3
-        "uniswap": ["ETH", "USDT", "USDC", "DAI", "LINK", "UNI", "AAVE", "MATIC"],
+        "uniswap": [
+            "ETH", "USDT", "USDC", "DAI", "WBTC", "LINK", "UNI", "AAVE",
+            "LDO", "MKR", "COMP", "SNX", "CRV", "SUSHI", "1INCH",
+            "GRT", "ENS", "PEPE", "SHIB", "YFI", "BAL"
+        ],
         # Cross-Chain - THORChain
-        "thorchain": ["BTC", "ETH", "BNB", "ATOM", "LTC", "DASH", "AVAX", "RUNE"],
+        "thorchain": [
+            "BTC", "ETH", "BNB", "ATOM", "LTC", "DASH", "AVAX",
+            "BCH", "DOGE", "RUNE"
+        ],
         # Solana - Jupiter
         "jupiter": ["SOL", "USDT", "USDC", "RAY", "SRM"],
         # Cosmos - Osmosis

@@ -28,17 +28,30 @@ logger = logging.getLogger(__name__)
 
 # Asset to wallet class mapping
 WALLET_CLASSES: dict[str, type[HDWalletProvider]] = {
-    # Bitcoin family
+    # ========== UTXO Chains (Bitcoin family) ==========
     "BTC": BTCHDWallet,
     "LTC": LTCHDWallet,
     "DASH": DASHHDWallet,
-    # Ethereum family (EVM compatible - all use same address)
+    "BCH": None,      # Bitcoin Cash
+    "DOGE": None,     # Dogecoin
+    "ZEC": None,      # Zcash
+    "DGB": None,      # DigiByte
+    "RVN": None,      # Ravencoin
+    "BTG": None,      # Bitcoin Gold
+    "NMC": None,      # Namecoin
+    "VIA": None,      # Viacoin
+    "SYS": None,      # Syscoin
+    "KMD": None,      # Komodo
+    "XEC": None,      # eCash
+    "MONA": None,     # Monacoin
+    "FIO": None,      # FIO Protocol
+
+    # ========== Ethereum Network (EVM) ==========
     "ETH": ETHHDWallet,
-    "BSC": BSCHDWallet,
-    "BNB": BSCHDWallet,  # Alias for BSC
-    "MATIC": ETHHDWallet,  # Polygon uses ETH address
-    "AVAX": ETHHDWallet,  # Avalanche C-Chain uses ETH address
-    # ERC-20 tokens (use ETH address)
+    "MATIC": ETHHDWallet,  # Polygon
+    "AVAX": ETHHDWallet,   # Avalanche C-Chain
+
+    # ERC-20 Tokens (use ETH address)
     "USDT": ETHHDWallet,
     "USDT-ERC20": ETHHDWallet,
     "USDC": ETHHDWallet,
@@ -46,18 +59,77 @@ WALLET_CLASSES: dict[str, type[HDWalletProvider]] = {
     "LINK": ETHHDWallet,
     "UNI": ETHHDWallet,
     "AAVE": ETHHDWallet,
-    # BEP-20 tokens (use BSC/ETH address)
+    "WBTC": ETHHDWallet,
+    "LDO": ETHHDWallet,
+    "MKR": ETHHDWallet,
+    "COMP": ETHHDWallet,
+    "SNX": ETHHDWallet,
+    "CRV": ETHHDWallet,
+    "SUSHI": ETHHDWallet,
+    "1INCH": ETHHDWallet,
+    "GRT": ETHHDWallet,
+    "ENS": ETHHDWallet,
+    "PEPE": ETHHDWallet,
+    "SHIB": ETHHDWallet,
+    "LRC": ETHHDWallet,
+    "BAT": ETHHDWallet,
+    "ZRX": ETHHDWallet,
+    "YFI": ETHHDWallet,
+    "BAL": ETHHDWallet,
+    "OMG": ETHHDWallet,
+
+    # ========== BNB Chain (BEP-20) ==========
+    "BSC": BSCHDWallet,
+    "BNB": BSCHDWallet,
     "BUSD": BSCHDWallet,
     "CAKE": BSCHDWallet,
-    # Tron family
+    "USDT-BEP20": BSCHDWallet,
+    "USDC-BEP20": BSCHDWallet,
+    "TUSD-BEP20": BSCHDWallet,
+    "FDUSD": BSCHDWallet,
+    "BTCB": BSCHDWallet,
+    "ETH-BEP20": BSCHDWallet,
+    "XRP-BEP20": BSCHDWallet,
+    "ADA-BEP20": BSCHDWallet,
+    "DOGE-BEP20": BSCHDWallet,
+    "DOT-BEP20": BSCHDWallet,
+    "LTC-BEP20": BSCHDWallet,
+    "SHIB-BEP20": BSCHDWallet,
+    "FLOKI": BSCHDWallet,
+    "BABYDOGE": BSCHDWallet,
+    "ALPACA": BSCHDWallet,
+    "XVS": BSCHDWallet,
+    "GMT": BSCHDWallet,
+    "SFP": BSCHDWallet,
+
+    # ========== Tron Network (TRC-20) ==========
     "TRX": TRXHDWallet,
     "USDT-TRC20": TRXHDWallet,
-    # Solana
+    "USDC-TRC20": TRXHDWallet,
+    "TUSD-TRC20": TRXHDWallet,
+    "USDJ": TRXHDWallet,
+    "BTT": TRXHDWallet,
+    "JST": TRXHDWallet,
+    "SUN": TRXHDWallet,
+    "WIN": TRXHDWallet,
+    "NFT-TRC20": TRXHDWallet,
+    "APENFT": TRXHDWallet,
+    "BTC-TRC20": TRXHDWallet,
+    "ETH-TRC20": TRXHDWallet,
+    "LTC-TRC20": TRXHDWallet,
+    "DOGE-TRC20": TRXHDWallet,
+    "XRP-TRC20": TRXHDWallet,
+    "ADA-TRC20": TRXHDWallet,
+    "EOS-TRC20": TRXHDWallet,
+    "DOT-TRC20": TRXHDWallet,
+    "FIL-TRC20": TRXHDWallet,
+
+    # ========== Solana ==========
     "SOL": SOLHDWallet,
-    # Other chains (simulated for now)
-    "ATOM": None,  # Cosmos - needs specific implementation
-    "DOGE": None,  # Dogecoin - needs specific implementation
-    "XRP": None,   # XRP Ledger - needs specific implementation
+
+    # ========== Other Chains ==========
+    "ATOM": None,   # Cosmos
+    "XRP": None,    # XRP Ledger
 }
 
 # Cache for wallet instances
@@ -84,16 +156,18 @@ def derive_xpub_from_seed(seed_phrase: str, coin_type: int, purpose: int = 44) -
         Extended public key (xpub) or None if derivation fails
     """
     try:
-        from bip_utils import (
-            Bip39SeedGenerator,
-            Bip32Secp256k1,
-        )
+        from bip_utils import Bip39SeedGenerator
 
         # Generate seed from mnemonic
         seed = Bip39SeedGenerator(seed_phrase).Generate()
 
-        # Use BIP32 directly for derivation (compatible with bip_utils 2.x)
-        bip32_ctx = Bip32Secp256k1.FromSeed(seed)
+        # Solana uses Ed25519 curve (coin_type 501)
+        if coin_type == 501:
+            from bip_utils import Bip32Slip10Ed25519
+            bip32_ctx = Bip32Slip10Ed25519.FromSeed(seed)
+        else:
+            from bip_utils import Bip32Secp256k1
+            bip32_ctx = Bip32Secp256k1.FromSeed(seed)
 
         # Derive path: m/purpose'/coin_type'/0'
         path = f"{purpose}'/{coin_type}'/0'"
@@ -135,29 +209,67 @@ def get_xpub_from_seed_for_asset(asset: str) -> Optional[str]:
         return _xpub_cache[asset_upper]
 
     # Map assets to coin types and purposes
+    # UTXO chains
     coin_configs = {
-        "BTC": (0, 84),   # BIP84 native SegWit
-        "LTC": (2, 84),   # BIP84 native SegWit
-        "DASH": (5, 44),  # BIP44
-        "ETH": (60, 44),  # BIP44 (also used for BSC, MATIC, AVAX, all ERC-20)
-        "BSC": (60, 44),  # Same as ETH
-        "BNB": (60, 44),  # Same as ETH
+        "BTC": (0, 84),    # BIP84 native SegWit
+        "LTC": (2, 84),    # BIP84 native SegWit
+        "DASH": (5, 44),   # BIP44
+        "BCH": (145, 44),  # Bitcoin Cash
+        "DOGE": (3, 44),   # Dogecoin
+        "ZEC": (133, 44),  # Zcash
+        "DGB": (20, 44),   # DigiByte
+        "RVN": (175, 44),  # Ravencoin
+        "BTG": (156, 44),  # Bitcoin Gold
+        "NMC": (7, 44),    # Namecoin
+        "VIA": (14, 44),   # Viacoin
+        "SYS": (57, 44),   # Syscoin
+        "KMD": (141, 44),  # Komodo
+        "XEC": (145, 44),  # eCash (same as BCH)
+        "MONA": (22, 44),  # Monacoin
+        "FIO": (235, 44),  # FIO Protocol
+
+        # EVM chains (all use coin_type 60)
+        "ETH": (60, 44),
+        "BSC": (60, 44),
+        "BNB": (60, 44),
         "MATIC": (60, 44),
         "AVAX": (60, 44),
+
+        # TRX chain
         "TRX": (195, 44),
+
+        # Solana
         "SOL": (501, 44),
-        # ERC-20 tokens use ETH
-        "USDT": (60, 44),
-        "USDC": (60, 44),
-        "DAI": (60, 44),
-        "LINK": (60, 44),
-        "UNI": (60, 44),
-        "AAVE": (60, 44),
-        "BUSD": (60, 44),
-        "CAKE": (60, 44),
-        # TRC-20 tokens use TRX
-        "USDT-TRC20": (195, 44),
     }
+
+    # All ERC-20 tokens use ETH address (coin_type 60)
+    erc20_tokens = [
+        "USDT", "USDT-ERC20", "USDC", "DAI", "LINK", "UNI", "AAVE",
+        "WBTC", "LDO", "MKR", "COMP", "SNX", "CRV", "SUSHI", "1INCH",
+        "GRT", "ENS", "PEPE", "SHIB", "LRC", "BAT", "ZRX", "YFI", "BAL", "OMG"
+    ]
+    for token in erc20_tokens:
+        coin_configs[token] = (60, 44)
+
+    # All BEP-20 tokens use BSC address (coin_type 60)
+    bep20_tokens = [
+        "BUSD", "CAKE", "USDT-BEP20", "USDC-BEP20", "TUSD-BEP20", "FDUSD",
+        "BTCB", "ETH-BEP20", "XRP-BEP20", "ADA-BEP20", "DOGE-BEP20",
+        "DOT-BEP20", "LTC-BEP20", "SHIB-BEP20", "FLOKI", "BABYDOGE",
+        "ALPACA", "XVS", "GMT", "SFP"
+    ]
+    for token in bep20_tokens:
+        coin_configs[token] = (60, 44)
+
+    # All TRC-20 tokens use TRX address (coin_type 195)
+    trc20_tokens = [
+        "USDT-TRC20", "USDC-TRC20", "TUSD-TRC20", "USDJ", "BTT", "JST",
+        "SUN", "WIN", "NFT-TRC20", "APENFT", "BTC-TRC20", "ETH-TRC20",
+        "LTC-TRC20", "DOGE-TRC20", "XRP-TRC20", "ADA-TRC20", "EOS-TRC20",
+        "DOT-TRC20", "FIL-TRC20"
+    ]
+    for token in trc20_tokens:
+        coin_configs[token] = (195, 44)
 
     config = coin_configs.get(asset_upper)
     if not config:
