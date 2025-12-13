@@ -9,7 +9,12 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, CallbackQuery
 
-from swaperex.bot.keyboards import swap_from_keyboard, swap_to_keyboard, confirm_swap_keyboard
+from swaperex.bot.keyboards import (
+    swap_chain_keyboard,
+    swap_from_keyboard,
+    swap_to_keyboard,
+    confirm_swap_keyboard,
+)
 from swaperex.ledger.database import get_db
 from swaperex.ledger.repository import LedgerRepository
 from swaperex.routing.dry_run import create_default_aggregator
@@ -20,6 +25,7 @@ router = Router()
 class SwapStates(StatesGroup):
     """FSM states for swap flow."""
 
+    selecting_chain = State()
     selecting_from = State()
     selecting_to = State()
     entering_amount = State()
@@ -29,15 +35,59 @@ class SwapStates(StatesGroup):
 @router.message(Command("swap"))
 @router.message(F.text == "💱 Swap")
 async def cmd_swap(message: Message, state: FSMContext) -> None:
-    """Start swap flow."""
+    """Start swap flow with chain/DEX selection."""
     await state.clear()
+    await state.set_state(SwapStates.selecting_chain)
+
+    text = """💱 Swap Dashboard
+
+Select your chain to trade:
+
+🟡 BNB Chain - PancakeSwap
+   USDT, USDC, BUSD, CAKE, XRP, DOGE...
+
+🔵 Ethereum - Uniswap V3
+   USDT, USDC, DAI, LINK, UNI, AAVE...
+
+🔗 Cross-Chain - THORChain
+   BTC ↔ ETH ↔ BNB ↔ ATOM
+
+🟣 Solana - Jupiter
+   SOL ↔ USDT ↔ USDC
+
+⚛️ Cosmos - Osmosis
+   ATOM ↔ OSMO ↔ USDC"""
+
+    await message.answer(text, reply_markup=swap_chain_keyboard())
+
+
+@router.callback_query(SwapStates.selecting_chain, F.data.startswith("swap_chain:"))
+async def handle_chain_selection(callback: CallbackQuery, state: FSMContext) -> None:
+    """Handle chain/DEX selection."""
+    if not callback.data:
+        return
+
+    chain = callback.data.split(":")[1]
+    await state.update_data(chain=chain)
     await state.set_state(SwapStates.selecting_from)
 
-    text = """Swap Coins
+    # Chain display names
+    chain_names = {
+        "pancakeswap": "🟡 PancakeSwap (BNB Chain)",
+        "uniswap": "🔵 Uniswap V3 (Ethereum)",
+        "thorchain": "🔗 THORChain (Cross-Chain)",
+        "jupiter": "🟣 Jupiter (Solana)",
+        "osmosis": "⚛️ Osmosis (Cosmos)",
+    }
+
+    chain_name = chain_names.get(chain, chain.title())
+
+    text = f"""💱 Swap on {chain_name}
 
 Select the coin you want to swap FROM:"""
 
-    await message.answer(text, reply_markup=swap_from_keyboard())
+    await callback.message.edit_text(text, reply_markup=swap_from_keyboard(chain))
+    await callback.answer()
 
 
 @router.callback_query(SwapStates.selecting_from, F.data.startswith("swap_from:"))
@@ -47,14 +97,17 @@ async def handle_swap_from(callback: CallbackQuery, state: FSMContext) -> None:
         return
 
     from_asset = callback.data.split(":")[1]
+    data = await state.get_data()
+    chain = data.get("chain")
+
     await state.update_data(from_asset=from_asset)
     await state.set_state(SwapStates.selecting_to)
 
-    text = f"""Swap FROM: {from_asset}
+    text = f"""💱 Swap FROM: {from_asset}
 
 Now select the coin you want to swap TO:"""
 
-    await callback.message.edit_text(text, reply_markup=swap_to_keyboard(from_asset))
+    await callback.message.edit_text(text, reply_markup=swap_to_keyboard(from_asset, chain))
     await callback.answer()
 
 
@@ -239,6 +292,7 @@ async def handle_cancel_swap(callback: CallbackQuery, state: FSMContext) -> None
     await callback.answer()
 
 
+@router.callback_query(SwapStates.selecting_chain, F.data == "cancel")
 @router.callback_query(SwapStates.selecting_from, F.data == "cancel")
 @router.callback_query(SwapStates.selecting_to, F.data == "cancel")
 async def handle_cancel_selection(callback: CallbackQuery, state: FSMContext) -> None:
