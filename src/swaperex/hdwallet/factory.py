@@ -133,7 +133,12 @@ def get_xpub_from_seed_for_asset(asset: str) -> Optional[str]:
     Returns:
         Extended public key or None
     """
-    seed_phrase = os.environ.get("SEED_PHRASE")
+    # Support multiple env variable names for seed phrase
+    seed_phrase = (
+        os.environ.get("SEED_PHRASE") or
+        os.environ.get("WALLET_SEED_PHRASE") or
+        os.environ.get("MNEMONIC")
+    )
     if not seed_phrase:
         return None
 
