@@ -190,6 +190,7 @@ class OneInchProvider(RouteProvider):
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 # Get quote from 1inch API
+                logger.info(f"1inch quote request: {from_asset}->{to_asset}, amount={amount_wei}, chain={self.chain_id}")
                 response = await client.get(
                     f"{self.base_url}/quote",
                     headers=self._get_headers(),
@@ -205,6 +206,7 @@ class OneInchProvider(RouteProvider):
                     return None
 
                 data = response.json()
+                logger.info(f"1inch response: toAmount={data.get('toAmount', 'N/A')}, gas={data.get('gas', 'N/A')}")
 
                 # Parse response
                 to_amount_wei = int(data.get("toAmount", "0"))
