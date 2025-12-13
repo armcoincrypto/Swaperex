@@ -79,42 +79,21 @@ def derive_xpub_from_seed(seed_phrase: str, coin_type: int, purpose: int = 44) -
     try:
         from bip_utils import (
             Bip39SeedGenerator,
-            Bip44, Bip44Coins,
-            Bip84, Bip84Coins,
+            Bip32Secp256k1,
         )
 
         # Generate seed from mnemonic
         seed = Bip39SeedGenerator(seed_phrase).Generate()
 
-        # Map coin types to BIP44/84 coins
-        if purpose == 84:
-            # BIP84 for native SegWit (BTC, LTC)
-            if coin_type == 0:
-                bip = Bip84.FromSeed(seed, Bip84Coins.BITCOIN)
-            elif coin_type == 2:
-                bip = Bip84.FromSeed(seed, Bip84Coins.LITECOIN)
-            else:
-                # Fall back to BIP44 for other coins
-                return derive_xpub_from_seed(seed_phrase, coin_type, purpose=44)
-        else:
-            # BIP44 for standard derivation
-            coin_map = {
-                0: Bip44Coins.BITCOIN,
-                2: Bip44Coins.LITECOIN,
-                5: Bip44Coins.DASH,
-                60: Bip44Coins.ETHEREUM,
-                195: Bip44Coins.TRON,
-                501: Bip44Coins.SOLANA,
-            }
-            coin = coin_map.get(coin_type)
-            if not coin:
-                logger.warning(f"Unsupported coin type: {coin_type}")
-                return None
-            bip = Bip44.FromSeed(seed, coin)
+        # Use BIP32 directly for derivation (compatible with bip_utils 2.x)
+        bip32_ctx = Bip32Secp256k1.FromSeed(seed)
 
-        # Get account level xpub (m/purpose'/coin_type'/0')
-        account = bip.Purpose().Coin().Account(0)
-        return account.PublicKey().ToExtendedKey()
+        # Derive path: m/purpose'/coin_type'/0'
+        path = f"{purpose}'/{coin_type}'/0'"
+        account_ctx = bip32_ctx.DerivePath(path)
+
+        # Get extended public key (Bip32PublicKey has ToExtendedKey)
+        return account_ctx.PublicKey().ToExtendedKey()
 
     except ImportError:
         logger.warning("bip_utils not installed, cannot derive xpub from seed")
