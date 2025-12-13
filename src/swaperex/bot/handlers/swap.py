@@ -17,7 +17,7 @@ from swaperex.bot.keyboards import (
 )
 from swaperex.ledger.database import get_db
 from swaperex.ledger.repository import LedgerRepository
-from swaperex.routing.dry_run import create_chain_aggregator
+from swaperex.routing.factory import create_chain_aggregator
 
 router = Router()
 
