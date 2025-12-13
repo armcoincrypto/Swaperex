@@ -139,9 +139,8 @@ async def handle_deposit_asset(callback: CallbackQuery, state: FSMContext) -> No
     chain = data.get("chain")
     settings = get_settings()
 
-    # Get HD wallet for this asset (to check if simulated)
+    # Get HD wallet for this asset
     hd_wallet = get_hd_wallet(asset)
-    is_simulated = not hd_wallet.xpub or hd_wallet.xpub.startswith("sim_")
 
     async with get_db() as session:
         repo = LedgerRepository(session)
@@ -150,25 +149,28 @@ async def handle_deposit_asset(callback: CallbackQuery, state: FSMContext) -> No
             username=callback.from_user.username,
             first_name=callback.from_user.first_name,
         )
+        user_id = user.id  # Store before potential rollback
 
         # Check if we have an existing address for this asset
-        existing_addr = await repo.get_deposit_address(user.id, asset)
+        existing_addr = await repo.get_deposit_address(user_id, asset)
 
-        # Ignore old simulated addresses
-        if existing_addr and existing_addr.address.startswith("sim:"):
+        # Ignore old simulated addresses (start with sim: or tsim:)
+        if existing_addr and (existing_addr.address.startswith("sim:") or existing_addr.address.startswith("tsim:")):
             existing_addr = None
 
-        # For ERC-20 tokens, also check if user has an ETH address (same address)
+        # For ERC-20/BEP-20 tokens, also check if user has parent chain address
         parent_chain = None
-        if asset in ["USDT", "USDC", "USDT-ERC20"]:
+        if asset in ["USDT", "USDC", "USDT-ERC20", "DAI", "LINK", "UNI", "AAVE"]:
             parent_chain = "ETH"
+        elif asset in ["BUSD", "CAKE"]:
+            parent_chain = "BNB"
         elif asset == "USDT-TRC20":
             parent_chain = "TRX"
 
         if not existing_addr and parent_chain:
-            existing_addr = await repo.get_deposit_address(user.id, parent_chain)
+            existing_addr = await repo.get_deposit_address(user_id, parent_chain)
             # Also ignore simulated parent chain addresses
-            if existing_addr and existing_addr.address.startswith("sim:"):
+            if existing_addr and (existing_addr.address.startswith("sim:") or existing_addr.address.startswith("tsim:")):
                 existing_addr = None
 
         if existing_addr:
@@ -186,28 +188,20 @@ async def handle_deposit_asset(callback: CallbackQuery, state: FSMContext) -> No
             # Store in database with derivation info
             try:
                 await repo.create_deposit_address(
-                    user_id=user.id,
+                    user_id=user_id,
                     asset=asset,
                     address=address,
                     derivation_path=derivation_path,
                     derivation_index=index,
                 )
-            except Exception as e:
-                # Address may already exist for another asset (same chain)
-                # Rollback and try to get existing address record
+            except Exception:
+                # Address may already exist - rollback and continue
                 await session.rollback()
-
-                # Try to find existing address record
-                existing = await repo.get_deposit_address_record(address)
-                if existing:
-                    address = existing.address
-                    derivation_path = existing.derivation_path
-                else:
-                    # Log the error and use the derived address anyway
-                    import logging
-                    logging.getLogger(__name__).warning(
-                        f"Failed to save deposit address for user {user.id}, asset {asset}: {e}"
-                    )
+                # Just use the derived address, don't try to query after rollback
+                import logging
+                logging.getLogger(__name__).warning(
+                    f"Deposit address already exists for user {user_id}, asset {asset}"
+                )
 
     # Determine network info for tokens
     network_info = ""
@@ -257,9 +251,10 @@ async def handle_deposit_asset(callback: CallbackQuery, state: FSMContext) -> No
         "- Deposits are credited automatically",
     ])
 
-    # Show appropriate mode indicator
+    # Show appropriate mode indicator based on address format
+    is_simulated = address.startswith("sim:") or address.startswith("tsim:")
     if is_simulated:
-        lines.extend(["", "(Simulated address - no xpub configured)"])
+        lines.extend(["", "(Simulated address - no xpub/seed configured)"])
     elif hd_wallet.testnet:
         lines.extend(["", "(Testnet mode)"])
 
