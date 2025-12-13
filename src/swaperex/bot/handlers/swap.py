@@ -17,7 +17,7 @@ from swaperex.bot.keyboards import (
 )
 from swaperex.ledger.database import get_db
 from swaperex.ledger.repository import LedgerRepository
-from swaperex.routing.dry_run import create_default_aggregator
+from swaperex.routing.dry_run import create_chain_aggregator
 
 router = Router()
 
@@ -53,10 +53,25 @@ Select your chain to trade:
    BTC ↔ ETH ↔ BNB ↔ ATOM
 
 🟣 Solana - Jupiter
-   SOL ↔ USDT ↔ USDC
+   SOL, USDT, USDC, RAY, JUP, BONK...
 
 ⚛️ Cosmos - Osmosis
-   ATOM ↔ OSMO ↔ USDC"""
+   ATOM, OSMO, INJ, TIA, JUNO...
+
+💜 Polygon - QuickSwap
+   MATIC, USDT, USDC, AAVE, LINK...
+
+🔺 Avalanche - TraderJoe
+   AVAX, USDT, USDC, GMX, JOE...
+
+🔴 Tron - SunSwap
+   TRX, USDT, USDC, BTT, SUN...
+
+💎 TON - STON.fi
+   TON ↔ USDT ↔ USDC
+
+🌐 NEAR - Ref Finance
+   NEAR ↔ USDT ↔ USDC"""
 
     await message.answer(text, reply_markup=swap_chain_keyboard())
 
@@ -78,6 +93,11 @@ async def handle_chain_selection(callback: CallbackQuery, state: FSMContext) -> 
         "thorchain": "🔗 THORChain (Cross-Chain)",
         "jupiter": "🟣 Jupiter (Solana)",
         "osmosis": "⚛️ Osmosis (Cosmos)",
+        "quickswap": "💜 QuickSwap (Polygon)",
+        "traderjoe": "🔺 TraderJoe (Avalanche)",
+        "sunswap": "🔴 SunSwap (Tron)",
+        "stonfi": "💎 STON.fi (TON)",
+        "ref_finance": "🌐 Ref Finance (NEAR)",
     }
 
     chain_name = chain_names.get(chain, chain.title())
@@ -151,6 +171,7 @@ async def handle_swap_amount(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     from_asset = data.get("from_asset")
     to_asset = data.get("to_asset")
+    chain = data.get("chain", "")
 
     # Check balance
     async with get_db() as session:
@@ -167,8 +188,8 @@ async def handle_swap_amount(message: Message, state: FSMContext) -> None:
             )
             return
 
-    # Get quotes from all providers
-    aggregator = create_default_aggregator()
+    # Get quotes from chain-specific providers
+    aggregator = create_chain_aggregator(chain)
     quotes = await aggregator.get_all_quotes(from_asset, to_asset, amount)
 
     if not quotes:

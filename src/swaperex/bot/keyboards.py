@@ -306,6 +306,11 @@ def swap_from_keyboard(chain: str = None) -> InlineKeyboardMarkup:
         - thorchain: Cross-chain
         - jupiter: Solana tokens
         - osmosis: Cosmos ecosystem
+        - quickswap: Polygon tokens
+        - traderjoe: Avalanche tokens
+        - sunswap: Tron tokens
+        - stonfi: TON tokens
+        - ref_finance: NEAR tokens
     """
     # Chain-specific asset lists
     chain_assets = {
@@ -313,13 +318,13 @@ def swap_from_keyboard(chain: str = None) -> InlineKeyboardMarkup:
         "pancakeswap": [
             "BNB", "USDT", "USDC", "BUSD", "CAKE", "BTCB", "ETH",
             "XRP-BEP20", "DOGE-BEP20", "ADA-BEP20", "DOT-BEP20",
-            "FDUSD", "FLOKI", "BABYDOGE", "XVS", "GMT"
+            "FDUSD", "FLOKI", "BABYDOGE", "XVS", "GMT", "SFP", "ALPACA"
         ],
         # Ethereum - Uniswap V3
         "uniswap": [
             "ETH", "USDT", "USDC", "DAI", "WBTC", "LINK", "UNI", "AAVE",
             "LDO", "MKR", "COMP", "SNX", "CRV", "SUSHI", "1INCH",
-            "GRT", "ENS", "PEPE", "SHIB", "YFI", "BAL"
+            "GRT", "ENS", "PEPE", "SHIB", "YFI", "BAL", "OMG", "LRC", "BAT", "ZRX"
         ],
         # Cross-Chain - THORChain
         "thorchain": [
@@ -327,9 +332,29 @@ def swap_from_keyboard(chain: str = None) -> InlineKeyboardMarkup:
             "BCH", "DOGE", "RUNE"
         ],
         # Solana - Jupiter
-        "jupiter": ["SOL", "USDT", "USDC", "RAY", "SRM"],
+        "jupiter": [
+            "SOL", "USDT", "USDC", "RAY", "SRM", "ORCA", "JUP",
+            "BONK", "WIF", "PYTH", "SAMO", "MNDE", "HNT"
+        ],
         # Cosmos - Osmosis
-        "osmosis": ["ATOM", "OSMO", "USDC", "JUNO", "STARS"],
+        "osmosis": ["ATOM", "OSMO", "USDC", "JUNO", "INJ", "TIA", "SCRT", "STARS"],
+        # Polygon - QuickSwap
+        "quickswap": [
+            "MATIC", "USDT", "USDC", "WETH", "QUICK", "AAVE",
+            "LINK", "UNI", "SUSHI", "CRV"
+        ],
+        # Avalanche - TraderJoe
+        "traderjoe": [
+            "AVAX", "USDT", "USDC", "WETH", "JOE", "PNG", "GMX", "LINK", "AAVE"
+        ],
+        # Tron - SunSwap
+        "sunswap": [
+            "TRX", "USDT", "USDC", "BTT", "JST", "SUN", "WIN", "USDJ"
+        ],
+        # TON - STON.fi
+        "stonfi": ["TON", "USDT", "USDC"],
+        # NEAR - Ref Finance
+        "ref_finance": ["NEAR", "USDT", "USDC"],
     }
 
     if chain and chain.lower() in chain_assets:
@@ -337,9 +362,9 @@ def swap_from_keyboard(chain: str = None) -> InlineKeyboardMarkup:
     else:
         # Default: show all major supported assets
         assets = [
-            "BTC", "ETH", "BNB",
-            "LTC", "DASH", "TRX",
-            "SOL", "ATOM", "AVAX",
+            "BTC", "ETH", "BNB", "SOL",
+            "LTC", "DASH", "TRX", "TON",
+            "ATOM", "AVAX", "NEAR", "MATIC",
             "USDT", "USDC",
         ]
     return asset_selection_keyboard(assets, "swap_from")
@@ -358,13 +383,13 @@ def swap_to_keyboard(exclude_asset: str, chain: str = None) -> InlineKeyboardMar
         "pancakeswap": [
             "BNB", "USDT", "USDC", "BUSD", "CAKE", "BTCB", "ETH",
             "XRP-BEP20", "DOGE-BEP20", "ADA-BEP20", "DOT-BEP20",
-            "FDUSD", "FLOKI", "BABYDOGE", "XVS", "GMT"
+            "FDUSD", "FLOKI", "BABYDOGE", "XVS", "GMT", "SFP", "ALPACA"
         ],
         # Ethereum - Uniswap V3
         "uniswap": [
             "ETH", "USDT", "USDC", "DAI", "WBTC", "LINK", "UNI", "AAVE",
             "LDO", "MKR", "COMP", "SNX", "CRV", "SUSHI", "1INCH",
-            "GRT", "ENS", "PEPE", "SHIB", "YFI", "BAL"
+            "GRT", "ENS", "PEPE", "SHIB", "YFI", "BAL", "OMG", "LRC", "BAT", "ZRX"
         ],
         # Cross-Chain - THORChain
         "thorchain": [
@@ -372,18 +397,38 @@ def swap_to_keyboard(exclude_asset: str, chain: str = None) -> InlineKeyboardMar
             "BCH", "DOGE", "RUNE"
         ],
         # Solana - Jupiter
-        "jupiter": ["SOL", "USDT", "USDC", "RAY", "SRM"],
+        "jupiter": [
+            "SOL", "USDT", "USDC", "RAY", "SRM", "ORCA", "JUP",
+            "BONK", "WIF", "PYTH", "SAMO", "MNDE", "HNT"
+        ],
         # Cosmos - Osmosis
-        "osmosis": ["ATOM", "OSMO", "USDC", "JUNO", "STARS"],
+        "osmosis": ["ATOM", "OSMO", "USDC", "JUNO", "INJ", "TIA", "SCRT", "STARS"],
+        # Polygon - QuickSwap
+        "quickswap": [
+            "MATIC", "USDT", "USDC", "WETH", "QUICK", "AAVE",
+            "LINK", "UNI", "SUSHI", "CRV"
+        ],
+        # Avalanche - TraderJoe
+        "traderjoe": [
+            "AVAX", "USDT", "USDC", "WETH", "JOE", "PNG", "GMX", "LINK", "AAVE"
+        ],
+        # Tron - SunSwap
+        "sunswap": [
+            "TRX", "USDT", "USDC", "BTT", "JST", "SUN", "WIN", "USDJ"
+        ],
+        # TON - STON.fi
+        "stonfi": ["TON", "USDT", "USDC"],
+        # NEAR - Ref Finance
+        "ref_finance": ["NEAR", "USDT", "USDC"],
     }
 
     if chain and chain.lower() in chain_assets:
         all_assets = chain_assets[chain.lower()]
     else:
         all_assets = [
-            "BTC", "ETH", "BNB",
-            "LTC", "DASH", "TRX",
-            "SOL", "ATOM", "AVAX",
+            "BTC", "ETH", "BNB", "SOL",
+            "LTC", "DASH", "TRX", "TON",
+            "ATOM", "AVAX", "NEAR", "MATIC",
             "USDT", "USDC",
         ]
     assets = [a for a in all_assets if a != exclude_asset]
@@ -416,6 +461,11 @@ def swap_chain_keyboard() -> InlineKeyboardMarkup:
     - Cross-Chain: THORChain
     - Solana: Jupiter
     - Cosmos: Osmosis
+    - Polygon: QuickSwap
+    - Avalanche: TraderJoe
+    - Tron: SunSwap
+    - TON: STON.fi
+    - NEAR: Ref Finance
     """
     buttons = [
         [InlineKeyboardButton(
@@ -437,6 +487,26 @@ def swap_chain_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(
             text="⚛️ Cosmos - Osmosis",
             callback_data="swap_chain:osmosis"
+        )],
+        [InlineKeyboardButton(
+            text="💜 Polygon - QuickSwap",
+            callback_data="swap_chain:quickswap"
+        )],
+        [InlineKeyboardButton(
+            text="🔺 Avalanche - TraderJoe",
+            callback_data="swap_chain:traderjoe"
+        )],
+        [InlineKeyboardButton(
+            text="🔴 Tron - SunSwap",
+            callback_data="swap_chain:sunswap"
+        )],
+        [InlineKeyboardButton(
+            text="💎 TON - STON.fi",
+            callback_data="swap_chain:stonfi"
+        )],
+        [InlineKeyboardButton(
+            text="🌐 NEAR - Ref Finance",
+            callback_data="swap_chain:ref_finance"
         )],
         [InlineKeyboardButton(text="❌ Cancel", callback_data="cancel_swap")],
     ]
