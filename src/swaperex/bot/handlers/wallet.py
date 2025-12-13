@@ -2,9 +2,11 @@
 
 from aiogram import F, Router
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 
-from swaperex.bot.keyboards import back_keyboard, deposit_asset_keyboard
+from swaperex.bot.keyboards import back_keyboard, deposit_chain_keyboard, deposit_asset_keyboard
 from swaperex.config import get_settings
 from swaperex.hdwallet import get_hd_wallet
 from swaperex.ledger.database import get_db
@@ -12,6 +14,13 @@ from swaperex.ledger.models import DepositStatus, SwapStatus
 from swaperex.ledger.repository import LedgerRepository
 
 router = Router()
+
+
+class DepositStates(StatesGroup):
+    """FSM states for deposit flow."""
+
+    selecting_chain = State()
+    selecting_asset = State()
 
 
 @router.message(Command("wallet"))
@@ -55,17 +64,68 @@ Use /deposit to add funds!"""
 
 @router.message(Command("deposit"))
 @router.message(F.text == "📥 Deposit")
-async def cmd_deposit(message: Message) -> None:
-    """Show deposit options."""
-    text = """Deposit Crypto
+async def cmd_deposit(message: Message, state: FSMContext) -> None:
+    """Show deposit options with chain selection."""
+    await state.clear()
+    await state.set_state(DepositStates.selecting_chain)
 
-Select the asset you want to deposit:"""
+    text = """📥 Deposit Dashboard
 
-    await message.answer(text, reply_markup=deposit_asset_keyboard())
+Select your network to deposit:
+
+🟠 Bitcoin Network
+   BTC, LTC, DASH
+
+🔵 Ethereum Network
+   ETH, USDT, USDC, DAI, LINK, UNI, AAVE
+
+🟡 BNB Chain
+   BNB, BUSD, CAKE
+
+🔴 Tron Network
+   TRX, USDT (TRC-20)
+
+🟣 Solana
+   SOL
+
+🌐 Other Networks
+   AVAX, MATIC, ATOM, DOGE, XRP"""
+
+    await message.answer(text, reply_markup=deposit_chain_keyboard())
+
+
+@router.callback_query(DepositStates.selecting_chain, F.data.startswith("deposit_chain:"))
+async def handle_deposit_chain(callback: CallbackQuery, state: FSMContext) -> None:
+    """Handle deposit chain selection."""
+    if not callback.data:
+        return
+
+    chain = callback.data.split(":")[1]
+    await state.update_data(chain=chain)
+    await state.set_state(DepositStates.selecting_asset)
+
+    # Chain display names
+    chain_names = {
+        "bitcoin": "🟠 Bitcoin Network",
+        "ethereum": "🔵 Ethereum Network",
+        "bnb": "🟡 BNB Chain",
+        "tron": "🔴 Tron Network",
+        "solana": "🟣 Solana",
+        "other": "🌐 Other Networks",
+    }
+
+    chain_name = chain_names.get(chain, chain.title())
+
+    text = f"""📥 Deposit on {chain_name}
+
+Select the coin you want to deposit:"""
+
+    await callback.message.edit_text(text, reply_markup=deposit_asset_keyboard(chain))
+    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("deposit:"))
-async def handle_deposit_asset(callback: CallbackQuery) -> None:
+async def handle_deposit_asset(callback: CallbackQuery, state: FSMContext) -> None:
     """Handle deposit asset selection.
 
     Uses HD wallet for address derivation when configured,
@@ -75,6 +135,8 @@ async def handle_deposit_asset(callback: CallbackQuery) -> None:
         return
 
     asset = callback.data.split(":")[1]
+    data = await state.get_data()
+    chain = data.get("chain")
     settings = get_settings()
 
     # Get HD wallet for this asset (to check if simulated)
@@ -155,6 +217,28 @@ async def handle_deposit_asset(callback: CallbackQuery) -> None:
         network_info = " (ERC-20 on Ethereum)"
     elif asset == "USDT-TRC20":
         network_info = " (TRC-20 on Tron)"
+    elif asset == "DAI":
+        network_info = " (ERC-20 on Ethereum)"
+    elif asset == "LINK":
+        network_info = " (ERC-20 on Ethereum)"
+    elif asset == "UNI":
+        network_info = " (ERC-20 on Ethereum)"
+    elif asset == "AAVE":
+        network_info = " (ERC-20 on Ethereum)"
+    elif asset == "BUSD":
+        network_info = " (BEP-20 on BNB Chain)"
+    elif asset == "CAKE":
+        network_info = " (BEP-20 on BNB Chain)"
+    elif asset == "MATIC":
+        network_info = " (Polygon Network)"
+    elif asset == "AVAX":
+        network_info = " (Avalanche C-Chain)"
+    elif asset == "ATOM":
+        network_info = " (Cosmos Hub)"
+    elif asset == "DOGE":
+        network_info = " (Dogecoin Network)"
+    elif asset == "XRP":
+        network_info = " (XRP Ledger)"
 
     # Build message
     lines = [
@@ -185,19 +269,40 @@ async def handle_deposit_asset(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data == "deposit_back")
-async def handle_deposit_back(callback: CallbackQuery) -> None:
-    """Go back to deposit asset selection."""
-    text = """Deposit Crypto
+async def handle_deposit_back(callback: CallbackQuery, state: FSMContext) -> None:
+    """Go back to deposit chain selection."""
+    await state.set_state(DepositStates.selecting_chain)
 
-Select the asset you want to deposit:"""
+    text = """📥 Deposit Dashboard
 
-    await callback.message.edit_text(text, reply_markup=deposit_asset_keyboard())
+Select your network to deposit:
+
+🟠 Bitcoin Network
+   BTC, LTC, DASH
+
+🔵 Ethereum Network
+   ETH, USDT, USDC, DAI, LINK, UNI, AAVE
+
+🟡 BNB Chain
+   BNB, BUSD, CAKE
+
+🔴 Tron Network
+   TRX, USDT (TRC-20)
+
+🟣 Solana
+   SOL
+
+🌐 Other Networks
+   AVAX, MATIC, ATOM, DOGE, XRP"""
+
+    await callback.message.edit_text(text, reply_markup=deposit_chain_keyboard())
     await callback.answer()
 
 
 @router.callback_query(F.data == "cancel")
-async def handle_cancel(callback: CallbackQuery) -> None:
+async def handle_cancel(callback: CallbackQuery, state: FSMContext) -> None:
     """Handle cancel button."""
+    await state.clear()
     await callback.message.edit_text("Operation cancelled.")
     await callback.answer()
 

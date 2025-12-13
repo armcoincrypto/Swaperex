@@ -51,21 +51,88 @@ def back_keyboard(callback_data: str = "back") -> InlineKeyboardMarkup:
     )
 
 
-def deposit_asset_keyboard() -> InlineKeyboardMarkup:
+def deposit_chain_keyboard() -> InlineKeyboardMarkup:
+    """Create deposit chain selection keyboard.
+
+    Deposit Dashboard with chain-specific options:
+    - Bitcoin Network: BTC, LTC, DASH
+    - Ethereum Network: ETH, USDT, USDC, DAI, LINK, UNI
+    - BNB Chain: BNB, BUSD, CAKE
+    - Tron Network: TRX, USDT-TRC20
+    - Solana: SOL
+    - Other Networks: AVAX, MATIC, ATOM, DOGE, XRP
+    """
+    buttons = [
+        [InlineKeyboardButton(
+            text="🟠 Bitcoin Network",
+            callback_data="deposit_chain:bitcoin"
+        )],
+        [InlineKeyboardButton(
+            text="🔵 Ethereum Network",
+            callback_data="deposit_chain:ethereum"
+        )],
+        [InlineKeyboardButton(
+            text="🟡 BNB Chain",
+            callback_data="deposit_chain:bnb"
+        )],
+        [InlineKeyboardButton(
+            text="🔴 Tron Network",
+            callback_data="deposit_chain:tron"
+        )],
+        [InlineKeyboardButton(
+            text="🟣 Solana",
+            callback_data="deposit_chain:solana"
+        )],
+        [InlineKeyboardButton(
+            text="🌐 Other Networks",
+            callback_data="deposit_chain:other"
+        )],
+        [InlineKeyboardButton(text="❌ Cancel", callback_data="cancel")],
+    ]
+
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def deposit_asset_keyboard(chain: str = None) -> InlineKeyboardMarkup:
     """Create deposit asset selection keyboard.
 
-    Organized by category:
-    - Major coins: BTC, ETH, LTC, DASH
-    - Tron chain: TRX, USDT-TRC20
-    - ERC-20 tokens: USDT (ERC-20), USDC
+    Args:
+        chain: Optional chain filter for assets.
+
+    Organized by chain (20+ coins total):
+    - bitcoin: BTC, LTC, DASH
+    - ethereum: ETH, USDT, USDC, DAI, LINK, UNI, AAVE
+    - bnb: BNB, BUSD, CAKE
+    - tron: TRX, USDT-TRC20
+    - solana: SOL
+    - other: AVAX, MATIC, ATOM, DOGE, XRP
     """
-    # Major cryptocurrencies
-    assets = [
-        "BTC", "ETH", "LTC",      # Row 1: Major coins
-        "DASH", "TRX", "BSC",     # Row 2: Alt coins
-        "USDT", "USDC",           # Row 3: ERC-20 stablecoins (use ETH address)
-        "USDT-TRC20",             # Row 4: TRC-20 stablecoin (use TRX address)
-    ]
+    # Chain-specific asset lists
+    chain_assets = {
+        # Bitcoin Network
+        "bitcoin": ["BTC", "LTC", "DASH"],
+        # Ethereum Network (ERC-20)
+        "ethereum": ["ETH", "USDT", "USDC", "DAI", "LINK", "UNI", "AAVE"],
+        # BNB Chain (BEP-20)
+        "bnb": ["BNB", "BUSD", "CAKE"],
+        # Tron Network (TRC-20)
+        "tron": ["TRX", "USDT-TRC20"],
+        # Solana
+        "solana": ["SOL"],
+        # Other Networks
+        "other": ["AVAX", "MATIC", "ATOM", "DOGE", "XRP"],
+    }
+
+    if chain and chain.lower() in chain_assets:
+        assets = chain_assets[chain.lower()]
+    else:
+        # Default: show major coins
+        assets = [
+            "BTC", "ETH", "LTC",
+            "DASH", "TRX", "BNB",
+            "USDT", "USDC",
+            "USDT-TRC20",
+        ]
     return asset_selection_keyboard(assets, "deposit")
 
 
