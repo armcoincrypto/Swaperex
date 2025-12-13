@@ -54,37 +54,43 @@ def back_keyboard(callback_data: str = "back") -> InlineKeyboardMarkup:
 def deposit_chain_keyboard() -> InlineKeyboardMarkup:
     """Create deposit chain selection keyboard.
 
-    Deposit Dashboard with chain-specific options:
-    - Bitcoin Network: BTC, LTC, DASH
-    - Ethereum Network: ETH, USDT, USDC, DAI, LINK, UNI
-    - BNB Chain: BNB, BUSD, CAKE
-    - Tron Network: TRX, USDT-TRC20
-    - Solana: SOL
-    - Other Networks: AVAX, MATIC, ATOM, DOGE, XRP
+    Deposit Dashboard with chain-specific options organized by network.
     """
     buttons = [
         [InlineKeyboardButton(
-            text="🟠 Bitcoin Network",
+            text="🟠 Bitcoin Network (BTC, LTC, DASH...)",
             callback_data="deposit_chain:bitcoin"
         )],
         [InlineKeyboardButton(
-            text="🔵 Ethereum Network",
+            text="🔵 Ethereum (ETH, USDT, USDC...)",
             callback_data="deposit_chain:ethereum"
         )],
         [InlineKeyboardButton(
-            text="🟡 BNB Chain",
+            text="🟡 BNB Chain (BNB, BUSD, CAKE...)",
             callback_data="deposit_chain:bnb"
         )],
         [InlineKeyboardButton(
-            text="🔴 Tron Network",
+            text="🔴 Tron (TRX, USDT-TRC20...)",
             callback_data="deposit_chain:tron"
         )],
         [InlineKeyboardButton(
-            text="🟣 Solana",
+            text="🟣 Solana (SOL, BONK, JUP...)",
             callback_data="deposit_chain:solana"
         )],
         [InlineKeyboardButton(
-            text="🌐 Other Networks",
+            text="🔷 Polygon (MATIC, USDT...)",
+            callback_data="deposit_chain:polygon"
+        )],
+        [InlineKeyboardButton(
+            text="🔺 Avalanche (AVAX, GMX...)",
+            callback_data="deposit_chain:avalanche"
+        )],
+        [InlineKeyboardButton(
+            text="⚛️ Cosmos (ATOM, OSMO, INJ...)",
+            callback_data="deposit_chain:cosmos"
+        )],
+        [InlineKeyboardButton(
+            text="🌐 Other L1s (TON, NEAR, XRP...)",
             callback_data="deposit_chain:other"
         )],
         [InlineKeyboardButton(text="❌ Cancel", callback_data="cancel")],
@@ -134,10 +140,30 @@ def deposit_asset_keyboard(chain: str = None) -> InlineKeyboardMarkup:
             "BTC-TRC20", "ETH-TRC20", "LTC-TRC20", "DOGE-TRC20",
             "XRP-TRC20", "ADA-TRC20", "EOS-TRC20", "DOT-TRC20", "FIL-TRC20"
         ],
-        # Solana
-        "solana": ["SOL"],
-        # Other Networks
-        "other": ["AVAX", "MATIC", "ATOM", "XRP"],
+        # Solana (SPL tokens)
+        "solana": [
+            "SOL", "USDT-SOL", "USDC-SOL", "RAY", "SRM", "ORCA", "JUP",
+            "BONK", "SAMO", "PYTH", "WIF", "MNDE", "STEP", "ATLAS",
+            "POLIS", "SLND", "GMT-SOL", "AUDIO-SOL", "HNT"
+        ],
+        # Polygon Network
+        "polygon": [
+            "MATIC", "USDT-POLYGON", "USDC-POLYGON", "WETH-POLYGON",
+            "QUICK", "AAVE-POLYGON"
+        ],
+        # Avalanche Network
+        "avalanche": [
+            "AVAX", "USDT-AVAX", "USDC-AVAX", "JOE", "PNG", "GMX"
+        ],
+        # Cosmos Ecosystem
+        "cosmos": [
+            "ATOM", "OSMO", "INJ", "TIA", "JUNO", "SCRT"
+        ],
+        # Other L1 Networks
+        "other": [
+            "XRP", "XLM", "TON", "NEAR", "KAS", "ICP", "ALGO",
+            "EGLD", "HBAR", "VET", "FTM", "ROSE"
+        ],
     }
 
     if chain and chain.lower() in chain_assets:
@@ -161,7 +187,7 @@ def withdraw_chain_keyboard() -> InlineKeyboardMarkup:
             callback_data="withdraw_chain:bitcoin"
         )],
         [InlineKeyboardButton(
-            text="🔵 Ethereum Network",
+            text="🔵 Ethereum",
             callback_data="withdraw_chain:ethereum"
         )],
         [InlineKeyboardButton(
@@ -169,7 +195,7 @@ def withdraw_chain_keyboard() -> InlineKeyboardMarkup:
             callback_data="withdraw_chain:bnb"
         )],
         [InlineKeyboardButton(
-            text="🔴 Tron Network",
+            text="🔴 Tron",
             callback_data="withdraw_chain:tron"
         )],
         [InlineKeyboardButton(
@@ -177,7 +203,19 @@ def withdraw_chain_keyboard() -> InlineKeyboardMarkup:
             callback_data="withdraw_chain:solana"
         )],
         [InlineKeyboardButton(
-            text="🌐 Other Networks",
+            text="🔷 Polygon",
+            callback_data="withdraw_chain:polygon"
+        )],
+        [InlineKeyboardButton(
+            text="🔺 Avalanche",
+            callback_data="withdraw_chain:avalanche"
+        )],
+        [InlineKeyboardButton(
+            text="⚛️ Cosmos",
+            callback_data="withdraw_chain:cosmos"
+        )],
+        [InlineKeyboardButton(
+            text="🌐 Other L1s",
             callback_data="withdraw_chain:other"
         )],
         [InlineKeyboardButton(text="❌ Cancel", callback_data="cancel")],
@@ -210,8 +248,25 @@ def withdraw_asset_keyboard(chain: str = None) -> InlineKeyboardMarkup:
             "BTC-TRC20", "ETH-TRC20", "LTC-TRC20", "DOGE-TRC20",
             "XRP-TRC20", "ADA-TRC20", "EOS-TRC20", "DOT-TRC20", "FIL-TRC20"
         ],
-        "solana": ["SOL"],
-        "other": ["AVAX", "MATIC", "ATOM", "XRP"],
+        "solana": [
+            "SOL", "USDT-SOL", "USDC-SOL", "RAY", "SRM", "ORCA", "JUP",
+            "BONK", "SAMO", "PYTH", "WIF", "MNDE", "STEP", "ATLAS",
+            "POLIS", "SLND", "GMT-SOL", "AUDIO-SOL", "HNT"
+        ],
+        "polygon": [
+            "MATIC", "USDT-POLYGON", "USDC-POLYGON", "WETH-POLYGON",
+            "QUICK", "AAVE-POLYGON"
+        ],
+        "avalanche": [
+            "AVAX", "USDT-AVAX", "USDC-AVAX", "JOE", "PNG", "GMX"
+        ],
+        "cosmos": [
+            "ATOM", "OSMO", "INJ", "TIA", "JUNO", "SCRT"
+        ],
+        "other": [
+            "XRP", "XLM", "TON", "NEAR", "KAS", "ICP", "ALGO",
+            "EGLD", "HBAR", "VET", "FTM", "ROSE"
+        ],
     }
 
     if chain and chain.lower() in chain_assets:

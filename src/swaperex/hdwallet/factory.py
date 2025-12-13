@@ -78,6 +78,20 @@ WALLET_CLASSES: dict[str, type[HDWalletProvider]] = {
     "BAL": ETHHDWallet,
     "OMG": ETHHDWallet,
 
+    # Polygon tokens (use ETH/MATIC address)
+    "USDT-POLYGON": ETHHDWallet,
+    "USDC-POLYGON": ETHHDWallet,
+    "WETH-POLYGON": ETHHDWallet,
+    "QUICK": ETHHDWallet,
+    "AAVE-POLYGON": ETHHDWallet,
+
+    # Avalanche tokens (use ETH/AVAX address)
+    "USDT-AVAX": ETHHDWallet,
+    "USDC-AVAX": ETHHDWallet,
+    "JOE": ETHHDWallet,
+    "PNG": ETHHDWallet,
+    "GMX": ETHHDWallet,
+
     # ========== BNB Chain (BEP-20) ==========
     "BSC": BSCHDWallet,
     "BNB": BSCHDWallet,
@@ -124,12 +138,47 @@ WALLET_CLASSES: dict[str, type[HDWalletProvider]] = {
     "DOT-TRC20": TRXHDWallet,
     "FIL-TRC20": TRXHDWallet,
 
-    # ========== Solana ==========
+    # ========== Solana (SPL Tokens) ==========
     "SOL": SOLHDWallet,
+    "USDT-SOL": SOLHDWallet,
+    "USDC-SOL": SOLHDWallet,
+    "RAY": SOLHDWallet,
+    "SRM": SOLHDWallet,
+    "ORCA": SOLHDWallet,
+    "JUP": SOLHDWallet,
+    "BONK": SOLHDWallet,
+    "SAMO": SOLHDWallet,
+    "PYTH": SOLHDWallet,
+    "WIF": SOLHDWallet,
+    "MNDE": SOLHDWallet,
+    "STEP": SOLHDWallet,
+    "ATLAS": SOLHDWallet,
+    "POLIS": SOLHDWallet,
+    "SLND": SOLHDWallet,
+    "GMT-SOL": SOLHDWallet,
+    "AUDIO-SOL": SOLHDWallet,
+    "HNT": SOLHDWallet,
 
-    # ========== Other Chains ==========
-    "ATOM": None,   # Cosmos
-    "XRP": None,    # XRP Ledger
+    # ========== Other L1 Chains ==========
+    "ATOM": None,     # Cosmos
+    "OSMO": None,     # Osmosis
+    "INJ": None,      # Injective
+    "TIA": None,      # Celestia
+    "JUNO": None,     # Juno
+    "SCRT": None,     # Secret
+    "XRP": None,      # XRP Ledger
+    "XLM": None,      # Stellar
+    "SOLO": None,     # Sologenic
+    "TON": None,      # TON
+    "NEAR": None,     # NEAR Protocol
+    "KAS": None,      # Kaspa
+    "ICP": None,      # Internet Computer
+    "ALGO": None,     # Algorand
+    "EGLD": None,     # MultiversX
+    "HBAR": None,     # Hedera
+    "VET": None,      # VeChain
+    "FTM": None,      # Fantom
+    "ROSE": None,     # Oasis
 }
 
 # Cache for wallet instances
@@ -270,6 +319,29 @@ def get_xpub_from_seed_for_asset(asset: str) -> Optional[str]:
     ]
     for token in trc20_tokens:
         coin_configs[token] = (195, 44)
+
+    # Polygon tokens (use coin_type 60)
+    polygon_tokens = [
+        "USDT-POLYGON", "USDC-POLYGON", "WETH-POLYGON", "QUICK", "AAVE-POLYGON"
+    ]
+    for token in polygon_tokens:
+        coin_configs[token] = (60, 44)
+
+    # Avalanche tokens (use coin_type 60)
+    avax_tokens = [
+        "USDT-AVAX", "USDC-AVAX", "JOE", "PNG", "GMX"
+    ]
+    for token in avax_tokens:
+        coin_configs[token] = (60, 44)
+
+    # Solana SPL tokens (use coin_type 501)
+    sol_tokens = [
+        "USDT-SOL", "USDC-SOL", "RAY", "SRM", "ORCA", "JUP", "BONK", "SAMO",
+        "PYTH", "WIF", "MNDE", "STEP", "ATLAS", "POLIS", "SLND", "GMT-SOL",
+        "AUDIO-SOL", "HNT"
+    ]
+    for token in sol_tokens:
+        coin_configs[token] = (501, 44)
 
     config = coin_configs.get(asset_upper)
     if not config:

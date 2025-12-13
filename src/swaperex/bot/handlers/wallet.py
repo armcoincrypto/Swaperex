@@ -158,7 +158,7 @@ async def handle_deposit_asset(callback: CallbackQuery, state: FSMContext) -> No
         if existing_addr and (existing_addr.address.startswith("sim:") or existing_addr.address.startswith("tsim:")):
             existing_addr = None
 
-        # For ERC-20/BEP-20/TRC-20 tokens, check if user has parent chain address
+        # For tokens, check if user has parent chain address
         parent_chain = None
         # ERC-20 tokens use ETH address
         erc20_tokens = [
@@ -180,6 +180,20 @@ async def handle_deposit_asset(callback: CallbackQuery, state: FSMContext) -> No
             "LTC-TRC20", "DOGE-TRC20", "XRP-TRC20", "ADA-TRC20", "EOS-TRC20",
             "DOT-TRC20", "FIL-TRC20"
         ]
+        # SPL tokens use SOL address
+        spl_tokens = [
+            "USDT-SOL", "USDC-SOL", "RAY", "SRM", "ORCA", "JUP", "BONK",
+            "SAMO", "PYTH", "WIF", "MNDE", "STEP", "ATLAS", "POLIS",
+            "SLND", "GMT-SOL", "AUDIO-SOL", "HNT"
+        ]
+        # Polygon tokens use MATIC address
+        polygon_tokens = [
+            "USDT-POLYGON", "USDC-POLYGON", "WETH-POLYGON", "QUICK", "AAVE-POLYGON"
+        ]
+        # Avalanche tokens use AVAX address
+        avax_tokens = [
+            "USDT-AVAX", "USDC-AVAX", "JOE", "PNG", "GMX"
+        ]
 
         if asset in erc20_tokens:
             parent_chain = "ETH"
@@ -187,6 +201,12 @@ async def handle_deposit_asset(callback: CallbackQuery, state: FSMContext) -> No
             parent_chain = "BNB"
         elif asset in trc20_tokens:
             parent_chain = "TRX"
+        elif asset in spl_tokens:
+            parent_chain = "SOL"
+        elif asset in polygon_tokens:
+            parent_chain = "MATIC"
+        elif asset in avax_tokens:
+            parent_chain = "AVAX"
 
         if not existing_addr and parent_chain:
             existing_addr = await repo.get_deposit_address(user_id, parent_chain)
@@ -243,6 +263,17 @@ async def handle_deposit_asset(callback: CallbackQuery, state: FSMContext) -> No
                    "LTC-TRC20", "DOGE-TRC20", "XRP-TRC20", "ADA-TRC20", "EOS-TRC20",
                    "DOT-TRC20", "FIL-TRC20"]:
         network_info = " (TRC-20 on Tron)"
+    # SPL tokens on Solana
+    elif asset in ["USDT-SOL", "USDC-SOL", "RAY", "SRM", "ORCA", "JUP", "BONK",
+                   "SAMO", "PYTH", "WIF", "MNDE", "STEP", "ATLAS", "POLIS",
+                   "SLND", "GMT-SOL", "AUDIO-SOL", "HNT"]:
+        network_info = " (SPL on Solana)"
+    # Polygon tokens
+    elif asset in ["USDT-POLYGON", "USDC-POLYGON", "WETH-POLYGON", "QUICK", "AAVE-POLYGON"]:
+        network_info = " (on Polygon Network)"
+    # Avalanche tokens
+    elif asset in ["USDT-AVAX", "USDC-AVAX", "JOE", "PNG", "GMX"]:
+        network_info = " (on Avalanche C-Chain)"
     # Native chains
     elif asset == "MATIC":
         network_info = " (Polygon Network)"
