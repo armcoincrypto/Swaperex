@@ -12,6 +12,7 @@ from swaperex.hdwallet import get_hd_wallet
 from swaperex.ledger.database import get_db
 from swaperex.ledger.models import DepositStatus, SwapStatus
 from swaperex.ledger.repository import LedgerRepository
+from swaperex.services.balance_sync import sync_wallet_balance, get_native_balance
 
 router = Router()
 
@@ -60,6 +61,57 @@ Use /deposit to add funds!"""
         text = "\n".join(lines)
 
     await message.answer(text)
+
+
+@router.message(Command("sync"))
+async def cmd_sync(message: Message) -> None:
+    """Show real on-chain wallet balances from blockchain."""
+    if not message.from_user:
+        return
+
+    await message.answer("🔄 Syncing with blockchain...")
+
+    settings = get_settings()
+
+    # Get the user's BSC address from HD wallet
+    try:
+        wallet = get_hd_wallet("BSC", settings.wallet_seed_phrase)
+        bsc_address = wallet.derive_address(0, 0).address
+    except Exception as e:
+        await message.answer(f"Failed to derive wallet address: {e}")
+        return
+
+    # Fetch real balances from BSC
+    try:
+        balances = await sync_wallet_balance(bsc_address, "bsc")
+    except Exception as e:
+        await message.answer(f"Failed to sync balances: {e}")
+        return
+
+    if not balances:
+        text = f"""💰 Real Wallet Balance (BSC)
+
+Address: `{bsc_address[:8]}...{bsc_address[-6:]}`
+
+No tokens found on chain.
+
+Use /wallet for internal ledger balances."""
+    else:
+        lines = [
+            "💰 Real Wallet Balance (BSC)\n",
+            f"Address: `{bsc_address[:8]}...{bsc_address[-6:]}`\n",
+            "On-chain balances:",
+        ]
+
+        for asset, balance in sorted(balances.items()):
+            if balance > 0:
+                lines.append(f"  {asset}: {balance:.8f}")
+
+        lines.append("\n📊 This is your REAL blockchain balance")
+        lines.append("Use /wallet for internal ledger")
+        text = "\n".join(lines)
+
+    await message.answer(text, parse_mode="Markdown")
 
 
 @router.message(Command("deposit"))
