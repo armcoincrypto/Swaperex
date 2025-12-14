@@ -206,10 +206,11 @@ class OneInchProvider(RouteProvider):
                     return None
 
                 data = response.json()
-                logger.info(f"1inch response: toAmount={data.get('toAmount', 'N/A')}, gas={data.get('gas', 'N/A')}")
+                # Log full response for debugging
+                logger.info(f"1inch full response: {data}")
 
-                # Parse response
-                to_amount_wei = int(data.get("toAmount", "0"))
+                # 1inch API v6 uses 'dstAmount' not 'toAmount'
+                to_amount_wei = int(data.get("dstAmount", data.get("toAmount", "0")))
 
                 # Convert to human-readable
                 to_decimals = 18
