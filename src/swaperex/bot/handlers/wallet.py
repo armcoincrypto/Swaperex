@@ -1,5 +1,6 @@
 """Wallet and balance handlers."""
 
+import logging
 import os
 from aiogram import F, Router
 from aiogram.filters import Command
@@ -14,6 +15,8 @@ from swaperex.ledger.database import get_db
 from swaperex.ledger.models import DepositStatus, SwapStatus
 from swaperex.ledger.repository import LedgerRepository
 from swaperex.services.balance_sync import sync_wallet_balance, get_native_balance
+
+logger = logging.getLogger(__name__)
 
 router = Router()
 
@@ -59,45 +62,51 @@ async def get_bsc_address() -> str:
 @router.message(Command("wallet"))
 @router.message(F.text == "💰 Wallet")
 async def cmd_wallet(message: Message) -> None:
-    """Show user wallet balances - REAL blockchain balance."""
+    """Show user wallet balances - REAL blockchain balance from all chains."""
     if not message.from_user:
         return
 
-    await message.answer("🔄 Loading wallet...")
+    await message.answer("🔄 Loading wallet from all chains...")
 
     try:
-        bsc_address = await get_bsc_address()
+        evm_address = await get_bsc_address()
     except Exception as e:
         await message.answer(f"❌ Wallet error: {e}")
         return
 
-    # Fetch real balances from BSC
-    try:
-        balances = await sync_wallet_balance(bsc_address, "bsc")
-    except Exception as e:
-        await message.answer(f"❌ Failed to fetch balances: {e}")
-        return
+    lines = [
+        "💰 Your Wallet\n",
+        f"Address: `{evm_address[:10]}...{evm_address[-8:]}`\n",
+    ]
 
-    if not balances:
-        text = f"""💰 Your Wallet (BSC)
+    # Fetch balances from multiple chains
+    chains = [
+        ("bsc", "🟡 BNB Chain"),
+        ("ethereum", "🔵 Ethereum"),
+        ("polygon", "🟣 Polygon"),
+    ]
 
-Address: `{bsc_address[:10]}...{bsc_address[-8:]}`
+    total_assets = 0
+    for chain_id, chain_name in chains:
+        try:
+            balances = await sync_wallet_balance(evm_address, chain_id)
+            if balances:
+                has_balance = False
+                for asset, balance in sorted(balances.items()):
+                    if balance > 0:
+                        if not has_balance:
+                            lines.append(f"\n{chain_name}:")
+                            has_balance = True
+                        lines.append(f"  {asset}: {balance:.8f}")
+                        total_assets += 1
+        except Exception as e:
+            logger.error(f"Failed to fetch {chain_id} balances: {e}")
 
-No tokens found.
+    if total_assets == 0:
+        lines.append("\nNo tokens found on any chain.")
 
-Use /deposit to add funds!"""
-    else:
-        lines = [
-            "💰 Your Wallet (BSC)\n",
-            f"Address: `{bsc_address[:10]}...{bsc_address[-8:]}`\n",
-        ]
-
-        for asset, balance in sorted(balances.items()):
-            if balance > 0:
-                lines.append(f"  {asset}: {balance:.8f}")
-
-        lines.append("\n💡 Use /deposit to add funds")
-        text = "\n".join(lines)
+    lines.append("\n💡 Use /deposit to add funds")
+    text = "\n".join(lines)
 
     await message.answer(text, parse_mode="Markdown")
 

@@ -4,6 +4,7 @@ Fetches actual on-chain balances from various blockchains.
 """
 
 import logging
+import os
 from decimal import Decimal
 from typing import Optional
 
@@ -11,7 +12,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# RPC endpoints
+# EVM RPC endpoints
 RPC_ENDPOINTS = {
     "bsc": "https://bsc-dataseed.binance.org/",
     "ethereum": "https://eth.llamarpc.com",
@@ -41,18 +42,9 @@ BALANCE_OF_SIGNATURE = "0x70a08231"
 
 
 async def get_native_balance(address: str, chain: str = "bsc") -> Optional[Decimal]:
-    """Get native token balance (BNB, ETH, MATIC, etc.) from blockchain.
-
-    Args:
-        address: Wallet address
-        chain: Chain name (bsc, ethereum, polygon, avalanche)
-
-    Returns:
-        Balance in human-readable format (e.g., 0.5 BNB)
-    """
+    """Get native token balance (BNB, ETH, MATIC, etc.) from blockchain."""
     rpc_url = RPC_ENDPOINTS.get(chain)
     if not rpc_url:
-        logger.error(f"Unknown chain: {chain}")
         return None
 
     try:
@@ -86,24 +78,11 @@ async def get_token_balance(
     chain: str = "bsc",
     decimals: int = 18
 ) -> Optional[Decimal]:
-    """Get ERC20/BEP20 token balance from blockchain.
-
-    Args:
-        address: Wallet address
-        token_contract: Token contract address
-        chain: Chain name
-        decimals: Token decimals (6 for USDT/USDC, 18 for most others)
-
-    Returns:
-        Token balance in human-readable format
-    """
+    """Get ERC20/BEP20 token balance from blockchain."""
     rpc_url = RPC_ENDPOINTS.get(chain)
     if not rpc_url:
-        logger.error(f"Unknown chain: {chain}")
         return None
 
-    # Encode balanceOf(address) call
-    # Remove 0x prefix and pad address to 32 bytes
     address_padded = address.lower().replace("0x", "").zfill(64)
     data = f"{BALANCE_OF_SIGNATURE}{address_padded}"
 
@@ -114,13 +93,7 @@ async def get_token_balance(
                 json={
                     "jsonrpc": "2.0",
                     "method": "eth_call",
-                    "params": [
-                        {
-                            "to": token_contract,
-                            "data": data,
-                        },
-                        "latest"
-                    ],
+                    "params": [{"to": token_contract, "data": data}, "latest"],
                     "id": 1,
                 },
             )
@@ -133,24 +106,73 @@ async def get_token_balance(
                     return balance
 
     except Exception as e:
-        logger.error(f"Failed to get token balance for {address}: {e}")
+        logger.error(f"Failed to get token balance: {e}")
 
     return None
 
 
+async def get_btc_balance(address: str) -> Optional[Decimal]:
+    """Get Bitcoin balance using public API."""
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            # Use blockchain.info API
+            response = await client.get(
+                f"https://blockchain.info/balance?active={address}"
+            )
+            if response.status_code == 200:
+                data = response.json()
+                if address in data:
+                    satoshis = data[address]["final_balance"]
+                    return Decimal(satoshis) / Decimal(10**8)
+    except Exception as e:
+        logger.error(f"Failed to get BTC balance: {e}")
+    return None
+
+
+async def get_sol_balance(address: str) -> Optional[Decimal]:
+    """Get Solana balance using public RPC."""
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(
+                "https://api.mainnet-beta.solana.com",
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "getBalance",
+                    "params": [address]
+                },
+            )
+            if response.status_code == 200:
+                data = response.json()
+                if "result" in data and "value" in data["result"]:
+                    lamports = data["result"]["value"]
+                    return Decimal(lamports) / Decimal(10**9)
+    except Exception as e:
+        logger.error(f"Failed to get SOL balance: {e}")
+    return None
+
+
+async def get_trx_balance(address: str) -> Optional[Decimal]:
+    """Get Tron balance using TronGrid API."""
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.get(
+                f"https://api.trongrid.io/v1/accounts/{address}"
+            )
+            if response.status_code == 200:
+                data = response.json()
+                if "data" in data and len(data["data"]) > 0:
+                    balance = data["data"][0].get("balance", 0)
+                    return Decimal(balance) / Decimal(10**6)
+    except Exception as e:
+        logger.error(f"Failed to get TRX balance: {e}")
+    return None
+
+
 async def get_all_balances(address: str, chain: str = "bsc") -> dict[str, Decimal]:
-    """Get all balances (native + tokens) for an address.
-
-    Args:
-        address: Wallet address
-        chain: Chain name
-
-    Returns:
-        Dictionary of {asset: balance}
-    """
+    """Get all balances (native + tokens) for an EVM address."""
     balances = {}
 
-    # Native token name mapping
     native_tokens = {
         "bsc": "BNB",
         "ethereum": "ETH",
@@ -158,19 +180,16 @@ async def get_all_balances(address: str, chain: str = "bsc") -> dict[str, Decima
         "avalanche": "AVAX",
     }
 
-    # Get native balance
     native_name = native_tokens.get(chain, "ETH")
     native_balance = await get_native_balance(address, chain)
     if native_balance is not None:
         balances[native_name] = native_balance
 
-    # Get token balances
     tokens = TOKEN_CONTRACTS.get(chain, {})
     for token_name, contract in tokens.items():
-        # Determine decimals
         decimals = 18
         if token_name in ("USDT", "USDC"):
-            decimals = 6 if chain == "ethereum" else 18  # BSC USDT uses 18 decimals
+            decimals = 6 if chain == "ethereum" else 18
 
         balance = await get_token_balance(address, contract, chain, decimals)
         if balance is not None and balance > 0:
@@ -183,23 +202,49 @@ async def sync_wallet_balance(
     address: str,
     chain: str = "bsc",
 ) -> dict[str, Decimal]:
-    """Sync wallet balance from blockchain.
-
-    This function fetches real on-chain balances and returns them.
-
-    Args:
-        address: The wallet address to check
-        chain: The blockchain to query
-
-    Returns:
-        Dictionary of real on-chain balances
-    """
+    """Sync wallet balance from blockchain."""
     logger.info(f"Syncing balance for {address} on {chain}")
-
     balances = await get_all_balances(address, chain)
-
-    logger.info(f"Found {len(balances)} assets with balances on {chain}")
-    for asset, balance in balances.items():
-        logger.info(f"  {asset}: {balance}")
-
     return balances
+
+
+async def get_all_chain_balances() -> dict[str, dict[str, Decimal]]:
+    """Get balances from ALL chains using seed phrase.
+
+    Returns dict like:
+    {
+        "BSC": {"BNB": 0.5, "CAKE": 10.0},
+        "ETH": {"ETH": 0.1},
+        "BTC": {"BTC": 0.001},
+        "SOL": {"SOL": 5.0},
+        "TRX": {"TRX": 100.0},
+    }
+    """
+    from swaperex.services.swap_executor import get_wallet_address
+
+    all_balances = {}
+
+    # Get EVM address (same for all EVM chains)
+    evm_address = await get_wallet_address("bsc")
+
+    if evm_address:
+        # BSC
+        bsc_balances = await get_all_balances(evm_address, "bsc")
+        if bsc_balances:
+            all_balances["BSC"] = bsc_balances
+
+        # Ethereum
+        eth_balances = await get_all_balances(evm_address, "ethereum")
+        if eth_balances:
+            all_balances["ETH"] = eth_balances
+
+        # Polygon
+        polygon_balances = await get_all_balances(evm_address, "polygon")
+        if polygon_balances:
+            all_balances["POLYGON"] = polygon_balances
+
+    # For non-EVM chains, we need different address derivation
+    # These would need their own HD wallet derivation
+    # For now, just return EVM balances
+
+    return all_balances
