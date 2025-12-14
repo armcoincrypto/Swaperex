@@ -1,5 +1,6 @@
 """Wallet and balance handlers."""
 
+import os
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -24,94 +25,87 @@ class DepositStates(StatesGroup):
     selecting_asset = State()
 
 
+async def get_bsc_address() -> str:
+    """Get BSC wallet address from seed phrase."""
+    seed_phrase = (
+        os.environ.get("SEED_PHRASE")
+        or os.environ.get("WALLET_SEED_PHRASE")
+        or os.environ.get("MNEMONIC")
+    )
+
+    if not seed_phrase:
+        raise ValueError("No seed phrase configured")
+
+    try:
+        from bip_utils import Bip39SeedGenerator, Bip32Secp256k1
+        from bip_utils import EthAddrEncoder
+
+        # Generate seed from mnemonic
+        seed = Bip39SeedGenerator(seed_phrase).Generate()
+        bip32_ctx = Bip32Secp256k1.FromSeed(seed)
+
+        # Standard path: m/44'/60'/0'/0/0
+        path = "44'/60'/0'/0/0"
+        account_ctx = bip32_ctx.DerivePath(path)
+
+        # Get address
+        pubkey = account_ctx.PublicKey().RawUncompressed().ToBytes()
+        address = EthAddrEncoder.EncodeKey(pubkey)
+        return address
+    except Exception as e:
+        raise ValueError(f"Failed to derive address: {e}")
+
+
 @router.message(Command("wallet"))
 @router.message(F.text == "💰 Wallet")
 async def cmd_wallet(message: Message) -> None:
-    """Show user wallet balances."""
+    """Show user wallet balances - REAL blockchain balance."""
     if not message.from_user:
         return
 
-    async with get_db() as session:
-        repo = LedgerRepository(session)
-        user = await repo.get_or_create_user(
-            telegram_id=message.from_user.id,
-            username=message.from_user.username,
-            first_name=message.from_user.first_name,
-        )
-        balances = await repo.get_all_balances(user.id)
+    await message.answer("🔄 Loading wallet...")
 
-    if not balances:
-        text = """💰 Your Wallet
-
-No balances yet.
-
-Use /deposit to add funds!"""
-    else:
-        lines = ["💰 Your Wallet\n"]
-        total_usd = 0  # Placeholder for future USD valuation
-        for bal in balances:
-            available = bal.available
-            locked = bal.locked_amount
-            line = f"  {bal.asset}: {available:.8f}"
-            if locked > 0:
-                line += f" (🔒 {locked:.8f})"
-            lines.append(line)
-
-        lines.append("\n💡 Use /deposit to add funds")
-        text = "\n".join(lines)
-
-    await message.answer(text)
-
-
-@router.message(Command("sync"))
-async def cmd_sync(message: Message) -> None:
-    """Show real on-chain wallet balances from blockchain."""
-    if not message.from_user:
-        return
-
-    await message.answer("🔄 Syncing with blockchain...")
-
-    settings = get_settings()
-
-    # Get the user's BSC address from HD wallet
     try:
-        wallet = get_hd_wallet("BSC", settings.wallet_seed_phrase)
-        bsc_address = wallet.derive_address(0, 0).address
+        bsc_address = await get_bsc_address()
     except Exception as e:
-        await message.answer(f"Failed to derive wallet address: {e}")
+        await message.answer(f"❌ Wallet error: {e}")
         return
 
     # Fetch real balances from BSC
     try:
         balances = await sync_wallet_balance(bsc_address, "bsc")
     except Exception as e:
-        await message.answer(f"Failed to sync balances: {e}")
+        await message.answer(f"❌ Failed to fetch balances: {e}")
         return
 
     if not balances:
-        text = f"""💰 Real Wallet Balance (BSC)
+        text = f"""💰 Your Wallet (BSC)
 
-Address: `{bsc_address[:8]}...{bsc_address[-6:]}`
+Address: `{bsc_address[:10]}...{bsc_address[-8:]}`
 
-No tokens found on chain.
+No tokens found.
 
-Use /wallet for internal ledger balances."""
+Use /deposit to add funds!"""
     else:
         lines = [
-            "💰 Real Wallet Balance (BSC)\n",
-            f"Address: `{bsc_address[:8]}...{bsc_address[-6:]}`\n",
-            "On-chain balances:",
+            "💰 Your Wallet (BSC)\n",
+            f"Address: `{bsc_address[:10]}...{bsc_address[-8:]}`\n",
         ]
 
         for asset, balance in sorted(balances.items()):
             if balance > 0:
                 lines.append(f"  {asset}: {balance:.8f}")
 
-        lines.append("\n📊 This is your REAL blockchain balance")
-        lines.append("Use /wallet for internal ledger")
+        lines.append("\n💡 Use /deposit to add funds")
         text = "\n".join(lines)
 
     await message.answer(text, parse_mode="Markdown")
+
+
+@router.message(Command("sync"))
+async def cmd_sync(message: Message) -> None:
+    """Alias for /wallet - show real blockchain balance."""
+    await cmd_wallet(message)
 
 
 @router.message(Command("deposit"))
