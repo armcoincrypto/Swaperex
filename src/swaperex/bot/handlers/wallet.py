@@ -138,6 +138,83 @@ async def cmd_sync(message: Message) -> None:
     await cmd_wallet(message)
 
 
+@router.message(Command("addresses"))
+async def cmd_addresses(message: Message) -> None:
+    """Debug command - show all derived addresses for each chain."""
+    if not message.from_user:
+        return
+
+    import os
+    from swaperex.services.balance_sync import (
+        derive_solana_address,
+        derive_tron_address,
+        derive_cosmos_address,
+        derive_ton_address,
+        derive_near_address,
+    )
+
+    seed_phrase = (
+        os.environ.get("SEED_PHRASE")
+        or os.environ.get("WALLET_SEED_PHRASE")
+        or os.environ.get("MNEMONIC")
+    )
+
+    if not seed_phrase:
+        await message.answer("❌ No seed phrase configured")
+        return
+
+    lines = ["🔑 Derived Addresses\n"]
+
+    # EVM address
+    try:
+        from bip_utils import Bip39SeedGenerator, Bip32Secp256k1, EthAddrEncoder
+        seed = Bip39SeedGenerator(seed_phrase).Generate()
+        bip32_ctx = Bip32Secp256k1.FromSeed(seed)
+        account_ctx = bip32_ctx.DerivePath("44'/60'/0'/0/0")
+        pubkey = account_ctx.PublicKey().RawUncompressed().ToBytes()
+        evm_address = EthAddrEncoder.EncodeKey(pubkey)
+        lines.append(f"🔵 EVM (BSC/ETH/Polygon/Avax):\n`{evm_address}`\n")
+    except Exception as e:
+        lines.append(f"❌ EVM: {e}\n")
+
+    # Solana
+    sol_addr = derive_solana_address(seed_phrase)
+    if sol_addr:
+        lines.append(f"🟣 Solana:\n`{sol_addr}`\n")
+    else:
+        lines.append("❌ Solana: derivation failed\n")
+
+    # Tron
+    trx_addr = derive_tron_address(seed_phrase)
+    if trx_addr:
+        lines.append(f"🔴 Tron:\n`{trx_addr}`\n")
+    else:
+        lines.append("❌ Tron: derivation failed\n")
+
+    # Cosmos
+    atom_addr = derive_cosmos_address(seed_phrase)
+    if atom_addr:
+        lines.append(f"⚛️ Cosmos:\n`{atom_addr}`\n")
+    else:
+        lines.append("❌ Cosmos: derivation failed\n")
+
+    # TON
+    ton_addr = derive_ton_address(seed_phrase)
+    if ton_addr:
+        lines.append(f"💎 TON:\n`{ton_addr}`\n")
+    else:
+        lines.append("⚠️ TON: not implemented yet\n")
+
+    # NEAR
+    near_addr = derive_near_address(seed_phrase)
+    if near_addr:
+        lines.append(f"🌐 NEAR:\n`{near_addr}`\n")
+    else:
+        lines.append("❌ NEAR: derivation failed\n")
+
+    await message.answer("\n".join(lines), parse_mode="Markdown")
+
+
 @router.message(Command("deposit"))
 @router.message(F.text == "📥 Deposit")
 async def cmd_deposit(message: Message, state: FSMContext) -> None:
