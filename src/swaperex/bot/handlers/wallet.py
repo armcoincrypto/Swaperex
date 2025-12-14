@@ -84,6 +84,7 @@ async def cmd_wallet(message: Message) -> None:
         ("bsc", "🟡 BNB Chain"),
         ("ethereum", "🔵 Ethereum"),
         ("polygon", "🟣 Polygon"),
+        ("avalanche", "🔺 Avalanche"),
     ]
 
     total_assets = 0
