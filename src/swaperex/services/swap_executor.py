@@ -362,6 +362,8 @@ async def execute_1inch_swap(
     amount: Decimal,
     chain: str = "bsc",
     slippage: Decimal = Decimal("1"),
+    from_symbol: str = "",
+    to_symbol: str = "",
 ) -> SwapExecutionResult:
     """Execute a swap using 1inch DEX aggregator.
 
@@ -371,6 +373,8 @@ async def execute_1inch_swap(
         amount: Amount to swap in human-readable units
         chain: Chain name (bsc, ethereum, polygon, avalanche)
         slippage: Slippage tolerance in percent
+        from_symbol: Source token symbol (for decimals detection)
+        to_symbol: Destination token symbol (for decimals detection)
 
     Returns:
         SwapExecutionResult with transaction details
@@ -394,11 +398,13 @@ async def execute_1inch_swap(
         chain_id = CHAIN_IDS.get(chain, 56)
         router_address = ONEINCH_ROUTER.get(chain, ONEINCH_ROUTER["bsc"])
 
-        # Convert amount to wei (assuming 18 decimals for most tokens)
-        # For USDT/USDC use 6 decimals
+        # Determine decimals based on token symbol
+        # USDT/USDC use 6 decimals on most chains, 18 on BSC
+        from_symbol_upper = from_symbol.upper()
         decimals = 18
-        if "usdt" in from_token.lower() or "usdc" in from_token.lower():
-            decimals = 6
+        if from_symbol_upper in ("USDT", "USDC"):
+            # BSC USDT/USDC uses 18 decimals, ETH uses 6
+            decimals = 18 if chain == "bsc" else 6
         elif from_token.lower() == NATIVE_TOKEN.lower():
             decimals = 18
 
@@ -450,13 +456,33 @@ async def execute_1inch_swap(
         # Get nonce
         nonce = await _get_nonce(wallet_address, rpc_url)
 
+        # Parse value field (can be int, string decimal, or hex string)
+        value_raw = tx_data.get("value", 0)
+        if isinstance(value_raw, str):
+            if value_raw.startswith("0x"):
+                tx_value = int(value_raw, 16)
+            else:
+                tx_value = int(value_raw)
+        else:
+            tx_value = int(value_raw)
+
+        # Parse gasPrice (can be int or string)
+        gas_price_raw = tx_data.get("gasPrice")
+        if gas_price_raw:
+            if isinstance(gas_price_raw, str):
+                tx_gas_price = int(gas_price_raw)
+            else:
+                tx_gas_price = int(gas_price_raw)
+        else:
+            tx_gas_price = await _get_gas_price(rpc_url)
+
         # Build transaction
         tx = {
             "nonce": nonce,
-            "gasPrice": int(tx_data.get("gasPrice", await _get_gas_price(rpc_url))),
+            "gasPrice": tx_gas_price,
             "gas": int(tx_data.get("gas", 500000)),
             "to": Web3.to_checksum_address(tx_data.get("to", router_address)),
-            "value": int(tx_data.get("value", "0"), 16) if isinstance(tx_data.get("value"), str) else int(tx_data.get("value", 0)),
+            "value": tx_value,
             "data": tx_data.get("data", ""),
             "chainId": chain_id,
         }
@@ -480,9 +506,10 @@ async def execute_1inch_swap(
         if confirmed:
             # Get expected output from swap data
             dst_amount = swap_data.get("dstAmount", "0")
+            to_symbol_upper = to_symbol.upper()
             to_decimals = 18
-            if "usdt" in to_token.lower() or "usdc" in to_token.lower():
-                to_decimals = 6
+            if to_symbol_upper in ("USDT", "USDC"):
+                to_decimals = 18 if chain == "bsc" else 6
 
             to_amount_human = str(Decimal(dst_amount) / Decimal(10**to_decimals))
 
@@ -561,6 +588,8 @@ async def execute_swap(
             to_token=to_token,
             amount=amount,
             chain=actual_chain,
+            from_symbol=from_asset,
+            to_symbol=to_asset,
         )
 
     # For non-EVM chains, return not supported for now
