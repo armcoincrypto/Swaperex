@@ -239,6 +239,7 @@ class Swap(Base):
     route_details: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON route info
     fee_asset: Mapped[str] = mapped_column(String(20), nullable=False)
     fee_amount: Mapped[Decimal] = mapped_column(Numeric(36, 18), nullable=False)
+    tx_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
     status: Mapped[SwapStatus] = mapped_column(
         String(20), default=SwapStatus.PENDING, nullable=False
     )

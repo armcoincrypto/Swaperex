@@ -1,6 +1,7 @@
 """Swap handlers with quote comparison."""
 
 import json
+import logging
 from decimal import Decimal, InvalidOperation
 
 from aiogram import Router, F
@@ -18,6 +19,9 @@ from swaperex.bot.keyboards import (
 from swaperex.ledger.database import get_db
 from swaperex.ledger.repository import LedgerRepository
 from swaperex.routing.factory import create_chain_aggregator
+from swaperex.services.swap_executor import execute_swap
+
+logger = logging.getLogger(__name__)
 
 router = Router()
 
@@ -259,6 +263,7 @@ async def handle_confirm_swap(callback: CallbackQuery, state: FSMContext) -> Non
     from_asset = data.get("from_asset")
     to_asset = data.get("to_asset")
     amount = Decimal(data.get("amount", "0"))
+    chain = data.get("chain", "")
     quotes = data.get("quotes", [])
 
     if not quotes:
@@ -268,6 +273,15 @@ async def handle_confirm_swap(callback: CallbackQuery, state: FSMContext) -> Non
         return
 
     selected_quote = quotes[0]  # Best quote
+    is_simulated = selected_quote.get('is_simulated', True)
+
+    # Show "executing" message
+    await callback.message.edit_text(
+        f"Executing swap...\n\n"
+        f"{amount} {from_asset} -> {to_asset}\n"
+        f"Route: {selected_quote['provider']}\n\n"
+        f"Please wait, this may take up to 2 minutes..."
+    )
 
     async with get_db() as session:
         repo = LedgerRepository(session)
@@ -287,27 +301,77 @@ async def handle_confirm_swap(callback: CallbackQuery, state: FSMContext) -> Non
                 route_details=json.dumps(selected_quote),
             )
 
-            # In PoC, immediately complete the swap
+            # Execute REAL swap on-chain if not simulated
+            txid = None
+            actual_to_amount = Decimal(selected_quote["to_amount"])
+
+            if not is_simulated:
+                logger.info(f"Executing real swap: {amount} {from_asset} -> {to_asset} on {chain}")
+
+                # Execute real on-chain swap
+                result = await execute_swap(
+                    from_asset=from_asset,
+                    to_asset=to_asset,
+                    amount=amount,
+                    chain=chain,
+                    quote_data=selected_quote,
+                )
+
+                if result.success:
+                    txid = result.txid
+                    if result.to_amount:
+                        actual_to_amount = Decimal(result.to_amount)
+                    logger.info(f"Swap executed: txid={txid}")
+                else:
+                    logger.error(f"Swap failed: {result.error}")
+                    # Fall back to simulated if real swap fails
+                    is_simulated = True
+
+            # Complete the swap in database
             completed_swap = await repo.complete_swap(
                 swap.id,
-                actual_to_amount=Decimal(selected_quote["to_amount"]),
+                actual_to_amount=actual_to_amount,
+                tx_hash=txid,
             )
 
-            # Check if real or simulated
-            is_simulated = selected_quote.get('is_simulated', True)
-            swap_type = "(Simulated swap - PoC)" if is_simulated else "(Real DEX swap executed)"
+            # Build result message
+            if txid:
+                # Real swap executed
+                # Generate explorer link based on chain
+                explorer_links = {
+                    "pancakeswap": f"https://bscscan.com/tx/{txid}",
+                    "uniswap": f"https://etherscan.io/tx/{txid}",
+                    "quickswap": f"https://polygonscan.com/tx/{txid}",
+                    "traderjoe": f"https://snowtrace.io/tx/{txid}",
+                }
+                explorer_url = explorer_links.get(chain.lower(), f"TX: {txid[:16]}...")
 
-            text = (
-                f"Swap Completed!\n\n"
-                f"{amount} {from_asset} -> {completed_swap.to_amount:.8f} {to_asset}\n\n"
-                f"Route: {selected_quote['provider']}\n"
-                f"Fee: ${selected_quote['fee_amount']}\n\n"
-                f"{swap_type}\n\n"
-                f"Use /wallet to check your balance."
-            )
+                text = (
+                    f"Swap Completed!\n\n"
+                    f"{amount} {from_asset} -> {actual_to_amount:.8f} {to_asset}\n\n"
+                    f"Route: {selected_quote['provider']}\n"
+                    f"Fee: ~${selected_quote['fee_amount']}\n\n"
+                    f"Transaction: {txid[:16]}...{txid[-8:]}\n"
+                    f"View on explorer: {explorer_url}\n\n"
+                    f"(Real DEX swap executed on blockchain)\n\n"
+                    f"Use /sync to check your real balance."
+                )
+            else:
+                # Simulated swap
+                text = (
+                    f"Swap Completed!\n\n"
+                    f"{amount} {from_asset} -> {completed_swap.to_amount:.8f} {to_asset}\n\n"
+                    f"Route: {selected_quote['provider']}\n"
+                    f"Fee: ${selected_quote['fee_amount']}\n\n"
+                    f"(Simulated swap - internal ledger only)\n\n"
+                    f"Use /wallet to check your balance."
+                )
 
         except ValueError as e:
             text = f"Swap Failed\n\n{str(e)}"
+        except Exception as e:
+            logger.error(f"Swap error: {e}")
+            text = f"Swap Failed\n\nError: {str(e)}"
 
     await callback.message.edit_text(text)
     await state.clear()

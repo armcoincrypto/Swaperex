@@ -299,8 +299,19 @@ class LedgerRepository:
         await self.session.flush()
         return swap
 
-    async def complete_swap(self, swap_id: int, actual_to_amount: Decimal) -> Swap:
-        """Complete a swap, debit from_asset and credit to_asset."""
+    async def complete_swap(
+        self,
+        swap_id: int,
+        actual_to_amount: Decimal,
+        tx_hash: Optional[str] = None,
+    ) -> Swap:
+        """Complete a swap, debit from_asset and credit to_asset.
+
+        Args:
+            swap_id: The swap record ID
+            actual_to_amount: Actual amount received
+            tx_hash: Optional blockchain transaction hash
+        """
         stmt = select(Swap).where(Swap.id == swap_id)
         result = await self.session.execute(stmt)
         swap = result.scalar_one_or_none()
@@ -321,6 +332,8 @@ class LedgerRepository:
         swap.to_amount = actual_to_amount
         swap.status = SwapStatus.COMPLETED
         swap.completed_at = datetime.utcnow()
+        if tx_hash:
+            swap.tx_hash = tx_hash
 
         await self.session.flush()
         return swap
