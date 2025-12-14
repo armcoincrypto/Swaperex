@@ -14,7 +14,7 @@ from swaperex.hdwallet import get_hd_wallet
 from swaperex.ledger.database import get_db
 from swaperex.ledger.models import DepositStatus, SwapStatus
 from swaperex.ledger.repository import LedgerRepository
-from swaperex.services.balance_sync import sync_wallet_balance, get_native_balance
+from swaperex.services.balance_sync import get_all_chain_balances_with_addresses
 
 logger = logging.getLogger(__name__)
 
@@ -68,29 +68,51 @@ async def cmd_wallet(message: Message) -> None:
 
     await message.answer("🔄 Loading wallet from all chains...")
 
+    # Chain display names with emojis
+    chain_names = {
+        "bsc": "🟡 BNB Chain",
+        "ethereum": "🔵 Ethereum",
+        "polygon": "💜 Polygon",
+        "avalanche": "🔺 Avalanche",
+        "solana": "🟣 Solana",
+        "tron": "🔴 Tron",
+        "cosmos": "⚛️ Cosmos",
+        "ton": "💎 TON",
+        "near": "🌐 NEAR",
+    }
+
     try:
-        evm_address = await get_bsc_address()
+        all_chain_data = await get_all_chain_balances_with_addresses()
     except Exception as e:
+        logger.error(f"Failed to get chain balances: {e}")
         await message.answer(f"❌ Wallet error: {e}")
         return
 
-    lines = [
-        "💰 Your Wallet\n",
-        f"Address: `{evm_address[:10]}...{evm_address[-8:]}`\n",
-    ]
+    if not all_chain_data:
+        await message.answer("❌ No seed phrase configured. Set SEED_PHRASE environment variable.")
+        return
 
-    # Fetch balances from multiple chains
-    chains = [
-        ("bsc", "🟡 BNB Chain"),
-        ("ethereum", "🔵 Ethereum"),
-        ("polygon", "🟣 Polygon"),
-        ("avalanche", "🔺 Avalanche"),
-    ]
+    lines = ["💰 Your Wallet\n"]
+
+    # Show EVM address if available
+    evm_chains = ["bsc", "ethereum", "polygon", "avalanche"]
+    for chain in evm_chains:
+        if chain in all_chain_data:
+            evm_address = all_chain_data[chain]["address"]
+            lines.append(f"EVM: `{evm_address[:10]}...{evm_address[-8:]}`\n")
+            break
 
     total_assets = 0
-    for chain_id, chain_name in chains:
-        try:
-            balances = await sync_wallet_balance(evm_address, chain_id)
+
+    # Display balances by chain in order
+    chain_order = ["bsc", "ethereum", "polygon", "avalanche", "solana", "tron", "cosmos", "ton", "near"]
+
+    for chain_id in chain_order:
+        if chain_id in all_chain_data:
+            chain_info = all_chain_data[chain_id]
+            balances = chain_info.get("balances", {})
+            chain_name = chain_names.get(chain_id, chain_id.title())
+
             if balances:
                 has_balance = False
                 for asset, balance in sorted(balances.items()):
@@ -100,8 +122,6 @@ async def cmd_wallet(message: Message) -> None:
                             has_balance = True
                         lines.append(f"  {asset}: {balance:.8f}")
                         total_assets += 1
-        except Exception as e:
-            logger.error(f"Failed to fetch {chain_id} balances: {e}")
 
     if total_assets == 0:
         lines.append("\nNo tokens found on any chain.")
