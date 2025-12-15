@@ -179,8 +179,9 @@ async def handle_swap_amount(message: Message, state: FSMContext) -> None:
     chain = data.get("chain", "")
 
     # Check REAL blockchain balance (not internal ledger)
-    # Map chain names to balance_sync chain IDs
+    # Map chain/DEX names to balance_sync chain IDs
     chain_map = {
+        # Chain names
         "bnb": "bsc",
         "bsc": "bsc",
         "eth": "ethereum",
@@ -189,6 +190,17 @@ async def handle_swap_amount(message: Message, state: FSMContext) -> None:
         "avalanche": "avalanche",
         "solana": "solana",
         "tron": "tron",
+        # DEX names -> their chains
+        "pancakeswap": "bsc",
+        "uniswap": "ethereum",
+        "quickswap": "polygon",
+        "traderjoe": "avalanche",
+        "jupiter": "solana",
+        "sunswap": "tron",
+        "thorchain": "bsc",  # Cross-chain, default to BSC
+        "osmosis": "cosmos",
+        "stonfi": "ton",
+        "ref_finance": "near",
     }
     chain_id = chain_map.get(chain.lower(), "bsc")
 
