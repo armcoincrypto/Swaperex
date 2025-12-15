@@ -346,10 +346,12 @@ async def handle_confirm_swap(callback: CallbackQuery, state: FSMContext) -> Non
                     is_simulated = True
 
             # Complete the swap in database
+            # Skip ledger operations for real on-chain swaps (blockchain handles the transfer)
             completed_swap = await repo.complete_swap(
                 swap.id,
                 actual_to_amount=actual_to_amount,
                 tx_hash=txid,
+                skip_ledger_operations=not is_simulated,  # Skip for real swaps
             )
 
             # Build result message
