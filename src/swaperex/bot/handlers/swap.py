@@ -20,6 +20,7 @@ from swaperex.ledger.database import get_db
 from swaperex.ledger.repository import LedgerRepository
 from swaperex.routing.factory import create_chain_aggregator
 from swaperex.services.swap_executor import execute_swap
+from swaperex.services.balance_sync import get_all_chain_balances_with_addresses
 
 logger = logging.getLogger(__name__)
 
@@ -177,20 +178,35 @@ async def handle_swap_amount(message: Message, state: FSMContext) -> None:
     to_asset = data.get("to_asset")
     chain = data.get("chain", "")
 
-    # Check balance
-    async with get_db() as session:
-        repo = LedgerRepository(session)
-        user = await repo.get_or_create_user(telegram_id=message.from_user.id)
-        balance = await repo.get_balance(user.id, from_asset)
+    # Check REAL blockchain balance (not internal ledger)
+    # Map chain names to balance_sync chain IDs
+    chain_map = {
+        "bnb": "bsc",
+        "bsc": "bsc",
+        "eth": "ethereum",
+        "ethereum": "ethereum",
+        "polygon": "polygon",
+        "avalanche": "avalanche",
+        "solana": "solana",
+        "tron": "tron",
+    }
+    chain_id = chain_map.get(chain.lower(), "bsc")
 
-        available = balance.available if balance else Decimal("0")
+    try:
+        all_balances = await get_all_chain_balances_with_addresses()
+        chain_data = all_balances.get(chain_id, {})
+        balances = chain_data.get("balances", {})
+        available = balances.get(from_asset, Decimal("0"))
+    except Exception as e:
+        logger.error(f"Failed to get blockchain balance: {e}")
+        available = Decimal("0")
 
-        if available < amount:
-            await message.answer(
-                f"Insufficient balance. You have {available:.8f} {from_asset} available.\n\n"
-                f"Use /deposit to add funds."
-            )
-            return
+    if available < amount:
+        await message.answer(
+            f"Insufficient balance. You have {available:.8f} {from_asset} available.\n\n"
+            f"Use /deposit to add funds."
+        )
+        return
 
     # Get quotes from chain-specific providers
     aggregator = create_chain_aggregator(chain)
