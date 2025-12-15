@@ -201,12 +201,23 @@ async def handle_swap_amount(message: Message, state: FSMContext) -> None:
         logger.error(f"Failed to get blockchain balance: {e}")
         available = Decimal("0")
 
-    if available < amount:
+    # Use small tolerance for precision comparison (allow swapping full balance)
+    # Quantize both to 8 decimal places for fair comparison
+    precision = Decimal("0.00000001")
+    available_normalized = available.quantize(precision)
+    amount_normalized = amount.quantize(precision)
+
+    if available_normalized < amount_normalized:
         await message.answer(
             f"Insufficient balance. You have {available:.8f} {from_asset} available.\n\n"
             f"Use /deposit to add funds."
         )
         return
+
+    # If user is swapping their full balance, use the actual available amount
+    # to avoid "dust" issues from precision differences
+    if available_normalized == amount_normalized:
+        amount = available
 
     # Get quotes from chain-specific providers
     aggregator = create_chain_aggregator(chain)
