@@ -198,7 +198,7 @@ async def check_and_approve_token(
 
         # Sign and broadcast
         signed_tx = account.sign_transaction(tx)
-        txid = await _broadcast_transaction(signed_tx.rawTransaction.hex(), rpc_url)
+        txid = await _broadcast_transaction(signed_tx.raw_transaction.hex(), rpc_url)
 
         if txid:
             logger.info(f"Approval tx broadcast: {txid}")
@@ -493,7 +493,7 @@ async def execute_1inch_swap(
         signed_tx = account.sign_transaction(tx)
 
         # Step 4: Broadcast transaction
-        txid = await _broadcast_transaction(signed_tx.rawTransaction.hex(), rpc_url)
+        txid = await _broadcast_transaction(signed_tx.raw_transaction.hex(), rpc_url)
 
         if not txid:
             return SwapExecutionResult(success=False, error="Failed to broadcast transaction")

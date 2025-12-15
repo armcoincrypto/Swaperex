@@ -232,7 +232,7 @@ class ETHWithdrawalHandler(WithdrawalHandler):
             signed_tx = account.sign_transaction(tx)
 
             # Broadcast
-            txid = await self._broadcast_transaction(signed_tx.rawTransaction.hex())
+            txid = await self._broadcast_transaction(signed_tx.raw_transaction.hex())
 
             if txid:
                 fee_eth = Decimal(gas_price * 21000) / Decimal(10**18)
@@ -417,7 +417,7 @@ class ERC20WithdrawalHandler(ETHWithdrawalHandler):
 
             # Sign and broadcast
             signed_tx = account.sign_transaction(tx)
-            txid = await self._broadcast_transaction(signed_tx.rawTransaction.hex())
+            txid = await self._broadcast_transaction(signed_tx.raw_transaction.hex())
 
             if txid:
                 fee_eth = Decimal(gas_price * 100000) / Decimal(10**18)
