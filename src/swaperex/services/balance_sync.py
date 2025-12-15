@@ -152,43 +152,61 @@ async def get_sol_balance(address: str) -> Optional[Decimal]:
     return None
 
 
+async def get_trx_all_balances(address: str) -> dict[str, Decimal]:
+    """Get all Tron balances (TRX + TRC20 tokens) in a SINGLE API call.
+
+    Returns dict like {"TRX": 1.5, "USDT": 100.0}
+    """
+    import asyncio
+    balances = {}
+
+    for attempt in range(3):  # Retry up to 3 times for rate limiting
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                response = await client.get(
+                    f"https://api.trongrid.io/v1/accounts/{address}"
+                )
+
+                if response.status_code == 429:
+                    # Rate limited - wait and retry
+                    await asyncio.sleep(1 * (attempt + 1))
+                    continue
+
+                if response.status_code == 200:
+                    data = response.json()
+                    if "data" in data and len(data["data"]) > 0:
+                        account_data = data["data"][0]
+
+                        # TRX balance
+                        trx_balance = account_data.get("balance", 0)
+                        if trx_balance > 0:
+                            balances["TRX"] = Decimal(trx_balance) / Decimal(10**6)
+
+                        # TRC20 tokens
+                        trc20 = account_data.get("trc20", [])
+                        usdt_contract = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"
+                        for token in trc20:
+                            if usdt_contract in token:
+                                usdt_balance = int(token[usdt_contract])
+                                if usdt_balance > 0:
+                                    balances["USDT"] = Decimal(usdt_balance) / Decimal(10**6)
+                    break
+        except Exception as e:
+            logger.error(f"Failed to get TRX balances (attempt {attempt + 1}): {e}")
+
+    return balances
+
+
 async def get_trx_balance(address: str) -> Optional[Decimal]:
-    """Get Tron TRX balance using TronGrid API."""
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            response = await client.get(
-                f"https://api.trongrid.io/v1/accounts/{address}"
-            )
-            if response.status_code == 200:
-                data = response.json()
-                if "data" in data and len(data["data"]) > 0:
-                    balance = data["data"][0].get("balance", 0)
-                    return Decimal(balance) / Decimal(10**6)
-    except Exception as e:
-        logger.error(f"Failed to get TRX balance: {e}")
-    return None
+    """Get Tron TRX balance. Kept for backwards compatibility."""
+    balances = await get_trx_all_balances(address)
+    return balances.get("TRX")
 
 
 async def get_trx_usdt_balance(address: str) -> Optional[Decimal]:
-    """Get Tron USDT (TRC20) balance."""
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            response = await client.get(
-                f"https://api.trongrid.io/v1/accounts/{address}"
-            )
-            if response.status_code == 200:
-                data = response.json()
-                if "data" in data and len(data["data"]) > 0:
-                    trc20 = data["data"][0].get("trc20", [])
-                    # USDT TRC20 contract
-                    usdt_contract = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"
-                    for token in trc20:
-                        if usdt_contract in token:
-                            balance = int(token[usdt_contract])
-                            return Decimal(balance) / Decimal(10**6)
-    except Exception as e:
-        logger.error(f"Failed to get TRX USDT balance: {e}")
-    return None
+    """Get Tron USDT balance. Kept for backwards compatibility."""
+    balances = await get_trx_all_balances(address)
+    return balances.get("USDT")
 
 
 async def get_atom_balance(address: str) -> Optional[Decimal]:
@@ -515,17 +533,8 @@ async def get_all_chain_balances_with_addresses() -> dict:
     async def fetch_tron():
         if trx_address:
             try:
-                trx_balances = {}
-                # Fetch TRX and USDT in parallel
-                trx_bal, usdt_bal = await asyncio.gather(
-                    get_trx_balance(trx_address),
-                    get_trx_usdt_balance(trx_address),
-                    return_exceptions=True
-                )
-                if isinstance(trx_bal, Decimal) and trx_bal > 0:
-                    trx_balances["TRX"] = trx_bal
-                if isinstance(usdt_bal, Decimal) and usdt_bal > 0:
-                    trx_balances["USDT"] = usdt_bal
+                # Single API call gets both TRX and USDT
+                trx_balances = await get_trx_all_balances(trx_address)
                 if trx_balances:
                     return ("tron", {"address": trx_address, "balances": trx_balances})
             except Exception as e:
