@@ -31,6 +31,7 @@ TOKEN_CONTRACTS = {
         "BTCB": "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c",
         "XVS": "0xcF6BB5389c92Bdda8a3747Ddb454cB7a64626C63",
         "FLOKI": "0xfb5B838b6cfEEdC2873aB27866079AC55363D37E",
+        "BABYDOGE": "0xc748673057861a797275CD8A068AbB95A902e8de",
     },
     "ethereum": {
         "USDT": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
@@ -451,6 +452,8 @@ def derive_near_address(seed_phrase: str) -> Optional[str]:
 async def get_all_chain_balances_with_addresses() -> dict:
     """Get balances from ALL chains with addresses.
 
+    Runs all balance checks in PARALLEL for faster response.
+
     Returns dict like:
     {
         "bsc": {"address": "0x...", "balances": {"BNB": 0.5, "CAKE": 10.0}},
@@ -458,6 +461,8 @@ async def get_all_chain_balances_with_addresses() -> dict:
         ...
     }
     """
+    import asyncio
+
     seed_phrase = (
         os.environ.get("SEED_PHRASE")
         or os.environ.get("WALLET_SEED_PHRASE")
@@ -469,7 +474,8 @@ async def get_all_chain_balances_with_addresses() -> dict:
 
     all_data = {}
 
-    # EVM address (same for all EVM chains)
+    # Derive all addresses first (fast, CPU-bound)
+    evm_address = None
     try:
         from bip_utils import Bip39SeedGenerator, Bip32Secp256k1, EthAddrEncoder
         seed = Bip39SeedGenerator(seed_phrase).Generate()
@@ -477,69 +483,109 @@ async def get_all_chain_balances_with_addresses() -> dict:
         account_ctx = bip32_ctx.DerivePath("44'/60'/0'/0/0")
         pubkey = account_ctx.PublicKey().RawUncompressed().ToBytes()
         evm_address = EthAddrEncoder.EncodeKey(pubkey)
-
-        # BSC
-        bsc_balances = await get_all_balances(evm_address, "bsc")
-        if bsc_balances:
-            all_data["bsc"] = {"address": evm_address, "balances": bsc_balances}
-
-        # Ethereum
-        eth_balances = await get_all_balances(evm_address, "ethereum")
-        if eth_balances:
-            all_data["ethereum"] = {"address": evm_address, "balances": eth_balances}
-
-        # Polygon
-        polygon_balances = await get_all_balances(evm_address, "polygon")
-        if polygon_balances:
-            all_data["polygon"] = {"address": evm_address, "balances": polygon_balances}
-
-        # Avalanche
-        avax_balances = await get_all_balances(evm_address, "avalanche")
-        if avax_balances:
-            all_data["avalanche"] = {"address": evm_address, "balances": avax_balances}
-
     except Exception as e:
-        logger.error(f"Failed to get EVM balances: {e}")
+        logger.error(f"Failed to derive EVM address: {e}")
 
-    # Solana
     sol_address = derive_solana_address(seed_phrase)
-    if sol_address:
-        sol_balance = await get_sol_balance(sol_address)
-        if sol_balance and sol_balance > 0:
-            all_data["solana"] = {"address": sol_address, "balances": {"SOL": sol_balance}}
-
-    # Tron
     trx_address = derive_tron_address(seed_phrase)
-    if trx_address:
-        trx_balances = {}
-        trx_balance = await get_trx_balance(trx_address)
-        if trx_balance and trx_balance > 0:
-            trx_balances["TRX"] = trx_balance
-        usdt_balance = await get_trx_usdt_balance(trx_address)
-        if usdt_balance and usdt_balance > 0:
-            trx_balances["USDT"] = usdt_balance
-        if trx_balances:
-            all_data["tron"] = {"address": trx_address, "balances": trx_balances}
-
-    # Cosmos
     atom_address = derive_cosmos_address(seed_phrase)
-    if atom_address:
-        atom_balance = await get_atom_balance(atom_address)
-        if atom_balance and atom_balance > 0:
-            all_data["cosmos"] = {"address": atom_address, "balances": {"ATOM": atom_balance}}
-
-    # TON (address derivation not yet implemented)
     ton_address = derive_ton_address(seed_phrase)
-    if ton_address:
-        ton_balance = await get_ton_balance(ton_address)
-        if ton_balance and ton_balance > 0:
-            all_data["ton"] = {"address": ton_address, "balances": {"TON": ton_balance}}
-
-    # NEAR
     near_address = derive_near_address(seed_phrase)
-    if near_address:
-        near_balance = await get_near_balance(near_address)
-        if near_balance and near_balance > 0:
-            all_data["near"] = {"address": near_address, "balances": {"NEAR": near_balance}}
+
+    # Helper functions to wrap balance fetching
+    async def fetch_evm_chain(chain: str, address: str):
+        try:
+            balances = await get_all_balances(address, chain)
+            if balances:
+                return (chain, {"address": address, "balances": balances})
+        except Exception as e:
+            logger.error(f"Failed to get {chain} balances: {e}")
+        return None
+
+    async def fetch_solana():
+        if sol_address:
+            try:
+                sol_balance = await get_sol_balance(sol_address)
+                if sol_balance and sol_balance > 0:
+                    return ("solana", {"address": sol_address, "balances": {"SOL": sol_balance}})
+            except Exception as e:
+                logger.error(f"Failed to get Solana balance: {e}")
+        return None
+
+    async def fetch_tron():
+        if trx_address:
+            try:
+                trx_balances = {}
+                # Fetch TRX and USDT in parallel
+                trx_bal, usdt_bal = await asyncio.gather(
+                    get_trx_balance(trx_address),
+                    get_trx_usdt_balance(trx_address),
+                    return_exceptions=True
+                )
+                if isinstance(trx_bal, Decimal) and trx_bal > 0:
+                    trx_balances["TRX"] = trx_bal
+                if isinstance(usdt_bal, Decimal) and usdt_bal > 0:
+                    trx_balances["USDT"] = usdt_bal
+                if trx_balances:
+                    return ("tron", {"address": trx_address, "balances": trx_balances})
+            except Exception as e:
+                logger.error(f"Failed to get Tron balances: {e}")
+        return None
+
+    async def fetch_cosmos():
+        if atom_address:
+            try:
+                atom_balance = await get_atom_balance(atom_address)
+                if atom_balance and atom_balance > 0:
+                    return ("cosmos", {"address": atom_address, "balances": {"ATOM": atom_balance}})
+            except Exception as e:
+                logger.error(f"Failed to get Cosmos balance: {e}")
+        return None
+
+    async def fetch_ton():
+        if ton_address:
+            try:
+                ton_balance = await get_ton_balance(ton_address)
+                if ton_balance and ton_balance > 0:
+                    return ("ton", {"address": ton_address, "balances": {"TON": ton_balance}})
+            except Exception as e:
+                logger.error(f"Failed to get TON balance: {e}")
+        return None
+
+    async def fetch_near():
+        if near_address:
+            try:
+                near_balance = await get_near_balance(near_address)
+                if near_balance and near_balance > 0:
+                    return ("near", {"address": near_address, "balances": {"NEAR": near_balance}})
+            except Exception as e:
+                logger.error(f"Failed to get NEAR balance: {e}")
+        return None
+
+    # Build list of tasks to run in parallel
+    tasks = []
+    if evm_address:
+        tasks.extend([
+            fetch_evm_chain("bsc", evm_address),
+            fetch_evm_chain("ethereum", evm_address),
+            fetch_evm_chain("polygon", evm_address),
+            fetch_evm_chain("avalanche", evm_address),
+        ])
+    tasks.extend([
+        fetch_solana(),
+        fetch_tron(),
+        fetch_cosmos(),
+        fetch_ton(),
+        fetch_near(),
+    ])
+
+    # Run ALL balance fetches in parallel
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Collect results
+    for result in results:
+        if result and not isinstance(result, Exception):
+            chain_id, chain_data = result
+            all_data[chain_id] = chain_data
 
     return all_data
