@@ -313,6 +313,9 @@ async def handle_confirm_swap(callback: CallbackQuery, state: FSMContext) -> Non
 
     selected_quote = quotes[0]  # Best quote
     is_simulated = selected_quote.get('is_simulated', True)
+    # Track original value - if we started as real swap, always skip ledger ops
+    # (even if swap fails, we never locked the balance in the first place)
+    skip_ledger = not is_simulated
 
     # Show "executing" message
     await callback.message.edit_text(
@@ -339,7 +342,7 @@ async def handle_confirm_swap(callback: CallbackQuery, state: FSMContext) -> Non
                 fee_asset=selected_quote["fee_asset"],
                 fee_amount=Decimal(selected_quote["fee_amount"]),
                 route_details=json.dumps(selected_quote),
-                skip_balance_lock=not is_simulated,  # Skip for real swaps
+                skip_balance_lock=skip_ledger,  # Skip for real swaps
             )
 
             # Execute REAL swap on-chain if not simulated
@@ -374,7 +377,7 @@ async def handle_confirm_swap(callback: CallbackQuery, state: FSMContext) -> Non
                 swap.id,
                 actual_to_amount=actual_to_amount,
                 tx_hash=txid,
-                skip_ledger_operations=not is_simulated,  # Skip for real swaps
+                skip_ledger_operations=skip_ledger,  # Skip for real swaps
             )
 
             # Build result message
