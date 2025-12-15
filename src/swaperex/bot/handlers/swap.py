@@ -305,6 +305,7 @@ async def handle_confirm_swap(callback: CallbackQuery, state: FSMContext) -> Non
 
         try:
             # Create swap record
+            # Skip ledger balance lock for real on-chain swaps (uses blockchain balance)
             swap = await repo.create_swap(
                 user_id=user.id,
                 from_asset=from_asset,
@@ -315,6 +316,7 @@ async def handle_confirm_swap(callback: CallbackQuery, state: FSMContext) -> Non
                 fee_asset=selected_quote["fee_asset"],
                 fee_amount=Decimal(selected_quote["fee_amount"]),
                 route_details=json.dumps(selected_quote),
+                skip_balance_lock=not is_simulated,  # Skip for real swaps
             )
 
             # Execute REAL swap on-chain if not simulated

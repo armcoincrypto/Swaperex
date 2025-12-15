@@ -278,10 +278,17 @@ class LedgerRepository:
         fee_asset: str,
         fee_amount: Decimal,
         route_details: Optional[str] = None,
+        skip_balance_lock: bool = False,
     ) -> Swap:
-        """Create a new swap record and lock the from_amount."""
-        # Lock the balance first
-        await self.lock_balance(user_id, from_asset, from_amount)
+        """Create a new swap record and optionally lock the from_amount.
+
+        Args:
+            skip_balance_lock: If True, skip ledger balance lock (for real on-chain swaps
+                              where blockchain balance is used instead of internal ledger)
+        """
+        # Lock the balance first (unless skipping for real on-chain swaps)
+        if not skip_balance_lock:
+            await self.lock_balance(user_id, from_asset, from_amount)
 
         swap = Swap(
             user_id=user_id,
