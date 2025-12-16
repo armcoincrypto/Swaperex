@@ -285,7 +285,12 @@ async def get_near_balance(address: str) -> Optional[Decimal]:
 
 
 async def get_all_balances(address: str, chain: str = "bsc") -> dict[str, Decimal]:
-    """Get all balances (native + tokens) for an EVM address."""
+    """Get all balances (native + tokens) for an EVM address.
+
+    Uses parallel execution for all token balance checks for faster response.
+    """
+    import asyncio
+
     balances = {}
 
     native_tokens = {
@@ -295,19 +300,37 @@ async def get_all_balances(address: str, chain: str = "bsc") -> dict[str, Decima
         "avalanche": "AVAX",
     }
 
-    native_name = native_tokens.get(chain, "ETH")
-    native_balance = await get_native_balance(address, chain)
-    if native_balance is not None:
-        balances[native_name] = native_balance
-
     tokens = TOKEN_CONTRACTS.get(chain, {})
-    for token_name, contract in tokens.items():
+
+    # Helper to fetch a single token balance
+    async def fetch_token_balance(token_name: str, contract: str):
         decimals = 18
         if token_name in ("USDT", "USDC"):
             decimals = 6 if chain in ("ethereum", "polygon", "avalanche") else 18
 
         balance = await get_token_balance(address, contract, chain, decimals)
         if balance is not None and balance > 0:
+            return (token_name, balance)
+        return None
+
+    # Build tasks: native balance + all token balances
+    tasks = [get_native_balance(address, chain)]
+    for token_name, contract in tokens.items():
+        tasks.append(fetch_token_balance(token_name, contract))
+
+    # Run ALL balance checks in parallel
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # First result is native balance
+    native_result = results[0]
+    if native_result is not None and not isinstance(native_result, Exception):
+        native_name = native_tokens.get(chain, "ETH")
+        balances[native_name] = native_result
+
+    # Remaining results are token balances
+    for result in results[1:]:
+        if result is not None and not isinstance(result, Exception):
+            token_name, balance = result
             balances[token_name] = balance
 
     return balances
