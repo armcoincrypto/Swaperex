@@ -197,18 +197,46 @@ async def handle_swap_amount(message: Message, state: FSMContext) -> None:
         "traderjoe": "avalanche",
         "jupiter": "solana",
         "sunswap": "tron",
-        "thorchain": "bsc",  # Cross-chain, default to BSC
+        "thorchain": "bsc",  # Cross-chain, default to BSC (overridden below for native tokens)
         "osmosis": "cosmos",
         "stonfi": "ton",
         "ref_finance": "near",
     }
+
+    # For cross-chain (THORChain), detect chain from the FROM asset
+    # Native tokens map to their specific chains
+    native_asset_chains = {
+        "ETH": "ethereum",
+        "BNB": "bsc",
+        "AVAX": "avalanche",
+        "MATIC": "polygon",
+        "SOL": "solana",
+        "TRX": "tron",
+        "ATOM": "cosmos",
+        "TON": "ton",
+    }
+
     chain_id = chain_map.get(chain.lower(), "bsc")
+
+    # Override for native assets on cross-chain DEXes
+    if chain.lower() in ("thorchain",) and from_asset.upper() in native_asset_chains:
+        chain_id = native_asset_chains[from_asset.upper()]
 
     try:
         all_balances = await get_all_chain_balances_with_addresses()
         chain_data = all_balances.get(chain_id, {})
         balances = chain_data.get("balances", {})
         available = balances.get(from_asset, Decimal("0"))
+
+        # If no balance found, check ALL chains for the asset (multi-chain tokens)
+        if available == Decimal("0"):
+            for check_chain, check_data in all_balances.items():
+                check_balances = check_data.get("balances", {})
+                check_available = check_balances.get(from_asset, Decimal("0"))
+                if check_available > available:
+                    available = check_available
+                    chain_id = check_chain  # Update chain_id to where we found balance
+
     except Exception as e:
         logger.error(f"Failed to get blockchain balance: {e}")
         available = Decimal("0")
