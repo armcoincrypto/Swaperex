@@ -215,7 +215,7 @@ async def sweep_all_deposits(chains: list[str] = None) -> dict:
         logger.error("Could not get main wallet address")
         return {}
 
-    logger.info(f"Sweeping deposits to main wallet: {main_wallet}")
+    logger.debug(f"Sweeping deposits to main wallet: {main_wallet}")
 
     results = {}
 
@@ -235,26 +235,51 @@ async def sweep_all_deposits(chains: list[str] = None) -> dict:
             result = await session.execute(stmt)
             deposit_indices = [(row[0], row[1]) for row in result.fetchall()]
 
-        logger.info(f"Found {len(deposit_indices)} deposit addresses to check")
+        if not deposit_indices:
+            logger.debug("No deposit addresses to check")
+            return {}
 
-        for chain in chains:
-            chain_results = []
+        logger.debug(f"Checking {len(deposit_indices)} deposit addresses")
 
-            for index, address in deposit_indices:
-                # Check balance first
+        # Check all balances in PARALLEL across all chains
+        async def check_address_on_chain(index: int, address: str, chain: str):
+            """Check single address on single chain."""
+            try:
                 balance = await get_balance(address, chain)
                 min_sweep = MIN_SWEEP_WEI.get(chain, 100000000000000)
-
                 if balance >= min_sweep:
-                    logger.info(f"Found {balance / 1e18:.8f} at index {index} ({address}) on {chain}")
-                    txid = await sweep_address(index, main_wallet, chain)
-                    if txid:
-                        chain_results.append((index, txid))
-                    # Small delay between transactions
-                    await asyncio.sleep(1)
+                    return (chain, index, address, balance)
+            except Exception:
+                pass
+            return None
 
-            if chain_results:
-                results[chain] = chain_results
+        # Build all check tasks
+        tasks = []
+        for chain in chains:
+            for index, address in deposit_indices:
+                tasks.append(check_address_on_chain(index, address, chain))
+
+        # Run all balance checks in parallel
+        check_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Filter to only addresses with balance
+        to_sweep = [r for r in check_results if r is not None and not isinstance(r, Exception)]
+
+        if not to_sweep:
+            logger.debug("No deposits to sweep")
+            return {}
+
+        logger.info(f"Found {len(to_sweep)} deposit(s) to sweep")
+
+        # Sweep each (sequentially to avoid nonce issues)
+        for chain, index, address, balance in to_sweep:
+            logger.info(f"Sweeping {balance / 1e18:.8f} from {address} on {chain}")
+            txid = await sweep_address(index, main_wallet, chain)
+            if txid:
+                if chain not in results:
+                    results[chain] = []
+                results[chain].append((index, txid))
+            await asyncio.sleep(0.5)  # Small delay between sweeps
 
     except Exception as e:
         logger.error(f"Failed to sweep deposits: {e}")
@@ -268,7 +293,10 @@ async def run_sweeper_loop(interval_seconds: int = 300):
     Args:
         interval_seconds: How often to check for deposits (default: 5 minutes)
     """
-    logger.info(f"Starting deposit sweeper (interval: {interval_seconds}s)")
+    logger.info(f"Deposit sweeper started (interval: {interval_seconds}s)")
+
+    # Wait a bit before first check to let bot initialize
+    await asyncio.sleep(30)
 
     while True:
         try:
@@ -280,8 +308,6 @@ async def run_sweeper_loop(interval_seconds: int = 300):
                 for chain, txs in results.items():
                     for index, txid in txs:
                         logger.info(f"  {chain}: index {index} -> {txid}")
-            else:
-                logger.debug("No deposits to sweep")
 
         except Exception as e:
             logger.error(f"Sweeper error: {e}")
