@@ -302,6 +302,9 @@ async def get_all_balances(address: str, chain: str = "bsc") -> dict[str, Decima
 
     tokens = TOKEN_CONTRACTS.get(chain, {})
 
+    # Minimum balance to display (filter out dust)
+    MIN_DISPLAY = Decimal("0.00000001")
+
     # Helper to fetch a single token balance
     async def fetch_token_balance(token_name: str, contract: str):
         decimals = 18
@@ -309,7 +312,7 @@ async def get_all_balances(address: str, chain: str = "bsc") -> dict[str, Decima
             decimals = 6 if chain in ("ethereum", "polygon", "avalanche") else 18
 
         balance = await get_token_balance(address, contract, chain, decimals)
-        if balance is not None and balance > 0:
+        if balance is not None and balance >= MIN_DISPLAY:
             return (token_name, balance)
         return None
 
