@@ -725,6 +725,8 @@ async def execute_tron_swap(
 
     private_key, wallet_address = key_data
 
+    logger.info(f"Tron wallet address: {wallet_address}")
+
     # Get token addresses
     from_token = TRON_TOKEN_ADDRESSES.get(from_asset.upper())
     to_token = TRON_TOKEN_ADDRESSES.get(to_asset.upper())
@@ -887,11 +889,17 @@ def _address_to_hex(address: str) -> str:
 
 
 def _sign_tron_transaction(tx_data: dict, private_key: bytes) -> dict:
-    """Sign a Tron transaction."""
+    """Sign a Tron transaction.
+
+    Tron uses secp256k1 ECDSA signatures with recovery byte (r, s, v format).
+    The recovery byte v (27 or 28) indicates which of two possible public keys
+    was used to create the signature.
+    """
     import hashlib
 
     try:
         from ecdsa import SigningKey, SECP256k1, util
+        from ecdsa.keys import BadSignatureError
 
         # Get raw data hash
         raw_data_hex = tx_data.get("raw_data_hex", "")
@@ -914,36 +922,133 @@ def _sign_tron_transaction(tx_data: dict, private_key: bytes) -> dict:
         r = int.from_bytes(signature[:32], 'big')
         s = int.from_bytes(signature[32:], 'big')
 
-        # Calculate recovery byte (v) by trying both values
-        # Tron uses 27/28 like Ethereum
-        from ecdsa import VerifyingKey
-        pubkey = sk.get_verifying_key()
+        # Get our public key for verification
+        our_pubkey = sk.get_verifying_key()
+        our_pubkey_bytes = our_pubkey.to_string()  # 64 bytes (x, y coordinates)
 
-        # Try v=27 first, then v=28
-        for v in [27, 28]:
-            try:
-                # Reconstruct signature with recovery byte
-                sig_with_v = (
-                    r.to_bytes(32, 'big') +
-                    s.to_bytes(32, 'big') +
-                    bytes([v])
-                )
-                tx_data["signature"] = [sig_with_v.hex()]
-                return tx_data
-            except Exception:
-                continue
+        # Determine correct recovery byte by trying to recover public key
+        # For secp256k1, v can be 0 or 1 (mapped to 27 or 28 for Ethereum/Tron)
+        correct_v = 27  # default
 
-        # Fallback: just use v=27
-        sig_with_v = r.to_bytes(32, 'big') + s.to_bytes(32, 'big') + bytes([27])
+        try:
+            from ecdsa import VerifyingKey, SECP256k1
+
+            # The recovery process: for each v value, try to recover the public key
+            # and check if it matches our public key
+            for recovery_flag in [0, 1]:
+                try:
+                    # Recover public key from signature
+                    # Using the formula for ecrecover
+                    recovered_pubkey = _recover_public_key(tx_hash, r, s, recovery_flag)
+
+                    if recovered_pubkey and recovered_pubkey == our_pubkey_bytes:
+                        correct_v = 27 + recovery_flag
+                        logger.debug(f"Found correct recovery byte: v={correct_v}")
+                        break
+                except Exception:
+                    continue
+        except Exception as e:
+            logger.warning(f"Could not determine recovery byte, using default: {e}")
+
+        # Build final signature: r (32 bytes) + s (32 bytes) + v (1 byte)
+        sig_with_v = r.to_bytes(32, 'big') + s.to_bytes(32, 'big') + bytes([correct_v])
         tx_data["signature"] = [sig_with_v.hex()]
+
+        logger.info(f"Tron transaction signed with v={correct_v}")
         return tx_data
 
-    except ImportError:
-        logger.error("ecdsa library not installed for Tron signing")
+    except ImportError as e:
+        logger.error(f"ecdsa library not installed for Tron signing: {e}")
         return tx_data
     except Exception as e:
         logger.error(f"Tron signing error: {e}")
         return tx_data
+
+
+def _recover_public_key(msg_hash: bytes, r: int, s: int, recovery_flag: int) -> Optional[bytes]:
+    """Recover public key from ECDSA signature using recovery flag.
+
+    This implements ecrecover for secp256k1.
+
+    Args:
+        msg_hash: 32-byte message hash
+        r: r component of signature
+        s: s component of signature
+        recovery_flag: 0 or 1 indicating which of two possible public keys
+
+    Returns:
+        64-byte public key (x, y coordinates) or None
+    """
+    try:
+        from ecdsa import SECP256k1
+        from ecdsa.ellipticcurve import Point
+
+        curve = SECP256k1.curve
+        generator = SECP256k1.generator
+        order = SECP256k1.order
+
+        # Calculate x coordinate of R point
+        x = r + (recovery_flag >> 1) * order
+
+        # Check if x is valid
+        if x >= curve.p():
+            return None
+
+        # Calculate y^2 = x^3 + ax + b (mod p)
+        y_squared = (pow(x, 3, curve.p()) + curve.a() * x + curve.b()) % curve.p()
+
+        # Calculate y using modular square root
+        y = _mod_sqrt(y_squared, curve.p())
+        if y is None:
+            return None
+
+        # Choose correct y based on recovery flag parity
+        if (recovery_flag & 1) != (y & 1):
+            y = curve.p() - y
+
+        # Create point R
+        R = Point(curve, x, y)
+
+        # Calculate public key: Q = r^(-1) * (s*R - e*G)
+        r_inv = pow(r, -1, order)
+        e = int.from_bytes(msg_hash, 'big')
+
+        # Calculate s*R
+        sR = R * s
+        # Calculate e*G
+        eG = generator * e
+        # Calculate s*R - e*G
+        diff = sR + Point(curve, eG.x(), (-eG.y()) % curve.p())
+        # Calculate Q = r^(-1) * diff
+        Q = diff * r_inv
+
+        # Return public key as 64 bytes (x || y)
+        x_bytes = Q.x().to_bytes(32, 'big')
+        y_bytes = Q.y().to_bytes(32, 'big')
+
+        return x_bytes + y_bytes
+
+    except Exception as e:
+        logger.debug(f"Public key recovery failed: {e}")
+        return None
+
+
+def _mod_sqrt(a: int, p: int) -> Optional[int]:
+    """Calculate modular square root using Tonelli-Shanks algorithm.
+
+    For p ≡ 3 (mod 4), this simplifies to a^((p+1)/4) mod p.
+    secp256k1's p satisfies this condition.
+    """
+    if a == 0:
+        return 0
+
+    # For secp256k1, p ≡ 3 (mod 4), so we can use the simple formula
+    result = pow(a, (p + 1) // 4, p)
+
+    # Verify the result
+    if pow(result, 2, p) == a:
+        return result
+    return None
 
 
 # ============ SOLANA SWAP EXECUTION ============
