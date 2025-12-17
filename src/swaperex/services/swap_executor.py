@@ -649,8 +649,13 @@ async def execute_swap(
 # TronGrid API endpoints
 TRON_API = "https://api.trongrid.io"
 
-# SunSwap V2 Router contract
-SUNSWAP_ROUTER = "TKzxdSv2FZKQrEqkKVgp5DcwEXBEKMg2Ax"
+# SunSwap V2 Router contract (correct mainnet address)
+# Source: https://sun.io/
+SUNSWAP_ROUTER = "TXF1xDbVGdxFGbovmmmXvBGu8ZiE3Lq4mR"
+
+# Alternative routers if V2 fails:
+# SunSwap V1: "TQSKFiPkgZWjZpM8g3UJMEA8XLEXEr5ETf"
+# SunSwap V3: Different interface
 
 # TRC20 Token addresses
 TRON_TOKEN_ADDRESSES = {
@@ -819,11 +824,9 @@ async def _execute_trx_to_token_swap(
         # Calculate minimum output (1% slippage)
         amount_out_min = 1  # Minimum 1 unit to avoid failed tx
 
-        # Encode swapExactTRXForTokens function call
-        # Function: swapExactTRXForTokens(uint256 amountOutMin, address[] path, address to, uint256 deadline)
-        # Selector: 0xfb3bdb41 (from SunSwap)
-
-        function_selector = "fb3bdb41"
+        # Encode swapExactETHForTokens function call (SunSwap uses Uniswap V2 style)
+        # Function: swapExactETHForTokens(uint256 amountOutMin, address[] path, address to, uint256 deadline)
+        # Selector: 0x7ff36ab5 (standard Uniswap V2)
 
         # Encode parameters
         params = _encode_swap_params(
@@ -833,8 +836,6 @@ async def _execute_trx_to_token_swap(
             deadline=deadline,
         )
 
-        parameter = function_selector + params
-
         async with httpx.AsyncClient(timeout=30.0) as client:
             # Create TriggerSmartContract transaction
             response = await client.post(
@@ -843,10 +844,10 @@ async def _execute_trx_to_token_swap(
                 json={
                     "owner_address": _address_to_hex(wallet_address),
                     "contract_address": _address_to_hex(SUNSWAP_ROUTER),
-                    "function_selector": "swapExactTRXForTokens(uint256,address[],address,uint256)",
+                    "function_selector": "swapExactETHForTokens(uint256,address[],address,uint256)",
                     "parameter": params,
                     "call_value": amount_sun,  # TRX amount in sun
-                    "fee_limit": 100000000,  # 100 TRX max fee
+                    "fee_limit": 150000000,  # 150 TRX max fee (more for complex swaps)
                 },
             )
 
@@ -942,11 +943,11 @@ async def _execute_token_swap(
         wtrx_address = "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb"
 
         if is_to_trx:
-            # Token -> TRX: swapExactTokensForTRX
+            # Token -> TRX: swapExactTokensForETH (Uniswap V2 style)
             path = [_address_to_hex(from_token), _address_to_hex(wtrx_address)]
-            function_selector = "swapExactTokensForTRX(uint256,uint256,address[],address,uint256)"
+            function_selector = "swapExactTokensForETH(uint256,uint256,address[],address,uint256)"
         else:
-            # Token -> Token: swapExactTokensForTokens
+            # Token -> Token: swapExactTokensForTokens (Uniswap V2 style)
             path = [_address_to_hex(from_token), _address_to_hex(wtrx_address), _address_to_hex(to_token)]
             function_selector = "swapExactTokensForTokens(uint256,uint256,address[],address,uint256)"
 
