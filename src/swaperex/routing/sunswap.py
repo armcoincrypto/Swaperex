@@ -16,8 +16,12 @@ logger = logging.getLogger(__name__)
 
 # SunSwap API endpoints
 SUNSWAP_API = "https://api.sun.io"
-# Official SunSwap router API
-SUNSWAP_ROUTER_API = "https://router.sunswap.com/v1/swap/router"
+# SunPump/SunSwap router APIs (multiple fallbacks)
+SUNSWAP_ROUTER_APIS = [
+    "https://api.sunswap.com/swap/v2/router",
+    "https://apilist.tronscanapi.com/api/defi/swap/route",
+    "https://api.sun.io/api/v1/swap/router",
+]
 
 # TRC20 Token contract addresses on Tron mainnet
 TRON_TOKENS = {
@@ -122,29 +126,32 @@ class SunSwapProvider(RouteProvider):
 
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
-                # Get swap route from SunSwap router API
-                response = await client.post(
-                    SUNSWAP_ROUTER_API,
-                    headers=self._get_headers(),
-                    json={
-                        "tokenIn": from_address,
-                        "tokenOut": to_address,
-                        "amountIn": str(amount_sun),
-                        "typeList": ["PSM", "CURVE", "WTRX", "SUNSWAP_V1", "SUNSWAP_V2"],
-                    },
-                )
+                # Try multiple router APIs with fallback
+                data = None
+                for router_api in SUNSWAP_ROUTER_APIS:
+                    try:
+                        response = await client.post(
+                            router_api,
+                            headers=self._get_headers(),
+                            json={
+                                "tokenIn": from_address,
+                                "tokenOut": to_address,
+                                "amountIn": str(amount_sun),
+                                "typeList": ["PSM", "CURVE", "WTRX", "SUNSWAP_V1", "SUNSWAP_V2"],
+                            },
+                            timeout=10.0,
+                        )
+                        if response.status_code == 200:
+                            data = response.json()
+                            if data.get("code") == 0 or data.get("success"):
+                                logger.info(f"SunSwap quote from: {router_api}")
+                                break
+                    except Exception as e:
+                        logger.debug(f"Router API {router_api} failed: {e}")
+                        continue
 
-                if response.status_code != 200:
-                    logger.warning(f"SunSwap API error: {response.status_code}")
-                    # Try alternative calculation method
-                    return await self._get_fallback_quote(
-                        from_asset, to_asset, amount, slippage_tolerance
-                    )
-
-                data = response.json()
-
-                if data.get("code") != 0:
-                    logger.warning(f"SunSwap quote error: {data.get('msg')}")
+                if not data or (data.get("code") != 0 and not data.get("success")):
+                    logger.warning("All SunSwap router APIs failed")
                     return await self._get_fallback_quote(
                         from_asset, to_asset, amount, slippage_tolerance
                     )

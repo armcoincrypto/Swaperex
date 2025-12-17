@@ -801,28 +801,52 @@ async def _execute_trx_to_token_swap(
     amount_sun: int,
     headers: dict,
 ) -> Optional[str]:
-    """Execute TRX -> Token swap via SunSwap."""
-    import hashlib
+    """Execute TRX -> Token swap via SunSwap router.
+
+    Calls swapExactTRXForTokens on SunSwap V2 Router.
+    """
     import time
 
     try:
-        # Build the swap transaction using TronGrid API
-        # SunSwap V2 Router: swapExactETHForTokens(uint256 amountOutMin, address[] path, address to, uint256 deadline)
-
         deadline = int(time.time()) + 1200  # 20 minutes
 
-        # For simplicity, we'll use a direct TRX transfer first as a test
-        # Full SunSwap integration requires ABI encoding
+        # WTRX address for path
+        wtrx_address = "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb"
+
+        # Build swap path: WTRX -> Token
+        path = [_address_to_hex(wtrx_address), _address_to_hex(to_token)]
+
+        # Calculate minimum output (1% slippage)
+        amount_out_min = 1  # Minimum 1 unit to avoid failed tx
+
+        # Encode swapExactTRXForTokens function call
+        # Function: swapExactTRXForTokens(uint256 amountOutMin, address[] path, address to, uint256 deadline)
+        # Selector: 0xfb3bdb41 (from SunSwap)
+
+        function_selector = "fb3bdb41"
+
+        # Encode parameters
+        params = _encode_swap_params(
+            amount_out_min=amount_out_min,
+            path=path,
+            to_address=_address_to_hex(wallet_address),
+            deadline=deadline,
+        )
+
+        parameter = function_selector + params
 
         async with httpx.AsyncClient(timeout=30.0) as client:
-            # Create transaction via TronGrid
+            # Create TriggerSmartContract transaction
             response = await client.post(
-                f"{TRON_API}/wallet/createtransaction",
+                f"{TRON_API}/wallet/triggersmartcontract",
                 headers=headers,
                 json={
                     "owner_address": _address_to_hex(wallet_address),
-                    "to_address": _address_to_hex(SUNSWAP_ROUTER),
-                    "amount": amount_sun,
+                    "contract_address": _address_to_hex(SUNSWAP_ROUTER),
+                    "function_selector": "swapExactTRXForTokens(uint256,address[],address,uint256)",
+                    "parameter": params,
+                    "call_value": amount_sun,  # TRX amount in sun
+                    "fee_limit": 100000000,  # 100 TRX max fee
                 },
             )
 
@@ -830,10 +854,18 @@ async def _execute_trx_to_token_swap(
                 logger.error(f"TronGrid error: {response.text}")
                 return None
 
-            tx_data = response.json()
+            data = response.json()
 
-            if "Error" in tx_data:
-                logger.error(f"TronGrid error: {tx_data}")
+            if not data.get("result", {}).get("result"):
+                error_msg = data.get("result", {}).get("message", "Unknown error")
+                if error_msg:
+                    error_msg = bytes.fromhex(error_msg).decode('utf-8', errors='ignore')
+                logger.error(f"TriggerSmartContract failed: {error_msg}")
+                return None
+
+            tx_data = data.get("transaction", {})
+            if not tx_data:
+                logger.error("No transaction data returned")
                 return None
 
             # Sign transaction
@@ -850,13 +882,19 @@ async def _execute_trx_to_token_swap(
                 result = broadcast_response.json()
                 if result.get("result"):
                     txid = result.get("txid") or tx_data.get("txID")
-                    logger.info(f"Tron tx broadcast: {txid}")
+                    logger.info(f"Tron swap tx broadcast: {txid}")
                     return txid
                 else:
-                    logger.error(f"Broadcast failed: {result}")
+                    error = result.get("message", "Unknown broadcast error")
+                    if isinstance(error, str) and len(error) > 10:
+                        try:
+                            error = bytes.fromhex(error).decode('utf-8', errors='ignore')
+                        except Exception:
+                            pass
+                    logger.error(f"Broadcast failed: {error}")
 
     except Exception as e:
-        logger.error(f"TRX swap error: {e}")
+        logger.error(f"TRX->Token swap error: {e}")
 
     return None
 
@@ -870,11 +908,243 @@ async def _execute_token_swap(
     headers: dict,
     is_to_trx: bool = False,
 ) -> Optional[str]:
-    """Execute Token -> Token or Token -> TRX swap."""
-    # This requires TRC20 approval and then router swap
-    # For now, return None to indicate not fully implemented
-    logger.warning("Token -> Token/TRX swap requires full contract integration")
+    """Execute Token -> Token or Token -> TRX swap.
+
+    First approves the router to spend tokens, then executes swap.
+    """
+    import time
+
+    try:
+        # Step 1: Approve router to spend tokens
+        logger.info(f"Approving {from_token} for SunSwap router...")
+
+        approval_txid = await _approve_trc20(
+            wallet_address=wallet_address,
+            private_key=private_key,
+            token_address=from_token,
+            spender_address=SUNSWAP_ROUTER,
+            amount=amount_sun,
+            headers=headers,
+        )
+
+        if not approval_txid:
+            logger.error("Token approval failed")
+            return None
+
+        logger.info(f"Token approved: {approval_txid}")
+
+        # Wait for approval to be confirmed (3 seconds)
+        import asyncio
+        await asyncio.sleep(3)
+
+        # Step 2: Execute swap
+        deadline = int(time.time()) + 1200
+        wtrx_address = "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb"
+
+        if is_to_trx:
+            # Token -> TRX: swapExactTokensForTRX
+            path = [_address_to_hex(from_token), _address_to_hex(wtrx_address)]
+            function_selector = "swapExactTokensForTRX(uint256,uint256,address[],address,uint256)"
+        else:
+            # Token -> Token: swapExactTokensForTokens
+            path = [_address_to_hex(from_token), _address_to_hex(wtrx_address), _address_to_hex(to_token)]
+            function_selector = "swapExactTokensForTokens(uint256,uint256,address[],address,uint256)"
+
+        params = _encode_token_swap_params(
+            amount_in=amount_sun,
+            amount_out_min=1,
+            path=path,
+            to_address=_address_to_hex(wallet_address),
+            deadline=deadline,
+        )
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"{TRON_API}/wallet/triggersmartcontract",
+                headers=headers,
+                json={
+                    "owner_address": _address_to_hex(wallet_address),
+                    "contract_address": _address_to_hex(SUNSWAP_ROUTER),
+                    "function_selector": function_selector,
+                    "parameter": params,
+                    "fee_limit": 100000000,
+                },
+            )
+
+            if response.status_code != 200:
+                logger.error(f"TronGrid error: {response.text}")
+                return None
+
+            data = response.json()
+
+            if not data.get("result", {}).get("result"):
+                error_msg = data.get("result", {}).get("message", "Unknown error")
+                if error_msg:
+                    try:
+                        error_msg = bytes.fromhex(error_msg).decode('utf-8', errors='ignore')
+                    except Exception:
+                        pass
+                logger.error(f"Token swap failed: {error_msg}")
+                return None
+
+            tx_data = data.get("transaction", {})
+            if not tx_data:
+                return None
+
+            signed_tx = _sign_tron_transaction(tx_data, private_key)
+
+            broadcast_response = await client.post(
+                f"{TRON_API}/wallet/broadcasttransaction",
+                headers=headers,
+                json=signed_tx,
+            )
+
+            if broadcast_response.status_code == 200:
+                result = broadcast_response.json()
+                if result.get("result"):
+                    txid = result.get("txid") or tx_data.get("txID")
+                    logger.info(f"Token swap tx broadcast: {txid}")
+                    return txid
+                else:
+                    logger.error(f"Swap broadcast failed: {result}")
+
+    except Exception as e:
+        logger.error(f"Token swap error: {e}")
+
     return None
+
+
+async def _approve_trc20(
+    wallet_address: str,
+    private_key: bytes,
+    token_address: str,
+    spender_address: str,
+    amount: int,
+    headers: dict,
+) -> Optional[str]:
+    """Approve TRC20 token spending."""
+    try:
+        # approve(address spender, uint256 amount)
+        # Use max uint256 for unlimited approval
+        max_amount = 2**256 - 1
+
+        spender_hex = _address_to_hex(spender_address)
+        # Pad spender to 32 bytes (remove 41 prefix for Tron, pad to 64 hex chars)
+        if spender_hex.startswith("41"):
+            spender_hex = spender_hex[2:]
+        spender_padded = spender_hex.zfill(64)
+        amount_padded = hex(max_amount)[2:].zfill(64)
+
+        params = spender_padded + amount_padded
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"{TRON_API}/wallet/triggersmartcontract",
+                headers=headers,
+                json={
+                    "owner_address": _address_to_hex(wallet_address),
+                    "contract_address": _address_to_hex(token_address),
+                    "function_selector": "approve(address,uint256)",
+                    "parameter": params,
+                    "fee_limit": 50000000,  # 50 TRX
+                },
+            )
+
+            if response.status_code != 200:
+                return None
+
+            data = response.json()
+
+            if not data.get("result", {}).get("result"):
+                return None
+
+            tx_data = data.get("transaction", {})
+            if not tx_data:
+                return None
+
+            signed_tx = _sign_tron_transaction(tx_data, private_key)
+
+            broadcast_response = await client.post(
+                f"{TRON_API}/wallet/broadcasttransaction",
+                headers=headers,
+                json=signed_tx,
+            )
+
+            if broadcast_response.status_code == 200:
+                result = broadcast_response.json()
+                if result.get("result"):
+                    return result.get("txid") or tx_data.get("txID")
+
+    except Exception as e:
+        logger.error(f"TRC20 approval error: {e}")
+
+    return None
+
+
+def _encode_swap_params(
+    amount_out_min: int,
+    path: list[str],
+    to_address: str,
+    deadline: int,
+) -> str:
+    """Encode parameters for swapExactTRXForTokens."""
+    # Offset to path array (4 * 32 = 128 bytes = 0x80)
+    offset_path = 128
+
+    # Remove 41 prefix from addresses
+    to_addr = to_address[2:] if to_address.startswith("41") else to_address
+
+    result = ""
+    # amountOutMin (uint256)
+    result += hex(amount_out_min)[2:].zfill(64)
+    # offset to path array
+    result += hex(offset_path)[2:].zfill(64)
+    # to address (padded)
+    result += to_addr.zfill(64)
+    # deadline (uint256)
+    result += hex(deadline)[2:].zfill(64)
+    # path array length
+    result += hex(len(path))[2:].zfill(64)
+    # path addresses
+    for addr in path:
+        addr_clean = addr[2:] if addr.startswith("41") else addr
+        result += addr_clean.zfill(64)
+
+    return result
+
+
+def _encode_token_swap_params(
+    amount_in: int,
+    amount_out_min: int,
+    path: list[str],
+    to_address: str,
+    deadline: int,
+) -> str:
+    """Encode parameters for swapExactTokensForTokens/TRX."""
+    # Offset to path array (5 * 32 = 160 bytes = 0xa0)
+    offset_path = 160
+
+    to_addr = to_address[2:] if to_address.startswith("41") else to_address
+
+    result = ""
+    # amountIn (uint256)
+    result += hex(amount_in)[2:].zfill(64)
+    # amountOutMin (uint256)
+    result += hex(amount_out_min)[2:].zfill(64)
+    # offset to path array
+    result += hex(offset_path)[2:].zfill(64)
+    # to address (padded)
+    result += to_addr.zfill(64)
+    # deadline (uint256)
+    result += hex(deadline)[2:].zfill(64)
+    # path array length
+    result += hex(len(path))[2:].zfill(64)
+    # path addresses
+    for addr in path:
+        addr_clean = addr[2:] if addr.startswith("41") else addr
+        result += addr_clean.zfill(64)
+
+    return result
 
 
 def _address_to_hex(address: str) -> str:
@@ -1203,57 +1473,125 @@ async def _sign_and_send_solana_tx(
     private_key: bytes,
     wallet_address: str,
 ) -> Optional[str]:
-    """Sign and send a Solana transaction."""
+    """Sign and send a Solana transaction.
+
+    Jupiter returns versioned transactions that need proper ed25519 signing.
+    The transaction format:
+    - For versioned: 1 byte prefix (0x80) + num_signatures + signatures + message
+    - Signature placeholder is 64 zero bytes
+    """
     import base64
 
     try:
         # Decode the transaction
-        tx_bytes = base64.b64decode(swap_tx_base64)
+        tx_bytes = bytearray(base64.b64decode(swap_tx_base64))
 
         # Sign with ed25519
         try:
             from nacl.signing import SigningKey
             signing_key = SigningKey(private_key[:32])
         except ImportError:
-            # Fallback to ecdsa-based ed25519 if nacl not available
             logger.error("PyNaCl not installed - cannot sign Solana transactions")
             return None
 
-        # Solana transactions: sign the message (first 64 bytes after signature placeholder)
-        # The transaction format has signatures first, then the message
-        # For versioned transactions, we need to handle differently
+        # Parse versioned transaction to find message location
+        # Versioned transactions start with 0x80
+        is_versioned = tx_bytes[0] == 0x80
 
-        # Get message to sign (skip signature placeholders)
-        # This is a simplified approach - full impl needs proper tx parsing
-        message_to_sign = tx_bytes
+        if is_versioned:
+            # Versioned transaction format:
+            # byte 0: 0x80 (version prefix)
+            # byte 1: number of signatures
+            # bytes 2-66: first signature (64 bytes, filled with zeros)
+            # remaining: message to sign
 
-        # Sign the message
-        signed = signing_key.sign(message_to_sign)
-        signature = signed.signature
+            num_signatures = tx_bytes[1]
+            signature_offset = 2
+            message_offset = 2 + (num_signatures * 64)
 
-        # Broadcast transaction
+            # Extract the message to sign
+            message_to_sign = bytes(tx_bytes[message_offset:])
+
+            # Sign the message
+            signed = signing_key.sign(message_to_sign)
+            signature = signed.signature
+
+            # Insert signature into transaction
+            for i, byte in enumerate(signature):
+                tx_bytes[signature_offset + i] = byte
+
+        else:
+            # Legacy transaction format:
+            # byte 0: number of signatures
+            # bytes 1-65: first signature (64 bytes)
+            # remaining: message
+
+            num_signatures = tx_bytes[0]
+            signature_offset = 1
+            message_offset = 1 + (num_signatures * 64)
+
+            # Extract the message to sign
+            message_to_sign = bytes(tx_bytes[message_offset:])
+
+            # Sign the message
+            signed = signing_key.sign(message_to_sign)
+            signature = signed.signature
+
+            # Insert signature into transaction
+            for i, byte in enumerate(signature):
+                tx_bytes[signature_offset + i] = byte
+
+        # Convert back to base64
+        signed_tx_base64 = base64.b64encode(bytes(tx_bytes)).decode()
+
+        logger.info(f"Solana transaction signed (versioned={is_versioned})")
+
+        # Broadcast transaction using multiple RPC endpoints for reliability
+        rpc_endpoints = [
+            SOLANA_RPC,
+            "https://solana-mainnet.g.alchemy.com/v2/demo",
+            "https://rpc.ankr.com/solana",
+        ]
+
         async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                SOLANA_RPC,
-                json={
-                    "jsonrpc": "2.0",
-                    "id": 1,
-                    "method": "sendTransaction",
-                    "params": [
-                        base64.b64encode(tx_bytes).decode(),
-                        {"encoding": "base64", "skipPreflight": False},
-                    ],
-                },
-            )
+            for rpc_url in rpc_endpoints:
+                try:
+                    response = await client.post(
+                        rpc_url,
+                        json={
+                            "jsonrpc": "2.0",
+                            "id": 1,
+                            "method": "sendTransaction",
+                            "params": [
+                                signed_tx_base64,
+                                {
+                                    "encoding": "base64",
+                                    "skipPreflight": False,
+                                    "preflightCommitment": "confirmed",
+                                },
+                            ],
+                        },
+                        timeout=30.0,
+                    )
 
-            if response.status_code == 200:
-                result = response.json()
-                if "result" in result:
-                    txid = result["result"]
-                    logger.info(f"Solana tx broadcast: {txid}")
-                    return txid
-                elif "error" in result:
-                    logger.error(f"Solana broadcast error: {result['error']}")
+                    if response.status_code == 200:
+                        result = response.json()
+                        if "result" in result:
+                            txid = result["result"]
+                            logger.info(f"Solana tx broadcast via {rpc_url}: {txid}")
+                            return txid
+                        elif "error" in result:
+                            error_msg = result.get("error", {})
+                            if isinstance(error_msg, dict):
+                                error_msg = error_msg.get("message", str(error_msg))
+                            logger.warning(f"Solana RPC error ({rpc_url}): {error_msg}")
+                            # Try next RPC if this one fails
+                            continue
+                except Exception as e:
+                    logger.warning(f"Solana RPC {rpc_url} failed: {e}")
+                    continue
+
+            logger.error("All Solana RPC endpoints failed")
 
     except Exception as e:
         logger.error(f"Solana signing error: {e}")

@@ -182,8 +182,9 @@ class OneInchProvider(RouteProvider):
             return None
 
         # Convert to smallest units (assuming 18 decimals for most tokens)
+        # Note: USDT/USDC have 6 decimals on Ethereum, but 18 on BSC
         decimals = 18
-        if from_asset.upper() in ("USDT", "USDC"):
+        if from_asset.upper() in ("USDT", "USDC") and self.chain != "bsc":
             decimals = 6
         amount_wei = int(amount * (10 ** decimals))
 
@@ -213,8 +214,9 @@ class OneInchProvider(RouteProvider):
                 to_amount_wei = int(data.get("dstAmount", data.get("toAmount", "0")))
 
                 # Convert to human-readable
+                # Note: USDT/USDC have 6 decimals on Ethereum, but 18 on BSC
                 to_decimals = 18
-                if to_asset.upper() in ("USDT", "USDC"):
+                if to_asset.upper() in ("USDT", "USDC") and self.chain != "bsc":
                     to_decimals = 6
                 to_amount = Decimal(to_amount_wei) / Decimal(10 ** to_decimals)
 
@@ -292,8 +294,9 @@ class OneInchProvider(RouteProvider):
             return {"success": False, "error": "Token not found"}
 
         # Convert amount
+        # Note: USDT/USDC have 6 decimals on Ethereum, but 18 on BSC
         decimals = 18
-        if route.quote.from_asset.upper() in ("USDT", "USDC"):
+        if route.quote.from_asset.upper() in ("USDT", "USDC") and self.chain != "bsc":
             decimals = 6
         amount_wei = int(route.quote.from_amount * (10 ** decimals))
 
@@ -301,7 +304,7 @@ class OneInchProvider(RouteProvider):
         slippage = route.quote.slippage_percent / 100
         min_return = route.quote.to_amount * (1 - slippage)
         to_decimals = 18
-        if route.quote.to_asset.upper() in ("USDT", "USDC"):
+        if route.quote.to_asset.upper() in ("USDT", "USDC") and self.chain != "bsc":
             to_decimals = 6
         min_return_wei = int(min_return * (10 ** to_decimals))
 
