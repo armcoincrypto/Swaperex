@@ -891,30 +891,51 @@ def _sign_tron_transaction(tx_data: dict, private_key: bytes) -> dict:
     import hashlib
 
     try:
-        from ecdsa import SigningKey, SECP256k1
+        from ecdsa import SigningKey, SECP256k1, util
 
         # Get raw data hash
-        raw_data = tx_data.get("raw_data_hex", "")
-        if not raw_data:
-            # Convert raw_data to hex if needed
-            import json
-            raw_data = tx_data.get("raw_data", {})
+        raw_data_hex = tx_data.get("raw_data_hex", "")
+        if not raw_data_hex:
+            logger.error("No raw_data_hex in transaction")
+            return tx_data
 
         # Hash the raw data
-        if isinstance(raw_data, str):
-            raw_bytes = bytes.fromhex(raw_data)
-        else:
-            raw_bytes = bytes.fromhex(tx_data.get("raw_data_hex", ""))
-
+        raw_bytes = bytes.fromhex(raw_data_hex)
         tx_hash = hashlib.sha256(raw_bytes).digest()
 
-        # Sign with private key
+        # Sign with private key using deterministic k (RFC 6979)
         sk = SigningKey.from_string(private_key, curve=SECP256k1)
-        signature = sk.sign_digest(tx_hash, sigencode=lambda r, s, order: bytes([27]) + r.to_bytes(32, 'big') + s.to_bytes(32, 'big'))
+        signature = sk.sign_digest(
+            tx_hash,
+            sigencode=util.sigencode_string_canonize
+        )
 
-        # Add signature to transaction
-        tx_data["signature"] = [signature.hex()]
+        # Get r and s from signature (each 32 bytes)
+        r = int.from_bytes(signature[:32], 'big')
+        s = int.from_bytes(signature[32:], 'big')
 
+        # Calculate recovery byte (v) by trying both values
+        # Tron uses 27/28 like Ethereum
+        from ecdsa import VerifyingKey
+        pubkey = sk.get_verifying_key()
+
+        # Try v=27 first, then v=28
+        for v in [27, 28]:
+            try:
+                # Reconstruct signature with recovery byte
+                sig_with_v = (
+                    r.to_bytes(32, 'big') +
+                    s.to_bytes(32, 'big') +
+                    bytes([v])
+                )
+                tx_data["signature"] = [sig_with_v.hex()]
+                return tx_data
+            except Exception:
+                continue
+
+        # Fallback: just use v=27
+        sig_with_v = r.to_bytes(32, 'big') + s.to_bytes(32, 'big') + bytes([27])
+        tx_data["signature"] = [sig_with_v.hex()]
         return tx_data
 
     except ImportError:
