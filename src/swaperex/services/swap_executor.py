@@ -659,7 +659,7 @@ SUNSWAP_ROUTER = "TXF1xDbVGdxFGbovmmmXvBGu8ZiE3Lq4mR"
 
 # TRC20 Token addresses
 TRON_TOKEN_ADDRESSES = {
-    "TRX": "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb",  # WTRX
+    "TRX": "TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR",  # WTRX (SunSwap V2)
     "USDT": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
     "USDC": "TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8",
     "SUN": "TSSMHYeV2uE9qYH95DqyoCuNCzEL1NvU3S",
@@ -815,8 +815,8 @@ async def _execute_trx_to_token_swap(
     try:
         deadline = int(time.time()) + 1200  # 20 minutes
 
-        # WTRX address for path
-        wtrx_address = "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb"
+        # WTRX (Wrapped TRX) address for SunSwap V2 on mainnet
+        wtrx_address = "TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR"
 
         # Build swap path: WTRX -> Token
         path = [_address_to_hex(wtrx_address), _address_to_hex(to_token)]
@@ -940,7 +940,7 @@ async def _execute_token_swap(
 
         # Step 2: Execute swap
         deadline = int(time.time()) + 1200
-        wtrx_address = "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb"
+        wtrx_address = "TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR"
 
         if is_to_trx:
             # Token -> TRX: swapExactTokensForETH (Uniswap V2 style)

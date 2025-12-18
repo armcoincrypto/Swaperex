@@ -25,7 +25,7 @@ SUNSWAP_ROUTER_APIS = [
 
 # TRC20 Token contract addresses on Tron mainnet
 TRON_TOKENS = {
-    "TRX": "T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb",  # Native TRX (wrapped)
+    "TRX": "TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR",  # WTRX (SunSwap V2)
     "USDT": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
     "USDC": "TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8",
     "BTT": "TAFjULxiVgT4qWk6UZwjqwZXTSaGaqnVp4",
