@@ -1678,51 +1678,27 @@ async def execute_ton_swap(
     amount: Decimal,
     quote_data: Optional[dict] = None,
 ) -> SwapExecutionResult:
-    """Execute a swap on TON via STON.fi."""
-    keypair_data = await get_ton_keypair()
-    if not keypair_data:
-        return SwapExecutionResult(success=False, error="No TON keypair available")
+    """Execute a swap on TON via STON.fi.
 
-    private_key, wallet_address = keypair_data
+    Note: TON swaps are not yet fully supported due to complex BOC encoding
+    requirements for wallet contract interactions.
+    """
+    # TON swaps require specialized wallet contract interaction
+    # with BOC (Bag of Cells) encoding which is not yet implemented
+    logger.warning(
+        f"TON swap attempted but not yet supported: {amount} {from_asset} -> {to_asset}"
+    )
 
-    logger.info(f"Executing TON swap: {amount} {from_asset} -> {to_asset}")
-
-    try:
-        # TON uses 9 decimals
-        amount_nano = int(amount * (10 ** 9))
-
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            # Get swap route from STON.fi
-            response = await client.get(
-                f"{STONFI_API}/swap/simulate",
-                params={
-                    "offer_address": TON_TOKEN_ADDRESSES.get(from_asset.upper(), ""),
-                    "ask_address": TON_TOKEN_ADDRESSES.get(to_asset.upper(), ""),
-                    "units": str(amount_nano),
-                    "slippage_tolerance": "0.01",
-                },
-            )
-
-            if response.status_code != 200:
-                return SwapExecutionResult(
-                    success=False,
-                    error=f"STON.fi API error: {response.text}",
-                )
-
-            swap_data = response.json()
-
-            # TON transactions require wallet v4 contract interaction
-            # This is complex and requires proper BOC encoding
-            logger.info(f"TON swap simulated: {swap_data}")
-
-            return SwapExecutionResult(
-                success=False,
-                error="TON swap requires wallet contract interaction (complex BOC encoding)",
-            )
-
-    except Exception as e:
-        logger.error(f"TON swap failed: {e}")
-        return SwapExecutionResult(success=False, error=str(e))
+    return SwapExecutionResult(
+        success=False,
+        error=(
+            "TON/STON.fi swaps are not yet supported.\n\n"
+            "TON requires specialized wallet contract interaction with BOC encoding "
+            "that is not yet implemented.\n\n"
+            "Please use STON.fi directly at https://ston.fi or another TON wallet "
+            "to perform this swap."
+        ),
+    )
 
 
 # ============ COSMOS SWAP EXECUTION ============
@@ -1767,69 +1743,27 @@ async def execute_cosmos_swap(
     amount: Decimal,
     quote_data: Optional[dict] = None,
 ) -> SwapExecutionResult:
-    """Execute a swap on Cosmos via Osmosis."""
-    keypair_data = await get_cosmos_keypair()
-    if not keypair_data:
-        return SwapExecutionResult(success=False, error="No Cosmos keypair available")
+    """Execute a swap on Cosmos via Osmosis.
 
-    private_key, wallet_address = keypair_data
+    Note: Cosmos/Osmosis swaps are not yet fully supported due to
+    complex protobuf encoding requirements.
+    """
+    # Cosmos swaps require protobuf encoding and Amino signing
+    # which is not yet implemented without cosmos-sdk
+    logger.warning(
+        f"Cosmos swap attempted but not yet supported: {amount} {from_asset} -> {to_asset}"
+    )
 
-    logger.info(f"Executing Cosmos swap: {amount} {from_asset} -> {to_asset}")
-
-    try:
-        # ATOM uses 6 decimals
-        amount_uatom = int(amount * (10 ** 6))
-
-        # Osmosis pool IDs for common pairs
-        OSMOSIS_POOLS = {
-            ("ATOM", "OSMO"): 1,
-            ("ATOM", "USDC"): 678,
-            ("OSMO", "USDC"): 678,
-        }
-
-        pool_key = (from_asset.upper(), to_asset.upper())
-        pool_id = OSMOSIS_POOLS.get(pool_key) or OSMOSIS_POOLS.get((pool_key[1], pool_key[0]))
-
-        if not pool_id:
-            return SwapExecutionResult(
-                success=False,
-                error=f"No Osmosis pool found for {from_asset}/{to_asset}",
-            )
-
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            # Get account info for sequence number
-            account_response = await client.get(
-                f"{OSMOSIS_LCD}/cosmos/auth/v1beta1/accounts/{wallet_address}"
-            )
-
-            if account_response.status_code != 200:
-                return SwapExecutionResult(
-                    success=False,
-                    error="Failed to get Cosmos account info",
-                )
-
-            # Build swap message
-            # MsgSwapExactAmountIn for Osmosis
-            swap_msg = {
-                "@type": "/osmosis.gamm.v1beta1.MsgSwapExactAmountIn",
-                "sender": wallet_address,
-                "routes": [{"pool_id": str(pool_id), "token_out_denom": f"u{to_asset.lower()}"}],
-                "token_in": {"denom": f"u{from_asset.lower()}", "amount": str(amount_uatom)},
-                "token_out_min_amount": "1",
-            }
-
-            logger.info(f"Cosmos swap message prepared: {swap_msg}")
-
-            # Cosmos transactions require protobuf encoding and signing
-            # This is complex without cosmos-sdk library
-            return SwapExecutionResult(
-                success=False,
-                error="Cosmos swap requires protobuf encoding (cosmos-sdk library needed)",
-            )
-
-    except Exception as e:
-        logger.error(f"Cosmos swap failed: {e}")
-        return SwapExecutionResult(success=False, error=str(e))
+    return SwapExecutionResult(
+        success=False,
+        error=(
+            "Cosmos/Osmosis swaps are not yet supported.\n\n"
+            "Cosmos transactions require protobuf encoding and Amino signing "
+            "that is not yet implemented.\n\n"
+            "Please use Osmosis directly at https://app.osmosis.zone or Keplr wallet "
+            "to perform this swap."
+        ),
+    )
 
 
 # ============ NEAR SWAP EXECUTION ============
@@ -1878,61 +1812,24 @@ async def execute_near_swap(
     amount: Decimal,
     quote_data: Optional[dict] = None,
 ) -> SwapExecutionResult:
-    """Execute a swap on NEAR via Ref Finance."""
-    keypair_data = await get_near_keypair()
-    if not keypair_data:
-        return SwapExecutionResult(success=False, error="No NEAR keypair available")
+    """Execute a swap on NEAR via Ref Finance.
 
-    private_key, wallet_address = keypair_data
+    Note: NEAR swaps are not yet fully supported due to complex
+    borsh encoding requirements.
+    """
+    # NEAR swaps require borsh serialization and ed25519 signing
+    # which is not yet implemented
+    logger.warning(
+        f"NEAR swap attempted but not yet supported: {amount} {from_asset} -> {to_asset}"
+    )
 
-    logger.info(f"Executing NEAR swap: {amount} {from_asset} -> {to_asset}")
-
-    try:
-        # NEAR uses 24 decimals
-        amount_yocto = int(amount * (10 ** 24))
-
-        # NEAR token IDs
-        NEAR_TOKENS = {
-            "NEAR": "wrap.near",
-            "USDT": "usdt.tether-token.near",
-            "USDC": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
-        }
-
-        from_token = NEAR_TOKENS.get(from_asset.upper())
-        to_token = NEAR_TOKENS.get(to_asset.upper())
-
-        if not from_token or not to_token:
-            return SwapExecutionResult(
-                success=False,
-                error=f"Token not supported: {from_asset} or {to_asset}",
-            )
-
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            # Query Ref Finance for swap route
-            response = await client.post(
-                NEAR_RPC,
-                json={
-                    "jsonrpc": "2.0",
-                    "id": 1,
-                    "method": "query",
-                    "params": {
-                        "request_type": "call_function",
-                        "finality": "final",
-                        "account_id": REF_FINANCE_CONTRACT,
-                        "method_name": "get_return",
-                        "args_base64": "",  # Would need proper encoding
-                    },
-                },
-            )
-
-            # NEAR transactions require ed25519 signing
-            logger.info(f"NEAR swap route queried")
-
-            return SwapExecutionResult(
-                success=False,
-                error="NEAR swap requires ed25519 signing and borsh encoding",
-            )
-
-    except Exception as e:
-        logger.error(f"NEAR swap failed: {e}")
-        return SwapExecutionResult(success=False, error=str(e))
+    return SwapExecutionResult(
+        success=False,
+        error=(
+            "NEAR/Ref Finance swaps are not yet supported.\n\n"
+            "NEAR transactions require borsh serialization and ed25519 signing "
+            "that is not yet implemented.\n\n"
+            "Please use Ref Finance directly at https://app.ref.finance or NEAR wallet "
+            "to perform this swap."
+        ),
+    )

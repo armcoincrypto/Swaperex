@@ -396,8 +396,19 @@ async def handle_confirm_swap(callback: CallbackQuery, state: FSMContext) -> Non
                     logger.info(f"Swap executed: txid={txid}")
                 else:
                     logger.error(f"Swap failed: {result.error}")
-                    # Fall back to simulated if real swap fails
-                    is_simulated = True
+                    # Show error to user instead of silently falling back to simulated
+                    await repo.fail_swap(swap.id, error_message=result.error)
+                    await callback.message.edit_text(
+                        f"Swap Failed!\n\n"
+                        f"{amount} {from_asset} -> {to_asset}\n\n"
+                        f"Error: {result.error}\n\n"
+                        f"This was a real swap attempt that failed.\n"
+                        f"Your balance was not changed.\n\n"
+                        f"Try again with /swap"
+                    )
+                    await state.clear()
+                    await callback.answer()
+                    return
 
             # Complete the swap in database
             # Skip ledger operations for real on-chain swaps (blockchain handles the transfer)
@@ -417,6 +428,12 @@ async def handle_confirm_swap(callback: CallbackQuery, state: FSMContext) -> Non
                     "uniswap": f"https://etherscan.io/tx/{txid}",
                     "quickswap": f"https://polygonscan.com/tx/{txid}",
                     "traderjoe": f"https://snowtrace.io/tx/{txid}",
+                    "sunswap": f"https://tronscan.org/#/transaction/{txid}",
+                    "jupiter": f"https://solscan.io/tx/{txid}",
+                    "osmosis": f"https://www.mintscan.io/osmosis/tx/{txid}",
+                    "stonfi": f"https://tonviewer.com/transaction/{txid}",
+                    "ref_finance": f"https://explorer.near.org/transactions/{txid}",
+                    "thorchain": f"https://viewblock.io/thorchain/tx/{txid}",
                 }
                 explorer_url = explorer_links.get(chain.lower(), f"TX: {txid[:16]}...")
 
