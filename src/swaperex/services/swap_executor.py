@@ -2253,7 +2253,10 @@ def _build_osmosis_swap_msg(
     token_out_min_amount: str,
     routes: list[dict],
 ) -> dict:
-    """Build MsgSwapExactAmountIn message for Osmosis."""
+    """Build MsgSwapExactAmountIn message for Osmosis.
+
+    Uses Amino JSON format for legacy broadcast compatibility.
+    """
     # Build routes array
     osmosis_routes = []
     for route in routes:
@@ -2267,15 +2270,18 @@ def _build_osmosis_swap_msg(
         pool_id = "1"  # Default ATOM/OSMO pool
         osmosis_routes = [{"pool_id": pool_id, "token_out_denom": token_out_denom}]
 
+    # Use Amino type name for legacy broadcast
     return {
-        "@type": "/osmosis.poolmanager.v1beta1.MsgSwapExactAmountIn",
-        "sender": sender,
-        "routes": osmosis_routes,
-        "token_in": {
-            "denom": token_in_denom,
-            "amount": token_in_amount,
+        "type": "osmosis/poolmanager/swap-exact-amount-in",
+        "value": {
+            "sender": sender,
+            "routes": osmosis_routes,
+            "token_in": {
+                "denom": token_in_denom,
+                "amount": token_in_amount,
+            },
+            "token_out_min_amount": token_out_min_amount,
         },
-        "token_out_min_amount": token_out_min_amount,
     }
 
 
@@ -2359,42 +2365,44 @@ def _sign_cosmos_transaction(
 
 
 async def _broadcast_osmosis_tx(signed_tx_json: str) -> Optional[str]:
-    """Broadcast signed transaction to Osmosis network."""
+    """Broadcast signed transaction to Osmosis network.
+
+    Uses the legacy /txs endpoint for Amino JSON transactions.
+    """
+    import json
+
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            # Try the newer broadcast endpoint first
-            response = await client.post(
-                f"{OSMOSIS_LCD}/cosmos/tx/v1beta1/txs",
-                json={
-                    "tx_bytes": signed_tx_json,
-                    "mode": "BROADCAST_MODE_SYNC",
-                },
-                headers={"Content-Type": "application/json"},
-            )
-
-            if response.status_code == 200:
-                data = response.json()
-                tx_response = data.get("tx_response", {})
-
-                if tx_response.get("code", 0) == 0:
-                    return tx_response.get("txhash")
-                else:
-                    logger.error(f"Osmosis tx failed: {tx_response.get('raw_log')}")
-                    return None
-
-            # Fallback to legacy endpoint
+            # Use legacy /txs endpoint for Amino JSON format
             response = await client.post(
                 f"{OSMOSIS_LCD}/txs",
                 content=signed_tx_json,
                 headers={"Content-Type": "application/json"},
             )
 
+            logger.info(f"Osmosis broadcast response: {response.status_code}")
+
             if response.status_code == 200:
                 data = response.json()
+                logger.info(f"Osmosis broadcast result: {data}")
+
+                # Check for success
                 if data.get("code") is None or data.get("code") == 0:
-                    return data.get("txhash")
-                else:
-                    logger.error(f"Osmosis tx failed: {data.get('raw_log')}")
+                    txhash = data.get("txhash") or data.get("hash")
+                    if txhash:
+                        return txhash
+
+                # Log any error
+                raw_log = data.get("raw_log") or data.get("log")
+                if raw_log:
+                    logger.error(f"Osmosis tx failed: {raw_log}")
+            else:
+                # Try to parse error
+                try:
+                    error_data = response.json()
+                    logger.error(f"Osmosis broadcast error: {error_data}")
+                except Exception:
+                    logger.error(f"Osmosis broadcast failed: {response.text[:500]}")
 
     except Exception as e:
         logger.error(f"Failed to broadcast Osmosis tx: {e}")
