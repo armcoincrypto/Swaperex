@@ -341,6 +341,70 @@ async def handle_confirm_swap(callback: CallbackQuery, state: FSMContext) -> Non
 
     selected_quote = quotes[0]  # Best quote
     is_simulated = selected_quote.get('is_simulated', True)
+
+    # Check if user has enough native token for gas/energy fees (for real swaps)
+    if not is_simulated:
+        # Minimum gas/fee requirements per chain (in native tokens)
+        min_gas_requirements = {
+            "sunswap": ("TRX", Decimal("50"), "Energy fees for Tron smart contracts are expensive. You need at least 50 TRX for energy costs."),
+            "pancakeswap": ("BNB", Decimal("0.005"), "Gas fee required for BNB Chain transactions."),
+            "uniswap": ("ETH", Decimal("0.01"), "Gas fee required for Ethereum transactions."),
+            "quickswap": ("MATIC", Decimal("0.1"), "Gas fee required for Polygon transactions."),
+            "traderjoe": ("AVAX", Decimal("0.05"), "Gas fee required for Avalanche transactions."),
+            "jupiter": ("SOL", Decimal("0.01"), "Transaction fee required for Solana."),
+            "osmosis": ("ATOM", Decimal("0.1"), "Gas fee required for Cosmos transactions."),
+            "stonfi": ("TON", Decimal("0.5"), "Gas fee required for TON transactions."),
+            "ref_finance": ("NEAR", Decimal("0.1"), "Gas fee required for NEAR transactions."),
+        }
+
+        # Map chain to balance_sync chain IDs
+        chain_to_balance_id = {
+            "sunswap": "tron",
+            "pancakeswap": "bsc",
+            "uniswap": "ethereum",
+            "quickswap": "polygon",
+            "traderjoe": "avalanche",
+            "jupiter": "solana",
+            "osmosis": "cosmos",
+            "stonfi": "ton",
+            "ref_finance": "near",
+        }
+
+        chain_lower = chain.lower()
+        if chain_lower in min_gas_requirements:
+            gas_token, min_amount, reason = min_gas_requirements[chain_lower]
+            balance_chain_id = chain_to_balance_id.get(chain_lower)
+
+            try:
+                all_balances = await get_all_chain_balances_with_addresses()
+                chain_data = all_balances.get(balance_chain_id, {})
+                balances = chain_data.get("balances", {})
+                gas_balance = balances.get(gas_token, Decimal("0"))
+
+                # For swaps FROM the native token, account for the swap amount
+                if from_asset.upper() == gas_token.upper():
+                    available_for_gas = gas_balance - amount
+                else:
+                    available_for_gas = gas_balance
+
+                if available_for_gas < min_amount:
+                    await callback.message.edit_text(
+                        f"⚠️ Insufficient {gas_token} for fees!\n\n"
+                        f"You have: {gas_balance:.6f} {gas_token}\n"
+                        f"Minimum needed: {min_amount} {gas_token}\n"
+                        f"(Plus {amount} {from_asset} for the swap)\n\n"
+                        f"Reason: {reason}\n\n"
+                        f"Please deposit more {gas_token} to your wallet and try again.\n\n"
+                        f"Use /deposit to get your deposit address."
+                    )
+                    await state.clear()
+                    await callback.answer()
+                    return
+
+            except Exception as e:
+                logger.warning(f"Failed to check gas balance: {e}")
+                # Continue anyway - let the swap fail naturally if balance is low
+
     # Track original value - if we started as real swap, always skip ledger ops
     # (even if swap fails, we never locked the balance in the first place)
     skip_ledger = not is_simulated
