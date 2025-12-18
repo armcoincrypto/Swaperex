@@ -14,9 +14,10 @@ from swaperex.routing.base import Quote, RouteProvider, SwapRoute
 
 logger = logging.getLogger(__name__)
 
-# Jupiter API endpoints
-JUPITER_API_V6 = "https://quote-api.jup.ag/v6"
-JUPITER_PRICE_API = "https://price.jup.ag/v6"
+# Jupiter API endpoints (updated December 2025)
+# Note: quote-api.jup.ag is deprecated, use lite-api.jup.ag
+JUPITER_API_V6 = "https://lite-api.jup.ag/swap/v1"
+JUPITER_PRICE_API = "https://api.jup.ag/price/v2"
 
 # Token mint addresses on Solana mainnet
 SOLANA_TOKENS = {

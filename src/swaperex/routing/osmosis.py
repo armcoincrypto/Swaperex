@@ -14,10 +14,11 @@ from swaperex.routing.base import Quote, RouteProvider, SwapRoute
 
 logger = logging.getLogger(__name__)
 
-# Osmosis API endpoints
-OSMOSIS_API = "https://api.osmosis.zone"
+# Osmosis API endpoints (updated December 2025)
+# Note: api-osmosis.imperator.co is deprecated/dead
+OSMOSIS_API = "https://lcd.osmosis.zone"
 OSMOSIS_LCD = "https://lcd.osmosis.zone"
-OSMOSIS_IMPERATOR = "https://api-osmosis.imperator.co"
+OSMOSIS_SQS = "https://sqs.osmosis.zone"  # Sidecar Query Server for quotes
 
 # Cosmos denoms on Osmosis
 COSMOS_TOKENS = {
@@ -58,7 +59,8 @@ class OsmosisProvider(RouteProvider):
     def __init__(self):
         """Initialize Osmosis provider."""
         self.base_url = OSMOSIS_API
-        self.imperator_url = OSMOSIS_IMPERATOR
+        self.lcd_url = OSMOSIS_LCD
+        self.sqs_url = OSMOSIS_SQS
 
     @property
     def name(self) -> str:
@@ -108,141 +110,112 @@ class OsmosisProvider(RouteProvider):
 
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
-                # Get quote from Osmosis swap router
+                # Use Osmosis SQS (Sidecar Query Server) for quotes
                 response = await client.get(
-                    f"{self.imperator_url}/tokens/v2/price/{from_denom}",
+                    f"{self.sqs_url}/router/quote",
+                    params={
+                        "tokenIn": f"{amount_micro}{from_denom}",
+                        "tokenOutDenom": to_denom,
+                    },
                 )
 
-                from_price = None
                 if response.status_code == 200:
                     data = response.json()
-                    from_price = Decimal(str(data.get("price", "0")))
+                    out_amount = int(data.get("amount_out", "0"))
+                    to_decimals = self._get_decimals(to_asset)
+                    to_amount = Decimal(out_amount) / Decimal(10 ** to_decimals)
 
-                # Get to price
-                response2 = await client.get(
-                    f"{self.imperator_url}/tokens/v2/price/{to_denom}",
-                )
+                    # Estimate fee in OSMO
+                    estimated_fee_osmo = Decimal("0.01")
 
-                to_price = None
-                if response2.status_code == 200:
-                    data = response2.json()
-                    to_price = Decimal(str(data.get("price", "0")))
-
-                if not from_price or not to_price or from_price <= 0 or to_price <= 0:
-                    return await self._get_pool_quote(
-                        from_asset, to_asset, amount, slippage_tolerance
+                    return Quote(
+                        provider=self.name,
+                        from_asset=from_asset.upper(),
+                        to_asset=to_asset.upper(),
+                        from_amount=amount,
+                        to_amount=to_amount,
+                        fee_asset="OSMO",
+                        fee_amount=estimated_fee_osmo,
+                        slippage_percent=slippage_tolerance * 100,
+                        estimated_time_seconds=10,
+                        route_details={
+                            "chain": "osmosis",
+                            "from_denom": from_denom,
+                            "to_denom": to_denom,
+                            "route": data.get("route", []),
+                        },
+                        is_simulated=False,
                     )
 
-                # Calculate output with 0.2% swap fee
-                usd_value = amount * from_price
-                fee_percent = Decimal("0.002")
-                to_amount = (usd_value * (1 - fee_percent)) / to_price
-
-                # Estimate fee in OSMO
-                estimated_fee_osmo = Decimal("0.01")
-
-                return Quote(
-                    provider=self.name,
-                    from_asset=from_asset.upper(),
-                    to_asset=to_asset.upper(),
-                    from_amount=amount,
-                    to_amount=to_amount,
-                    fee_asset="OSMO",
-                    fee_amount=estimated_fee_osmo,
-                    slippage_percent=slippage_tolerance * 100,
-                    estimated_time_seconds=10,  # IBC can take longer
-                    route_details={
-                        "chain": "osmosis",
-                        "from_denom": from_denom,
-                        "to_denom": to_denom,
-                        "from_price_usd": str(from_price),
-                        "to_price_usd": str(to_price),
-                    },
-                    is_simulated=False,
+                # Fallback to simulated quote if SQS fails
+                return await self._get_simulated_quote(
+                    from_asset, to_asset, amount, slippage_tolerance
                 )
 
         except Exception as e:
             logger.error(f"Osmosis quote error: {e}")
-            return await self._get_pool_quote(
+            return await self._get_simulated_quote(
                 from_asset, to_asset, amount, slippage_tolerance
             )
 
-    async def _get_pool_quote(
+    async def _get_simulated_quote(
         self,
         from_asset: str,
         to_asset: str,
         amount: Decimal,
         slippage_tolerance: Decimal,
     ) -> Optional[Quote]:
-        """Fallback quote using pool data."""
-        try:
-            from_denom = self._get_denom(from_asset)
-            to_denom = self._get_denom(to_asset)
+        """Fallback simulated quote when API is unavailable."""
+        from_denom = self._get_denom(from_asset)
+        to_denom = self._get_denom(to_asset)
 
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                # Get pools
-                response = await client.get(
-                    f"{self.imperator_url}/pools/v2/all",
-                    params={"low_liquidity": "false"},
-                )
+        if not from_denom or not to_denom:
+            return None
 
-                if response.status_code != 200:
-                    return None
+        # Simulated price ratios (approximate market rates)
+        # These are estimates - real quotes should use SQS API
+        simulated_prices_usd = {
+            "OSMO": Decimal("0.45"),
+            "ATOM": Decimal("9.50"),
+            "USDC": Decimal("1.00"),
+            "USDC.AXL": Decimal("1.00"),
+            "JUNO": Decimal("0.35"),
+            "INJ": Decimal("25.00"),
+            "TIA": Decimal("5.00"),
+            "SCRT": Decimal("0.40"),
+            "STARS": Decimal("0.01"),
+            "AKT": Decimal("3.50"),
+        }
 
-                pools = response.json()
+        from_price = simulated_prices_usd.get(from_asset.upper(), Decimal("1"))
+        to_price = simulated_prices_usd.get(to_asset.upper(), Decimal("1"))
 
-                # Find matching pool
-                for pool in pools:
-                    pool_assets = pool.get("pool_assets", [])
-                    denoms = [a.get("denom") for a in pool_assets]
+        if to_price <= 0:
+            return None
 
-                    if from_denom in denoms and to_denom in denoms:
-                        # Found matching pool
-                        liquidity = Decimal(str(pool.get("liquidity", 0)))
+        # Calculate with 0.3% fee
+        fee_percent = Decimal("0.003")
+        usd_value = amount * from_price
+        to_amount = (usd_value * (1 - fee_percent)) / to_price
 
-                        if liquidity > 1000:  # Minimum liquidity check
-                            # Get swap fee
-                            swap_fee = Decimal(str(pool.get("swap_fees", 0.002)))
-
-                            # Estimate output based on pool composition
-                            from_decimals = self._get_decimals(from_asset)
-                            to_decimals = self._get_decimals(to_asset)
-
-                            # Simplified AMM calculation
-                            from_weight = Decimal("0.5")
-                            to_weight = Decimal("0.5")
-
-                            for asset in pool_assets:
-                                if asset.get("denom") == from_denom:
-                                    from_weight = Decimal(str(asset.get("weight_or_scaling", 0.5)))
-                                elif asset.get("denom") == to_denom:
-                                    to_weight = Decimal(str(asset.get("weight_or_scaling", 0.5)))
-
-                            # Simple price ratio
-                            to_amount = amount * (1 - swap_fee) * (to_weight / from_weight)
-
-                            return Quote(
-                                provider=self.name,
-                                from_asset=from_asset.upper(),
-                                to_asset=to_asset.upper(),
-                                from_amount=amount,
-                                to_amount=to_amount,
-                                fee_asset="OSMO",
-                                fee_amount=Decimal("0.01"),
-                                slippage_percent=slippage_tolerance * 100,
-                                estimated_time_seconds=10,
-                                route_details={
-                                    "chain": "osmosis",
-                                    "pool_id": pool.get("pool_id"),
-                                    "method": "pool_calculation",
-                                },
-                                is_simulated=False,
-                            )
-
-        except Exception as e:
-            logger.error(f"Osmosis pool quote error: {e}")
-
-        return None
+        return Quote(
+            provider=self.name,
+            from_asset=from_asset.upper(),
+            to_asset=to_asset.upper(),
+            from_amount=amount,
+            to_amount=to_amount,
+            fee_asset="OSMO",
+            fee_amount=Decimal("0.01"),
+            slippage_percent=slippage_tolerance * 100,
+            estimated_time_seconds=10,
+            route_details={
+                "chain": "osmosis",
+                "from_denom": from_denom,
+                "to_denom": to_denom,
+                "method": "simulated",
+            },
+            is_simulated=True,
+        )
 
     async def execute_swap(self, route: SwapRoute) -> dict:
         """Execute swap via Osmosis.
