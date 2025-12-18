@@ -163,10 +163,21 @@ async def get_sol_balance(address: str) -> Optional[Decimal]:
     return None
 
 
+# TRC20 token contracts for balance fetching
+TRON_TRC20_CONTRACTS = {
+    "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t": ("USDT", 6),
+    "TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8": ("USDC", 6),
+    "TSSMHYeV2uE9qYH95DqyoCuNCzEL1NvU3S": ("SUN", 18),
+    "TAFjULxiVgT4qWk6UZwjqwZXTSaGaqnVp4": ("BTT", 18),
+    "TCFLL5dx5ZJdKnWuesXxi1VPwjLVmWZZy9": ("JST", 18),
+    "TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7": ("WIN", 6),
+}
+
+
 async def get_trx_all_balances(address: str) -> dict[str, Decimal]:
     """Get all Tron balances (TRX + TRC20 tokens) in a SINGLE API call.
 
-    Returns dict like {"TRX": 1.5, "USDT": 100.0}
+    Returns dict like {"TRX": 1.5, "USDT": 100.0, "SUN": 50.0}
     """
     import asyncio
     balances = {}
@@ -193,14 +204,16 @@ async def get_trx_all_balances(address: str) -> dict[str, Decimal]:
                         if trx_balance > 0:
                             balances["TRX"] = Decimal(trx_balance) / Decimal(10**6)
 
-                        # TRC20 tokens
+                        # TRC20 tokens - check all known contracts
                         trc20 = account_data.get("trc20", [])
-                        usdt_contract = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"
-                        for token in trc20:
-                            if usdt_contract in token:
-                                usdt_balance = int(token[usdt_contract])
-                                if usdt_balance > 0:
-                                    balances["USDT"] = Decimal(usdt_balance) / Decimal(10**6)
+                        for token_data in trc20:
+                            # Each token_data is a dict like {"TContractAddress": "balance"}
+                            for contract_addr, balance_str in token_data.items():
+                                if contract_addr in TRON_TRC20_CONTRACTS:
+                                    token_name, decimals = TRON_TRC20_CONTRACTS[contract_addr]
+                                    token_balance = int(balance_str)
+                                    if token_balance > 0:
+                                        balances[token_name] = Decimal(token_balance) / Decimal(10**decimals)
                     break
         except Exception as e:
             logger.error(f"Failed to get TRX balances (attempt {attempt + 1}): {e}")
