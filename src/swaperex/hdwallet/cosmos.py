@@ -27,6 +27,72 @@ except ImportError:
     HAS_BIP_UTILS = False
 
 
+def bech32_encode(prefix: str, data: bytes) -> str:
+    """Encode data as bech32 address with given prefix.
+
+    Args:
+        prefix: Human-readable prefix (e.g., 'osmo', 'cosmos')
+        data: 20-byte address data (RIPEMD160 hash)
+
+    Returns:
+        Bech32 encoded address string
+    """
+    if HAS_BIP_UTILS:
+        return Bech32Encoder.Encode(prefix, data)
+
+    # Fallback bech32 implementation
+    # Based on BIP-173 reference implementation
+    CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
+
+    def polymod(values: list[int]) -> int:
+        """Internal function for bech32 checksum."""
+        generator = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3]
+        chk = 1
+        for value in values:
+            top = chk >> 25
+            chk = (chk & 0x1ffffff) << 5 ^ value
+            for i in range(5):
+                chk ^= generator[i] if ((top >> i) & 1) else 0
+        return chk
+
+    def hrp_expand(hrp: str) -> list[int]:
+        """Expand human-readable part for checksum."""
+        return [ord(x) >> 5 for x in hrp] + [0] + [ord(x) & 31 for x in hrp]
+
+    def create_checksum(hrp: str, data: list[int]) -> list[int]:
+        """Create bech32 checksum."""
+        values = hrp_expand(hrp) + data
+        polymod_val = polymod(values + [0, 0, 0, 0, 0, 0]) ^ 1
+        return [(polymod_val >> 5 * (5 - i)) & 31 for i in range(6)]
+
+    def convertbits(data: bytes, frombits: int, tobits: int, pad: bool = True) -> list[int]:
+        """Convert between bit sizes."""
+        acc = 0
+        bits = 0
+        ret = []
+        maxv = (1 << tobits) - 1
+        max_acc = (1 << (frombits + tobits - 1)) - 1
+        for value in data:
+            acc = ((acc << frombits) | value) & max_acc
+            bits += frombits
+            while bits >= tobits:
+                bits -= tobits
+                ret.append((acc >> bits) & maxv)
+        if pad:
+            if bits:
+                ret.append((acc << (tobits - bits)) & maxv)
+        elif bits >= frombits or ((acc << (tobits - bits)) & maxv):
+            return []
+        return ret
+
+    # Convert 8-bit data to 5-bit groups
+    data_5bit = convertbits(data, 8, 5)
+    checksum = create_checksum(prefix, data_5bit)
+    combined = data_5bit + checksum
+
+    return prefix + "1" + "".join([CHARSET[d] for d in combined])
+
+
 class CosmosBaseWallet(HDWalletProvider):
     """Base class for Cosmos ecosystem wallets.
 
