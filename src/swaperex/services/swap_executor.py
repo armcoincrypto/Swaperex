@@ -769,6 +769,12 @@ async def execute_tron_swap(
         # Check if it's a TRX -> Token swap (native to token)
         is_trx_to_token = from_asset.upper() == "TRX"
 
+        # Get expected output from quote_data for slippage calculation
+        expected_out = None
+        if quote_data and "to_amount" in quote_data:
+            to_decimals = TRON_TOKEN_DECIMALS.get(to_asset.upper(), 6)
+            expected_out = int(Decimal(str(quote_data["to_amount"])) * (10 ** to_decimals))
+
         if is_trx_to_token:
             # Use swapExactETHForTokens - send TRX value with transaction
             txid = await _execute_trx_to_token_swap(
@@ -777,6 +783,7 @@ async def execute_tron_swap(
                 to_token=to_token,
                 amount_sun=amount_sun,
                 headers=headers,
+                expected_out=expected_out,
             )
         else:
             # Token -> Token or Token -> TRX swap
@@ -789,6 +796,7 @@ async def execute_tron_swap(
                 amount_sun=amount_sun,
                 headers=headers,
                 is_to_trx=(to_asset.upper() == "TRX"),
+                expected_out=expected_out,
             )
 
         if txid:
@@ -814,6 +822,7 @@ async def _execute_trx_to_token_swap(
     to_token: str,
     amount_sun: int,
     headers: dict,
+    expected_out: Optional[int] = None,
 ) -> Optional[str]:
     """Execute TRX -> Token swap via SunSwap router.
 
@@ -830,8 +839,15 @@ async def _execute_trx_to_token_swap(
         # Build swap path: WTRX -> Token
         path = [_address_to_hex(wtrx_address), _address_to_hex(to_token)]
 
-        # Calculate minimum output (1% slippage)
-        amount_out_min = 1  # Minimum 1 unit to avoid failed tx
+        # Calculate minimum output with 5% slippage tolerance
+        # If we have expected output, use 95% of it; otherwise use 1 as last resort
+        if expected_out and expected_out > 0:
+            amount_out_min = int(expected_out * 95 // 100)  # 5% slippage
+        else:
+            # Fallback: very low min to ensure tx goes through
+            # This is risky but better than hardcoded 1
+            amount_out_min = 1
+            logger.warning("No expected output provided, using min_out=1 (risky!)")
 
         # Encode swapExactETHForTokens function call (SunSwap uses Uniswap V2 style)
         # Function: swapExactETHForTokens(uint256 amountOutMin, address[] path, address to, uint256 deadline)
@@ -917,6 +933,7 @@ async def _execute_token_swap(
     amount_sun: int,
     headers: dict,
     is_to_trx: bool = False,
+    expected_out: Optional[int] = None,
 ) -> Optional[str]:
     """Execute Token -> Token or Token -> TRX swap.
 
@@ -938,7 +955,8 @@ async def _execute_token_swap(
         )
 
         if not approval_txid:
-            logger.error("Token approval failed")
+            logger.error("Token approval failed - transaction may have been rejected")
+            # Return None - caller will handle error message
             return None
 
         logger.info(f"Token approved: {approval_txid}")
@@ -960,9 +978,16 @@ async def _execute_token_swap(
             path = [_address_to_hex(from_token), _address_to_hex(wtrx_address), _address_to_hex(to_token)]
             function_selector = "swapExactTokensForTokens(uint256,uint256,address[],address,uint256)"
 
+        # Calculate minimum output with 5% slippage tolerance
+        if expected_out and expected_out > 0:
+            amount_out_min = int(expected_out * 95 // 100)  # 5% slippage
+        else:
+            amount_out_min = 1
+            logger.warning("No expected output provided for token swap, using min_out=1 (risky!)")
+
         params = _encode_token_swap_params(
             amount_in=amount_sun,
-            amount_out_min=1,
+            amount_out_min=amount_out_min,
             path=path,
             to_address=_address_to_hex(wallet_address),
             deadline=deadline,
@@ -1337,13 +1362,20 @@ SOLANA_RPC = "https://api.mainnet-beta.solana.com"
 JUPITER_API = "https://quote-api.jup.ag/v6"
 
 # Solana token mints
-SOLANA_TOKEN_MINTS = {
-    "SOL": "So11111111111111111111111111111111111111112",  # Wrapped SOL
-    "USDC": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-    "USDT": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
-    "RAY": "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R",
-    "SRM": "SRMuApVNdxXokk5GT7XD5cUUgXMBCoAz2LHeuAoKWRt",
+# Solana tokens with mint addresses and decimals
+SOLANA_TOKENS = {
+    "SOL": {"mint": "So11111111111111111111111111111111111111112", "decimals": 9},  # Wrapped SOL
+    "USDC": {"mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "decimals": 6},
+    "USDT": {"mint": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", "decimals": 6},
+    "RAY": {"mint": "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R", "decimals": 6},
+    "SRM": {"mint": "SRMuApVNdxXokk5GT7XD5cUUgXMBCoAz2LHeuAoKWRt", "decimals": 6},
+    "BONK": {"mint": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263", "decimals": 5},
+    "JUP": {"mint": "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN", "decimals": 6},
+    "WIF": {"mint": "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm", "decimals": 6},
 }
+
+# Legacy mapping for backward compatibility
+SOLANA_TOKEN_MINTS = {k: v["mint"] for k, v in SOLANA_TOKENS.items()}
 
 
 async def get_solana_keypair() -> Optional[tuple[bytes, str]]:
@@ -1397,18 +1429,22 @@ async def execute_solana_swap(
     private_key, wallet_address = keypair_data
 
     # Get token mints
-    from_mint = SOLANA_TOKEN_MINTS.get(from_asset.upper())
-    to_mint = SOLANA_TOKEN_MINTS.get(to_asset.upper())
+    from_token = SOLANA_TOKENS.get(from_asset.upper())
+    to_token = SOLANA_TOKENS.get(to_asset.upper())
 
-    if not from_mint or not to_mint:
+    if not from_token or not to_token:
         return SwapExecutionResult(
             success=False,
-            error=f"Token not supported: {from_asset} or {to_asset}",
+            error=f"Token not supported on Solana: {from_asset} or {to_asset}\n\n"
+                  f"Supported tokens: {', '.join(SOLANA_TOKENS.keys())}",
         )
 
-    # SOL uses 9 decimals, most SPL tokens use 6 or 9
-    decimals = 9 if from_asset.upper() == "SOL" else 6
-    amount_lamports = int(amount * (10 ** decimals))
+    from_mint = from_token["mint"]
+    to_mint = to_token["mint"]
+
+    # Use proper decimals from token config
+    from_decimals = from_token["decimals"]
+    amount_lamports = int(amount * (10 ** from_decimals))
 
     logger.info(f"Executing Solana swap: {amount} {from_asset} -> {to_asset}")
 
@@ -3101,8 +3137,22 @@ async def execute_thorchain_swap(
         )
 
     try:
-        # Step 1: Get sender address for the source chain
+        # Step 1: Validate source chain is supported for execution
         from_chain = from_asset.upper()
+
+        # Only EVM chains are currently supported for THORChain swaps
+        supported_source_chains = ("ETH", "BNB", "AVAX")
+        unsupported_chains = ("BTC", "LTC", "DOGE", "BCH", "ATOM", "RUNE")
+
+        if from_chain in unsupported_chains:
+            return SwapExecutionResult(
+                success=False,
+                error=f"{from_chain} -> THORChain swaps are not yet implemented.\n\n"
+                      f"Currently supported source chains: {', '.join(supported_source_chains)}\n\n"
+                      f"Please use THORSwap.finance directly for {from_chain} swaps.",
+            )
+
+        # Step 2: Get sender address for the source chain
         sender_address = await _get_chain_address(from_chain)
         if not sender_address:
             return SwapExecutionResult(
@@ -3110,7 +3160,7 @@ async def execute_thorchain_swap(
                 error=f"Could not derive {from_chain} address for swap",
             )
 
-        # Step 2: Get recipient address for destination chain
+        # Step 3: Get recipient address for destination chain
         to_chain = to_asset.upper()
         recipient_address = await _get_chain_address(to_chain)
         if not recipient_address:
