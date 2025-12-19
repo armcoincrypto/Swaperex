@@ -26,12 +26,15 @@ export function useWallet() {
   const {
     isConnected,
     isConnecting,
+    isWrongChain,
     address,
     chainId,
     walletType,
+    supportedChainIds,
     connect,
     disconnect,
     switchChain,
+    updateChainId,
     setConnecting,
   } = useWalletStore();
 
@@ -146,7 +149,8 @@ export function useWallet() {
 
     const handleChainChanged = (chainIdHex: unknown) => {
       const newChainId = parseInt(chainIdHex as string, 16);
-      switchChain(newChainId);
+      // Use updateChainId for wallet-initiated changes (not switchChain)
+      updateChainId(newChainId);
     };
 
     window.ethereum.on('accountsChanged', handleAccountsChanged);
@@ -156,15 +160,17 @@ export function useWallet() {
       window.ethereum?.removeListener('accountsChanged', handleAccountsChanged);
       window.ethereum?.removeListener('chainChanged', handleChainChanged);
     };
-  }, [address, chainId, connect, disconnectWallet, isConnected, switchChain, walletType]);
+  }, [address, chainId, connect, disconnectWallet, isConnected, updateChainId, walletType]);
 
   return {
     // State
     isConnected,
     isConnecting,
+    isWrongChain,
     address,
     chainId,
     walletType,
+    supportedChainIds,
     hasInjectedWallet,
     error,
     provider,

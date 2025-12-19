@@ -9,11 +9,13 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { WalletSession, WalletType, ChainInfo } from '@/types/api';
 import { walletApi } from '@/api';
+import { SUPPORTED_CHAIN_IDS } from '@/utils/constants';
 
 interface WalletState {
   // Connection state
   isConnected: boolean;
   isConnecting: boolean;
+  isWrongChain: boolean;
   address: string | null;
   chainId: number;
   walletType: WalletType | null;
@@ -21,13 +23,22 @@ interface WalletState {
 
   // Available chains
   supportedChains: ChainInfo[];
+  supportedChainIds: number[];
 
   // Actions
   connect: (address: string, chainId: number, walletType: WalletType) => Promise<void>;
   disconnect: () => Promise<void>;
   switchChain: (chainId: number) => Promise<void>;
+  updateChainId: (chainId: number) => void;
   setSupportedChains: (chains: ChainInfo[]) => void;
   setConnecting: (connecting: boolean) => void;
+}
+
+/**
+ * Check if chain ID is supported
+ */
+function isChainSupported(chainId: number, supportedIds: number[]): boolean {
+  return supportedIds.includes(chainId);
 }
 
 export const useWalletStore = create<WalletState>()(
@@ -36,11 +47,13 @@ export const useWalletStore = create<WalletState>()(
       // Initial state
       isConnected: false,
       isConnecting: false,
+      isWrongChain: false,
       address: null,
       chainId: 1,
       walletType: null,
       session: null,
       supportedChains: [],
+      supportedChainIds: SUPPORTED_CHAIN_IDS,
 
       // Connect wallet
       connect: async (address: string, chainId: number, walletType: WalletType) => {
@@ -55,9 +68,13 @@ export const useWalletStore = create<WalletState>()(
           });
 
           if (response.success && response.session) {
+            const { supportedChainIds } = get();
+            const wrongChain = !isChainSupported(chainId, supportedChainIds);
+
             set({
               isConnected: true,
               isConnecting: false,
+              isWrongChain: wrongChain,
               address,
               chainId,
               walletType,
@@ -86,6 +103,7 @@ export const useWalletStore = create<WalletState>()(
 
         set({
           isConnected: false,
+          isWrongChain: false,
           address: null,
           chainId: 1,
           walletType: null,
@@ -93,9 +111,9 @@ export const useWalletStore = create<WalletState>()(
         });
       },
 
-      // Switch chain
+      // Switch chain (request to wallet + notify backend)
       switchChain: async (chainId: number) => {
-        const { address } = get();
+        const { address, supportedChainIds } = get();
 
         if (!address) {
           throw new Error('Not connected');
@@ -103,16 +121,32 @@ export const useWalletStore = create<WalletState>()(
 
         try {
           await walletApi.switchChain(address, chainId);
-          set({ chainId });
+          const wrongChain = !isChainSupported(chainId, supportedChainIds);
+          set({ chainId, isWrongChain: wrongChain });
         } catch (error) {
           console.error('Chain switch failed:', error);
           throw error;
         }
       },
 
+      // Update chain ID (called when wallet emits chainChanged event)
+      updateChainId: (chainId: number) => {
+        const { supportedChainIds } = get();
+        const wrongChain = !isChainSupported(chainId, supportedChainIds);
+        set({ chainId, isWrongChain: wrongChain });
+      },
+
       // Set supported chains
       setSupportedChains: (chains: ChainInfo[]) => {
-        set({ supportedChains: chains });
+        const chainIds = chains.map((c) => c.chain_id);
+        const { chainId, isConnected } = get();
+        const wrongChain = isConnected && !chainIds.includes(chainId);
+
+        set({
+          supportedChains: chains,
+          supportedChainIds: chainIds,
+          isWrongChain: wrongChain,
+        });
       },
 
       // Set connecting state
@@ -123,7 +157,7 @@ export const useWalletStore = create<WalletState>()(
     {
       name: 'swaperex-wallet',
       partialize: (state) => ({
-        // Only persist these fields
+        // Only persist these fields (public data only)
         address: state.address,
         chainId: state.chainId,
         walletType: state.walletType,
