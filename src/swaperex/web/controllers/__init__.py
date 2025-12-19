@@ -11,9 +11,13 @@ All operations are read-only or prepare data for client-side signing.
 from swaperex.web.controllers.quotes import router as quotes_router
 from swaperex.web.controllers.chains import router as chains_router
 from swaperex.web.controllers.transactions import router as transactions_router
+from swaperex.web.controllers.swaps import router as swaps_router
+from swaperex.web.controllers.withdrawals import router as withdrawals_router
 
 __all__ = [
     "quotes_router",
     "chains_router",
     "transactions_router",
+    "swaps_router",
+    "withdrawals_router",
 ]

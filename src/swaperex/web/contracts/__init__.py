@@ -21,6 +21,19 @@ from swaperex.web.contracts.transactions import (
     TransactionRequest,
     TransactionStatusResponse,
 )
+from swaperex.web.contracts.swaps import (
+    SwapQuoteRequest,
+    SwapQuoteResponse,
+    SwapRouteMetadata,
+    GasEstimate,
+    UnsignedSwapTransaction,
+)
+from swaperex.web.contracts.withdrawals import (
+    WithdrawalRequest,
+    WithdrawalResponse,
+    WithdrawalFeeEstimate,
+    UnsignedWithdrawalTransaction,
+)
 
 __all__ = [
     # Quote contracts
@@ -37,4 +50,15 @@ __all__ = [
     "UnsignedTransaction",
     "TransactionRequest",
     "TransactionStatusResponse",
+    # Swap contracts
+    "SwapQuoteRequest",
+    "SwapQuoteResponse",
+    "SwapRouteMetadata",
+    "GasEstimate",
+    "UnsignedSwapTransaction",
+    # Withdrawal contracts
+    "WithdrawalRequest",
+    "WithdrawalResponse",
+    "WithdrawalFeeEstimate",
+    "UnsignedWithdrawalTransaction",
 ]
