@@ -1,6 +1,11 @@
 """Signer factory.
 
 Creates the appropriate signing backend based on configuration.
+
+SECURITY NOTE:
+- In WEB_NON_CUSTODIAL mode, all signing operations are disabled
+- get_signer() will raise RuntimeError if called in web mode
+- This prevents accidental exposure of signing capabilities to web layer
 """
 
 import logging
@@ -8,6 +13,7 @@ import os
 from functools import lru_cache
 from typing import Optional
 
+from swaperex.config import get_settings
 from swaperex.signing.base import SignerBackend, SignerType
 
 logger = logging.getLogger(__name__)
@@ -62,7 +68,14 @@ def get_signer() -> SignerBackend:
 
     Returns:
         SignerBackend instance
+
+    Raises:
+        RuntimeError: If called in WEB_NON_CUSTODIAL mode
     """
+    # SECURITY: Block signing in web mode
+    settings = get_settings()
+    settings.require_custodial_mode("Transaction signing")
+
     global _signer_instance
 
     if _signer_instance is not None:

@@ -2,6 +2,11 @@
 
 Executes swaps on-chain by signing and broadcasting transactions.
 Supports EVM chains via 1inch DEX aggregator.
+
+SECURITY NOTE:
+- In WEB_NON_CUSTODIAL mode, all swap execution is disabled
+- execute_swap() will raise RuntimeError if called in web mode
+- This prevents accidental exposure of signing/broadcasting to web layer
 """
 
 import logging
@@ -11,7 +16,15 @@ from typing import Optional
 
 import httpx
 
+from swaperex.config import get_settings
+
 logger = logging.getLogger(__name__)
+
+
+def _require_custodial_mode(operation: str = "Swap execution") -> None:
+    """Check that we're in custodial mode before executing swaps."""
+    settings = get_settings()
+    settings.require_custodial_mode(operation)
 
 # RPC endpoints for different chains
 RPC_ENDPOINTS = {
@@ -557,7 +570,13 @@ async def execute_swap(
 
     Returns:
         SwapExecutionResult
+
+    Raises:
+        RuntimeError: If called in WEB_NON_CUSTODIAL mode
     """
+    # SECURITY: Block swap execution in web mode
+    _require_custodial_mode("Swap execution")
+
     # Map chain names to actual chains
     chain_mapping = {
         "pancakeswap": "bsc",

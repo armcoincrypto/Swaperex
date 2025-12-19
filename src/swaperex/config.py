@@ -1,11 +1,19 @@
 """Application configuration using pydantic-settings."""
 
+from enum import Enum
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class ExecutionMode(str, Enum):
+    """Application execution mode."""
+
+    TELEGRAM_CUSTODIAL = "TELEGRAM_CUSTODIAL"
+    WEB_NON_CUSTODIAL = "WEB_NON_CUSTODIAL"
 
 
 class Settings(BaseSettings):
@@ -15,6 +23,12 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+    )
+
+    # Execution Mode
+    mode: ExecutionMode = Field(
+        default=ExecutionMode.TELEGRAM_CUSTODIAL,
+        description="Execution mode: TELEGRAM_CUSTODIAL (bot with signing) or WEB_NON_CUSTODIAL (web-only, no signing)",
     )
 
     # Telegram
@@ -83,9 +97,38 @@ class Settings(BaseSettings):
         """Check if running in production environment."""
         return self.environment.lower() == "production"
 
+    @property
+    def is_custodial_mode(self) -> bool:
+        """Check if running in custodial mode (Telegram bot with signing)."""
+        return self.mode == ExecutionMode.TELEGRAM_CUSTODIAL
+
+    @property
+    def is_web_mode(self) -> bool:
+        """Check if running in web non-custodial mode."""
+        return self.mode == ExecutionMode.WEB_NON_CUSTODIAL
+
+    def require_custodial_mode(self, operation: str = "This operation") -> None:
+        """Raise error if not in custodial mode.
+
+        Call this at the start of any function that performs signing,
+        private key operations, or transaction broadcasting.
+
+        Args:
+            operation: Description of the operation for error message
+
+        Raises:
+            RuntimeError: If not in TELEGRAM_CUSTODIAL mode
+        """
+        if not self.is_custodial_mode:
+            raise RuntimeError(
+                f"{operation} is disabled in WEB_NON_CUSTODIAL mode. "
+                "Custodial execution (signing, broadcasting) is only available in TELEGRAM_CUSTODIAL mode."
+            )
+
     def get_safe_dict(self) -> dict:
         """Return settings dict with secrets redacted."""
         data = {
+            "mode": self.mode.value,
             "environment": self.environment,
             "debug": self.debug,
             "dry_run": self.dry_run,

@@ -1,4 +1,10 @@
-"""Factory for creating withdrawal handlers."""
+"""Factory for creating withdrawal handlers.
+
+SECURITY NOTE:
+- In WEB_NON_CUSTODIAL mode, all withdrawal operations are disabled
+- get_withdrawal_handler() will raise RuntimeError if called in web mode
+- This prevents accidental exposure of transaction broadcasting to web layer
+"""
 
 import os
 from typing import Optional
@@ -19,14 +25,19 @@ def get_withdrawal_handler(asset: str) -> Optional[WithdrawalHandler]:
 
     Returns:
         WithdrawalHandler instance or None if unsupported
+
+    Raises:
+        RuntimeError: If called in WEB_NON_CUSTODIAL mode
     """
+    # SECURITY: Block withdrawal handlers in web mode
+    settings = get_settings()
+    settings.require_custodial_mode("Withdrawal transaction handling")
+
     asset_upper = asset.upper()
 
     # Check cache
     if asset_upper in _handler_cache:
         return _handler_cache[asset_upper]
-
-    settings = get_settings()
     testnet = not settings.is_production
 
     handler: Optional[WithdrawalHandler] = None

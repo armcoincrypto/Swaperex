@@ -1,4 +1,10 @@
-"""Automatic deposit sweeper - transfers funds from deposit addresses to main wallet."""
+"""Automatic deposit sweeper - transfers funds from deposit addresses to main wallet.
+
+SECURITY NOTE:
+- In WEB_NON_CUSTODIAL mode, all sweeper operations are disabled
+- Functions that access private keys will raise RuntimeError in web mode
+- This prevents accidental exposure of private key derivation to web layer
+"""
 
 import asyncio
 import logging
@@ -13,6 +19,12 @@ from bip_utils import Bip39SeedGenerator, Bip44, Bip44Coins, Bip44Changes
 from swaperex.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+
+def _require_custodial_mode() -> None:
+    """Check that we're in custodial mode before sweeping."""
+    settings = get_settings()
+    settings.require_custodial_mode("Deposit sweeping")
 
 # RPC endpoints for different chains
 RPC_ENDPOINTS = {
@@ -45,7 +57,14 @@ def get_seed_phrase() -> Optional[str]:
 
 
 def derive_private_key(index: int = 0) -> Optional[str]:
-    """Derive private key for given address index."""
+    """Derive private key for given address index.
+
+    Raises:
+        RuntimeError: If called in WEB_NON_CUSTODIAL mode
+    """
+    # SECURITY: Block private key derivation in web mode
+    _require_custodial_mode()
+
     seed_phrase = get_seed_phrase()
     if not seed_phrase:
         logger.error("No seed phrase found")
