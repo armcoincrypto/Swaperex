@@ -89,7 +89,7 @@ class HDWalletProvider(ABC):
 
         Default format: m/purpose'/coin_type'/account'/change/index
         """
-        return f"m/{self.purpose}'/{ self.coin_type}'/0'/{change}/{index}"
+        return f"m/{self.purpose}'/{self.coin_type}'/0'/{change}/{index}"
 
     @property
     @abstractmethod

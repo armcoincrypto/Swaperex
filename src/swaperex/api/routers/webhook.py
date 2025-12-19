@@ -18,7 +18,6 @@ from swaperex.config import get_settings
 from swaperex.ledger.database import get_db
 from swaperex.ledger.models import DepositStatus
 from swaperex.ledger.repository import LedgerRepository
-from swaperex.notifications import get_notifier
 
 logger = logging.getLogger(__name__)
 
@@ -194,23 +193,11 @@ async def handle_deposit_webhook(
             raw_payload=json.dumps(payload.model_dump()),
         )
 
-        # Send notification to user (async background task)
+        # Send notification to user (async, don't wait)
+        # This could be done via a background task queue
         if status == DepositStatus.CONFIRMED:
-            # Get user's telegram_id for notification
-            user = await repo.get_user_by_deposit_address(payload.to_address)
-            if user:
-                try:
-                    notifier = get_notifier()
-                    await notifier.notify_deposit_confirmed(
-                        telegram_id=user.telegram_id,
-                        asset=asset,
-                        amount=amount,
-                        tx_hash=payload.tx_hash,
-                    )
-                    logger.info(f"Sent deposit notification to user {user.telegram_id}")
-                except Exception as e:
-                    # Don't fail the webhook if notification fails
-                    logger.error(f"Failed to send deposit notification: {e}")
+            # TODO: Send Telegram notification
+            pass
 
         return WebhookResponse(
             success=True,

@@ -1,14 +1,10 @@
 """NOWPayments deposit address provider."""
 
-import logging
-
 import httpx
 
 from swaperex.config import get_settings
 from swaperex.providers.base import Address, ProviderAdapter
 from swaperex.providers.dryrun import DryRunProvider
-
-logger = logging.getLogger(__name__)
 
 
 class NowPaymentsProvider(ProviderAdapter):
@@ -48,8 +44,7 @@ class NowPaymentsProvider(ProviderAdapter):
                     data = response.json()
                     return data.get("message") == "OK"
                 return False
-        except Exception as e:
-            logger.warning(f"NOWPayments health check failed: {e}")
+        except Exception:
             return False
 
     async def create_deposit_address(self, user_id: int, asset: str) -> Address:
@@ -103,7 +98,6 @@ class NowPaymentsProvider(ProviderAdapter):
                 # Fallback on error
                 return await self._fallback.create_deposit_address(user_id, asset)
 
-        except Exception as e:
+        except Exception:
             # Network error, fallback to dry-run
-            logger.warning(f"NOWPayments create_deposit_address failed, using fallback: {e}")
             return await self._fallback.create_deposit_address(user_id, asset)

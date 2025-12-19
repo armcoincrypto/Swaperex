@@ -1,12 +1,9 @@
 """Abstract routing interface for swap providers."""
 
-import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Optional
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -168,9 +165,8 @@ class RouteAggregator:
                     )
                     if quote:
                         quotes.append(quote)
-                except Exception as e:
+                except Exception:
                     # Log error but continue with other providers
-                    logger.warning(f"Provider {provider.name} failed for {from_asset}->{to_asset}: {e}")
                     continue
 
         return quotes

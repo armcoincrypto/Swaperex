@@ -278,10 +278,17 @@ class LedgerRepository:
         fee_asset: str,
         fee_amount: Decimal,
         route_details: Optional[str] = None,
+        skip_balance_lock: bool = False,
     ) -> Swap:
-        """Create a new swap record and lock the from_amount."""
-        # Lock the balance first
-        await self.lock_balance(user_id, from_asset, from_amount)
+        """Create a new swap record and optionally lock the from_amount.
+
+        Args:
+            skip_balance_lock: If True, skip ledger balance lock (for real on-chain swaps
+                              where blockchain balance is used instead of internal ledger)
+        """
+        # Lock the balance first (unless skipping for real on-chain swaps)
+        if not skip_balance_lock:
+            await self.lock_balance(user_id, from_asset, from_amount)
 
         swap = Swap(
             user_id=user_id,
@@ -299,8 +306,21 @@ class LedgerRepository:
         await self.session.flush()
         return swap
 
-    async def complete_swap(self, swap_id: int, actual_to_amount: Decimal) -> Swap:
-        """Complete a swap, debit from_asset and credit to_asset."""
+    async def complete_swap(
+        self,
+        swap_id: int,
+        actual_to_amount: Decimal,
+        tx_hash: Optional[str] = None,
+        skip_ledger_operations: bool = False,
+    ) -> Swap:
+        """Complete a swap, optionally debit from_asset and credit to_asset.
+
+        Args:
+            swap_id: The swap record ID
+            actual_to_amount: Actual amount received
+            tx_hash: Optional blockchain transaction hash
+            skip_ledger_operations: If True, skip ledger debit/credit (for real on-chain swaps)
+        """
         stmt = select(Swap).where(Swap.id == swap_id)
         result = await self.session.execute(stmt)
         swap = result.scalar_one_or_none()
@@ -311,22 +331,35 @@ class LedgerRepository:
         if swap.status == SwapStatus.COMPLETED:
             return swap
 
-        # Unlock and debit the from_amount
-        await self.unlock_balance(swap.user_id, swap.from_asset, swap.from_amount)
-        await self.debit_balance(swap.user_id, swap.from_asset, swap.from_amount)
+        # Only do ledger operations for simulated swaps
+        if not skip_ledger_operations:
+            # Unlock and debit the from_amount
+            await self.unlock_balance(swap.user_id, swap.from_asset, swap.from_amount)
+            await self.debit_balance(swap.user_id, swap.from_asset, swap.from_amount)
 
-        # Credit the to_amount
-        await self.credit_balance(swap.user_id, swap.to_asset, actual_to_amount)
+            # Credit the to_amount
+            await self.credit_balance(swap.user_id, swap.to_asset, actual_to_amount)
 
         swap.to_amount = actual_to_amount
         swap.status = SwapStatus.COMPLETED
         swap.completed_at = datetime.utcnow()
+        if tx_hash:
+            swap.tx_hash = tx_hash
 
         await self.session.flush()
         return swap
 
-    async def fail_swap(self, swap_id: int, error_message: str) -> Swap:
-        """Mark swap as failed and unlock the locked balance."""
+    async def fail_swap(
+        self,
+        swap_id: int,
+        error_message: str,
+        skip_ledger_operations: bool = False,
+    ) -> Swap:
+        """Mark swap as failed and optionally unlock the locked balance.
+
+        Args:
+            skip_ledger_operations: If True, skip unlock (for real on-chain swaps)
+        """
         stmt = select(Swap).where(Swap.id == swap_id)
         result = await self.session.execute(stmt)
         swap = result.scalar_one_or_none()
@@ -334,8 +367,9 @@ class LedgerRepository:
         if swap is None:
             raise ValueError(f"Swap {swap_id} not found")
 
-        # Unlock the balance
-        await self.unlock_balance(swap.user_id, swap.from_asset, swap.from_amount)
+        # Only unlock balance for simulated swaps
+        if not skip_ledger_operations:
+            await self.unlock_balance(swap.user_id, swap.from_asset, swap.from_amount)
 
         swap.status = SwapStatus.FAILED
         swap.error_message = error_message

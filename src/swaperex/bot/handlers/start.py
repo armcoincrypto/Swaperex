@@ -25,15 +25,21 @@ async def cmd_start(message: Message) -> None:
             first_name=message.from_user.first_name,
         )
 
-    welcome_text = """Welcome to Swaperex!
+    first_name = message.from_user.first_name or "there"
+    welcome_text = f"""Welcome to Swaperex, {first_name}!
 
-Your crypto wallet with the best swap rates.
+Your secure crypto wallet with multi-route swap aggregation.
 
 Features:
-- Deposit crypto with unique addresses
-- View your balances
-- Swap coins at the cheapest rates
-- Track all transactions
+  Deposit crypto with HD wallet addresses
+  View your balances across multiple chains
+  Swap coins at the best available rates
+  Withdraw to external wallets
+  Track all your transactions
+
+Supported Coins:
+BTC, ETH, LTC, DASH, TRX, BSC, SOL
+USDT (ERC-20 & TRC-20), USDC
 
 Use the menu below or type /help for commands."""
 
@@ -43,22 +49,32 @@ Use the menu below or type /help for commands."""
 @router.message(Command("help"))
 async def cmd_help(message: Message) -> None:
     """Handle /help command."""
-    help_text = """Swaperex Commands:
+    help_text = """Swaperex Bot Commands
 
-/start - Start the bot
-/wallet - View your balances
-/deposit - Get deposit address
-/swap - Swap coins
-/history - Transaction history
-/help - Show this help
+Wallet Commands:
+  /wallet   - View all your balances
+  /deposit  - Get deposit addresses
+  /withdraw - Withdraw to external wallet
 
-Menu Options:
-- Wallet: View all balances
-- Swap: Exchange coins
-- Deposit: Get deposit addresses
-- Withdraw: Withdraw funds (coming soon)
-- History: View transactions
-- Settings: Bot settings"""
+Trading Commands:
+  /swap     - Swap between cryptocurrencies
+  /quote    - Get a quick swap quote
+              Usage: /quote BTC ETH 0.1
+
+History & Info:
+  /history  - View transaction history
+  /help     - Show this help message
+  /start    - Restart the bot
+
+Menu Buttons:
+   Wallet   - View balances
+   Swap     - Exchange coins
+   Deposit  - Get deposit address
+   Withdraw - Send crypto out
+   History  - Transaction log
+   Settings - Configure preferences
+
+Need help? Contact support."""
 
     await message.answer(help_text)
 
@@ -68,13 +84,17 @@ async def handle_settings(message: Message) -> None:
     """Handle settings menu button."""
     settings_text = """Settings
 
-Settings options coming in Stage 2:
-- Default slippage tolerance
-- Notification preferences
-- Preferred routes
+Current Configuration:
+  Swap Mode: Auto-route (best rate)
+  Max Slippage: 1%
+  Notifications: Enabled
 
-For now, all swaps use:
-- Auto-route selection (cheapest)
-- 1% max slippage"""
+Coming Soon:
+  Custom slippage tolerance
+  Preferred swap routes
+  Notification preferences
+  Two-factor authentication
+
+For support, contact the admin."""
 
     await message.answer(settings_text)
