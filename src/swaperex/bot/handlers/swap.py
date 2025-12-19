@@ -12,7 +12,9 @@ from aiogram.types import Message, CallbackQuery
 from swaperex.bot.keyboards import swap_from_keyboard, swap_to_keyboard, confirm_swap_keyboard
 from swaperex.ledger.database import get_db
 from swaperex.ledger.repository import LedgerRepository
+from swaperex.notifications import get_notifier
 from swaperex.routing.dry_run import create_default_aggregator
+from swaperex.utils.locks import user_balance_lock, LockTimeoutError
 
 router = Router()
 
@@ -190,41 +192,82 @@ async def handle_confirm_swap(callback: CallbackQuery, state: FSMContext) -> Non
 
     selected_quote = quotes[0]  # Best quote
 
+    # Get user first to acquire lock
     async with get_db() as session:
         repo = LedgerRepository(session)
         user = await repo.get_or_create_user(telegram_id=callback.from_user.id)
+        user_id = user.id
+        telegram_id = user.telegram_id
 
-        try:
-            # Create swap record
-            swap = await repo.create_swap(
-                user_id=user.id,
-                from_asset=from_asset,
-                to_asset=to_asset,
-                from_amount=amount,
-                expected_to_amount=Decimal(selected_quote["to_amount"]),
-                route=selected_quote["provider"],
-                fee_asset=selected_quote["fee_asset"],
-                fee_amount=Decimal(selected_quote["fee_amount"]),
-                route_details=json.dumps(selected_quote),
-            )
+    # Use per-user lock to prevent concurrent swap operations
+    try:
+        async with user_balance_lock(user_id, timeout=30.0, operation="swap"):
+            async with get_db() as session:
+                repo = LedgerRepository(session)
 
-            # In PoC, immediately complete the swap
-            completed_swap = await repo.complete_swap(
-                swap.id,
-                actual_to_amount=Decimal(selected_quote["to_amount"]),
-            )
+                # Re-check balance under lock
+                balance = await repo.get_balance(user_id, from_asset)
+                available = balance.available if balance else Decimal("0")
 
-            text = (
-                f"Swap Completed!\n\n"
-                f"{amount} {from_asset} -> {completed_swap.to_amount:.8f} {to_asset}\n\n"
-                f"Route: {selected_quote['provider']}\n"
-                f"Fee: ${selected_quote['fee_amount']}\n\n"
-                f"(Simulated swap - PoC)\n\n"
-                f"Use /wallet to check your balance."
-            )
+                if available < amount:
+                    text = (
+                        f"Insufficient balance.\n\n"
+                        f"Available: {available:.8f} {from_asset}\n"
+                        f"Required: {amount:.8f} {from_asset}"
+                    )
+                    await callback.message.edit_text(text)
+                    await state.clear()
+                    await callback.answer()
+                    return
 
-        except ValueError as e:
-            text = f"Swap Failed\n\n{str(e)}"
+                try:
+                    # Create swap record (locks balance atomically)
+                    swap = await repo.create_swap(
+                        user_id=user_id,
+                        from_asset=from_asset,
+                        to_asset=to_asset,
+                        from_amount=amount,
+                        expected_to_amount=Decimal(selected_quote["to_amount"]),
+                        route=selected_quote["provider"],
+                        fee_asset=selected_quote["fee_asset"],
+                        fee_amount=Decimal(selected_quote["fee_amount"]),
+                        route_details=json.dumps(selected_quote),
+                    )
+
+                    # In PoC, immediately complete the swap
+                    completed_swap = await repo.complete_swap(
+                        swap.id,
+                        actual_to_amount=Decimal(selected_quote["to_amount"]),
+                    )
+
+                    text = (
+                        f"Swap Completed!\n\n"
+                        f"{amount} {from_asset} -> {completed_swap.to_amount:.8f} {to_asset}\n\n"
+                        f"Route: {selected_quote['provider']}\n"
+                        f"Fee: ${selected_quote['fee_amount']}\n\n"
+                        f"(Simulated swap - PoC)\n\n"
+                        f"Use /wallet to check your balance."
+                    )
+
+                    # Send notification
+                    try:
+                        notifier = get_notifier()
+                        await notifier.notify_swap_complete(
+                            telegram_id=telegram_id,
+                            from_asset=from_asset,
+                            to_asset=to_asset,
+                            from_amount=amount,
+                            to_amount=completed_swap.to_amount,
+                            provider=selected_quote["provider"],
+                        )
+                    except Exception:
+                        pass  # Notification failure is not critical
+
+                except ValueError as e:
+                    text = f"Swap Failed\n\n{str(e)}"
+
+    except LockTimeoutError:
+        text = "System busy. Please try again in a moment."
 
     await callback.message.edit_text(text)
     await state.clear()

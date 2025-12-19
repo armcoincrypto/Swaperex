@@ -107,28 +107,11 @@ class Application:
 
     async def _load_xpubs(self):
         """Load xpubs from database into environment variables."""
-        import os
-        from swaperex.crypto import decrypt_xpub
-        from swaperex.hdwallet.factory import reset_wallet_cache
-        from swaperex.ledger.database import get_db
-        from swaperex.ledger.repository import LedgerRepository
+        from swaperex.hdwallet.factory import preload_xpubs_to_env
 
-        try:
-            async with get_db() as session:
-                repo = LedgerRepository(session)
-                xpubs = await repo.get_all_xpubs()
-
-                for xpub_record in xpubs:
-                    xpub_value = decrypt_xpub(xpub_record.encrypted_xpub)
-                    env_key = f"XPUB_{xpub_record.asset.upper()}"
-                    os.environ[env_key] = xpub_value
-                    logger.info(f"Loaded xpub for {xpub_record.asset}")
-
-                if xpubs:
-                    reset_wallet_cache()
-                    logger.info(f"Loaded {len(xpubs)} xpubs from database")
-        except Exception as e:
-            logger.warning(f"Failed to load xpubs: {e}")
+        count = await preload_xpubs_to_env()
+        if count > 0:
+            logger.info(f"Preloaded {count} xpubs from database")
 
     async def _cleanup(self):
         """Cleanup resources."""

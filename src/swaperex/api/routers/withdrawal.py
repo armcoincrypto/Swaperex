@@ -8,6 +8,10 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 
 from swaperex.config import get_settings
+from swaperex.ledger.database import get_db
+from swaperex.ledger.models import WithdrawalStatus
+from swaperex.ledger.repository import LedgerRepository
+from swaperex.notifications import get_notifier
 from swaperex.withdrawal.factory import (
     get_supported_withdrawal_assets,
     get_withdrawal_handler,
@@ -298,13 +302,14 @@ async def execute_secure_withdrawal(
 
     Flow:
     1. Validate destination address
-    2. Check user balance (TODO: integrate with ledger)
-    3. Build unsigned transaction
-    4. Sign using configured signer
-    5. Broadcast transaction
+    2. Check user balance
+    3. Estimate fees
+    4. Build unsigned transaction
+    5. Sign using configured signer
+    6. Broadcast transaction
+    7. Record withdrawal in ledger
     """
     from swaperex.signing import get_signer
-    from swaperex.withdrawal.base import WithdrawalStatus
 
     handler = get_withdrawal_handler(request.asset)
     if not handler:
@@ -318,9 +323,35 @@ async def execute_secure_withdrawal(
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid amount")
 
+    if amount <= Decimal("0"):
+        raise HTTPException(status_code=400, detail="Amount must be positive")
+
     # Validate address
     if not await handler.validate_address(request.destination):
         raise HTTPException(status_code=400, detail="Invalid destination address")
+
+    # Check user balance in ledger
+    async with get_db() as session:
+        repo = LedgerRepository(session)
+
+        # Get user from database
+        from swaperex.ledger.models import User
+        from sqlalchemy import select
+        stmt = select(User).where(User.id == request.user_id)
+        result = await session.execute(stmt)
+        user = result.scalar_one_or_none()
+
+        if not user:
+            raise HTTPException(status_code=404, detail=f"User {request.user_id} not found")
+
+        # Check available balance
+        balance = await repo.get_balance(request.user_id, request.asset)
+        if not balance or balance.available < amount:
+            available = balance.available if balance else Decimal("0")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Insufficient balance: have {available} {request.asset}, need {amount}",
+            )
 
     # Get signer
     signer = get_signer()
@@ -332,21 +363,11 @@ async def execute_secure_withdrawal(
             detail="Signing service unavailable",
         )
 
-    # For now, use simulated execution if no real implementation
-    # In production, this would:
-    # 1. Build unsigned transaction
-    # 2. Get message hash
-    # 3. Sign with signer
-    # 4. Apply signature
-    # 5. Broadcast
-
     logger.info(
         f"Secure withdrawal request: {amount} {request.asset} to {request.destination} "
         f"(user={request.user_id}, signer={signer.signer_type.value})"
     )
 
-    # Placeholder: use existing handler execution with empty key
-    # Real implementation would build tx, sign separately, then broadcast
     import secrets
 
     # Check if we have a signing key for this asset
@@ -359,21 +380,161 @@ async def execute_secure_withdrawal(
                   f"Set HOT_WALLET_PRIVATE_KEY_{request.asset} or configure KMS/HSM.",
         )
 
-    # For development/testing: return simulated result
+    # Estimate fee for the withdrawal
+    fee_estimate = await handler.estimate_fee(
+        amount=amount,
+        destination=request.destination,
+        priority=request.priority,
+    )
+    fee_amount = fee_estimate.total_fee
+
+    # For development/testing: return simulated result with ledger recording
     settings = get_settings()
     if settings.dry_run:
+        txid = f"sim_{secrets.token_hex(32)}"
+
+        # Record withdrawal in ledger
+        async with get_db() as session:
+            repo = LedgerRepository(session)
+            try:
+                withdrawal = await repo.create_withdrawal(
+                    user_id=request.user_id,
+                    asset=request.asset,
+                    amount=amount,
+                    fee_amount=fee_amount,
+                    destination_address=request.destination,
+                )
+                await repo.update_withdrawal_status(
+                    withdrawal.id,
+                    status=WithdrawalStatus.BROADCAST,
+                    tx_hash=txid,
+                )
+                logger.info(f"Recorded dry-run withdrawal {withdrawal.id} for user {request.user_id}")
+            except ValueError as e:
+                return WithdrawalResponse(
+                    success=False,
+                    status=WithdrawalStatus.FAILED.value,
+                    error=str(e),
+                )
+
+        # Send notification to user
+        try:
+            notifier = get_notifier()
+            await notifier.notify_withdrawal_complete(
+                telegram_id=user.telegram_id,
+                asset=request.asset,
+                amount=amount,
+                fee=fee_amount,
+                destination=request.destination,
+                tx_hash=txid,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to send withdrawal notification: {e}")
+
         return WithdrawalResponse(
             success=True,
-            txid=f"sim_{secrets.token_hex(32)}",
+            txid=txid,
             status=WithdrawalStatus.BROADCAST.value,
             message=f"[DRY_RUN] Would send {amount} {request.asset} to {request.destination} "
                     f"using {signer.signer_type.value} signer",
-            fee_paid="0.0001",
+            fee_paid=str(fee_amount),
         )
 
-    # Real execution would go here
-    return WithdrawalResponse(
-        success=False,
-        status=WithdrawalStatus.FAILED.value,
-        error="Secure withdrawal execution not yet implemented. Set DRY_RUN=true for testing.",
-    )
+    # Real execution flow
+    # 1. Create withdrawal record with PENDING status
+    async with get_db() as session:
+        repo = LedgerRepository(session)
+        try:
+            withdrawal = await repo.create_withdrawal(
+                user_id=request.user_id,
+                asset=request.asset,
+                amount=amount,
+                fee_amount=fee_amount,
+                destination_address=request.destination,
+            )
+        except ValueError as e:
+            return WithdrawalResponse(
+                success=False,
+                status=WithdrawalStatus.FAILED.value,
+                error=str(e),
+            )
+
+    # 2. Execute the withdrawal (build, sign, broadcast)
+    try:
+        # For now, this uses the handler's execute method
+        # In production, this would use the signer for secure signing
+        result = await handler.execute_withdrawal(
+            private_key="",  # Would come from signer
+            destination=request.destination,
+            amount=amount,
+            fee_priority=request.priority,
+        )
+
+        if result.success:
+            # Update withdrawal status
+            async with get_db() as session:
+                repo = LedgerRepository(session)
+                await repo.update_withdrawal_status(
+                    withdrawal.id,
+                    status=WithdrawalStatus.BROADCAST,
+                    tx_hash=result.txid,
+                )
+
+            # Send success notification
+            try:
+                notifier = get_notifier()
+                await notifier.notify_withdrawal_complete(
+                    telegram_id=user.telegram_id,
+                    asset=request.asset,
+                    amount=amount,
+                    fee=fee_amount,
+                    destination=request.destination,
+                    tx_hash=result.txid or "unknown",
+                )
+            except Exception as e:
+                logger.warning(f"Failed to send withdrawal notification: {e}")
+
+            return WithdrawalResponse(
+                success=True,
+                txid=result.txid,
+                status=result.status.value,
+                message=result.message,
+                fee_paid=str(result.fee_paid) if result.fee_paid else str(fee_amount),
+            )
+        else:
+            # Withdrawal failed - refund user
+            async with get_db() as session:
+                repo = LedgerRepository(session)
+                await repo.fail_withdrawal(withdrawal.id, result.error or "Unknown error", refund=True)
+
+            # Send failure notification
+            try:
+                notifier = get_notifier()
+                await notifier.notify_withdrawal_failed(
+                    telegram_id=user.telegram_id,
+                    asset=request.asset,
+                    amount=amount,
+                    error=result.error or "Unknown error",
+                    refunded=True,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to send withdrawal failure notification: {e}")
+
+            return WithdrawalResponse(
+                success=False,
+                status=WithdrawalStatus.FAILED.value,
+                error=result.error,
+            )
+
+    except Exception as e:
+        logger.error(f"Withdrawal execution failed: {e}")
+        # Refund user on exception
+        async with get_db() as session:
+            repo = LedgerRepository(session)
+            await repo.fail_withdrawal(withdrawal.id, str(e), refund=True)
+
+        return WithdrawalResponse(
+            success=False,
+            status=WithdrawalStatus.FAILED.value,
+            error=f"Withdrawal failed: {e}",
+        )

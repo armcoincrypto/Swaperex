@@ -217,8 +217,8 @@ class OneInchProvider(RouteProvider):
                     data = response.json()
                     return int(data.get("result", "0x0"), 16)
 
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to get gas price from RPC: {e}")
 
         # Fallback: 30 gwei
         return 30 * 10**9

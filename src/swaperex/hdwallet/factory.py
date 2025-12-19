@@ -110,44 +110,103 @@ def _get_xpub_for_asset(asset: str, settings) -> Optional[str]:
 
 
 def _load_xpub_from_db(asset: str) -> Optional[str]:
-    """Load and decrypt xpub from database.
+    """Load xpub from pre-loaded environment variables.
 
-    Uses synchronous database access for compatibility with factory pattern.
+    Note: Xpubs are loaded from the database into environment variables
+    during application startup (see main.py _load_xpubs).
+    This function only checks environment variables for simplicity
+    and to avoid async/sync mixing issues.
+
+    For direct database access, use load_xpub_from_db_async() instead.
     """
-    import asyncio
+    import os
+    return os.environ.get(f"XPUB_{asset.upper()}")
+
+
+async def load_xpub_from_db_async(asset: str) -> Optional[str]:
+    """Async function to load and decrypt xpub from database.
+
+    Use this during application startup to preload xpubs.
+    The sync get_hd_wallet() function uses cached environment variables.
+
+    Args:
+        asset: Asset symbol (BTC, ETH, etc.)
+
+    Returns:
+        Decrypted xpub string or None if not found
+    """
+    import logging
+    logger = logging.getLogger(__name__)
 
     try:
         from swaperex.crypto import decrypt_xpub
         from swaperex.ledger.database import get_engine
         from sqlalchemy import text
 
-        async def fetch_xpub():
-            engine = get_engine()
-            async with engine.connect() as conn:
-                result = await conn.execute(
-                    text("SELECT encrypted_xpub FROM xpub_keys WHERE asset = :asset"),
-                    {"asset": asset.upper()}
-                )
-                row = result.fetchone()
-                if row:
-                    return decrypt_xpub(row[0])
-            return None
-
-        # Run async function
-        try:
-            loop = asyncio.get_running_loop()
-            # If we're already in an async context, create a task
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                future = pool.submit(asyncio.run, fetch_xpub())
-                return future.result(timeout=5)
-        except RuntimeError:
-            # No running loop, safe to use asyncio.run
-            return asyncio.run(fetch_xpub())
-
-    except Exception:
-        # If anything fails, return None and fall back to env vars
+        engine = get_engine()
+        async with engine.connect() as conn:
+            result = await conn.execute(
+                text("SELECT encrypted_xpub FROM xpub_keys WHERE asset = :asset"),
+                {"asset": asset.upper()}
+            )
+            row = result.fetchone()
+            if row:
+                return decrypt_xpub(row[0])
         return None
+
+    except Exception as e:
+        logger.debug(f"Failed to load xpub from DB for {asset}: {e}")
+        return None
+
+
+async def preload_xpubs_to_env() -> int:
+    """Preload all xpubs from database into environment variables.
+
+    This should be called during application startup before
+    any wallet operations are performed.
+
+    Returns:
+        Number of xpubs loaded
+    """
+    import os
+    import logging
+    logger = logging.getLogger(__name__)
+
+    try:
+        from swaperex.crypto import decrypt_xpub
+        from swaperex.ledger.database import get_engine
+        from sqlalchemy import text
+
+        engine = get_engine()
+        count = 0
+
+        async with engine.connect() as conn:
+            result = await conn.execute(
+                text("SELECT asset, encrypted_xpub FROM xpub_keys")
+            )
+            rows = result.fetchall()
+
+            for row in rows:
+                asset = row[0]
+                encrypted_xpub = row[1]
+                try:
+                    xpub = decrypt_xpub(encrypted_xpub)
+                    env_key = f"XPUB_{asset.upper()}"
+                    os.environ[env_key] = xpub
+                    count += 1
+                    logger.debug(f"Loaded xpub for {asset}")
+                except Exception as e:
+                    logger.warning(f"Failed to decrypt xpub for {asset}: {e}")
+
+        if count > 0:
+            reset_wallet_cache()
+            logger.info(f"Preloaded {count} xpubs from database")
+
+        return count
+
+    except Exception as e:
+        logger.warning(f"Failed to preload xpubs: {e}")
+        return 0
 
 
 def reset_wallet_cache() -> None:
