@@ -34,6 +34,24 @@ from swaperex.web.contracts.withdrawals import (
     WithdrawalFeeEstimate,
     UnsignedWithdrawalTransaction,
 )
+from swaperex.web.contracts.balances import (
+    TokenBalance,
+    WalletBalanceRequest,
+    WalletBalanceResponse,
+    MultiChainBalanceRequest,
+    MultiChainBalanceResponse,
+)
+from swaperex.web.contracts.wallet import (
+    WalletType,
+    WalletSession,
+    ChainConnection,
+    ConnectWalletRequest,
+    ConnectWalletResponse,
+    SwitchChainRequest,
+    SignatureRequest,
+    SignatureResponse,
+    WalletCapabilities,
+)
 
 __all__ = [
     # Quote contracts
@@ -61,4 +79,20 @@ __all__ = [
     "WithdrawalResponse",
     "WithdrawalFeeEstimate",
     "UnsignedWithdrawalTransaction",
+    # Balance contracts
+    "TokenBalance",
+    "WalletBalanceRequest",
+    "WalletBalanceResponse",
+    "MultiChainBalanceRequest",
+    "MultiChainBalanceResponse",
+    # Wallet contracts
+    "WalletType",
+    "WalletSession",
+    "ChainConnection",
+    "ConnectWalletRequest",
+    "ConnectWalletResponse",
+    "SwitchChainRequest",
+    "SignatureRequest",
+    "SignatureResponse",
+    "WalletCapabilities",
 ]
