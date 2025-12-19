@@ -6,11 +6,23 @@ SECURITY NOTE:
 - This prevents accidental exposure of transaction broadcasting to web layer
 """
 
+import logging
 import os
 from typing import Optional
 
-from swaperex.config import get_settings
+from swaperex.config import get_settings, ExecutionMode
 from swaperex.withdrawal.base import WithdrawalHandler
+
+logger = logging.getLogger(__name__)
+
+
+def _log_blocked_withdrawal_attempt(asset: str) -> None:
+    """Log blocked withdrawal attempt in web mode."""
+    logger.warning(
+        "🚫 SECURITY BLOCK: Withdrawal handler request for '%s' blocked in WEB_NON_CUSTODIAL mode. "
+        "Transaction broadcasting is DISABLED. Use /withdrawals/template endpoint instead.",
+        asset,
+    )
 
 
 # Cache for handler instances
@@ -31,6 +43,8 @@ def get_withdrawal_handler(asset: str) -> Optional[WithdrawalHandler]:
     """
     # SECURITY: Block withdrawal handlers in web mode
     settings = get_settings()
+    if settings.mode == ExecutionMode.WEB_NON_CUSTODIAL:
+        _log_blocked_withdrawal_attempt(asset)
     settings.require_custodial_mode("Withdrawal transaction handling")
 
     asset_upper = asset.upper()
