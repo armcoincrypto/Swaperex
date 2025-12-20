@@ -42,6 +42,7 @@ export function SwapInterface() {
     status,
     swapQuote,
     txHash,
+    explorerUrl,
     error,
     swap,
     confirmSwap,
@@ -479,6 +480,7 @@ export function SwapInterface() {
         step={getModalStep()}
         error={error}
         txHash={txHash}
+        explorerUrl={explorerUrl}
         onConfirm={handleConfirmSwap}
         onCancel={handleCancelPreview}
         onRefreshQuote={handleRefreshQuote}

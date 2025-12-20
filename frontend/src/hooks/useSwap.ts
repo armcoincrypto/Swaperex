@@ -20,6 +20,13 @@
  * - Catch RPC errors
  * - Catch user rejection
  * - NO silent failures
+ *
+ * PHASE 9 - SWAP LIFECYCLE (for debugging & UX):
+ * idle → fetching_quote → checking_allowance → previewing
+ *                                               ↓
+ *       ← error ←    approving (if needed) → swapping → confirming → success
+ *
+ * Each state transition is logged with [Swap Lifecycle] prefix.
  */
 
 import { useCallback, useState } from 'react';
@@ -54,7 +61,7 @@ import {
   validateSwapParams,
 } from '@/services/uniswapTxBuilder';
 import { getTokenBySymbol, isNativeToken } from '@/tokens';
-import { getUniswapV3Addresses } from '@/config';
+import { getUniswapV3Addresses, getExplorerTxUrl } from '@/config';
 
 export type SwapStatus =
   | 'idle'
@@ -71,6 +78,7 @@ interface SwapState {
   status: SwapStatus;
   quote: QuoteResult | null;
   txHash: string | null;
+  explorerUrl: string | null;  // PHASE 9: Explorer link for confirmed tx
   error: string | null;
 }
 
@@ -96,6 +104,23 @@ export interface SwapQuote extends QuoteResult {
 // Default slippage tolerance (0.5%)
 const DEFAULT_SLIPPAGE = 0.5;
 
+// Ethereum Mainnet chain ID
+const ETH_MAINNET_CHAIN_ID = 1;
+
+/**
+ * Log swap lifecycle state transitions
+ * PHASE 9: Clear logging for debugging and monitoring
+ */
+function logLifecycle(
+  fromStatus: SwapStatus | null,
+  toStatus: SwapStatus,
+  details?: Record<string, unknown>
+): void {
+  const timestamp = new Date().toISOString();
+  const transition = fromStatus ? `${fromStatus} → ${toStatus}` : `→ ${toStatus}`;
+  console.log(`[Swap Lifecycle] ${timestamp} | ${transition}`, details || '');
+}
+
 // ERC20 allowance ABI
 const ALLOWANCE_ABI = [
   {
@@ -119,6 +144,7 @@ export function useSwap() {
     status: 'idle',
     quote: null,
     txHash: null,
+    explorerUrl: null,
     error: null,
   });
 
@@ -126,10 +152,11 @@ export function useSwap() {
 
   // Reset state
   const reset = useCallback(() => {
-    setState({ status: 'idle', quote: null, txHash: null, error: null });
+    logLifecycle(state.status, 'idle', { action: 'reset' });
+    setState({ status: 'idle', quote: null, txHash: null, explorerUrl: null, error: null });
     setSwapQuote(null);
     clearQuote();
-  }, [clearQuote]);
+  }, [clearQuote, state.status]);
 
   // Check if can swap
   const canSwap = address && fromAsset && toAsset && fromAmount && !isWrongChain;
@@ -184,6 +211,8 @@ export function useSwap() {
       return null;
     }
 
+    // PHASE 9: Log lifecycle transition
+    logLifecycle(state.status, 'fetching_quote', { fromSymbol, toSymbol, fromAmount });
     setState((s) => ({ ...s, status: 'fetching_quote', error: null }));
 
     try {
@@ -220,6 +249,7 @@ export function useSwap() {
         : minAmountOut;
 
       // Check if approval is needed
+      logLifecycle('fetching_quote', 'checking_allowance', { tokenIn: fromSymbol });
       setState((s) => ({ ...s, status: 'checking_allowance' }));
       const tokenIn = getTokenBySymbol(fromSymbol, chainId || 1);
       const amountInWei = tokenIn
@@ -253,6 +283,10 @@ export function useSwap() {
         minimum_received: minAmountOutFormatted,
       };
 
+      logLifecycle('checking_allowance', 'previewing', {
+        quote: quote.amountOutFormatted,
+        needsApproval: !hasAllowance,
+      });
       setState((s) => ({ ...s, status: 'previewing', quote }));
       setSwapQuote(extendedQuote);
       // Update swapStore with compatible quote format for toAmount display
@@ -284,11 +318,12 @@ export function useSwap() {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to get quote';
       console.error('[Swap] Quote error:', err);
+      logLifecycle(state.status, 'error', { error: errorMessage });
       setState((s) => ({ ...s, status: 'error', error: errorMessage }));
       toast.error(errorMessage);
       return null;
     }
-  }, [address, fromAsset, toAsset, fromAmount, chainId, checkAllowance, setQuote]);
+  }, [address, fromAsset, toAsset, fromAmount, chainId, checkAllowance, setQuote, state.status]);
 
   // Execute token approval
   const executeApproval = useCallback(async (): Promise<boolean> => {
@@ -297,6 +332,7 @@ export function useSwap() {
     }
 
     try {
+      logLifecycle(state.status, 'approving', { token: swapQuote.fromSymbol });
       setState((s) => ({ ...s, status: 'approving' }));
       toast.info('Approving token spending...');
 
@@ -317,22 +353,25 @@ export function useSwap() {
       toast.info('Waiting for approval confirmation...');
       await tx.wait();
 
+      console.log('[Swap Lifecycle] Approval confirmed:', tx.hash);
       toast.success('Token approved!');
       return true;
     } catch (err) {
       const parsed = parseTransactionError(err);
 
       if (isUserRejection(err)) {
+        logLifecycle('approving', 'previewing', { reason: 'user_rejected' });
         toast.warning('Approval cancelled');
         setState((s) => ({ ...s, status: 'previewing' }));
       } else {
+        logLifecycle('approving', 'error', { error: parsed.message });
         toast.error(`Approval failed: ${parsed.message}`);
         setState((s) => ({ ...s, status: 'error', error: parsed.message }));
       }
 
       throw err;
     }
-  }, [swapQuote, chainId, getSigner]);
+  }, [swapQuote, chainId, getSigner, state.status]);
 
   // Execute the swap
   const executeSwap = useCallback(async (): Promise<string> => {
@@ -348,6 +387,11 @@ export function useSwap() {
         setSwapQuote((s) => (s ? { ...s, needsApproval: false } : null));
       }
 
+      logLifecycle(state.status, 'swapping', {
+        from: swapQuote.fromSymbol,
+        to: swapQuote.toSymbol,
+        amount: swapQuote.amountIn,
+      });
       setState((s) => ({ ...s, status: 'swapping' }));
       toast.info('Confirm swap in your wallet...');
 
@@ -375,15 +419,24 @@ export function useSwap() {
         gasLimit: swapTx.gasLimit ? BigInt(swapTx.gasLimit) : undefined,
       });
 
-      setState((s) => ({ ...s, status: 'confirming', txHash: tx.hash }));
+      // PHASE 9: Generate explorer URL for this transaction
+      const explorerUrl = getExplorerTxUrl(chainId, tx.hash);
+
+      logLifecycle('swapping', 'confirming', { txHash: tx.hash, explorerUrl });
+      setState((s) => ({ ...s, status: 'confirming', txHash: tx.hash, explorerUrl }));
       toast.info('Waiting for confirmation...');
 
       // Wait for confirmation
       const receipt = await tx.wait();
 
       if (receipt?.status === 1) {
-        setState((s) => ({ ...s, status: 'success', txHash: tx.hash }));
-        toast.success('Swap completed!');
+        logLifecycle('confirming', 'success', {
+          txHash: tx.hash,
+          explorerUrl,
+          gasUsed: receipt.gasUsed?.toString()
+        });
+        setState((s) => ({ ...s, status: 'success', txHash: tx.hash, explorerUrl }));
+        toast.success(`Swap completed! View on explorer: ${explorerUrl}`);
 
         // Refresh balances
         await fetchBalances(address, ['ethereum']);
@@ -402,25 +455,40 @@ export function useSwap() {
 
       // Use the more specific error message
       const parsed = rpcParsed.category !== 'unknown' ? rpcParsed : txParsed;
-      setState((s) => ({ ...s, status: 'error', error: parsed.message }));
 
       if (isUserRejection(err)) {
+        logLifecycle(state.status, 'previewing', { reason: 'user_rejected' });
+        setState((s) => ({ ...s, status: 'previewing' }));
         toast.warning('Swap cancelled by user');
         console.log('[Swap] User rejected transaction');
       } else {
+        logLifecycle(state.status, 'error', {
+          error: parsed.message,
+          category: parsed.category,
+        });
+        setState((s) => ({ ...s, status: 'error', error: parsed.message }));
         toast.error(`Swap failed: ${parsed.message}`);
         console.error('[Swap] Transaction failed:', parsed);
       }
 
       throw err;
     }
-  }, [swapQuote, address, chainId, getSigner, executeApproval, fetchBalances]);
+  }, [swapQuote, address, chainId, getSigner, executeApproval, fetchBalances, state.status]);
 
   // Full swap flow: fetch quote → preview → execute
   // PHASE 7: Comprehensive validation before any action
   const swap = useCallback(async (): Promise<SwapQuote | null> => {
     const fromSymbol = getSymbol(fromAsset);
     const toSymbol = getSymbol(toAsset);
+
+    // PHASE 9: Log swap initiation
+    logLifecycle(null, 'idle', {
+      action: 'swap_initiated',
+      fromSymbol,
+      toSymbol,
+      fromAmount,
+      chainId,
+    });
 
     console.log('[Swap] Starting swap validation...', {
       address,
@@ -438,10 +506,12 @@ export function useSwap() {
       throw new Error(error);
     }
 
-    // VALIDATION 2: Chain check
+    // VALIDATION 2: Network guard - Block swap on wrong chain
+    // PHASE 9: This is the network guard that prevents swaps on wrong chain
     if (isWrongChain) {
-      const error = 'Please switch to Ethereum Mainnet';
-      logError('Swap Validation', new Error(error));
+      const error = `Network mismatch: Please switch to Ethereum Mainnet (Chain ID: ${ETH_MAINNET_CHAIN_ID})`;
+      logLifecycle(null, 'error', { reason: 'wrong_chain', currentChainId: chainId });
+      logError('Swap Validation - NETWORK GUARD', new Error(error));
       toast.error(error);
       throw new Error(error);
     }
@@ -524,7 +594,8 @@ export function useSwap() {
   // Cancel preview
   const cancelPreview = useCallback(() => {
     if (state.status === 'previewing') {
-      setState((s) => ({ ...s, status: 'idle', quote: null }));
+      logLifecycle('previewing', 'idle', { action: 'cancel_preview' });
+      setState((s) => ({ ...s, status: 'idle', quote: null, explorerUrl: null }));
       setSwapQuote(null);
     }
   }, [state.status]);

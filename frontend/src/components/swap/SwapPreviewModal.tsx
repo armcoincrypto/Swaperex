@@ -25,6 +25,7 @@ interface SwapPreviewModalProps {
   step: SwapStep;
   error: string | null;
   txHash: string | null;
+  explorerUrl?: string | null;  // PHASE 9: Explorer URL from useSwap
   onConfirm: () => void;
   onCancel: () => void;
   onRefreshQuote: () => void;
@@ -37,6 +38,7 @@ export function SwapPreviewModal({
   step,
   error,
   txHash,
+  explorerUrl,
   onConfirm,
   onCancel,
   onRefreshQuote,
@@ -110,6 +112,7 @@ export function SwapPreviewModal({
         <SuccessContent
           quote={quote}
           txHash={txHash}
+          explorerUrl={explorerUrl}
           onClose={onCancel}
         />
       )}
@@ -352,14 +355,16 @@ function QuoteExpiryBanner({
 function SuccessContent({
   quote,
   txHash,
+  explorerUrl: providedExplorerUrl,
   onClose,
 }: {
   quote: SwapQuote;
   txHash: string | null;
+  explorerUrl?: string | null;
   onClose: () => void;
 }) {
-  // Default to Ethereum mainnet for explorer URL
-  const explorerUrl = getExplorerUrl(1, txHash || '');
+  // PHASE 9: Use provided explorer URL or fallback to Ethereum mainnet
+  const explorerUrl = providedExplorerUrl || getExplorerUrl(1, txHash || '');
 
   return (
     <div className="text-center">
