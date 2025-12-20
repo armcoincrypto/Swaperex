@@ -6,7 +6,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { BrowserProvider, JsonRpcSigner } from 'ethers';
+import { BrowserProvider, JsonRpcSigner, isAddress } from 'ethers';
 import { useWalletStore } from '@/stores/walletStore';
 import { useBalanceStore } from '@/stores/balanceStore';
 import { parseWalletError } from '@/utils/errors';
@@ -107,10 +107,12 @@ export function useWallet() {
   }, [disconnect, clearBalances]);
 
   // Enter read-only mode (view wallet without signing)
-  const enterReadOnlyMode = useCallback((viewAddress: string) => {
-    // Validate address format
-    if (!viewAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
-      setConnectionError('Invalid address format');
+  const enterReadOnlyMode = useCallback((viewAddress: string): boolean => {
+    // Validate address using ethers.js isAddress
+    // This handles checksums, length, and format validation properly
+    if (!isAddress(viewAddress)) {
+      // Don't set connection error - let component handle inline error display
+      // This prevents toast loops and keeps error handling in UI
       return false;
     }
 
@@ -119,7 +121,7 @@ export function useWallet() {
     // Fetch balances for read-only address
     fetchBalances(viewAddress, ['ethereum', 'bsc', 'polygon']);
     return true;
-  }, [setReadOnlyAddress, fetchBalances, setConnectionError]);
+  }, [setReadOnlyAddress, fetchBalances]);
 
   // Exit read-only mode
   const exitReadOnlyMode = useCallback(async () => {

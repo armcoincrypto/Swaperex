@@ -6,6 +6,7 @@
  */
 
 import { useCallback, useState } from 'react';
+import { isAddress } from 'ethers';
 import { useWallet } from './useWallet';
 import { useTransaction } from './useTransaction';
 import { useBalanceStore } from '@/stores/balanceStore';
@@ -58,9 +59,11 @@ export function useWithdrawal() {
     chain: 'ethereum',
   });
 
-  // Validation helpers
+  // Validation helpers - use ethers.js isAddress for proper validation
+  // This handles checksums, format, and edge cases correctly
   const isValidAddress = useCallback((addr: string): boolean => {
-    return /^0x[a-fA-F0-9]{40}$/.test(addr);
+    if (!addr) return false;
+    return isAddress(addr);
   }, []);
 
   const isValidAmount = useCallback((amt: string): boolean => {
