@@ -1,5 +1,5 @@
 /**
- * PHASE 8 - TEST MATRIX
+ * PHASE 8 & 9 - TEST MATRIX
  *
  * Manual testing checklist for swap functionality.
  * Run each test case and verify expected behavior.
@@ -9,6 +9,34 @@
  * - Test on Ethereum Mainnet (or fork)
  * - Have small amounts of ETH and tokens for testing
  */
+
+/*******************************************************************************
+ * PHASE 9 - STABILIZE ETH MAINNET (REAL SWAP TESTING)
+ *
+ * This phase focuses on CONFIDENCE, not features.
+ * Test REAL swaps with small amounts before anything else.
+ *
+ * CRITICAL CHECKLIST:
+ * □ 1. ETH → USDC swap works (small amount ~0.001 ETH)
+ * □ 2. Wallet signs transaction locally
+ * □ 3. Transaction confirmed on Etherscan
+ * □ 4. Balance updates after swap
+ *
+ * EDGE CASES TO CONFIRM:
+ * □ 5. Reject tx in wallet → Shows "Transaction cancelled" message
+ * □ 6. Low slippage → Shows warning, may fail on-chain
+ * □ 7. Insufficient balance → Button disabled, shows "Insufficient Balance"
+ * □ 8. Network change → Prompts to switch back to Ethereum
+ *
+ * CONSOLE LOGS TO VERIFY (open DevTools → Console):
+ * - [Quote] Fetching quote: { tokenIn, tokenOut, amountIn }
+ * - [Quote] Result: { amountOut, gasEstimate, priceImpact }
+ * - [TxBuilder] Building swap: { tokenIn, tokenOut, isNativeIn }
+ * - [Swap] Sending swap: { to, data, value }
+ * - [Swap Execution] Error: (if any error occurs)
+ *
+ * NO SILENT FAILURES - All errors should log to console!
+ ******************************************************************************/
 
 /**
  * TEST CASE 1: ETH → USDT Swap (Small Amount)
