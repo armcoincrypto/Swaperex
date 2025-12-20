@@ -4,7 +4,7 @@
  * Extracted from Telegram bot routing logic.
  * ONLY contains public chain data - NO private keys, NO signing logic.
  *
- * PHASE 2: Ethereum + Uniswap V3 focus
+ * Supports: Uniswap V3, PancakeSwap V3, 1inch Aggregator
  */
 
 /**
@@ -17,6 +17,17 @@ export interface UniswapV3Addresses {
   factory: string;          // UniswapV3Factory
   positionManager: string;  // NonfungiblePositionManager
   permit2: string;          // Permit2 (for gasless approvals)
+}
+
+/**
+ * PancakeSwap V3 Contract Addresses (BSC)
+ * Source: https://docs.pancakeswap.finance/developers/smart-contracts
+ */
+export interface PancakeSwapV3Addresses {
+  router: string;           // SmartRouter
+  quoter: string;           // QuoterV2
+  factory: string;          // V3Factory
+  positionManager: string;  // NonfungiblePositionManager
 }
 
 /**
@@ -34,6 +45,7 @@ export interface ChainConfig {
   wrappedNativeToken: string;  // WETH, WBNB, WMATIC, etc.
   wrappedNativeAddress: string;
   uniswapV3?: UniswapV3Addresses;
+  pancakeSwapV3?: PancakeSwapV3Addresses;
   logo?: string;
 }
 
@@ -103,6 +115,17 @@ export const UNISWAP_V3_ADDRESSES: Record<number, UniswapV3Addresses> = {
 };
 
 /**
+ * PancakeSwap V3 Addresses (BSC)
+ * Source: https://docs.pancakeswap.finance/developers/smart-contracts/pancakeswap-exchange/v3-contracts
+ */
+export const PANCAKESWAP_V3_ADDRESSES: PancakeSwapV3Addresses = {
+  router: '0x13f4EA83D0bd40E75C8222255bc855a974568Dd4',       // SmartRouter
+  quoter: '0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997',       // QuoterV2
+  factory: '0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865',      // V3Factory
+  positionManager: '0x46A15B0b27311cedF172AB29E4f4766fbE7F4364', // NFT Position Manager
+};
+
+/**
  * Wrapped Native Token Addresses
  */
 export const WRAPPED_NATIVE_ADDRESSES: Record<number, string> = {
@@ -145,7 +168,7 @@ export const CHAINS: Record<ChainName, ChainConfig> = {
     nativeDecimals: 18,
     wrappedNativeToken: 'WBNB',
     wrappedNativeAddress: WRAPPED_NATIVE_ADDRESSES[56],
-    // BSC uses PancakeSwap, not Uniswap V3
+    pancakeSwapV3: PANCAKESWAP_V3_ADDRESSES,
   },
   polygon: {
     id: 137,
@@ -303,5 +326,24 @@ export const SUPPORTED_CHAIN_IDS = Object.values(CHAIN_IDS);
  * Chains with Uniswap V3 support
  */
 export const UNISWAP_V3_CHAIN_IDS = Object.keys(UNISWAP_V3_ADDRESSES).map(Number);
+
+/**
+ * Check if chain has PancakeSwap V3
+ */
+export function hasPancakeSwapV3(chainId: number): boolean {
+  return chainId === 56;
+}
+
+/**
+ * Get PancakeSwap V3 addresses (BSC only)
+ */
+export function getPancakeSwapV3Addresses(): PancakeSwapV3Addresses | undefined {
+  return PANCAKESWAP_V3_ADDRESSES;
+}
+
+/**
+ * Chains with PancakeSwap V3 support
+ */
+export const PANCAKESWAP_V3_CHAIN_IDS = [56];
 
 export default CHAINS;
