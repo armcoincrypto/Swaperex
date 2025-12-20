@@ -227,6 +227,7 @@ export function SwapInterface() {
               <TokenButton
                 asset={fromAsset}
                 onClick={() => {
+                  console.log('[DEBUG] From token clicked, current state:', showFromSelector);
                   setShowFromSelector(!showFromSelector);
                   setShowToSelector(false);
                 }}
@@ -277,6 +278,7 @@ export function SwapInterface() {
               <TokenButton
                 asset={toAsset}
                 onClick={() => {
+                  console.log('[DEBUG] To token clicked, current state:', showToSelector);
                   setShowToSelector(!showToSelector);
                   setShowFromSelector(false);
                 }}
@@ -429,7 +431,7 @@ function TokenSelectorDropdown({
   return (
     <div
       ref={dropdownRef}
-      className="absolute top-full left-0 mt-2 w-64 bg-dark-800 rounded-xl shadow-lg border border-dark-700 py-2 z-50"
+      className="absolute top-full left-0 mt-2 w-64 bg-dark-800 rounded-xl shadow-lg border border-dark-700 py-2 z-[60]"
     >
       <div className="px-3 pb-2 mb-2 border-b border-dark-700">
         <span className="text-xs text-dark-400 uppercase tracking-wide">Select Token</span>
