@@ -4,8 +4,15 @@
  * Handles wallet connection flow with improved UX.
  * NEVER receives private keys - only public address.
  *
+ * Flow:
+ * 1. User clicks "Connect Wallet"
+ * 2. Wallet selection dropdown appears (MetaMask, WalletConnect, View-only)
+ * 3. User selects a wallet type
+ * 4. THEN wallet popup opens
+ *
  * States handled:
- * - DISCONNECTED: Show connect button or install MetaMask CTA
+ * - DISCONNECTED: Show connect button
+ * - SELECTING: Show wallet options dropdown
  * - CONNECTING: Show spinner while waiting for wallet approval
  * - CONNECTED: Show address with chain badge
  * - WRONG_CHAIN: Show warning with switch button
@@ -13,11 +20,13 @@
  * - ERROR: Show error with retry button
  */
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useWallet } from '@/hooks/useWallet';
 import { Button } from '@/components/common/Button';
 import { shortenAddress } from '@/utils/format';
 import { SUPPORTED_CHAIN_IDS } from '@/utils/constants';
+
+type WalletOption = 'metamask' | 'walletconnect' | 'readonly';
 
 export function WalletConnect() {
   const {
@@ -37,27 +46,97 @@ export function WalletConnect() {
     clearError,
   } = useWallet();
 
+  // UI states
   const [showMenu, setShowMenu] = useState(false);
+  const [showWalletOptions, setShowWalletOptions] = useState(false);
   const [showReadOnlyInput, setShowReadOnlyInput] = useState(false);
   const [readOnlyAddress, setReadOnlyAddress] = useState('');
   const [addressError, setAddressError] = useState('');
 
+  // Track which wallet was selected for retry
+  const [selectedWallet, setSelectedWallet] = useState<WalletOption | null>(null);
+
+  // Ref for click outside handling
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowWalletOptions(false);
+      }
+    }
+
+    if (showWalletOptions) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showWalletOptions]);
+
+  // Handle wallet selection - popup only opens AFTER user selects
+  const handleWalletSelect = async (option: WalletOption) => {
+    setSelectedWallet(option);
+    setShowWalletOptions(false);
+
+    if (option === 'metamask') {
+      try {
+        await connectInjected();
+      } catch {
+        // Error handled in hook, shown in UI
+      }
+    } else if (option === 'walletconnect') {
+      // WalletConnect not yet implemented - show message
+      alert('WalletConnect coming soon!');
+      setSelectedWallet(null);
+    } else if (option === 'readonly') {
+      setShowReadOnlyInput(true);
+    }
+  };
+
   // Handle read-only mode submission
   const handleReadOnlySubmit = () => {
     setAddressError('');
+
+    // Validate before attempting
+    if (!readOnlyAddress) {
+      setAddressError('Please enter an address');
+      return;
+    }
+
+    if (!readOnlyAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
+      setAddressError('Invalid address format (must be 0x followed by 40 hex characters)');
+      return;
+    }
+
     const success = enterReadOnlyMode(readOnlyAddress);
     if (success) {
       setShowReadOnlyInput(false);
       setReadOnlyAddress('');
+      setSelectedWallet(null);
     } else {
-      setAddressError('Invalid address format (must be 0x...)');
+      setAddressError('Failed to load address. Please try again.');
     }
   };
 
-  // Handle retry after error
+  // Handle retry after error - only retry if user clicks explicitly
   const handleRetry = () => {
     clearError();
-    connectInjected();
+    if (selectedWallet === 'metamask') {
+      connectInjected();
+    } else {
+      // Reset to selection state
+      setShowWalletOptions(true);
+    }
+  };
+
+  // Cancel and reset state
+  const handleCancel = () => {
+    clearError();
+    setSelectedWallet(null);
+    setShowWalletOptions(false);
+    setShowReadOnlyInput(false);
+    setReadOnlyAddress('');
+    setAddressError('');
   };
 
   // Handle chain switch from connected state
@@ -70,7 +149,7 @@ export function WalletConnect() {
     }
   };
 
-  // Connected state
+  // ===== CONNECTED STATE =====
   if (isConnected && address) {
     const isUnsupportedChain = !SUPPORTED_CHAIN_IDS.includes(chainId);
 
@@ -165,17 +244,24 @@ export function WalletConnect() {
     );
   }
 
-  // Read-only address input mode
+  // ===== READ-ONLY ADDRESS INPUT =====
   if (showReadOnlyInput) {
     return (
-      <div className="flex flex-col gap-2 w-64">
+      <div className="flex flex-col gap-2 w-72">
+        <div className="text-sm text-dark-400 mb-1">Enter wallet address to view</div>
         <div className="flex items-center gap-2">
           <input
             type="text"
             placeholder="0x..."
             value={readOnlyAddress}
-            onChange={(e) => setReadOnlyAddress(e.target.value)}
-            className="flex-1 px-3 py-2 rounded-lg bg-dark-800 border border-dark-600 focus:border-primary-500 outline-none text-sm"
+            onChange={(e) => {
+              setReadOnlyAddress(e.target.value);
+              // Clear error when user starts typing
+              if (addressError) setAddressError('');
+            }}
+            className={`flex-1 px-3 py-2 rounded-lg bg-dark-800 border outline-none text-sm font-mono ${
+              addressError ? 'border-red-500' : 'border-dark-600 focus:border-primary-500'
+            }`}
           />
           <Button
             onClick={handleReadOnlySubmit}
@@ -189,11 +275,7 @@ export function WalletConnect() {
           <p className="text-xs text-red-400">{addressError}</p>
         )}
         <button
-          onClick={() => {
-            setShowReadOnlyInput(false);
-            setReadOnlyAddress('');
-            setAddressError('');
-          }}
+          onClick={handleCancel}
           className="text-xs text-dark-400 hover:text-dark-200"
         >
           Cancel
@@ -202,7 +284,7 @@ export function WalletConnect() {
     );
   }
 
-  // Disconnected state with error
+  // ===== ERROR STATE =====
   if (error) {
     return (
       <div className="flex flex-col gap-2">
@@ -214,7 +296,7 @@ export function WalletConnect() {
           <Button onClick={handleRetry} variant="primary" size="sm">
             Try Again
           </Button>
-          <Button onClick={clearError} variant="ghost" size="sm">
+          <Button onClick={handleCancel} variant="ghost" size="sm">
             Cancel
           </Button>
         </div>
@@ -222,40 +304,101 @@ export function WalletConnect() {
     );
   }
 
-  // Disconnected state
-  return (
-    <div className="flex flex-col gap-2">
-      {hasInjectedWallet ? (
-        <>
-          <Button
-            onClick={connectInjected}
-            loading={isConnecting}
-            variant="primary"
-          >
-            {isConnecting ? 'Connecting...' : 'Connect Wallet'}
-          </Button>
-          {isConnecting && (
-            <p className="text-xs text-dark-400 text-center">
-              Please approve in your wallet
-            </p>
-          )}
-        </>
-      ) : (
-        <Button
-          variant="secondary"
-          onClick={() => window.open('https://metamask.io/download/', '_blank')}
-        >
-          Install MetaMask
+  // ===== CONNECTING STATE =====
+  if (isConnecting) {
+    return (
+      <div className="flex flex-col gap-2 items-center">
+        <Button loading variant="primary" disabled>
+          Connecting...
         </Button>
-      )}
+        <p className="text-xs text-dark-400 text-center">
+          Please approve in your wallet
+        </p>
+        <button
+          onClick={handleCancel}
+          className="text-xs text-dark-400 hover:text-dark-200"
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
 
-      {/* View-only mode link */}
-      <button
-        onClick={() => setShowReadOnlyInput(true)}
-        className="text-xs text-dark-400 hover:text-primary-400 transition-colors"
+  // ===== DISCONNECTED STATE - WALLET SELECTION =====
+  return (
+    <div className="relative" ref={dropdownRef}>
+      {/* Main Connect Button */}
+      <Button
+        onClick={() => setShowWalletOptions(!showWalletOptions)}
+        variant="primary"
       >
-        Or enter address to view
-      </button>
+        Connect Wallet
+      </Button>
+
+      {/* Wallet Selection Dropdown */}
+      {showWalletOptions && (
+        <div className="absolute right-0 mt-2 w-64 bg-dark-800 rounded-lg shadow-lg border border-dark-700 py-2 z-50">
+          <div className="px-3 pb-2 mb-2 border-b border-dark-700">
+            <span className="text-xs text-dark-400 uppercase tracking-wide">
+              Select Wallet
+            </span>
+          </div>
+
+          {/* MetaMask Option */}
+          {hasInjectedWallet ? (
+            <button
+              onClick={() => handleWalletSelect('metamask')}
+              className="w-full px-4 py-3 text-left hover:bg-dark-700 transition-colors flex items-center gap-3"
+            >
+              <MetaMaskIcon />
+              <div>
+                <div className="font-medium">MetaMask</div>
+                <div className="text-xs text-dark-400">Connect with browser wallet</div>
+              </div>
+            </button>
+          ) : (
+            <a
+              href="https://metamask.io/download/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full px-4 py-3 text-left hover:bg-dark-700 transition-colors flex items-center gap-3 text-dark-400"
+            >
+              <MetaMaskIcon />
+              <div>
+                <div className="font-medium">Install MetaMask</div>
+                <div className="text-xs">Browser wallet not detected</div>
+              </div>
+            </a>
+          )}
+
+          {/* WalletConnect Option */}
+          <button
+            onClick={() => handleWalletSelect('walletconnect')}
+            className="w-full px-4 py-3 text-left hover:bg-dark-700 transition-colors flex items-center gap-3"
+          >
+            <WalletConnectIcon />
+            <div>
+              <div className="font-medium">WalletConnect</div>
+              <div className="text-xs text-dark-400">Scan with mobile wallet</div>
+            </div>
+          </button>
+
+          {/* Divider */}
+          <div className="my-2 border-t border-dark-700" />
+
+          {/* View-Only Option */}
+          <button
+            onClick={() => handleWalletSelect('readonly')}
+            className="w-full px-4 py-3 text-left hover:bg-dark-700 transition-colors flex items-center gap-3"
+          >
+            <EyeIcon />
+            <div>
+              <div className="font-medium">View Address</div>
+              <div className="text-xs text-dark-400">View balances without signing</div>
+            </div>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -347,6 +490,39 @@ function DisconnectIcon() {
         d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
       />
     </svg>
+  );
+}
+
+function MetaMaskIcon() {
+  return (
+    <div className="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center">
+      <svg className="w-5 h-5 text-orange-400" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M21.3 3L13.3 9.3l1.5-3.5L21.3 3z" />
+        <path d="M2.7 3l7.9 6.4-1.4-3.5L2.7 3zm15.5 13.1l-2.1 3.2 4.5 1.2 1.3-4.4-3.7 0zm-15.2 0l1.3 4.4 4.5-1.2-2.1-3.2-3.7 0z" />
+        <path d="M9.1 10.4l-1.3 1.9 4.5.2-.2-4.9-3 2.8zm5.8 0l-3-2.9-.1 5 4.5-.2-1.4-1.9zM6.6 19.3l2.7-1.3-2.3-1.8-.4 3.1zm5.4-1.3l2.7 1.3-.4-3.1-2.3 1.8z" />
+      </svg>
+    </div>
+  );
+}
+
+function WalletConnectIcon() {
+  return (
+    <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+      <svg className="w-5 h-5 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.5 9.5C8 7 16 7 18.5 9.5M7.5 12c2-2 7-2 9 0" />
+      </svg>
+    </div>
+  );
+}
+
+function EyeIcon() {
+  return (
+    <div className="w-8 h-8 rounded-lg bg-dark-600 flex items-center justify-center">
+      <svg className="w-5 h-5 text-dark-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+      </svg>
+    </div>
   );
 }
 
