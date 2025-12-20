@@ -346,4 +346,41 @@ export function getPancakeSwapV3Addresses(): PancakeSwapV3Addresses | undefined 
  */
 export const PANCAKESWAP_V3_CHAIN_IDS = [56];
 
+/**
+ * PHASE 12: Solana Configuration (Non-EVM)
+ * Solana uses signatures instead of tx hashes
+ */
+export const SOLANA_CONFIG = {
+  name: 'Solana',
+  symbol: 'SOL',
+  rpcUrl: 'https://api.mainnet-beta.solana.com',
+  explorerUrl: 'https://solscan.io',
+  explorerTxPath: '/tx/',
+  nativeToken: 'SOL',
+  nativeDecimals: 9,
+  // Solana uses "mainnet-beta" cluster
+  cluster: 'mainnet-beta' as const,
+};
+
+/**
+ * PHASE 12: Get Solana explorer URL for transaction signature
+ */
+export function getSolanaExplorerUrl(signature: string): string {
+  return `${SOLANA_CONFIG.explorerUrl}${SOLANA_CONFIG.explorerTxPath}${signature}`;
+}
+
+/**
+ * PHASE 12: Check if a chain is Solana
+ * Solana doesn't use chainId, we use a special identifier
+ */
+export const SOLANA_CHAIN_ID = 'solana' as const;
+
+/**
+ * PHASE 12: Check if address is Solana format (base58)
+ */
+export function isSolanaAddress(address: string): boolean {
+  // Solana addresses are 32-44 characters of base58
+  return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
+}
+
 export default CHAINS;

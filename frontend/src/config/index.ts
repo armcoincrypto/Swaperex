@@ -27,6 +27,11 @@ export {
   getWrappedNativeAddress,
   hasUniswapV3,
   isSupportedChain,
+  // PHASE 12: Solana exports
+  SOLANA_CONFIG,
+  SOLANA_CHAIN_ID,
+  getSolanaExplorerUrl,
+  isSolanaAddress,
   type ChainConfig,
   type ChainId,
   type ChainName,
