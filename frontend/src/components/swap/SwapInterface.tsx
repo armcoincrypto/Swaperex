@@ -7,7 +7,7 @@
  * Flow: Enter amount → Get quote → Preview → Confirm in wallet → Success
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useWallet } from '@/hooks/useWallet';
 import { useSwap } from '@/hooks/useSwap';
 import { useSwapStore } from '@/stores/swapStore';
@@ -59,6 +59,8 @@ export function SwapInterface() {
   const [showSettings, setShowSettings] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [isRefreshingQuote, setIsRefreshingQuote] = useState(false);
+  const [showFromSelector, setShowFromSelector] = useState(false);
+  const [showToSelector, setShowToSelector] = useState(false);
 
   // Initialize with default assets
   useEffect(() => {
@@ -78,6 +80,29 @@ export function SwapInterface() {
   const insufficientBalance = fromAmount &&
     parseFloat(fromAmount) > 0 &&
     parseFloat(fromAmount) > parseFloat(fromBalance);
+
+  // Token selection handlers
+  const handleFromTokenSelect = useCallback((asset: AssetInfo) => {
+    // Don't allow same token for both sides
+    if (asset.symbol === toAsset?.symbol) {
+      // Swap them instead
+      swapAssets();
+    } else {
+      setFromAsset(asset);
+    }
+    setShowFromSelector(false);
+  }, [toAsset, setFromAsset, swapAssets]);
+
+  const handleToTokenSelect = useCallback((asset: AssetInfo) => {
+    // Don't allow same token for both sides
+    if (asset.symbol === fromAsset?.symbol) {
+      // Swap them instead
+      swapAssets();
+    } else {
+      setToAsset(asset);
+    }
+    setShowToSelector(false);
+  }, [fromAsset, setToAsset, swapAssets]);
 
   // Open preview modal
   const handlePreviewSwap = async () => {
@@ -198,7 +223,24 @@ export function SwapInterface() {
             </span>
           </div>
           <div className="flex items-center gap-3">
-            <TokenButton asset={fromAsset} onClick={() => {}} />
+            <div className="relative">
+              <TokenButton
+                asset={fromAsset}
+                onClick={() => {
+                  setShowFromSelector(!showFromSelector);
+                  setShowToSelector(false);
+                }}
+              />
+              {showFromSelector && (
+                <TokenSelectorDropdown
+                  assets={MOCK_ASSETS}
+                  selectedAsset={fromAsset}
+                  excludeAsset={toAsset}
+                  onSelect={handleFromTokenSelect}
+                  onClose={() => setShowFromSelector(false)}
+                />
+              )}
+            </div>
             <input
               type="text"
               placeholder="0.0"
@@ -231,7 +273,24 @@ export function SwapInterface() {
             </span>
           </div>
           <div className="flex items-center gap-3">
-            <TokenButton asset={toAsset} onClick={() => {}} />
+            <div className="relative">
+              <TokenButton
+                asset={toAsset}
+                onClick={() => {
+                  setShowToSelector(!showToSelector);
+                  setShowFromSelector(false);
+                }}
+              />
+              {showToSelector && (
+                <TokenSelectorDropdown
+                  assets={MOCK_ASSETS}
+                  selectedAsset={toAsset}
+                  excludeAsset={fromAsset}
+                  onSelect={handleToTokenSelect}
+                  onClose={() => setShowToSelector(false)}
+                />
+              )}
+            </div>
             <div className="flex-1 text-right">
               {isQuoting || status === 'fetching_quote' ? (
                 <div className="flex items-center justify-end gap-2">
@@ -340,6 +399,73 @@ function TokenButton({ asset, onClick }: { asset: AssetInfo | null; onClick: () 
   );
 }
 
+function TokenSelectorDropdown({
+  assets,
+  selectedAsset,
+  excludeAsset,
+  onSelect,
+  onClose,
+}: {
+  assets: AssetInfo[];
+  selectedAsset: AssetInfo | null;
+  excludeAsset: AssetInfo | null;
+  onSelect: (asset: AssetInfo) => void;
+  onClose: () => void;
+}) {
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={dropdownRef}
+      className="absolute top-full left-0 mt-2 w-64 bg-dark-800 rounded-xl shadow-lg border border-dark-700 py-2 z-50"
+    >
+      <div className="px-3 pb-2 mb-2 border-b border-dark-700">
+        <span className="text-xs text-dark-400 uppercase tracking-wide">Select Token</span>
+      </div>
+      {assets.map((asset) => {
+        const isSelected = asset.symbol === selectedAsset?.symbol;
+        const isExcluded = asset.symbol === excludeAsset?.symbol;
+
+        return (
+          <button
+            key={asset.symbol}
+            onClick={() => onSelect(asset)}
+            disabled={isExcluded}
+            className={`w-full px-4 py-3 text-left transition-colors flex items-center gap-3 ${
+              isSelected
+                ? 'bg-primary-600/20 text-primary-400'
+                : isExcluded
+                ? 'opacity-50 cursor-not-allowed'
+                : 'hover:bg-dark-700'
+            }`}
+          >
+            <div className="w-8 h-8 rounded-full bg-dark-600 flex items-center justify-center text-sm font-bold">
+              {asset.symbol[0]}
+            </div>
+            <div className="flex-1">
+              <div className="font-medium">{asset.symbol}</div>
+              <div className="text-xs text-dark-400">{asset.name}</div>
+            </div>
+            {isSelected && <CheckIcon />}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function SlippageSettings({
   value,
   onChange,
@@ -422,6 +548,14 @@ function CloseIcon() {
   return (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg className="w-5 h-5 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
     </svg>
   );
 }
