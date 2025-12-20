@@ -15,15 +15,24 @@ import { useBalanceStore } from '@/stores/balanceStore';
 import { Button } from '@/components/common/Button';
 import { SwapPreviewModal, SwapStep } from './SwapPreviewModal';
 import { formatBalance, formatPercent } from '@/utils/format';
+import { POPULAR_TOKENS, type Token } from '@/tokens';
 import type { AssetInfo } from '@/types/api';
 
-// Mock assets for demo - would come from API
-const MOCK_ASSETS: AssetInfo[] = [
-  { symbol: 'ETH', name: 'Ethereum', chain: 'ethereum', decimals: 18, is_native: true },
-  { symbol: 'USDT', name: 'Tether USD', chain: 'ethereum', decimals: 6, is_native: false },
-  { symbol: 'USDC', name: 'USD Coin', chain: 'ethereum', decimals: 6, is_native: false },
-  { symbol: 'DAI', name: 'Dai', chain: 'ethereum', decimals: 18, is_native: false },
-];
+// Convert Token to AssetInfo for compatibility
+function tokenToAsset(token: Token): AssetInfo {
+  return {
+    symbol: token.symbol,
+    name: token.name,
+    chain: 'ethereum',
+    decimals: token.decimals,
+    is_native: token.symbol === 'ETH',
+    contract_address: token.address,
+    logo_url: token.logoURI,
+  };
+}
+
+// Get real tokens from token list
+const AVAILABLE_TOKENS = POPULAR_TOKENS.map(tokenToAsset);
 
 export function SwapInterface() {
   const { isConnected, address, isWrongChain } = useWallet();
@@ -61,11 +70,16 @@ export function SwapInterface() {
   const [isRefreshingQuote, setIsRefreshingQuote] = useState(false);
   const [showFromSelector, setShowFromSelector] = useState(false);
   const [showToSelector, setShowToSelector] = useState(false);
+  const [customSlippage, setCustomSlippage] = useState('');
 
   // Initialize with default assets
   useEffect(() => {
-    if (!fromAsset) setFromAsset(MOCK_ASSETS[0]);
-    if (!toAsset) setToAsset(MOCK_ASSETS[1]);
+    if (!fromAsset && AVAILABLE_TOKENS.length > 0) {
+      setFromAsset(AVAILABLE_TOKENS[0]); // ETH
+    }
+    if (!toAsset && AVAILABLE_TOKENS.length > 1) {
+      setToAsset(AVAILABLE_TOKENS[2]); // USDT
+    }
   }, [fromAsset, toAsset, setFromAsset, setToAsset]);
 
   // Get balance for selected asset
@@ -83,9 +97,7 @@ export function SwapInterface() {
 
   // Token selection handlers
   const handleFromTokenSelect = useCallback((asset: AssetInfo) => {
-    // Don't allow same token for both sides
     if (asset.symbol === toAsset?.symbol) {
-      // Swap them instead
       swapAssets();
     } else {
       setFromAsset(asset);
@@ -94,9 +106,7 @@ export function SwapInterface() {
   }, [toAsset, setFromAsset, swapAssets]);
 
   const handleToTokenSelect = useCallback((asset: AssetInfo) => {
-    // Don't allow same token for both sides
     if (asset.symbol === fromAsset?.symbol) {
-      // Swap them instead
       swapAssets();
     } else {
       setToAsset(asset);
@@ -104,10 +114,19 @@ export function SwapInterface() {
     setShowToSelector(false);
   }, [fromAsset, setToAsset, swapAssets]);
 
+  // Handle custom slippage input
+  const handleCustomSlippage = (value: string) => {
+    const numValue = parseFloat(value);
+    if (!isNaN(numValue) && numValue >= 0 && numValue <= 50) {
+      setSlippage(numValue);
+    }
+    setCustomSlippage(value);
+  };
+
   // Open preview modal
   const handlePreviewSwap = async () => {
     try {
-      await swap(); // This fetches the quote
+      await swap();
       setShowPreview(true);
     } catch (err) {
       // Error handled in useSwap
@@ -180,6 +199,17 @@ export function SwapInterface() {
     return false;
   };
 
+  // Get fee tier display name
+  const getFeeTierDisplay = (feeTier: number): string => {
+    const tiers: Record<number, string> = {
+      100: '0.01%',
+      500: '0.05%',
+      3000: '0.3%',
+      10000: '1%',
+    };
+    return tiers[feeTier] || `${(feeTier / 10000).toFixed(2)}%`;
+  };
+
   // Render swap form
   return (
     <>
@@ -190,16 +220,19 @@ export function SwapInterface() {
           <button
             onClick={() => setShowSettings(!showSettings)}
             className="p-2 rounded-lg hover:bg-dark-800 transition-colors"
+            title="Settings"
           >
             <SettingsIcon />
           </button>
         </div>
 
-        {/* Settings */}
+        {/* Settings Panel */}
         {showSettings && (
           <SlippageSettings
             value={slippage}
+            customValue={customSlippage}
             onChange={setSlippage}
+            onCustomChange={handleCustomSlippage}
             onClose={() => setShowSettings(false)}
           />
         )}
@@ -209,10 +242,10 @@ export function SwapInterface() {
           insufficientBalance ? 'border border-red-800' : ''
         }`}>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-dark-400">From</span>
+            <span className="text-sm text-dark-400">You Pay</span>
             <span className={`text-sm ${insufficientBalance ? 'text-red-400' : 'text-dark-400'}`}>
               Balance: {formatBalance(fromBalance)}
-              {isConnected && fromBalance !== '0.00' && (
+              {isConnected && parseFloat(fromBalance) > 0 && (
                 <button
                   onClick={() => setFromAmount(fromBalance)}
                   className="ml-2 text-primary-400 hover:text-primary-300"
@@ -227,14 +260,13 @@ export function SwapInterface() {
               <TokenButton
                 asset={fromAsset}
                 onClick={() => {
-                  console.log('[DEBUG] From token clicked, current state:', showFromSelector);
                   setShowFromSelector(!showFromSelector);
                   setShowToSelector(false);
                 }}
               />
               {showFromSelector && (
                 <TokenSelectorDropdown
-                  assets={MOCK_ASSETS}
+                  assets={AVAILABLE_TOKENS}
                   selectedAsset={fromAsset}
                   excludeAsset={toAsset}
                   onSelect={handleFromTokenSelect}
@@ -248,7 +280,10 @@ export function SwapInterface() {
               value={fromAmount}
               onChange={(e) => {
                 const val = e.target.value.replace(/[^0-9.]/g, '');
-                setFromAmount(val);
+                // Prevent multiple decimal points
+                if (val.split('.').length <= 2) {
+                  setFromAmount(val);
+                }
               }}
               className="flex-1 bg-transparent text-2xl font-medium text-right outline-none"
             />
@@ -260,6 +295,7 @@ export function SwapInterface() {
           <button
             onClick={swapAssets}
             className="p-2 bg-dark-700 rounded-lg hover:bg-dark-600 transition-colors border-4 border-dark-900"
+            title="Swap direction"
           >
             <SwapIcon />
           </button>
@@ -268,7 +304,7 @@ export function SwapInterface() {
         {/* To Token */}
         <div className="bg-dark-800 rounded-xl p-4 mt-2">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-dark-400">To (estimated)</span>
+            <span className="text-sm text-dark-400">You Receive</span>
             <span className="text-sm text-dark-400">
               Balance: {formatBalance(getBalance(toAsset))}
             </span>
@@ -278,14 +314,13 @@ export function SwapInterface() {
               <TokenButton
                 asset={toAsset}
                 onClick={() => {
-                  console.log('[DEBUG] To token clicked, current state:', showToSelector);
                   setShowToSelector(!showToSelector);
                   setShowFromSelector(false);
                 }}
               />
               {showToSelector && (
                 <TokenSelectorDropdown
-                  assets={MOCK_ASSETS}
+                  assets={AVAILABLE_TOKENS}
                   selectedAsset={toAsset}
                   excludeAsset={fromAsset}
                   onSelect={handleToTokenSelect}
@@ -299,6 +334,10 @@ export function SwapInterface() {
                   <LoadingSpinner />
                   <span className="text-dark-400">Getting quote...</span>
                 </div>
+              ) : swapQuote ? (
+                <span className="text-2xl font-medium text-primary-400">
+                  {formatBalance(swapQuote.amountOutFormatted, 6)}
+                </span>
               ) : (
                 <input
                   type="text"
@@ -312,25 +351,86 @@ export function SwapInterface() {
           </div>
         </div>
 
-        {/* Quick Quote Preview (when quote available but not in preview) */}
+        {/* Quote Details (when quote available) */}
         {swapQuote && status === 'previewing' && !showPreview && (
-          <div className="mt-4 p-3 bg-dark-800 rounded-xl text-sm">
-            <div className="flex justify-between mb-1">
+          <div className="mt-4 p-4 bg-dark-800 rounded-xl text-sm space-y-2">
+            {/* Rate */}
+            <div className="flex justify-between">
               <span className="text-dark-400">Rate</span>
-              <span>1 {fromAsset?.symbol} = {formatBalance(swapQuote.rate)} {toAsset?.symbol}</span>
+              <span>1 {fromAsset?.symbol} = {formatBalance(swapQuote.rate, 6)} {toAsset?.symbol}</span>
             </div>
+
+            {/* Expected Output */}
+            <div className="flex justify-between">
+              <span className="text-dark-400">Expected Output</span>
+              <span className="text-primary-400 font-medium">
+                {formatBalance(swapQuote.amountOutFormatted, 6)} {toAsset?.symbol}
+              </span>
+            </div>
+
+            {/* Minimum Received */}
+            <div className="flex justify-between">
+              <span className="text-dark-400">Minimum Received</span>
+              <span>{formatBalance(swapQuote.minimum_received, 6)} {toAsset?.symbol}</span>
+            </div>
+
+            {/* Price Impact */}
             {swapQuote.price_impact && parseFloat(swapQuote.price_impact) > 0 && (
-              <div className="flex justify-between mb-1">
+              <div className="flex justify-between">
                 <span className="text-dark-400">Price Impact</span>
-                <span className={parseFloat(swapQuote.price_impact) > 3 ? 'text-red-400' : parseFloat(swapQuote.price_impact) > 1 ? 'text-yellow-400' : ''}>
+                <span className={
+                  parseFloat(swapQuote.price_impact) > 3
+                    ? 'text-red-400'
+                    : parseFloat(swapQuote.price_impact) > 1
+                    ? 'text-yellow-400'
+                    : 'text-green-400'
+                }>
                   {formatPercent(swapQuote.price_impact)}
                 </span>
               </div>
             )}
+
+            {/* Fee Tier */}
             <div className="flex justify-between">
-              <span className="text-dark-400">Minimum Received</span>
-              <span>{formatBalance(swapQuote.minimum_received)} {toAsset?.symbol}</span>
+              <span className="text-dark-400">Pool Fee</span>
+              <span>{getFeeTierDisplay(swapQuote.feeTier)}</span>
             </div>
+
+            {/* Slippage */}
+            <div className="flex justify-between">
+              <span className="text-dark-400">Slippage Tolerance</span>
+              <span>{swapQuote.slippage}%</span>
+            </div>
+
+            {/* Gas Estimate */}
+            <div className="flex justify-between border-t border-dark-700 pt-2 mt-2">
+              <span className="text-dark-400">Est. Gas</span>
+              <span className="text-dark-400">~250,000 gas</span>
+            </div>
+
+            {/* Provider */}
+            <div className="flex justify-between">
+              <span className="text-dark-400">Route</span>
+              <span className="text-primary-400">{swapQuote.provider}</span>
+            </div>
+
+            {/* Approval Notice */}
+            {swapQuote.needsApproval && (
+              <div className="flex items-center gap-2 p-2 bg-blue-900/20 rounded-lg mt-2">
+                <InfoIcon />
+                <span className="text-blue-400 text-xs">
+                  Token approval required (2 transactions)
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* High Price Impact Warning */}
+        {swapQuote && parseFloat(swapQuote.price_impact || '0') > 3 && (
+          <div className="mt-4 p-3 bg-red-900/20 border border-red-800 rounded-xl text-sm text-red-400 flex items-center gap-2">
+            <WarningIcon />
+            <span>High price impact! You may receive significantly less.</span>
           </div>
         )}
 
@@ -363,9 +463,12 @@ export function SwapInterface() {
 
         {/* Security Footer */}
         {isConnected && (
-          <p className="text-xs text-dark-500 text-center mt-3">
-            All transactions are signed locally in your wallet
-          </p>
+          <div className="flex items-center justify-center gap-2 mt-3">
+            <ShieldIcon />
+            <p className="text-xs text-dark-500">
+              All transactions are signed locally in your wallet
+            </p>
+          </div>
         )}
       </div>
 
@@ -385,14 +488,25 @@ export function SwapInterface() {
   );
 }
 
-// Sub-components
+// Token Button Component
 function TokenButton({ asset, onClick }: { asset: AssetInfo | null; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
       className="flex items-center gap-2 px-3 py-2 bg-dark-700 rounded-xl hover:bg-dark-600 transition-colors"
     >
-      <div className="w-6 h-6 rounded-full bg-dark-500 flex items-center justify-center text-xs font-bold">
+      {asset?.logo_url ? (
+        <img
+          src={asset.logo_url}
+          alt={asset.symbol}
+          className="w-6 h-6 rounded-full"
+          onError={(e) => {
+            (e.target as HTMLImageElement).style.display = 'none';
+            (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+          }}
+        />
+      ) : null}
+      <div className={`w-6 h-6 rounded-full bg-dark-500 flex items-center justify-center text-xs font-bold ${asset?.logo_url ? 'hidden' : ''}`}>
         {asset?.symbol?.[0] || '?'}
       </div>
       <span className="font-medium">{asset?.symbol || 'Select'}</span>
@@ -401,6 +515,7 @@ function TokenButton({ asset, onClick }: { asset: AssetInfo | null; onClick: () 
   );
 }
 
+// Token Selector Dropdown
 function TokenSelectorDropdown({
   assets,
   selectedAsset,
@@ -415,6 +530,7 @@ function TokenSelectorDropdown({
   onClose: () => void;
 }) {
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Close on click outside
   useEffect(() => {
@@ -428,56 +544,97 @@ function TokenSelectorDropdown({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [onClose]);
 
+  // Filter tokens by search query
+  const filteredAssets = assets.filter((asset) =>
+    asset.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    asset.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <div
       ref={dropdownRef}
-      className="absolute top-full left-0 mt-2 w-64 bg-dark-800 rounded-xl shadow-lg border border-dark-700 py-2 z-[60]"
+      className="absolute top-full left-0 mt-2 w-72 bg-dark-800 rounded-xl shadow-lg border border-dark-700 py-2 z-[60]"
     >
+      {/* Search Input */}
       <div className="px-3 pb-2 mb-2 border-b border-dark-700">
-        <span className="text-xs text-dark-400 uppercase tracking-wide">Select Token</span>
+        <input
+          type="text"
+          placeholder="Search token..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full px-3 py-2 bg-dark-700 rounded-lg text-sm outline-none focus:ring-1 focus:ring-primary-500"
+          autoFocus
+        />
       </div>
-      {assets.map((asset) => {
-        const isSelected = asset.symbol === selectedAsset?.symbol;
-        const isExcluded = asset.symbol === excludeAsset?.symbol;
 
-        return (
-          <button
-            key={asset.symbol}
-            onClick={() => onSelect(asset)}
-            disabled={isExcluded}
-            className={`w-full px-4 py-3 text-left transition-colors flex items-center gap-3 ${
-              isSelected
-                ? 'bg-primary-600/20 text-primary-400'
-                : isExcluded
-                ? 'opacity-50 cursor-not-allowed'
-                : 'hover:bg-dark-700'
-            }`}
-          >
-            <div className="w-8 h-8 rounded-full bg-dark-600 flex items-center justify-center text-sm font-bold">
-              {asset.symbol[0]}
-            </div>
-            <div className="flex-1">
-              <div className="font-medium">{asset.symbol}</div>
-              <div className="text-xs text-dark-400">{asset.name}</div>
-            </div>
-            {isSelected && <CheckIcon />}
-          </button>
-        );
-      })}
+      {/* Token List */}
+      <div className="max-h-64 overflow-y-auto">
+        {filteredAssets.length === 0 ? (
+          <div className="px-4 py-3 text-center text-dark-400 text-sm">
+            No tokens found
+          </div>
+        ) : (
+          filteredAssets.map((asset) => {
+            const isSelected = asset.symbol === selectedAsset?.symbol;
+            const isExcluded = asset.symbol === excludeAsset?.symbol;
+
+            return (
+              <button
+                key={asset.symbol}
+                onClick={() => onSelect(asset)}
+                disabled={isExcluded}
+                className={`w-full px-4 py-3 text-left transition-colors flex items-center gap-3 ${
+                  isSelected
+                    ? 'bg-primary-600/20 text-primary-400'
+                    : isExcluded
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'hover:bg-dark-700'
+                }`}
+              >
+                {asset.logo_url ? (
+                  <img
+                    src={asset.logo_url}
+                    alt={asset.symbol}
+                    className="w-8 h-8 rounded-full"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-dark-600 flex items-center justify-center text-sm font-bold">
+                    {asset.symbol[0]}
+                  </div>
+                )}
+                <div className="flex-1">
+                  <div className="font-medium">{asset.symbol}</div>
+                  <div className="text-xs text-dark-400">{asset.name}</div>
+                </div>
+                {isSelected && <CheckIcon />}
+              </button>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }
 
+// Slippage Settings Component
 function SlippageSettings({
   value,
+  customValue,
   onChange,
+  onCustomChange,
   onClose,
 }: {
   value: number;
+  customValue: string;
   onChange: (v: number) => void;
+  onCustomChange: (v: string) => void;
   onClose: () => void;
 }) {
-  const options = [0.1, 0.5, 1.0, 3.0];
+  const presets = [0.1, 0.5, 1.0];
+  const isCustom = !presets.includes(value);
 
   return (
     <div className="mb-4 p-4 bg-dark-800 rounded-xl">
@@ -487,12 +644,16 @@ function SlippageSettings({
           <CloseIcon />
         </button>
       </div>
-      <div className="flex gap-2">
-        {options.map((opt) => (
+
+      <div className="flex gap-2 mb-3">
+        {presets.map((opt) => (
           <button
             key={opt}
-            onClick={() => onChange(opt)}
-            className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+            onClick={() => {
+              onChange(opt);
+              onCustomChange('');
+            }}
+            className={`px-4 py-2 rounded-lg text-sm transition-colors ${
               value === opt
                 ? 'bg-primary-600 text-white'
                 : 'bg-dark-700 hover:bg-dark-600'
@@ -501,16 +662,43 @@ function SlippageSettings({
             {opt}%
           </button>
         ))}
+
+        {/* Custom Input */}
+        <div className={`flex-1 flex items-center gap-1 px-3 py-2 rounded-lg ${
+          isCustom ? 'bg-primary-600/20 border border-primary-600' : 'bg-dark-700'
+        }`}>
+          <input
+            type="text"
+            placeholder="Custom"
+            value={customValue}
+            onChange={(e) => onCustomChange(e.target.value)}
+            className="w-full bg-transparent text-sm outline-none"
+          />
+          <span className="text-dark-400">%</span>
+        </div>
       </div>
-      {value >= 3 && (
-        <p className="text-xs text-yellow-400 mt-2">
-          High slippage may result in an unfavorable trade
+
+      {/* Warnings */}
+      {value < 0.1 && (
+        <p className="text-xs text-yellow-400">
+          Very low slippage may cause transaction to fail
+        </p>
+      )}
+      {value >= 3 && value < 10 && (
+        <p className="text-xs text-yellow-400">
+          High slippage may result in unfavorable trade
+        </p>
+      )}
+      {value >= 10 && (
+        <p className="text-xs text-red-400">
+          Very high slippage! Only use for volatile tokens
         </p>
       )}
     </div>
   );
 }
 
+// Loading Spinner
 function LoadingSpinner() {
   return (
     <svg className="animate-spin w-5 h-5 text-dark-400" fill="none" viewBox="0 0 24 24">
@@ -566,6 +754,22 @@ function WarningIcon() {
   return (
     <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+    </svg>
+  );
+}
+
+function InfoIcon() {
+  return (
+    <svg className="w-4 h-4 flex-shrink-0 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  );
+}
+
+function ShieldIcon() {
+  return (
+    <svg className="w-4 h-4 text-dark-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
     </svg>
   );
 }
