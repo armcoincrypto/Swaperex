@@ -507,10 +507,11 @@ export function useSwap() {
     }
 
     // VALIDATION 2: Network guard - Block swap on wrong chain
-    // PHASE 9: This is the network guard that prevents swaps on wrong chain
-    if (isWrongChain) {
-      const error = `Network mismatch: Please switch to Ethereum Mainnet (Chain ID: ${ETH_MAINNET_CHAIN_ID})`;
-      logLifecycle(null, 'error', { reason: 'wrong_chain', currentChainId: chainId });
+    // PHASE 9: Explicitly enforce Ethereum Mainnet ONLY
+    // isWrongChain may allow other EVM chains, but swaps are only stable on ETH for now
+    if (chainId !== ETH_MAINNET_CHAIN_ID) {
+      const error = `Network mismatch: Please switch to Ethereum Mainnet (Chain ID: ${ETH_MAINNET_CHAIN_ID}). Current: ${chainId}`;
+      logLifecycle(null, 'error', { reason: 'wrong_chain', currentChainId: chainId, requiredChainId: ETH_MAINNET_CHAIN_ID });
       logError('Swap Validation - NETWORK GUARD', new Error(error));
       toast.error(error);
       throw new Error(error);
