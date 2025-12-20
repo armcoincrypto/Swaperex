@@ -21,14 +21,31 @@
  * □ 2. Wallet signs transaction locally
  * □ 3. Transaction confirmed on Etherscan
  * □ 4. Balance updates after swap
+ * □ 5. Explorer link displays after success (View on Explorer button)
  *
  * EDGE CASES TO CONFIRM:
- * □ 5. Reject tx in wallet → Shows "Transaction cancelled" message
- * □ 6. Low slippage → Shows warning, may fail on-chain
- * □ 7. Insufficient balance → Button disabled, shows "Insufficient Balance"
- * □ 8. Network change → Prompts to switch back to Ethereum
+ * □ 6. Reject tx in wallet → Shows "Transaction cancelled" message
+ * □ 7. Low slippage → Shows warning, may fail on-chain
+ * □ 8. Insufficient balance → Button disabled, shows "Insufficient Balance"
+ * □ 9. Network change → Prompts to switch back to Ethereum (NETWORK GUARD)
  *
- * CONSOLE LOGS TO VERIFY (open DevTools → Console):
+ * SWAP LIFECYCLE LOGS (open DevTools → Console):
+ * Look for [Swap Lifecycle] prefix to track state transitions:
+ *
+ * 1. → idle                    | { action: 'swap_initiated', ... }
+ * 2. idle → fetching_quote     | { fromSymbol, toSymbol, fromAmount }
+ * 3. fetching_quote → checking_allowance | { tokenIn }
+ * 4. checking_allowance → previewing | { quote, needsApproval }
+ * 5. previewing → approving    | { token } (if approval needed)
+ * 6. approving → swapping      | or previewing → swapping (if no approval)
+ * 7. swapping → confirming     | { txHash, explorerUrl }
+ * 8. confirming → success      | { txHash, explorerUrl, gasUsed }
+ *
+ * ERROR PATHS:
+ * - * → error                  | { error, category }
+ * - * → previewing             | { reason: 'user_rejected' } (user cancelled)
+ *
+ * LEGACY LOGS TO VERIFY:
  * - [Quote] Fetching quote: { tokenIn, tokenOut, amountIn }
  * - [Quote] Result: { amountOut, gasEstimate, priceImpact }
  * - [TxBuilder] Building swap: { tokenIn, tokenOut, isNativeIn }
@@ -39,35 +56,71 @@
  ******************************************************************************/
 
 /**
- * TEST CASE 1: ETH → USDT Swap (Small Amount)
+ * TEST CASE 1: ETH → USDC Swap (PHASE 9 PRIMARY TEST)
+ *
+ * This is the PRIMARY test case for Phase 9 stabilization.
+ * USDC is preferred over USDT as it has better liquidity on Uniswap V3.
  *
  * Steps:
  * 1. Connect wallet (MetaMask)
- * 2. Select ETH as "From" token
- * 3. Select USDT as "To" token
- * 4. Enter 0.001 ETH (small test amount)
- * 5. Click "Preview Swap"
- * 6. Verify quote shows:
- *    - Expected output amount
- *    - Minimum received (after slippage)
- *    - Gas estimate
- *    - Price impact
- * 7. Click "Confirm Swap"
- * 8. Approve in wallet
+ * 2. Verify you're on Ethereum Mainnet (chain ID: 1)
+ * 3. Select ETH as "From" token
+ * 4. Select USDC as "To" token
+ * 5. Enter 0.001 ETH (small test amount, ~$3-4)
+ * 6. Click "Preview Swap"
+ * 7. Verify quote shows:
+ *    - Expected output amount (~$3-4 USDC)
+ *    - Minimum received (after 0.5% slippage)
+ *    - Pool fee (0.05% or 0.3% tier)
+ *    - Price impact (should be < 0.01% for small amounts)
+ * 8. Click "Confirm Swap"
+ * 9. Approve in MetaMask
+ * 10. Wait for confirmation
+ * 11. Click "View on Explorer" to verify on Etherscan
  *
  * Expected Results:
- * - Quote fetched successfully
- * - Transaction signed in wallet
- * - Transaction submitted to network
- * - Success toast with tx hash
- * - Balance updated after confirmation
+ * - [Swap Lifecycle] logs show full transition sequence
+ * - Quote fetched in < 3 seconds
+ * - Transaction signed locally (MetaMask popup)
+ * - Transaction submitted to Ethereum network
+ * - Success modal shows with:
+ *   - Final amounts (ETH swapped → USDC received)
+ *   - "View on Explorer" link to Etherscan
+ * - Balance updates automatically after ~30 seconds
  *
- * Console Logs to Check:
- * - [Swap] Starting swap: { from, to, amount }
- * - [Swap] Quote received: { toAmount, gasEstimate }
- * - [Swap] Transaction sent: { txHash }
+ * Console Logs to Check (in order):
+ * - [Swap Lifecycle] → idle | { action: 'swap_initiated' }
+ * - [Swap Lifecycle] idle → fetching_quote
+ * - [Swap Lifecycle] fetching_quote → checking_allowance
+ * - [Swap Lifecycle] checking_allowance → previewing
+ * - [Swap Lifecycle] previewing → swapping (ETH doesn't need approval)
+ * - [Swap Lifecycle] swapping → confirming | { txHash, explorerUrl }
+ * - [Swap Lifecycle] confirming → success | { gasUsed }
  */
-export const TEST_CASE_1_ETH_TO_USDT = {
+export const TEST_CASE_1_ETH_TO_USDC = {
+  name: 'ETH → USDC Swap (Phase 9 Primary)',
+  from: 'ETH',
+  to: 'USDC',
+  amount: '0.001',
+  chainId: 1,
+  expectedBehavior: 'Swap completes successfully with explorer link',
+  lifecycleStates: [
+    'idle',
+    'fetching_quote',
+    'checking_allowance',
+    'previewing',
+    'swapping',
+    'confirming',
+    'success',
+  ],
+};
+
+/**
+ * TEST CASE 1B: ETH → USDT Swap (Alternate Stable)
+ *
+ * Same flow as USDC but tests USDT liquidity path.
+ */
+export const TEST_CASE_1B_ETH_TO_USDT = {
   name: 'ETH → USDT Swap',
   from: 'ETH',
   to: 'USDT',
@@ -268,16 +321,19 @@ export const TEST_CASE_8_NETWORK_ERROR = {
 /**
  * TEST MATRIX SUMMARY
  *
- * | # | Test Case              | Expected Result                    | Blocking? |
- * |---|------------------------|------------------------------------|-----------|
- * | 1 | ETH → USDT swap        | Success, tx hash shown             | No        |
- * | 2 | Reject in wallet       | User rejected error, can retry     | No        |
- * | 3 | Same token             | Blocked, validation error          | Yes       |
- * | 4 | Low slippage           | Warning, may fail on-chain         | No        |
- * | 5 | Wallet disconnected    | Connect wallet prompt              | Yes       |
- * | 6 | Page reload            | No orphaned tx, form resets        | No        |
- * | 7 | Insufficient balance   | Blocked, balance error             | Yes       |
- * | 8 | Network error          | RPC error, retry option            | No        |
+ * | #  | Test Case              | Expected Result                    | Blocking? |
+ * |----|------------------------|------------------------------------|-----------|
+ * | 1  | ETH → USDC swap        | Success, explorer link shown       | No        |
+ * | 1B | ETH → USDT swap        | Success, tx hash shown             | No        |
+ * | 2  | Reject in wallet       | User rejected error, can retry     | No        |
+ * | 3  | Same token             | Blocked, validation error          | Yes       |
+ * | 4  | Low slippage           | Warning, may fail on-chain         | No        |
+ * | 5  | Wallet disconnected    | Connect wallet prompt              | Yes       |
+ * | 6  | Page reload            | No orphaned tx, form resets        | No        |
+ * | 7  | Insufficient balance   | Blocked, balance error             | Yes       |
+ * | 8  | Network error          | RPC error, retry option            | No        |
+ *
+ * PHASE 9 PRIORITY: Test cases 1 and 1B first, then edge cases.
  *
  * All errors should:
  * - Log to console with full context
@@ -287,7 +343,8 @@ export const TEST_CASE_8_NETWORK_ERROR = {
  */
 
 export const TEST_MATRIX = [
-  TEST_CASE_1_ETH_TO_USDT,
+  TEST_CASE_1_ETH_TO_USDC,    // Phase 9 Primary
+  TEST_CASE_1B_ETH_TO_USDT,   // Alternate stable
   TEST_CASE_2_REJECT_TX,
   TEST_CASE_3_SAME_TOKEN,
   TEST_CASE_4_LOW_SLIPPAGE,
@@ -301,8 +358,10 @@ export const TEST_MATRIX = [
  * Run validation test (can be called from console)
  */
 export function runValidationTest(): void {
-  console.log('=== PHASE 8 TEST MATRIX ===');
+  console.log('=== PHASE 9 TEST MATRIX ===');
   console.log('Run these manual tests to verify swap functionality:');
+  console.log('');
+  console.log('PRIORITY: Run ETH → USDC first (Test 1)');
   console.log('');
 
   TEST_MATRIX.forEach((test, index) => {
@@ -311,7 +370,7 @@ export function runValidationTest(): void {
     console.log('');
   });
 
-  console.log('Check console logs for [Swap], [RPC Error], [Swap Validation] prefixes');
+  console.log('Check console logs for [Swap Lifecycle] prefix for state transitions');
   console.log('All errors should be logged with full context (NO silent failures)');
 }
 
