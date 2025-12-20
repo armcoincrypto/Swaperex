@@ -50,9 +50,6 @@ import {
 
 // Import Uniswap V3 services
 import {
-  getBestQuote,
-  getMinAmountOut,
-  formatQuoteForDisplay,
   type QuoteResult,
 } from '@/services/uniswapQuote';
 import {
@@ -60,6 +57,16 @@ import {
   buildRouterApproval,
   validateSwapParams,
 } from '@/services/uniswapTxBuilder';
+// PHASE 10: Import aggregator and 1inch services
+import {
+  getAggregatedQuote,
+  type AggregatedQuote,
+} from '@/services/quoteAggregator';
+import {
+  buildOneInchSwapTx,
+  buildOneInchApproval,
+  checkOneInchAllowance,
+} from '@/services/oneInchTxBuilder';
 import { getTokenBySymbol, isNativeToken } from '@/tokens';
 import { getUniswapV3Addresses, getExplorerTxUrl } from '@/config';
 
@@ -82,6 +89,9 @@ interface SwapState {
   error: string | null;
 }
 
+// PHASE 10: Provider type for routing
+export type SwapProvider = 'uniswap-v3' | '1inch';
+
 // Extended quote for UI display - compatible with SwapQuoteResponse
 export interface SwapQuote extends QuoteResult {
   fromSymbol: string;
@@ -90,6 +100,9 @@ export interface SwapQuote extends QuoteResult {
   minAmountOutFormatted: string;
   slippage: number;
   needsApproval: boolean;
+  // PHASE 10: Provider info
+  provider: SwapProvider;
+  aggregatedQuote?: AggregatedQuote;
   // UI-compatible fields (maps to SwapQuoteResponse)
   success: boolean;
   from_asset: string;
@@ -197,7 +210,7 @@ export function useSwap() {
     [address, provider, chainId]
   );
 
-  // Fetch swap quote from Uniswap V3
+  // PHASE 10: Fetch swap quote using aggregator (1inch primary, Uniswap fallback)
   const fetchSwapQuote = useCallback(async (): Promise<SwapQuote | null> => {
     if (!address || !fromAsset || !toAsset || !fromAmount) {
       return null;
@@ -216,7 +229,7 @@ export function useSwap() {
     setState((s) => ({ ...s, status: 'fetching_quote', error: null }));
 
     try {
-      console.log('[Swap] Fetching quote:', { fromSymbol, toSymbol, fromAmount });
+      console.log('[Swap] Fetching quote via aggregator:', { fromSymbol, toSymbol, fromAmount });
 
       // Validate parameters
       const validationErrors = validateSwapParams({
@@ -232,59 +245,89 @@ export function useSwap() {
         throw new Error(validationErrors.join(', '));
       }
 
-      // Fetch best quote across fee tiers
-      const quote = await getBestQuote(fromSymbol, toSymbol, fromAmount, chainId || 1);
+      // PHASE 10: Fetch best quote via aggregator (compares 1inch vs Uniswap)
+      const aggregatedQuote = await getAggregatedQuote(
+        fromSymbol,
+        toSymbol,
+        fromAmount,
+        chainId || 1,
+        DEFAULT_SLIPPAGE
+      );
 
-      if (!quote) {
-        throw new Error('No liquidity available for this pair');
+      console.log('[Swap] Aggregator selected:', aggregatedQuote.provider, '|', aggregatedQuote.amountOutFormatted, toSymbol);
+
+      // Extract quote data for compatibility
+      const quote: QuoteResult = aggregatedQuote.provider === 'uniswap-v3'
+        ? (aggregatedQuote.originalQuote as QuoteResult)
+        : {
+            // Map 1inch quote to QuoteResult format
+            amountIn: aggregatedQuote.amountIn,
+            amountOut: aggregatedQuote.amountOut,
+            amountOutFormatted: aggregatedQuote.amountOutFormatted,
+            feeTier: 3000, // Default fee tier for compatibility (1inch doesn't use this)
+            gasEstimate: aggregatedQuote.providerDetails.gas.toString(),
+            priceImpact: aggregatedQuote.priceImpact,
+            provider: aggregatedQuote.provider,
+            // Fields not used by 1inch but required for type compatibility
+            sqrtPriceX96After: '0',
+            initializedTicksCrossed: 0,
+            route: '1inch-aggregator',
+          };
+
+      // Check if approval is needed (provider-specific)
+      logLifecycle('fetching_quote', 'checking_allowance', { tokenIn: fromSymbol, provider: aggregatedQuote.provider });
+      setState((s) => ({ ...s, status: 'checking_allowance' }));
+
+      const tokenIn = getTokenBySymbol(fromSymbol, chainId || 1);
+      let hasAllowance = true;
+
+      // Native tokens don't need approval
+      if (tokenIn && !isNativeToken(tokenIn.address)) {
+        if (aggregatedQuote.provider === '1inch') {
+          // Check 1inch router allowance
+          const allowance = await checkOneInchAllowance(fromSymbol, address, chainId || 1);
+          const amountInWei = BigInt(aggregatedQuote.amountIn);
+          hasAllowance = allowance === 'unlimited' || BigInt(allowance) >= amountInWei;
+        } else {
+          // Check Uniswap router allowance
+          const amountInWei = tokenIn
+            ? BigInt(quote.amountIn.includes('.')
+                ? (parseFloat(quote.amountIn) * 10 ** tokenIn.decimals).toString()
+                : quote.amountIn)
+            : 0n;
+          hasAllowance = await checkAllowance(fromSymbol, amountInWei);
+        }
       }
 
-      console.log('[Swap] Quote received:', formatQuoteForDisplay(quote));
-
-      // Calculate minimum output with slippage
-      const minAmountOut = getMinAmountOut(quote, DEFAULT_SLIPPAGE);
-      const tokenOut = getTokenBySymbol(toSymbol, chainId || 1);
-      const minAmountOutFormatted = tokenOut
-        ? formatUnits(minAmountOut, tokenOut.decimals)
-        : minAmountOut;
-
-      // Check if approval is needed
-      logLifecycle('fetching_quote', 'checking_allowance', { tokenIn: fromSymbol });
-      setState((s) => ({ ...s, status: 'checking_allowance' }));
-      const tokenIn = getTokenBySymbol(fromSymbol, chainId || 1);
-      const amountInWei = tokenIn
-        ? BigInt(quote.amountIn.includes('.')
-            ? (parseFloat(quote.amountIn) * 10 ** tokenIn.decimals).toString()
-            : quote.amountIn)
-        : 0n;
-
-      const hasAllowance = await checkAllowance(fromSymbol, amountInWei);
-
       // Calculate rate
-      const rate = (parseFloat(quote.amountOutFormatted) / parseFloat(fromAmount)).toFixed(6);
+      const rate = (parseFloat(aggregatedQuote.amountOutFormatted) / parseFloat(fromAmount)).toFixed(6);
 
       // Build extended quote for UI - includes all fields for compatibility
       const extendedQuote: SwapQuote = {
         ...quote,
         fromSymbol,
         toSymbol,
-        minAmountOut,
-        minAmountOutFormatted,
+        minAmountOut: aggregatedQuote.minAmountOut,
+        minAmountOutFormatted: aggregatedQuote.minAmountOutFormatted,
         slippage: DEFAULT_SLIPPAGE,
         needsApproval: !hasAllowance,
+        // PHASE 10: Provider info
+        provider: aggregatedQuote.provider,
+        aggregatedQuote,
         // UI-compatible fields
         success: true,
         from_asset: fromSymbol,
         to_asset: toSymbol,
         from_amount: fromAmount,
-        to_amount: quote.amountOutFormatted,
+        to_amount: aggregatedQuote.amountOutFormatted,
         rate,
-        price_impact: quote.priceImpact,
-        minimum_received: minAmountOutFormatted,
+        price_impact: aggregatedQuote.priceImpact,
+        minimum_received: aggregatedQuote.minAmountOutFormatted,
       };
 
       logLifecycle('checking_allowance', 'previewing', {
-        quote: quote.amountOutFormatted,
+        provider: aggregatedQuote.provider,
+        quote: aggregatedQuote.amountOutFormatted,
         needsApproval: !hasAllowance,
       });
       setState((s) => ({ ...s, status: 'previewing', quote }));
@@ -295,20 +338,20 @@ export function useSwap() {
         from_asset: fromSymbol,
         to_asset: toSymbol,
         from_amount: fromAmount,
-        to_amount: quote.amountOutFormatted,
+        to_amount: aggregatedQuote.amountOutFormatted,
         rate,
-        price_impact: quote.priceImpact,
-        minimum_received: minAmountOutFormatted,
+        price_impact: aggregatedQuote.priceImpact,
+        minimum_received: aggregatedQuote.minAmountOutFormatted,
         route: {
-          provider: quote.provider,
+          provider: aggregatedQuote.provider,
           route_path: [fromSymbol, toSymbol],
           hops: 1,
-          price_impact: quote.priceImpact,
-          minimum_received: minAmountOutFormatted,
+          price_impact: aggregatedQuote.priceImpact,
+          minimum_received: aggregatedQuote.minAmountOutFormatted,
           expires_at: new Date(Date.now() + 30000).toISOString(),
         },
         gas_estimate: {
-          gas_limit: '250000',
+          gas_limit: aggregatedQuote.providerDetails.gas.toString(),
           gas_price: '0',
           estimated_cost_native: '0',
         },
@@ -332,16 +375,26 @@ export function useSwap() {
     }
 
     try {
-      logLifecycle(state.status, 'approving', { token: swapQuote.fromSymbol });
+      logLifecycle(state.status, 'approving', { token: swapQuote.fromSymbol, provider: swapQuote.provider });
       setState((s) => ({ ...s, status: 'approving' }));
       toast.info('Approving token spending...');
 
       const signer = await getSigner();
 
-      // Build approval transaction
-      const approvalTx = buildRouterApproval(swapQuote.fromSymbol, chainId);
+      // PHASE 10: Build approval transaction based on provider
+      let approvalTx: { to: string; data: string; value: string };
 
-      console.log('[Swap] Sending approval:', approvalTx);
+      if (swapQuote.provider === '1inch') {
+        // Use 1inch approval API
+        console.log('[Swap] Building 1inch approval...');
+        approvalTx = await buildOneInchApproval(swapQuote.fromSymbol, chainId);
+      } else {
+        // Use Uniswap router approval
+        console.log('[Swap] Building Uniswap approval...');
+        approvalTx = buildRouterApproval(swapQuote.fromSymbol, chainId);
+      }
+
+      console.log('[Swap] Sending approval:', { provider: swapQuote.provider, ...approvalTx });
 
       // Send approval transaction (wallet signs)
       const tx = await signer.sendTransaction({
@@ -353,7 +406,7 @@ export function useSwap() {
       toast.info('Waiting for approval confirmation...');
       await tx.wait();
 
-      console.log('[Swap Lifecycle] Approval confirmed:', tx.hash);
+      console.log('[Swap Lifecycle] Approval confirmed:', tx.hash, '| Provider:', swapQuote.provider);
       toast.success('Token approved!');
       return true;
     } catch (err) {
@@ -391,25 +444,51 @@ export function useSwap() {
         from: swapQuote.fromSymbol,
         to: swapQuote.toSymbol,
         amount: swapQuote.amountIn,
+        provider: swapQuote.provider,
       });
       setState((s) => ({ ...s, status: 'swapping' }));
       toast.info('Confirm swap in your wallet...');
 
       const signer = await getSigner();
 
-      // Build swap transaction
-      const swapTx = buildSwapTx({
-        tokenIn: swapQuote.fromSymbol,
-        tokenOut: swapQuote.toSymbol,
-        amountIn: swapQuote.amountIn,
-        amountOutMin: formatUnits(swapQuote.minAmountOut,
-          getTokenBySymbol(swapQuote.toSymbol, chainId)?.decimals || 18),
-        recipient: address,
-        feeTier: swapQuote.feeTier,
-        chainId,
-      });
+      // PHASE 10: Build swap transaction based on provider
+      let swapTx: { to: string; data: string; value: string; gas?: string; gasLimit?: string };
 
-      console.log('[Swap] Sending swap:', swapTx);
+      if (swapQuote.provider === '1inch') {
+        // Build 1inch swap transaction
+        console.log('[Swap] Building 1inch swap...');
+        const tokenIn = getTokenBySymbol(swapQuote.fromSymbol, chainId);
+        const oneInchTx = await buildOneInchSwapTx({
+          tokenIn: swapQuote.fromSymbol,
+          tokenOut: swapQuote.toSymbol,
+          amountIn: tokenIn ? formatUnits(swapQuote.amountIn, tokenIn.decimals) : swapQuote.amountIn,
+          fromAddress: address,
+          slippage: swapQuote.slippage,
+          chainId,
+        });
+        swapTx = {
+          to: oneInchTx.to,
+          data: oneInchTx.data,
+          value: oneInchTx.value,
+          gasLimit: oneInchTx.gas,
+        };
+      } else {
+        // Build Uniswap swap transaction
+        console.log('[Swap] Building Uniswap swap...');
+        const uniswapTx = buildSwapTx({
+          tokenIn: swapQuote.fromSymbol,
+          tokenOut: swapQuote.toSymbol,
+          amountIn: swapQuote.amountIn,
+          amountOutMin: formatUnits(swapQuote.minAmountOut,
+            getTokenBySymbol(swapQuote.toSymbol, chainId)?.decimals || 18),
+          recipient: address,
+          feeTier: swapQuote.feeTier,
+          chainId,
+        });
+        swapTx = uniswapTx;
+      }
+
+      console.log('[Swap] Sending swap:', { provider: swapQuote.provider, ...swapTx });
 
       // Send swap transaction (wallet signs)
       const tx = await signer.sendTransaction({
