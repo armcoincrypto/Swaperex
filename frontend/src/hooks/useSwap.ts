@@ -67,6 +67,11 @@ import {
   buildOneInchApproval,
   checkOneInchAllowance,
 } from '@/services/oneInchTxBuilder';
+// PHASE 11: Import PancakeSwap tx builder for BSC
+import {
+  buildPancakeSwapTx,
+  buildPancakeApprovalTx,
+} from '@/services/pancakeSwapTxBuilder';
 import { getTokenBySymbol, isNativeToken } from '@/tokens';
 import { getUniswapV3Addresses, getExplorerTxUrl } from '@/config';
 
@@ -89,8 +94,8 @@ interface SwapState {
   error: string | null;
 }
 
-// PHASE 10: Provider type for routing
-export type SwapProvider = 'uniswap-v3' | '1inch';
+// PHASE 10 + 11: Provider type for routing
+export type SwapProvider = 'uniswap-v3' | 'pancakeswap-v3' | '1inch';
 
 // Extended quote for UI display - compatible with SwapQuoteResponse
 export interface SwapQuote extends QuoteResult {
@@ -117,8 +122,8 @@ export interface SwapQuote extends QuoteResult {
 // Default slippage tolerance (0.5%)
 const DEFAULT_SLIPPAGE = 0.5;
 
-// Ethereum Mainnet chain ID
-const ETH_MAINNET_CHAIN_ID = 1;
+// PHASE 11: Supported chain IDs (ETH = 1, BSC = 56)
+const SUPPORTED_CHAIN_IDS = [1, 56] as const;
 
 /**
  * Log swap lifecycle state transitions
@@ -381,15 +386,24 @@ export function useSwap() {
 
       const signer = await getSigner();
 
-      // PHASE 10: Build approval transaction based on provider
+      // PHASE 10 + 11: Build approval transaction based on provider
       let approvalTx: { to: string; data: string; value: string };
 
       if (swapQuote.provider === '1inch') {
         // Use 1inch approval API
         console.log('[Swap] Building 1inch approval...');
         approvalTx = await buildOneInchApproval(swapQuote.fromSymbol, chainId);
+      } else if (swapQuote.provider === 'pancakeswap-v3') {
+        // PHASE 11: Use PancakeSwap router approval (BSC)
+        console.log('[Swap] Building PancakeSwap approval...');
+        const pancakeApproval = buildPancakeApprovalTx(swapQuote.fromSymbol);
+        approvalTx = {
+          to: pancakeApproval.to,
+          data: pancakeApproval.data,
+          value: pancakeApproval.value,
+        };
       } else {
-        // Use Uniswap router approval
+        // Use Uniswap router approval (ETH)
         console.log('[Swap] Building Uniswap approval...');
         approvalTx = buildRouterApproval(swapQuote.fromSymbol, chainId);
       }
@@ -451,7 +465,7 @@ export function useSwap() {
 
       const signer = await getSigner();
 
-      // PHASE 10: Build swap transaction based on provider
+      // PHASE 10 + 11: Build swap transaction based on provider
       let swapTx: { to: string; data: string; value: string; gas?: string; gasLimit?: string };
 
       if (swapQuote.provider === '1inch') {
@@ -472,8 +486,29 @@ export function useSwap() {
           value: oneInchTx.value,
           gasLimit: oneInchTx.gas,
         };
+      } else if (swapQuote.provider === 'pancakeswap-v3') {
+        // PHASE 11: Build PancakeSwap swap transaction (BSC)
+        console.log('[Swap] Building PancakeSwap swap...');
+        const tokenIn = getTokenBySymbol(swapQuote.fromSymbol, chainId);
+        const tokenOut = getTokenBySymbol(swapQuote.toSymbol, chainId);
+        // Get PancakeSwap fee tier from original quote (default: 2500 = medium)
+        const pancakeFeeTier = (swapQuote.aggregatedQuote?.providerDetails?.feeTier as 100 | 500 | 2500 | 10000) || 2500;
+        const pancakeTx = buildPancakeSwapTx({
+          tokenIn: swapQuote.fromSymbol,
+          tokenOut: swapQuote.toSymbol,
+          amountIn: tokenIn ? formatUnits(swapQuote.amountIn, tokenIn.decimals) : swapQuote.amountIn,
+          amountOutMin: tokenOut ? formatUnits(swapQuote.minAmountOut, tokenOut.decimals) : swapQuote.minAmountOutFormatted,
+          recipient: address,
+          feeTier: pancakeFeeTier,
+        });
+        swapTx = {
+          to: pancakeTx.to,
+          data: pancakeTx.data,
+          value: pancakeTx.value,
+          gasLimit: pancakeTx.gasLimit,
+        };
       } else {
-        // Build Uniswap swap transaction
+        // Build Uniswap swap transaction (ETH)
         console.log('[Swap] Building Uniswap swap...');
         const uniswapTx = buildSwapTx({
           tokenIn: swapQuote.fromSymbol,
@@ -517,8 +552,9 @@ export function useSwap() {
         setState((s) => ({ ...s, status: 'success', txHash: tx.hash, explorerUrl }));
         toast.success(`Swap completed! View on explorer: ${explorerUrl}`);
 
-        // Refresh balances
-        await fetchBalances(address, ['ethereum']);
+        // Refresh balances for the current chain
+        const chainNetwork = chainId === 56 ? 'bsc' : 'ethereum';
+        await fetchBalances(address, [chainNetwork]);
 
         return tx.hash;
       } else {
@@ -586,11 +622,10 @@ export function useSwap() {
     }
 
     // VALIDATION 2: Network guard - Block swap on wrong chain
-    // PHASE 9: Explicitly enforce Ethereum Mainnet ONLY
-    // isWrongChain may allow other EVM chains, but swaps are only stable on ETH for now
-    if (chainId !== ETH_MAINNET_CHAIN_ID) {
-      const error = `Network mismatch: Please switch to Ethereum Mainnet (Chain ID: ${ETH_MAINNET_CHAIN_ID}). Current: ${chainId}`;
-      logLifecycle(null, 'error', { reason: 'wrong_chain', currentChainId: chainId, requiredChainId: ETH_MAINNET_CHAIN_ID });
+    // PHASE 11: Allow ETH (1) and BSC (56)
+    if (!SUPPORTED_CHAIN_IDS.includes(chainId as typeof SUPPORTED_CHAIN_IDS[number])) {
+      const error = `Network mismatch: Please switch to Ethereum or BSC. Supported: ${SUPPORTED_CHAIN_IDS.join(', ')}. Current: ${chainId}`;
+      logLifecycle(null, 'error', { reason: 'wrong_chain', currentChainId: chainId, supportedChains: [...SUPPORTED_CHAIN_IDS] });
       logError('Swap Validation - NETWORK GUARD', new Error(error));
       toast.error(error);
       throw new Error(error);

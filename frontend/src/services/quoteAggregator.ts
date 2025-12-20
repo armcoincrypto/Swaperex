@@ -2,13 +2,17 @@
  * Quote Aggregator Service
  *
  * PHASE 10: Routes swaps through best available provider.
+ * PHASE 11: Extended to support BSC (PancakeSwap + 1inch)
  *
- * Priority:
- * 1. 1inch (aggregator - finds best route across DEXes)
- * 2. Uniswap V3 (fallback - direct pool access)
+ * ETH Mainnet (chainId 1):
+ * - 1inch (primary)
+ * - Uniswap V3 (fallback)
+ *
+ * BSC (chainId 56):
+ * - 1inch (primary)
+ * - PancakeSwap V3 (fallback)
  *
  * The provider with better output amount wins.
- * Falls back to Uniswap if 1inch fails.
  *
  * SECURITY:
  * - This service only fetches quotes (read-only)
@@ -26,10 +30,25 @@ import {
   getMinAmountOut as getUniswapMinAmountOut,
   type QuoteResult as UniswapQuoteResult,
 } from './uniswapQuote';
+// PHASE 11: Import PancakeSwap for BSC
+import {
+  getBestPancakeQuote,
+  getPancakeMinAmountOut,
+  type PancakeQuoteResult,
+} from './pancakeSwapQuote';
 import { getTokenBySymbol } from '@/tokens';
 
+// PHASE 11: Supported chain IDs
+const SUPPORTED_CHAINS = [1, 56] as const;
+type SupportedChainId = (typeof SUPPORTED_CHAINS)[number];
+
 /**
- * Unified quote result that works with both providers
+ * PHASE 11: Provider types for multi-chain support
+ */
+export type QuoteProvider = 'uniswap-v3' | 'pancakeswap-v3' | '1inch';
+
+/**
+ * Unified quote result that works with all providers
  */
 export interface AggregatedQuote {
   // Core quote data
@@ -40,12 +59,15 @@ export interface AggregatedQuote {
   minAmountOutFormatted: string;
 
   // Provider info
-  provider: 'uniswap-v3' | '1inch';
+  provider: QuoteProvider;
   providerDetails: {
-    feeTier?: number;      // Uniswap fee tier
+    feeTier?: number;      // Uniswap/PancakeSwap fee tier
     protocols?: unknown[]; // 1inch protocols used
     gas: number;
   };
+
+  // Chain info
+  chainId: number;
 
   // Price impact
   priceImpact: string;
@@ -54,7 +76,7 @@ export interface AggregatedQuote {
   amountOutRaw: bigint;
 
   // Original quote for tx building
-  originalQuote: OneInchQuoteResult | UniswapQuoteResult;
+  originalQuote: OneInchQuoteResult | UniswapQuoteResult | PancakeQuoteResult;
 }
 
 /**
@@ -83,7 +105,8 @@ function getOneInchApiKey(): string | undefined {
 function normalizeOneInchQuote(
   quote: OneInchQuoteResult,
   slippage: number,
-  tokenOutDecimals: number
+  tokenOutDecimals: number,
+  chainId: number
 ): AggregatedQuote {
   const minAmountOut = getOneInchMinAmountOut(quote.dstAmount, slippage);
 
@@ -101,6 +124,7 @@ function normalizeOneInchQuote(
       protocols: quote.protocols,
       gas: quote.gas,
     },
+    chainId,
     priceImpact: quote.priceImpact,
     amountOutRaw: BigInt(quote.dstAmount),
     originalQuote: quote,
@@ -131,6 +155,38 @@ function normalizeUniswapQuote(
       feeTier: quote.feeTier,
       gas: parseInt(quote.gasEstimate, 10) || 200000,
     },
+    chainId: 1, // Uniswap is ETH only
+    priceImpact: quote.priceImpact,
+    amountOutRaw: BigInt(quote.amountOut),
+    originalQuote: quote,
+  };
+}
+
+/**
+ * PHASE 11: Convert PancakeSwap quote to unified format
+ */
+function normalizePancakeQuote(
+  quote: PancakeQuoteResult,
+  slippage: number,
+  tokenOutDecimals: number
+): AggregatedQuote {
+  const minAmountOut = getPancakeMinAmountOut(quote, slippage);
+
+  // Format minAmountOut
+  const minAmountOutFormatted = formatFromWei(minAmountOut, tokenOutDecimals);
+
+  return {
+    amountIn: quote.amountIn,
+    amountOut: quote.amountOut,
+    amountOutFormatted: quote.amountOutFormatted,
+    minAmountOut,
+    minAmountOutFormatted,
+    provider: 'pancakeswap-v3',
+    providerDetails: {
+      feeTier: quote.feeTier,
+      gas: parseInt(quote.gasEstimate, 10) || 250000,
+    },
+    chainId: 56, // PancakeSwap is BSC only
     priceImpact: quote.priceImpact,
     amountOutRaw: BigInt(quote.amountOut),
     originalQuote: quote,
@@ -150,15 +206,19 @@ function formatFromWei(amount: string, decimals: number): string {
 /**
  * Get best quote from all available providers
  *
- * PHASE 10 STRATEGY:
- * 1. Try 1inch first (aggregator usually finds better routes)
- * 2. Try Uniswap V3 as fallback/comparison
- * 3. Return the quote with best amountOut
+ * PHASE 10 + 11 STRATEGY:
+ * ETH (chainId 1):
+ * - 1inch (primary)
+ * - Uniswap V3 (fallback)
+ *
+ * BSC (chainId 56):
+ * - 1inch (primary)
+ * - PancakeSwap V3 (fallback)
  *
  * @param tokenIn - Input token symbol
  * @param tokenOut - Output token symbol
  * @param amountIn - Input amount (human readable)
- * @param chainId - Chain ID (must be 1 for Phase 10)
+ * @param chainId - Chain ID (1 = ETH, 56 = BSC)
  * @param slippage - Slippage tolerance percentage
  */
 export async function getAggregatedQuote(
@@ -168,9 +228,9 @@ export async function getAggregatedQuote(
   chainId: number = 1,
   slippage: number = 0.5
 ): Promise<AggregatedQuote> {
-  // PHASE 10: Only Ethereum mainnet
-  if (chainId !== 1) {
-    throw new Error('Quote aggregator only supports Ethereum mainnet (Phase 10)');
+  // PHASE 11: Support ETH and BSC
+  if (!SUPPORTED_CHAINS.includes(chainId as SupportedChainId)) {
+    throw new Error(`Quote aggregator only supports chains: ${SUPPORTED_CHAINS.join(', ')}`);
   }
 
   const tokenOutData = getTokenBySymbol(tokenOut, chainId);
@@ -182,32 +242,98 @@ export async function getAggregatedQuote(
 
   console.log('[Aggregator] Fetching quotes...', { tokenIn, tokenOut, amountIn, chainId });
 
+  // Route based on chain
+  if (chainId === 1) {
+    return getEthereumQuote(tokenIn, tokenOut, amountIn, slippage, tokenOutData.decimals, apiKey);
+  } else if (chainId === 56) {
+    return getBscQuote(tokenIn, tokenOut, amountIn, slippage, tokenOutData.decimals, apiKey);
+  }
+
+  throw new Error(`Unsupported chain: ${chainId}`);
+}
+
+/**
+ * Get quote for Ethereum Mainnet (1inch + Uniswap)
+ */
+async function getEthereumQuote(
+  tokenIn: string,
+  tokenOut: string,
+  amountIn: string,
+  slippage: number,
+  tokenOutDecimals: number,
+  apiKey?: string
+): Promise<AggregatedQuote> {
   // Fetch both quotes in parallel
   const [oneInchResult, uniswapResult] = await Promise.allSettled([
-    getBestOneInchQuote(tokenIn, tokenOut, amountIn, chainId, apiKey),
-    getUniswapQuote(tokenIn, tokenOut, amountIn, chainId),
+    getBestOneInchQuote(tokenIn, tokenOut, amountIn, 1, apiKey),
+    getUniswapQuote(tokenIn, tokenOut, amountIn, 1),
   ]);
 
   // Extract successful quotes
   let oneInchQuote: AggregatedQuote | null = null;
-  let uniswapQuote: AggregatedQuote | null = null;
+  let directQuote: AggregatedQuote | null = null;
 
   if (oneInchResult.status === 'fulfilled' && oneInchResult.value) {
-    oneInchQuote = normalizeOneInchQuote(oneInchResult.value, slippage, tokenOutData.decimals);
+    oneInchQuote = normalizeOneInchQuote(oneInchResult.value, slippage, tokenOutDecimals, 1);
     console.log('[Aggregator] 1inch quote:', oneInchQuote.amountOutFormatted, tokenOut);
   } else {
     console.warn('[Aggregator] 1inch quote failed:', oneInchResult.status === 'rejected' ? oneInchResult.reason : 'No quote returned');
   }
 
   if (uniswapResult.status === 'fulfilled' && uniswapResult.value) {
-    uniswapQuote = normalizeUniswapQuote(uniswapResult.value, slippage, tokenOutData.decimals);
-    console.log('[Aggregator] Uniswap quote:', uniswapQuote.amountOutFormatted, tokenOut);
+    directQuote = normalizeUniswapQuote(uniswapResult.value, slippage, tokenOutDecimals);
+    console.log('[Aggregator] Uniswap quote:', directQuote.amountOutFormatted, tokenOut);
   } else {
     console.warn('[Aggregator] Uniswap quote failed:', uniswapResult.status === 'rejected' ? uniswapResult.reason : 'No quote returned');
   }
 
   // Select best quote
-  const comparison = selectBestQuote(oneInchQuote, uniswapQuote);
+  const comparison = selectBestQuote(oneInchQuote, directQuote, 'Uniswap');
+
+  console.log('[Aggregator] Selected:', comparison.best.provider, '|', comparison.reason);
+
+  return comparison.best;
+}
+
+/**
+ * PHASE 11: Get quote for BSC (1inch + PancakeSwap)
+ */
+async function getBscQuote(
+  tokenIn: string,
+  tokenOut: string,
+  amountIn: string,
+  slippage: number,
+  tokenOutDecimals: number,
+  apiKey?: string
+): Promise<AggregatedQuote> {
+  console.log('[Aggregator] BSC quote request:', { tokenIn, tokenOut, amountIn });
+
+  // Fetch both quotes in parallel
+  const [oneInchResult, pancakeResult] = await Promise.allSettled([
+    getBestOneInchQuote(tokenIn, tokenOut, amountIn, 56, apiKey),
+    getBestPancakeQuote(tokenIn, tokenOut, amountIn),
+  ]);
+
+  // Extract successful quotes
+  let oneInchQuote: AggregatedQuote | null = null;
+  let directQuote: AggregatedQuote | null = null;
+
+  if (oneInchResult.status === 'fulfilled' && oneInchResult.value) {
+    oneInchQuote = normalizeOneInchQuote(oneInchResult.value, slippage, tokenOutDecimals, 56);
+    console.log('[Aggregator] 1inch (BSC) quote:', oneInchQuote.amountOutFormatted, tokenOut);
+  } else {
+    console.warn('[Aggregator] 1inch (BSC) quote failed:', oneInchResult.status === 'rejected' ? oneInchResult.reason : 'No quote returned');
+  }
+
+  if (pancakeResult.status === 'fulfilled' && pancakeResult.value) {
+    directQuote = normalizePancakeQuote(pancakeResult.value, slippage, tokenOutDecimals);
+    console.log('[Aggregator] PancakeSwap quote:', directQuote.amountOutFormatted, tokenOut);
+  } else {
+    console.warn('[Aggregator] PancakeSwap quote failed:', pancakeResult.status === 'rejected' ? pancakeResult.reason : 'No quote returned');
+  }
+
+  // Select best quote
+  const comparison = selectBestQuote(oneInchQuote, directQuote, 'PancakeSwap');
 
   console.log('[Aggregator] Selected:', comparison.best.provider, '|', comparison.reason);
 
@@ -216,50 +342,52 @@ export async function getAggregatedQuote(
 
 /**
  * Select the best quote based on output amount
+ * @param fallbackName - Name of the direct DEX (Uniswap for ETH, PancakeSwap for BSC)
  */
 function selectBestQuote(
   oneInchQuote: AggregatedQuote | null,
-  uniswapQuote: AggregatedQuote | null
+  directQuote: AggregatedQuote | null,
+  fallbackName: string = 'Direct'
 ): QuoteComparison {
   // If only one quote available, use it
-  if (oneInchQuote && !uniswapQuote) {
+  if (oneInchQuote && !directQuote) {
     return {
       best: oneInchQuote,
       alternative: null,
-      reason: '1inch only (Uniswap unavailable)',
+      reason: `1inch only (${fallbackName} unavailable)`,
     };
   }
 
-  if (!oneInchQuote && uniswapQuote) {
+  if (!oneInchQuote && directQuote) {
     return {
-      best: uniswapQuote,
+      best: directQuote,
       alternative: null,
-      reason: 'Uniswap fallback (1inch unavailable)',
+      reason: `${fallbackName} fallback (1inch unavailable)`,
     };
   }
 
-  if (!oneInchQuote && !uniswapQuote) {
+  if (!oneInchQuote && !directQuote) {
     throw new Error('No quotes available from any provider');
   }
 
   // Both quotes available - compare amountOut
   const oneInchAmount = oneInchQuote!.amountOutRaw;
-  const uniswapAmount = uniswapQuote!.amountOutRaw;
+  const directAmount = directQuote!.amountOutRaw;
 
   // Calculate difference as percentage
-  const diff = Number((oneInchAmount - uniswapAmount) * 10000n / uniswapAmount) / 100;
+  const diff = Number((oneInchAmount - directAmount) * 10000n / directAmount) / 100;
 
-  if (oneInchAmount >= uniswapAmount) {
+  if (oneInchAmount >= directAmount) {
     return {
       best: oneInchQuote!,
-      alternative: uniswapQuote!,
+      alternative: directQuote!,
       reason: `1inch better by ${Math.abs(diff).toFixed(2)}%`,
     };
   } else {
     return {
-      best: uniswapQuote!,
+      best: directQuote!,
       alternative: oneInchQuote!,
-      reason: `Uniswap better by ${Math.abs(diff).toFixed(2)}%`,
+      reason: `${fallbackName} better by ${Math.abs(diff).toFixed(2)}%`,
     };
   }
 }
@@ -269,7 +397,7 @@ function selectBestQuote(
  * Used when user wants to force a specific provider
  */
 export async function getQuoteFromProvider(
-  provider: 'uniswap-v3' | '1inch',
+  provider: QuoteProvider,
   tokenIn: string,
   tokenOut: string,
   amountIn: string,
@@ -287,14 +415,28 @@ export async function getQuoteFromProvider(
     if (!quote) {
       throw new Error('1inch quote failed');
     }
-    return normalizeOneInchQuote(quote, slippage, tokenOutData.decimals);
-  } else {
+    return normalizeOneInchQuote(quote, slippage, tokenOutData.decimals, chainId);
+  } else if (provider === 'uniswap-v3') {
+    if (chainId !== 1) {
+      throw new Error('Uniswap V3 only supports Ethereum mainnet');
+    }
     const quote = await getUniswapQuote(tokenIn, tokenOut, amountIn, chainId);
     if (!quote) {
       throw new Error('Uniswap quote failed');
     }
     return normalizeUniswapQuote(quote, slippage, tokenOutData.decimals);
+  } else if (provider === 'pancakeswap-v3') {
+    if (chainId !== 56) {
+      throw new Error('PancakeSwap V3 only supports BSC');
+    }
+    const quote = await getBestPancakeQuote(tokenIn, tokenOut, amountIn);
+    if (!quote) {
+      throw new Error('PancakeSwap quote failed');
+    }
+    return normalizePancakeQuote(quote, slippage, tokenOutData.decimals);
   }
+
+  throw new Error(`Unknown provider: ${provider}`);
 }
 
 /**
