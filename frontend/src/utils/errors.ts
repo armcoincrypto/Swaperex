@@ -3,6 +3,11 @@
  *
  * Centralized error categorization and user-friendly messages.
  * Used across wallet, swap, and withdrawal flows.
+ *
+ * PHASE 7 - SAFETY CHECKS:
+ * - Catch RPC errors
+ * - Catch user rejection
+ * - NO silent failures
  */
 
 // Error categories
@@ -11,9 +16,11 @@ export type ErrorCategory =
   | 'insufficient_balance'
   | 'invalid_input'
   | 'network_error'
+  | 'rpc_error'
   | 'quote_error'
   | 'transaction_error'
   | 'wallet_error'
+  | 'contract_error'
   | 'unknown';
 
 export interface ParsedError {
@@ -283,12 +290,155 @@ export function getRejectionMessage(action: 'connect' | 'approve' | 'swap' | 'wi
   }
 }
 
+/**
+ * Parse RPC/Provider errors
+ * Common errors from ethers.js and JSON-RPC
+ */
+export function parseRpcError(error: unknown): ParsedError {
+  const err = error as { code?: number | string; message?: string; reason?: string; data?: unknown };
+  const message = (err.message || err.reason || '').toLowerCase();
+  const code = err.code;
+
+  // Log all RPC errors for debugging (NO silent failures)
+  console.error('[RPC Error]', {
+    code,
+    message: err.message,
+    reason: err.reason,
+    data: err.data,
+  });
+
+  // User rejection (code 4001 or ACTION_REJECTED)
+  if (code === 4001 || code === 'ACTION_REJECTED' || isUserRejection(error)) {
+    return {
+      category: 'user_rejected',
+      message: 'Transaction rejected in wallet.',
+      isRecoverable: true,
+      shouldShowRetry: true,
+    };
+  }
+
+  // Insufficient funds (code -32000 often)
+  if (code === -32000 || message.includes('insufficient funds')) {
+    return {
+      category: 'insufficient_balance',
+      message: 'Insufficient ETH for gas fees.',
+      isRecoverable: false,
+      shouldShowRetry: false,
+    };
+  }
+
+  // RPC rate limit
+  if (code === 429 || message.includes('rate limit') || message.includes('too many requests')) {
+    return {
+      category: 'rpc_error',
+      message: 'Too many requests. Please wait and try again.',
+      isRecoverable: true,
+      shouldShowRetry: true,
+    };
+  }
+
+  // RPC timeout
+  if (message.includes('timeout') || message.includes('timed out')) {
+    return {
+      category: 'rpc_error',
+      message: 'Request timed out. Network may be congested.',
+      isRecoverable: true,
+      shouldShowRetry: true,
+    };
+  }
+
+  // RPC connection error
+  if (message.includes('failed to fetch') || message.includes('network error') || message.includes('econnrefused')) {
+    return {
+      category: 'rpc_error',
+      message: 'Cannot connect to network. Check your connection.',
+      isRecoverable: true,
+      shouldShowRetry: true,
+    };
+  }
+
+  // Contract execution reverted
+  if (message.includes('execution reverted') || message.includes('revert')) {
+    // Try to extract revert reason
+    let revertReason = 'Transaction would fail';
+    if (message.includes('stf')) {
+      revertReason = 'Swap would fail (price moved too much)';
+    } else if (message.includes('too little received') || message.includes('insufficient output')) {
+      revertReason = 'Output too low - try increasing slippage';
+    } else if (message.includes('expired') || message.includes('deadline')) {
+      revertReason = 'Transaction deadline passed';
+    }
+
+    return {
+      category: 'contract_error',
+      message: revertReason,
+      isRecoverable: true,
+      shouldShowRetry: true,
+    };
+  }
+
+  // Generic RPC error
+  if (code === -32603 || code === -32602 || code === -32601) {
+    return {
+      category: 'rpc_error',
+      message: 'RPC error. Please try again.',
+      isRecoverable: true,
+      shouldShowRetry: true,
+    };
+  }
+
+  return {
+    category: 'unknown',
+    message: err.message || 'An unexpected error occurred.',
+    isRecoverable: true,
+    shouldShowRetry: true,
+  };
+}
+
+/**
+ * Log error with full context (NO silent failures)
+ */
+export function logError(context: string, error: unknown): void {
+  const err = error as { code?: number; message?: string; stack?: string; reason?: string };
+  console.error(`[${context}] Error:`, {
+    message: err.message,
+    code: err.code,
+    reason: err.reason,
+    stack: err.stack,
+    raw: error,
+  });
+}
+
+/**
+ * Check if error is recoverable (user can retry)
+ */
+export function isRecoverableError(error: unknown): boolean {
+  if (isUserRejection(error)) return true;
+
+  const parsed = parseTransactionError(error);
+  return parsed.isRecoverable;
+}
+
+/**
+ * Get error for display (never empty string)
+ */
+export function getErrorMessage(error: unknown, fallback = 'An error occurred'): string {
+  if (!error) return fallback;
+
+  const err = error as { message?: string; reason?: string };
+  return err.message || err.reason || fallback;
+}
+
 export default {
   isUserRejection,
   parseWalletError,
   parseTransactionError,
   parseQuoteError,
+  parseRpcError,
   formatBalanceError,
   formatAddressError,
   getRejectionMessage,
+  logError,
+  isRecoverableError,
+  getErrorMessage,
 };
