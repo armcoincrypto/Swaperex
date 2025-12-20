@@ -32,7 +32,7 @@ interface SwapState {
 }
 
 export function useSwap() {
-  const { address, chainId, isWrongChain } = useWallet();
+  const { address, isWrongChain } = useWallet();
   const { executeTransaction } = useTransaction();
   const { fromAsset, toAsset, fromAmount, setQuote, clearQuote } = useSwapStore();
   const { fetchBalances } = useBalanceStore();
@@ -62,9 +62,12 @@ export function useSwap() {
     setState((s) => ({ ...s, status: 'fetching_quote', error: null }));
 
     try {
+      const fromSymbol = typeof fromAsset === 'string' ? fromAsset : fromAsset?.symbol || '';
+      const toSymbol = typeof toAsset === 'string' ? toAsset : toAsset?.symbol || '';
+
       const quote = await swapsApi.getSwapQuote({
-        from_asset: fromAsset,
-        to_asset: toAsset,
+        from_asset: fromSymbol,
+        to_asset: toSymbol,
         amount: fromAmount,
         from_address: address,
         slippage: 0.5,
@@ -91,7 +94,8 @@ export function useSwap() {
     }
 
     try {
-      const { transaction, approval_needed } = state.quote;
+      const transaction = state.quote.transaction;
+      const approval_needed = state.quote.approval_needed;
 
       // Step 1: Handle token approval if needed
       if (approval_needed) {
@@ -99,12 +103,12 @@ export function useSwap() {
         toast.info('Approving token spending...');
 
         // Get approval transaction from backend
-        const approvalTx = await transactionsApi.buildApproval({
-          chain: transaction.chain,
-          token_address: getTokenAddress(state.quote.from_asset, transaction.chain),
-          spender: transaction.to,
-          unlimited: true,
-        });
+        const approvalTx = await transactionsApi.buildApproval(
+          transaction.chain,
+          getTokenAddress(state.quote.from_asset, transaction.chain),
+          transaction.to,
+          true
+        );
 
         // User signs approval in wallet
         await executeTransaction(approvalTx);

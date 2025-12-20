@@ -48,17 +48,23 @@ export function useTransaction() {
         };
 
         // Add gas parameters if provided
-        if (unsignedTx.gas_limit) {
-          txRequest.gasLimit = BigInt(unsignedTx.gas_limit);
+        // Handle both UnsignedTransaction (direct gas fields) and UnsignedSwapTransaction (gas_estimate object)
+        const gasLimit = 'gas_limit' in unsignedTx ? unsignedTx.gas_limit : ('gas_estimate' in unsignedTx ? unsignedTx.gas_estimate?.gas_limit : undefined);
+        const gasPrice = 'gas_price' in unsignedTx ? unsignedTx.gas_price : ('gas_estimate' in unsignedTx ? unsignedTx.gas_estimate?.gas_price : undefined);
+        const maxFeePerGas = 'max_fee_per_gas' in unsignedTx ? unsignedTx.max_fee_per_gas : ('gas_estimate' in unsignedTx ? unsignedTx.gas_estimate?.max_fee_per_gas : undefined);
+        const maxPriorityFeePerGas = 'max_priority_fee_per_gas' in unsignedTx ? unsignedTx.max_priority_fee_per_gas : ('gas_estimate' in unsignedTx ? unsignedTx.gas_estimate?.max_priority_fee_per_gas : undefined);
+
+        if (gasLimit) {
+          txRequest.gasLimit = BigInt(gasLimit);
         }
-        if (unsignedTx.max_fee_per_gas) {
-          txRequest.maxFeePerGas = BigInt(unsignedTx.max_fee_per_gas);
+        if (maxFeePerGas) {
+          txRequest.maxFeePerGas = BigInt(maxFeePerGas);
         }
-        if (unsignedTx.max_priority_fee_per_gas) {
-          txRequest.maxPriorityFeePerGas = BigInt(unsignedTx.max_priority_fee_per_gas);
+        if (maxPriorityFeePerGas) {
+          txRequest.maxPriorityFeePerGas = BigInt(maxPriorityFeePerGas);
         }
-        if (unsignedTx.gas_price) {
-          txRequest.gasPrice = BigInt(unsignedTx.gas_price);
+        if (gasPrice) {
+          txRequest.gasPrice = BigInt(gasPrice);
         }
 
         setState({ status: 'broadcasting', txHash: null, error: null });

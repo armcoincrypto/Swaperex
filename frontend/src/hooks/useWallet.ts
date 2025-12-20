@@ -9,7 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { BrowserProvider, JsonRpcSigner } from 'ethers';
 import { useWalletStore } from '@/stores/walletStore';
 import { useBalanceStore } from '@/stores/balanceStore';
-import type { WalletType } from '@/types/api';
+// WalletType is used in the store, not directly here
 
 declare global {
   interface Window {

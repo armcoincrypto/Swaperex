@@ -7,7 +7,7 @@
 
 import { Modal } from '@/components/common/Modal';
 import { Button } from '@/components/common/Button';
-import { formatBalance, formatUsd, shortenAddress, getChainName } from '@/utils/format';
+import { formatBalance, shortenAddress, getChainName } from '@/utils/format';
 import type { UnsignedTransaction, SwapQuote } from '@/types/api';
 
 type TransactionType = 'swap' | 'transfer' | 'approve';
@@ -55,7 +55,7 @@ export function TransactionPreview({
             warning={parseFloat(quote.price_impact) > 1}
           />
           {quote.route && (
-            <DetailRow label="Route" value={quote.route.join(' → ')} />
+            <DetailRow label="Route" value={quote.route.route_path?.join(' → ') || quote.route.provider} />
           )}
         </div>
       )}
@@ -75,7 +75,9 @@ export function TransactionPreview({
           {transaction.value && transaction.value !== '0' && (
             <DetailRow label="Value" value={`${formatBalance(transaction.value)} ETH`} />
           )}
-          <DetailRow label="Gas Limit" value={transaction.gas_limit.toLocaleString()} />
+          {transaction.gas_limit && (
+            <DetailRow label="Gas Limit" value={parseInt(transaction.gas_limit).toLocaleString()} />
+          )}
         </div>
       </div>
 

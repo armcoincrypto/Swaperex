@@ -5,7 +5,7 @@
  */
 
 import { Button } from '@/components/common/Button';
-import { getChainName, getChainIcon } from '@/utils/format';
+import { getChainName } from '@/utils/format';
 import { SUPPORTED_CHAIN_IDS } from '@/utils/constants';
 
 interface ChainWarningProps {

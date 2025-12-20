@@ -238,8 +238,13 @@ export interface SwapQuoteResponse {
   route: SwapRouteMetadata;
   gas_estimate: GasEstimate;
   transaction?: UnsignedSwapTransaction;
+  approval_needed?: boolean;
+  approval_transaction?: UnsignedTransaction;
   error?: string;
 }
+
+// Alias for backward compatibility
+export type SwapQuote = SwapQuoteResponse;
 
 // ============ Withdrawal Types ============
 

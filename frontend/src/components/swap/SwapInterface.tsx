@@ -11,7 +11,7 @@ import { useQuote } from '@/hooks/useQuote';
 import { useTransaction } from '@/hooks/useTransaction';
 import { useSwapStore } from '@/stores/swapStore';
 import { Button } from '@/components/common/Button';
-import { formatBalance, formatUsd, formatPercent, getExplorerUrl } from '@/utils/format';
+import { formatBalance, formatPercent, getExplorerUrl } from '@/utils/format';
 import type { AssetInfo } from '@/types/api';
 
 // Mock assets for demo - would come from API
@@ -23,9 +23,9 @@ const MOCK_ASSETS: AssetInfo[] = [
 ];
 
 export function SwapInterface() {
-  const { isConnected, address, chainId } = useWallet();
+  const { isConnected, chainId } = useWallet();
   const { quote, isQuoting, quoteError } = useQuote();
-  const { executeTransaction, status, txHash, error: txError, reset } = useTransaction();
+  const { executeTransaction, status, txHash, error: txError } = useTransaction();
 
   const {
     fromAsset,

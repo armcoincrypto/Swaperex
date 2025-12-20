@@ -92,3 +92,33 @@ export function parseDecimal(value: string): number {
   const parsed = parseFloat(cleaned);
   return isNaN(parsed) ? 0 : parsed;
 }
+
+/**
+ * Get chain name from chain ID
+ */
+export function getChainName(chainId: number): string {
+  const chainNames: Record<number, string> = {
+    1: 'Ethereum',
+    56: 'BNB Chain',
+    137: 'Polygon',
+    42161: 'Arbitrum',
+    10: 'Optimism',
+    43114: 'Avalanche',
+  };
+  return chainNames[chainId] || `Chain ${chainId}`;
+}
+
+/**
+ * Get chain icon path from chain ID
+ */
+export function getChainIcon(chainId: number): string {
+  const chainIcons: Record<number, string> = {
+    1: '/assets/chains/ethereum.svg',
+    56: '/assets/chains/bnb.svg',
+    137: '/assets/chains/polygon.svg',
+    42161: '/assets/chains/arbitrum.svg',
+    10: '/assets/chains/optimism.svg',
+    43114: '/assets/chains/avalanche.svg',
+  };
+  return chainIcons[chainId] || '/assets/chains/default.svg';
+}

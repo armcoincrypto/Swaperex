@@ -54,6 +54,9 @@ export const CHAINS = {
   },
 } as const;
 
+// Supported chain IDs
+export const SUPPORTED_CHAIN_IDS: number[] = [1, 56, 137, 42161, 10, 43114];
+
 // Default slippage options
 export const SLIPPAGE_OPTIONS = [0.1, 0.5, 1.0, 3.0];
 

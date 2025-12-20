@@ -6,7 +6,7 @@
 
 import { create } from 'zustand';
 import type { SwapQuoteResponse, AssetInfo } from '@/types/api';
-import { swapsApi, quotesApi } from '@/api';
+import { swapsApi } from '@/api';
 
 interface SwapState {
   // Form state
@@ -33,6 +33,7 @@ interface SwapState {
   swapAssets: () => void;
   fetchQuote: (fromAddress: string) => Promise<void>;
   clearQuote: () => void;
+  setQuote: (quote: SwapQuoteResponse | null) => void;
   setSwapping: (swapping: boolean) => void;
   setTxHash: (hash: string | null) => void;
   reset: () => void;
@@ -127,6 +128,11 @@ export const useSwapStore = create<SwapState>((set, get) => ({
   // Clear quote
   clearQuote: () => {
     set({ quote: null, quoteError: null, toAmount: '' });
+  },
+
+  // Set quote directly
+  setQuote: (quote) => {
+    set({ quote, toAmount: quote?.to_amount || '' });
   },
 
   // Set swapping state
