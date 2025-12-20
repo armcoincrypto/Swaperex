@@ -6,6 +6,7 @@
  * - Public chain data
  * - Public token addresses
  * - DEX API endpoints
+ * - Uniswap V3 contract addresses
  *
  * NO private keys, NO signing logic, NO custodial code.
  */
@@ -15,13 +16,21 @@ export {
   CHAINS,
   CHAIN_IDS,
   SUPPORTED_CHAIN_IDS,
+  UNISWAP_V3_ADDRESSES,
+  UNISWAP_V3_CHAIN_IDS,
+  WRAPPED_NATIVE_ADDRESSES,
+  ETHEREUM_CONFIG,
   getChainById,
   getChainByName,
   getExplorerTxUrl,
+  getUniswapV3Addresses,
+  getWrappedNativeAddress,
+  hasUniswapV3,
   isSupportedChain,
   type ChainConfig,
   type ChainId,
   type ChainName,
+  type UniswapV3Addresses,
 } from './chains';
 
 // Token configurations
