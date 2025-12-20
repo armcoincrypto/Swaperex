@@ -12,6 +12,7 @@ import { useSwapStore } from '@/stores/swapStore';
 import { useBalanceStore } from '@/stores/balanceStore';
 import { swapsApi, transactionsApi } from '@/api';
 import { toast } from '@/stores/toastStore';
+import { isUserRejection, parseTransactionError, parseQuoteError } from '@/utils/errors';
 import type { SwapQuoteResponse } from '@/types/api';
 
 export type SwapStatus =
@@ -81,8 +82,9 @@ export function useSwap() {
       setQuote(quote);
       return quote;
     } catch (err) {
-      const error = err instanceof Error ? err.message : 'Quote failed';
-      setState((s) => ({ ...s, status: 'error', error }));
+      const parsed = parseQuoteError(err);
+      setState((s) => ({ ...s, status: 'error', error: parsed.message }));
+      toast.error(parsed.message);
       throw err;
     }
   }, [address, fromAsset, toAsset, fromAmount, setQuote]);
@@ -135,14 +137,14 @@ export function useSwap() {
 
       return txHash;
     } catch (err) {
-      const error = err instanceof Error ? err.message : 'Swap failed';
-      setState((s) => ({ ...s, status: 'error', error }));
+      const parsed = parseTransactionError(err);
+      setState((s) => ({ ...s, status: 'error', error: parsed.message }));
 
-      // Parse specific error types
-      if (error.includes('user rejected') || error.includes('User denied')) {
-        toast.warning('Transaction cancelled');
+      // User rejections show as warnings, actual errors show as errors
+      if (isUserRejection(err)) {
+        toast.warning(parsed.message);
       } else {
-        toast.error(error);
+        toast.error(parsed.message);
       }
 
       throw err;

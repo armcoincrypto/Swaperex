@@ -9,7 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { BrowserProvider, JsonRpcSigner } from 'ethers';
 import { useWalletStore } from '@/stores/walletStore';
 import { useBalanceStore } from '@/stores/balanceStore';
-// WalletType is used in the store, not directly here
+import { parseWalletError } from '@/utils/errors';
 
 declare global {
   interface Window {
@@ -20,30 +20,6 @@ declare global {
       removeListener: (event: string, callback: (...args: unknown[]) => void) => void;
     };
   }
-}
-
-// Error type categorization
-export type WalletErrorType = 'rejected' | 'timeout' | 'network' | 'no_wallet' | 'unknown';
-
-function categorizeError(err: unknown): { type: WalletErrorType; message: string } {
-  const error = err as { code?: number; message?: string };
-
-  // User rejected
-  if (error.code === 4001 || error.message?.includes('rejected') || error.message?.includes('denied')) {
-    return { type: 'rejected', message: 'Connection cancelled by user' };
-  }
-
-  // No wallet
-  if (error.message?.includes('No wallet') || error.message?.includes('not installed')) {
-    return { type: 'no_wallet', message: 'No wallet detected. Please install MetaMask.' };
-  }
-
-  // Network error
-  if (error.message?.includes('network') || error.message?.includes('fetch')) {
-    return { type: 'network', message: 'Network error. Please check your connection.' };
-  }
-
-  return { type: 'unknown', message: error.message || 'Connection failed' };
 }
 
 export function useWallet() {
@@ -114,8 +90,8 @@ export function useWallet() {
       // Fetch balances
       await fetchBalances(accounts[0], ['ethereum', 'bsc', 'polygon']);
     } catch (err) {
-      const { message } = categorizeError(err);
-      setConnectionError(message);
+      const parsed = parseWalletError(err);
+      setConnectionError(parsed.message);
       throw err;
     } finally {
       setConnecting(false);
@@ -172,11 +148,8 @@ export function useWallet() {
 
         await switchChain(targetChainId);
       } catch (err: unknown) {
-        // Chain not added to wallet
-        if ((err as { code?: number })?.code === 4902) {
-          throw new Error('Please add this network to your wallet first');
-        }
-        throw err;
+        const parsed = parseWalletError(err);
+        throw new Error(parsed.message);
       } finally {
         setIsSwitchingChain(false);
       }

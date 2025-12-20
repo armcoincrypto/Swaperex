@@ -11,6 +11,7 @@ import { useTransaction } from './useTransaction';
 import { useBalanceStore } from '@/stores/balanceStore';
 import { withdrawalsApi, transactionsApi } from '@/api';
 import { toast } from '@/stores/toastStore';
+import { isUserRejection, parseTransactionError } from '@/utils/errors';
 import type { WithdrawalResponse } from '@/types/api';
 
 export type WithdrawalStatus =
@@ -199,14 +200,14 @@ export function useWithdrawal() {
 
       return txHash;
     } catch (err) {
-      const error = err instanceof Error ? err.message : 'Withdrawal failed';
-      setState((prev) => ({ ...prev, status: 'error', error }));
+      const parsed = parseTransactionError(err);
+      setState((prev) => ({ ...prev, status: 'error', error: parsed.message }));
 
-      // Parse specific error types
-      if (error.includes('user rejected') || error.includes('User denied')) {
-        toast.warning('Transaction cancelled');
+      // User rejections show as warnings, actual errors show as errors
+      if (isUserRejection(err)) {
+        toast.warning(parsed.message);
       } else {
-        toast.error(error);
+        toast.error(parsed.message);
       }
 
       throw err;

@@ -11,13 +11,16 @@ import { SwapInterface } from '@/components/swap/SwapInterface';
 import { WithdrawalInterface } from '@/components/withdrawal/WithdrawalInterface';
 import { TokenList } from '@/components/balances/TokenList';
 import { ChainWarningBanner } from '@/components/chain/ChainWarning';
+import { ToastContainer } from '@/components/common/Toast';
 import { useWallet } from '@/hooks/useWallet';
+import { useToastStore } from '@/stores/toastStore';
 
 type Page = 'swap' | 'withdraw' | 'portfolio';
 
 export function App() {
   const [currentPage, setCurrentPage] = useState<Page>('swap');
   const { isConnected, isWrongChain, isReadOnly, chainId, switchNetwork } = useWallet();
+  const { toasts, removeToast } = useToastStore();
   const [bannerDismissed, setBannerDismissed] = useState(false);
 
   // Handle chain switch from banner
@@ -144,6 +147,9 @@ export function App() {
           <p className="mt-1">All transactions are signed locally in your wallet.</p>
         </div>
       </footer>
+
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onDismiss={removeToast} />
     </div>
   );
 }
