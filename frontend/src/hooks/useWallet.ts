@@ -22,26 +22,55 @@ declare global {
   }
 }
 
+// Error type categorization
+export type WalletErrorType = 'rejected' | 'timeout' | 'network' | 'no_wallet' | 'unknown';
+
+function categorizeError(err: unknown): { type: WalletErrorType; message: string } {
+  const error = err as { code?: number; message?: string };
+
+  // User rejected
+  if (error.code === 4001 || error.message?.includes('rejected') || error.message?.includes('denied')) {
+    return { type: 'rejected', message: 'Connection cancelled by user' };
+  }
+
+  // No wallet
+  if (error.message?.includes('No wallet') || error.message?.includes('not installed')) {
+    return { type: 'no_wallet', message: 'No wallet detected. Please install MetaMask.' };
+  }
+
+  // Network error
+  if (error.message?.includes('network') || error.message?.includes('fetch')) {
+    return { type: 'network', message: 'Network error. Please check your connection.' };
+  }
+
+  return { type: 'unknown', message: error.message || 'Connection failed' };
+}
+
 export function useWallet() {
   const {
     isConnected,
     isConnecting,
     isWrongChain,
+    isReadOnly,
     address,
     chainId,
     walletType,
     supportedChainIds,
+    connectionError,
     connect,
     disconnect,
     switchChain,
     updateChainId,
     setConnecting,
+    setReadOnlyAddress,
+    setConnectionError,
+    clearError,
   } = useWalletStore();
 
   const { fetchBalances, clearBalances } = useBalanceStore();
   const [provider, setProvider] = useState<BrowserProvider | null>(null);
   const [signer, setSigner] = useState<JsonRpcSigner | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [isSwitchingChain, setIsSwitchingChain] = useState(false);
 
   // Check if MetaMask is available
   const hasInjectedWallet = typeof window !== 'undefined' && !!window.ethereum;
@@ -49,12 +78,12 @@ export function useWallet() {
   // Connect to injected wallet (MetaMask)
   const connectInjected = useCallback(async () => {
     if (!window.ethereum) {
-      setError('No wallet detected. Please install MetaMask.');
+      setConnectionError('No wallet detected. Please install MetaMask.');
       return;
     }
 
     setConnecting(true);
-    setError(null);
+    clearError();
 
     try {
       // Request accounts
@@ -85,12 +114,13 @@ export function useWallet() {
       // Fetch balances
       await fetchBalances(accounts[0], ['ethereum', 'bsc', 'polygon']);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Connection failed');
+      const { message } = categorizeError(err);
+      setConnectionError(message);
       throw err;
     } finally {
       setConnecting(false);
     }
-  }, [connect, fetchBalances, setConnecting]);
+  }, [connect, fetchBalances, setConnecting, setConnectionError, clearError]);
 
   // Disconnect wallet
   const disconnectWallet = useCallback(async () => {
@@ -100,12 +130,39 @@ export function useWallet() {
     setSigner(null);
   }, [disconnect, clearBalances]);
 
+  // Enter read-only mode (view wallet without signing)
+  const enterReadOnlyMode = useCallback((viewAddress: string) => {
+    // Validate address format
+    if (!viewAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
+      setConnectionError('Invalid address format');
+      return false;
+    }
+
+    setReadOnlyAddress(viewAddress);
+
+    // Fetch balances for read-only address
+    fetchBalances(viewAddress, ['ethereum', 'bsc', 'polygon']);
+    return true;
+  }, [setReadOnlyAddress, fetchBalances, setConnectionError]);
+
+  // Exit read-only mode
+  const exitReadOnlyMode = useCallback(async () => {
+    await disconnect();
+    clearBalances();
+  }, [disconnect, clearBalances]);
+
   // Switch network
   const switchNetwork = useCallback(
     async (targetChainId: number) => {
       if (!window.ethereum) {
         throw new Error('No wallet detected');
       }
+
+      if (isReadOnly) {
+        throw new Error('Cannot switch network in view-only mode');
+      }
+
+      setIsSwitchingChain(true);
 
       try {
         await window.ethereum.request({
@@ -120,9 +177,11 @@ export function useWallet() {
           throw new Error('Please add this network to your wallet first');
         }
         throw err;
+      } finally {
+        setIsSwitchingChain(false);
       }
     },
-    [switchChain]
+    [switchChain, isReadOnly]
   );
 
   // Get signer for transactions
@@ -167,12 +226,14 @@ export function useWallet() {
     isConnected,
     isConnecting,
     isWrongChain,
+    isReadOnly,
+    isSwitchingChain,
     address,
     chainId,
     walletType,
     supportedChainIds,
     hasInjectedWallet,
-    error,
+    error: connectionError,
     provider,
     signer,
 
@@ -181,6 +242,9 @@ export function useWallet() {
     disconnect: disconnectWallet,
     switchNetwork,
     getSigner,
+    enterReadOnlyMode,
+    exitReadOnlyMode,
+    clearError,
   };
 }
 

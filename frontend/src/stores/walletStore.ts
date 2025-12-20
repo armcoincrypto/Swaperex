@@ -16,10 +16,14 @@ interface WalletState {
   isConnected: boolean;
   isConnecting: boolean;
   isWrongChain: boolean;
+  isReadOnly: boolean;
   address: string | null;
   chainId: number;
   walletType: WalletType | null;
   session: WalletSession | null;
+
+  // Error state
+  connectionError: string | null;
 
   // Available chains
   supportedChains: ChainInfo[];
@@ -32,6 +36,9 @@ interface WalletState {
   updateChainId: (chainId: number) => void;
   setSupportedChains: (chains: ChainInfo[]) => void;
   setConnecting: (connecting: boolean) => void;
+  setReadOnlyAddress: (address: string) => void;
+  setConnectionError: (error: string | null) => void;
+  clearError: () => void;
 }
 
 /**
@@ -48,10 +55,12 @@ export const useWalletStore = create<WalletState>()(
       isConnected: false,
       isConnecting: false,
       isWrongChain: false,
+      isReadOnly: false,
       address: null,
       chainId: 1,
       walletType: null,
       session: null,
+      connectionError: null,
       supportedChains: [],
       supportedChainIds: SUPPORTED_CHAIN_IDS,
 
@@ -75,10 +84,12 @@ export const useWalletStore = create<WalletState>()(
               isConnected: true,
               isConnecting: false,
               isWrongChain: wrongChain,
+              isReadOnly: false,
               address,
               chainId,
               walletType,
               session: response.session,
+              connectionError: null,
             });
           } else {
             throw new Error(response.error || 'Failed to connect');
@@ -104,10 +115,12 @@ export const useWalletStore = create<WalletState>()(
         set({
           isConnected: false,
           isWrongChain: false,
+          isReadOnly: false,
           address: null,
           chainId: 1,
           walletType: null,
           session: null,
+          connectionError: null,
         });
       },
 
@@ -153,6 +166,31 @@ export const useWalletStore = create<WalletState>()(
       setConnecting: (connecting: boolean) => {
         set({ isConnecting: connecting });
       },
+
+      // Set read-only address (view-only mode)
+      setReadOnlyAddress: (address: string) => {
+        set({
+          isConnected: true,
+          isConnecting: false,
+          isWrongChain: false,
+          isReadOnly: true,
+          address,
+          chainId: 1,
+          walletType: 'readonly' as WalletType,
+          session: null,
+          connectionError: null,
+        });
+      },
+
+      // Set connection error
+      setConnectionError: (error: string | null) => {
+        set({ connectionError: error, isConnecting: false });
+      },
+
+      // Clear error
+      clearError: () => {
+        set({ connectionError: null });
+      },
     }),
     {
       name: 'swaperex-wallet',
@@ -161,6 +199,7 @@ export const useWalletStore = create<WalletState>()(
         address: state.address,
         chainId: state.chainId,
         walletType: state.walletType,
+        isReadOnly: state.isReadOnly,
       }),
     }
   )

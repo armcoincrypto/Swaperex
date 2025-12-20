@@ -9,13 +9,25 @@ import { useState } from 'react';
 import { WalletConnect } from '@/components/wallet/WalletConnect';
 import { SwapInterface } from '@/components/swap/SwapInterface';
 import { TokenList } from '@/components/balances/TokenList';
+import { ChainWarningBanner } from '@/components/chain/ChainWarning';
 import { useWallet } from '@/hooks/useWallet';
 
 type Page = 'swap' | 'portfolio';
 
 export function App() {
   const [currentPage, setCurrentPage] = useState<Page>('swap');
-  const { isConnected } = useWallet();
+  const { isConnected, isWrongChain, isReadOnly, chainId, switchNetwork } = useWallet();
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+
+  // Handle chain switch from banner
+  const handleBannerSwitch = async () => {
+    try {
+      await switchNetwork(1); // Switch to Ethereum mainnet
+      setBannerDismissed(false);
+    } catch (err) {
+      console.error('Failed to switch network:', err);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-dark-950">
@@ -47,6 +59,15 @@ export function App() {
           <WalletConnect />
         </div>
       </header>
+
+      {/* Chain Warning Banner */}
+      {isConnected && isWrongChain && !isReadOnly && !bannerDismissed && (
+        <ChainWarningBanner
+          chainId={chainId}
+          onSwitch={handleBannerSwitch}
+          onDismiss={() => setBannerDismissed(true)}
+        />
+      )}
 
       {/* Main Content */}
       <main className="max-w-6xl mx-auto px-4 py-8">
