@@ -11,8 +11,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Modal } from '@/components/common/Modal';
 import { Button } from '@/components/common/Button';
-import { formatBalance, shortenAddress, getChainName } from '@/utils/format';
-import type { SwapQuoteResponse } from '@/types/api';
+import { formatBalance } from '@/utils/format';
+import type { SwapQuote } from '@/hooks/useSwap';
 
 // Quote expires after 30 seconds
 const QUOTE_EXPIRY_SECONDS = 30;
@@ -21,7 +21,7 @@ export type SwapStep = 'preview' | 'approving' | 'swapping' | 'broadcasting' | '
 
 interface SwapPreviewModalProps {
   isOpen: boolean;
-  quote: SwapQuoteResponse | null;
+  quote: SwapQuote | null;
   step: SwapStep;
   error: string | null;
   txHash: string | null;
@@ -83,7 +83,7 @@ export function SwapPreviewModal({
   const isHighImpact = priceImpact > 3;
   const isVeryHighImpact = priceImpact > 10;
   const isLoading = step === 'approving' || step === 'swapping' || step === 'broadcasting';
-  const needsApproval = quote.approval_needed;
+  const needsApproval = quote.needsApproval;
 
   // Determine step number for multi-step display
   const getStepDisplay = () => {
@@ -165,14 +165,12 @@ export function SwapPreviewModal({
             />
             <DetailRow
               label="Slippage Tolerance"
-              value="0.5%"
+              value={`${quote.slippage}%`}
             />
-            {quote.route && (
-              <DetailRow
-                label="Route"
-                value={quote.route.provider || 'Best Route'}
-              />
-            )}
+            <DetailRow
+              label="Provider"
+              value={quote.provider}
+            />
           </div>
 
           {/* High Impact Warning */}
@@ -191,42 +189,13 @@ export function SwapPreviewModal({
             </div>
           )}
 
-          {/* Gas Estimate */}
-          {quote.gas_estimate && (
-            <div className="bg-dark-800/50 rounded-lg p-3 mb-4">
-              <h4 className="text-xs text-dark-400 uppercase tracking-wide mb-2">
-                Estimated Gas
-              </h4>
-              <div className="flex justify-between text-sm">
-                <span className="text-dark-400">Network Fee</span>
-                <div className="text-right">
-                  <div>{formatBalance(quote.gas_estimate.estimated_cost_native)} ETH</div>
-                  {quote.gas_estimate.estimated_cost_usd && (
-                    <div className="text-dark-400 text-xs">
-                      ≈ ${quote.gas_estimate.estimated_cost_usd}
-                    </div>
-                  )}
-                </div>
-              </div>
+          {/* Gas Estimate Note */}
+          <div className="bg-dark-800/50 rounded-lg p-3 mb-4">
+            <div className="flex justify-between text-sm">
+              <span className="text-dark-400">Network Fee</span>
+              <span className="text-dark-400">Estimated by wallet</span>
             </div>
-          )}
-
-          {/* Contract Details */}
-          {quote.transaction && (
-            <div className="bg-dark-800/50 rounded-lg p-3 mb-4">
-              <h4 className="text-xs text-dark-400 uppercase tracking-wide mb-2">
-                Transaction Details
-              </h4>
-              <div className="space-y-1 text-sm">
-                <DetailRow label="Network" value={getChainName(quote.transaction.chain_id)} />
-                <DetailRow
-                  label="Contract"
-                  value={shortenAddress(quote.transaction.to)}
-                  mono
-                />
-              </div>
-            </div>
-          )}
+          </div>
 
           {/* Approval Notice */}
           {needsApproval && step === 'preview' && (
@@ -286,7 +255,7 @@ export function SwapPreviewModal({
 }
 
 // Swap Summary Component
-function SwapSummary({ quote }: { quote: SwapQuoteResponse }) {
+function SwapSummary({ quote }: { quote: SwapQuote }) {
   return (
     <div className="text-center">
       <div className="text-sm text-dark-400 mb-2">You're swapping</div>
@@ -385,12 +354,12 @@ function SuccessContent({
   txHash,
   onClose,
 }: {
-  quote: SwapQuoteResponse;
+  quote: SwapQuote;
   txHash: string | null;
   onClose: () => void;
 }) {
-  const chainId = quote.transaction?.chain_id || 1;
-  const explorerUrl = getExplorerUrl(chainId, txHash || '');
+  // Default to Ethereum mainnet for explorer URL
+  const explorerUrl = getExplorerUrl(1, txHash || '');
 
   return (
     <div className="text-center">

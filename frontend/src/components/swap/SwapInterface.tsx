@@ -31,7 +31,7 @@ export function SwapInterface() {
 
   const {
     status,
-    quote,
+    swapQuote,
     txHash,
     error,
     swap,
@@ -313,23 +313,23 @@ export function SwapInterface() {
         </div>
 
         {/* Quick Quote Preview (when quote available but not in preview) */}
-        {quote && status === 'previewing' && !showPreview && (
+        {swapQuote && status === 'previewing' && !showPreview && (
           <div className="mt-4 p-3 bg-dark-800 rounded-xl text-sm">
             <div className="flex justify-between mb-1">
               <span className="text-dark-400">Rate</span>
-              <span>1 {fromAsset?.symbol} = {formatBalance(quote.rate)} {toAsset?.symbol}</span>
+              <span>1 {fromAsset?.symbol} = {formatBalance(swapQuote.rate)} {toAsset?.symbol}</span>
             </div>
-            {quote.price_impact && parseFloat(quote.price_impact) > 0 && (
+            {swapQuote.price_impact && parseFloat(swapQuote.price_impact) > 0 && (
               <div className="flex justify-between mb-1">
                 <span className="text-dark-400">Price Impact</span>
-                <span className={parseFloat(quote.price_impact) > 3 ? 'text-red-400' : parseFloat(quote.price_impact) > 1 ? 'text-yellow-400' : ''}>
-                  {formatPercent(quote.price_impact)}
+                <span className={parseFloat(swapQuote.price_impact) > 3 ? 'text-red-400' : parseFloat(swapQuote.price_impact) > 1 ? 'text-yellow-400' : ''}>
+                  {formatPercent(swapQuote.price_impact)}
                 </span>
               </div>
             )}
             <div className="flex justify-between">
               <span className="text-dark-400">Minimum Received</span>
-              <span>{formatBalance(quote.minimum_received)} {toAsset?.symbol}</span>
+              <span>{formatBalance(swapQuote.minimum_received)} {toAsset?.symbol}</span>
             </div>
           </div>
         )}
@@ -372,7 +372,7 @@ export function SwapInterface() {
       {/* Swap Preview Modal */}
       <SwapPreviewModal
         isOpen={showPreview}
-        quote={quote}
+        quote={swapQuote}
         step={getModalStep()}
         error={error}
         txHash={txHash}
