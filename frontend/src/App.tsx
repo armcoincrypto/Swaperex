@@ -8,11 +8,12 @@
 import { useState } from 'react';
 import { WalletConnect } from '@/components/wallet/WalletConnect';
 import { SwapInterface } from '@/components/swap/SwapInterface';
+import { WithdrawalInterface } from '@/components/withdrawal/WithdrawalInterface';
 import { TokenList } from '@/components/balances/TokenList';
 import { ChainWarningBanner } from '@/components/chain/ChainWarning';
 import { useWallet } from '@/hooks/useWallet';
 
-type Page = 'swap' | 'portfolio';
+type Page = 'swap' | 'withdraw' | 'portfolio';
 
 export function App() {
   const [currentPage, setCurrentPage] = useState<Page>('swap');
@@ -47,6 +48,12 @@ export function App() {
                 Swap
               </NavButton>
               <NavButton
+                active={currentPage === 'withdraw'}
+                onClick={() => setCurrentPage('withdraw')}
+              >
+                Withdraw
+              </NavButton>
+              <NavButton
                 active={currentPage === 'portfolio'}
                 onClick={() => setCurrentPage('portfolio')}
               >
@@ -76,6 +83,32 @@ export function App() {
             {/* Swap Panel */}
             <div className="flex-1 flex justify-center">
               <SwapInterface />
+            </div>
+
+            {/* Balances Sidebar */}
+            {isConnected && (
+              <aside className="w-full lg:w-80">
+                <TokenList />
+              </aside>
+            )}
+          </div>
+        )}
+
+        {currentPage === 'withdraw' && (
+          <div className="flex flex-col lg:flex-row gap-8">
+            {/* Withdrawal Panel */}
+            <div className="flex-1 flex justify-center">
+              {isConnected ? (
+                <WithdrawalInterface />
+              ) : (
+                <div className="w-full max-w-md mx-auto bg-dark-900 rounded-2xl p-8 border border-dark-800 text-center">
+                  <h2 className="text-xl font-bold mb-4">Connect Your Wallet</h2>
+                  <p className="text-dark-400 mb-6">
+                    Connect your wallet to withdraw your tokens.
+                  </p>
+                  <WalletConnect />
+                </div>
+              )}
             </div>
 
             {/* Balances Sidebar */}
