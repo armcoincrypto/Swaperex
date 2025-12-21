@@ -9,6 +9,7 @@ export { Loading, LoadingOverlay } from './Loading';
 export { Toast, ToastContainer } from './Toast';
 export { ErrorBoundary } from './ErrorBoundary';
 export { TransactionError, parseTransactionError } from './TransactionError';
+export { GlobalErrorDisplay, InlineError } from './GlobalErrorDisplay';
 export {
   SecurityWarning,
   ApprovalWarning,

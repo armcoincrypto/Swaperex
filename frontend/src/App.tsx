@@ -12,6 +12,7 @@ import { WithdrawalInterface } from '@/components/withdrawal/WithdrawalInterface
 import { TokenList } from '@/components/balances/TokenList';
 import { ChainWarningBanner } from '@/components/chain/ChainWarning';
 import { ToastContainer } from '@/components/common/Toast';
+import { GlobalErrorDisplay } from '@/components/common/GlobalErrorDisplay';
 import { useWallet } from '@/hooks/useWallet';
 import { useToastStore } from '@/stores/toastStore';
 
@@ -147,6 +148,9 @@ export function App() {
           <p className="mt-1">All transactions are signed locally in your wallet.</p>
         </div>
       </footer>
+
+      {/* Global Error Display */}
+      <GlobalErrorDisplay />
 
       {/* Toast Notifications */}
       <ToastContainer toasts={toasts} onDismiss={removeToast} />
