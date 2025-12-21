@@ -10,6 +10,7 @@ import { BrowserProvider, JsonRpcSigner, isAddress } from 'ethers';
 import { useWalletStore } from '@/stores/walletStore';
 import { useBalanceStore } from '@/stores/balanceStore';
 import { parseWalletError } from '@/utils/errors';
+import { walletEvents } from '@/services/walletEvents';
 
 declare global {
   interface Window {
@@ -100,11 +101,15 @@ export function useWallet() {
 
   // Disconnect wallet
   const disconnectWallet = useCallback(async () => {
+    const previousAddress = address;
     await disconnect();
     clearBalances();
     setProvider(null);
     setSigner(null);
-  }, [disconnect, clearBalances]);
+
+    // Emit disconnect event for active operations to cancel
+    walletEvents.emit('disconnect', { previousAddress: previousAddress || undefined });
+  }, [disconnect, clearBalances, address]);
 
   // Enter read-only mode (view wallet without signing)
   const enterReadOnlyMode = useCallback((viewAddress: string): boolean => {
@@ -167,22 +172,40 @@ export function useWallet() {
     return provider.getSigner();
   }, [provider]);
 
-  // Listen for account changes
+  // Listen for account and chain changes
   useEffect(() => {
     if (!window.ethereum) return;
 
     const handleAccountsChanged = async (accounts: unknown) => {
       const accountList = accounts as string[];
+      const previousAddress = address;
+
       if (accountList.length === 0) {
+        // Wallet disconnected
+        walletEvents.emit('disconnect', { previousAddress: previousAddress || undefined });
         await disconnectWallet();
       } else if (isConnected && accountList[0] !== address) {
-        // Account changed, reconnect
+        // Account changed - emit event BEFORE reconnecting so operations can cancel
+        walletEvents.emit('account_changed', {
+          previousAddress: previousAddress || undefined,
+          newAddress: accountList[0],
+        });
         await connect(accountList[0], chainId, walletType || 'injected');
       }
     };
 
     const handleChainChanged = (chainIdHex: unknown) => {
       const newChainId = parseInt(chainIdHex as string, 16);
+      const previousChainId = chainId;
+
+      // Emit event BEFORE updating so operations can cancel
+      if (isConnected && newChainId !== chainId) {
+        walletEvents.emit('chain_changed', {
+          previousChainId,
+          newChainId,
+        });
+      }
+
       // Use updateChainId for wallet-initiated changes (not switchChain)
       updateChainId(newChainId);
     };

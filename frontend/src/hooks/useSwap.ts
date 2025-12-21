@@ -29,12 +29,13 @@
  * Each state transition is logged with [Swap Lifecycle] prefix.
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import { formatUnits } from 'ethers';
 import { useWallet } from './useWallet';
 import { useSwapStore } from '@/stores/swapStore';
 import { useBalanceStore } from '@/stores/balanceStore';
 import { toast } from '@/stores/toastStore';
+import { walletEvents, getWalletEventMessage } from '@/services/walletEvents';
 import {
   isUserRejection,
   parseTransactionError,
@@ -167,6 +168,47 @@ export function useSwap() {
   });
 
   const [swapQuote, setSwapQuote] = useState<SwapQuote | null>(null);
+
+  // Track if operation was cancelled by wallet event
+  const isCancelledRef = useRef(false);
+
+  // PHASE 14: Handle wallet events (disconnect, chain change, account change)
+  useEffect(() => {
+    // Only listen when swap is in progress
+    const isActive = state.status !== 'idle' && state.status !== 'success' && state.status !== 'error';
+    if (!isActive) {
+      isCancelledRef.current = false;
+      return;
+    }
+
+    const unsubscribe = walletEvents.onAny((event) => {
+      console.log(`[Swap] Wallet event during active swap: ${event.type}`);
+
+      // Mark as cancelled
+      isCancelledRef.current = true;
+
+      // Get user-friendly message
+      const message = getWalletEventMessage(event);
+
+      // Log the cancellation
+      logLifecycle(state.status, 'idle', {
+        reason: 'wallet_event',
+        eventType: event.type,
+      });
+
+      // Reset state
+      setState({ status: 'idle', quote: null, txHash: null, explorerUrl: null, error: null });
+      setSwapQuote(null);
+      clearQuote();
+
+      // Show toast
+      toast.warning(message);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [state.status, clearQuote]);
 
   // Reset state
   const reset = useCallback(() => {
