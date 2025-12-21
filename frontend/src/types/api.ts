@@ -72,9 +72,9 @@ export interface TokenBalance {
   name?: string;
   contract_address?: string;
   balance: string;
-  balance_raw: string;
+  balance_raw?: string;  // Optional - not all sources provide raw balance
   decimals: number;
-  chain: string;
+  chain?: string;        // Optional - inferred from context
   usd_value?: string;
   logo_url?: string;
 }

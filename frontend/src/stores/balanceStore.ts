@@ -25,7 +25,12 @@ const NATIVE_TOKENS: Record<string, { symbol: string; decimals: number }> = {
 interface TokenBalance {
   symbol: string;
   balance: string;
+  balance_raw?: string;
   decimals: number;
+  chain?: string;
+  name?: string;
+  logo_url?: string;
+  usd_value?: string;
 }
 
 interface ChainBalance {
@@ -87,7 +92,10 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
               native_balance: {
                 symbol: nativeToken.symbol,
                 balance,
+                balance_raw: balanceWei.toString(),
                 decimals: nativeToken.decimals,
+                chain,
+                name: nativeToken.symbol,
               },
               token_balances: [], // TODO: Add ERC20 token fetching
             };
@@ -134,7 +142,10 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
             native_balance: {
               symbol: nativeToken.symbol,
               balance,
+              balance_raw: balanceWei.toString(),
               decimals: nativeToken.decimals,
+              chain,
+              name: nativeToken.symbol,
             },
             token_balances: [],
           },

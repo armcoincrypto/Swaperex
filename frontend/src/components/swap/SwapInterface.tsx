@@ -7,7 +7,7 @@
  * Flow: Enter amount → Get quote → Preview → Confirm in wallet → Success
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useWallet } from '@/hooks/useWallet';
 import { useSwap } from '@/hooks/useSwap';
 import { useSwapStore } from '@/stores/swapStore';
@@ -15,28 +15,41 @@ import { useBalanceStore } from '@/stores/balanceStore';
 import { Button } from '@/components/common/Button';
 import { SwapPreviewModal, SwapStep } from './SwapPreviewModal';
 import { formatBalance, formatPercent } from '@/utils/format';
-import { POPULAR_TOKENS, type Token } from '@/tokens';
+import { getPopularTokens, isNativeToken, type Token } from '@/tokens';
 import type { AssetInfo } from '@/types/api';
 
+// Chain ID to chain name mapping
+const CHAIN_NAMES: Record<number, string> = {
+  1: 'ethereum',
+  56: 'bsc',
+  137: 'polygon',
+  42161: 'arbitrum',
+};
+
 // Convert Token to AssetInfo for compatibility
-function tokenToAsset(token: Token): AssetInfo {
+function tokenToAsset(token: Token, chainId: number): AssetInfo {
+  const chainName = CHAIN_NAMES[chainId] || 'ethereum';
   return {
     symbol: token.symbol,
     name: token.name,
-    chain: 'ethereum',
+    chain: chainName,
     decimals: token.decimals,
-    is_native: token.symbol === 'ETH',
+    is_native: isNativeToken(token.address),
     contract_address: token.address,
     logo_url: token.logoURI,
   };
 }
 
-// Get real tokens from token list
-const AVAILABLE_TOKENS = POPULAR_TOKENS.map(tokenToAsset);
-
 export function SwapInterface() {
-  const { isConnected, address, isWrongChain } = useWallet();
+  const { isConnected, address, isWrongChain, chainId } = useWallet();
   const { getTokenBalance } = useBalanceStore();
+
+  // Get available tokens for current chain
+  const currentChainId = chainId || 1;
+  const AVAILABLE_TOKENS = useMemo(() => {
+    const tokens = getPopularTokens(currentChainId);
+    return tokens.map((t) => tokenToAsset(t, currentChainId));
+  }, [currentChainId]);
 
   const {
     status,
@@ -73,15 +86,36 @@ export function SwapInterface() {
   const [showToSelector, setShowToSelector] = useState(false);
   const [customSlippage, setCustomSlippage] = useState('');
 
-  // Initialize with default assets
+  // Track previous chain to detect changes
+  const [prevChainId, setPrevChainId] = useState(currentChainId);
+
+  // Initialize with default assets or reset when chain changes
   useEffect(() => {
-    if (!fromAsset && AVAILABLE_TOKENS.length > 0) {
-      setFromAsset(AVAILABLE_TOKENS[0]); // ETH
+    const chainChanged = prevChainId !== currentChainId;
+
+    if (chainChanged) {
+      // Chain changed - reset to chain's native token
+      setPrevChainId(currentChainId);
+      if (AVAILABLE_TOKENS.length > 0) {
+        setFromAsset(AVAILABLE_TOKENS[0]); // Native token (ETH/BNB/MATIC)
+      }
+      if (AVAILABLE_TOKENS.length > 2) {
+        setToAsset(AVAILABLE_TOKENS[2]); // Usually USDT
+      } else if (AVAILABLE_TOKENS.length > 1) {
+        setToAsset(AVAILABLE_TOKENS[1]);
+      }
+      // Clear any existing quote/amount
+      setFromAmount('');
+      reset();
+    } else if (!fromAsset && AVAILABLE_TOKENS.length > 0) {
+      // Initial setup
+      setFromAsset(AVAILABLE_TOKENS[0]);
     }
-    if (!toAsset && AVAILABLE_TOKENS.length > 1) {
-      setToAsset(AVAILABLE_TOKENS[2]); // USDT
+
+    if (!chainChanged && !toAsset && AVAILABLE_TOKENS.length > 1) {
+      setToAsset(AVAILABLE_TOKENS[2] || AVAILABLE_TOKENS[1]);
     }
-  }, [fromAsset, toAsset, setFromAsset, setToAsset]);
+  }, [currentChainId, prevChainId, fromAsset, toAsset, setFromAsset, setToAsset, setFromAmount, reset, AVAILABLE_TOKENS]);
 
   // Get balance for selected asset
   const getBalance = useCallback((asset: AssetInfo | null): string => {

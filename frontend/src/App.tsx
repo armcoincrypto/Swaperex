@@ -13,6 +13,7 @@ import { TokenList } from '@/components/balances/TokenList';
 import { ChainWarningBanner } from '@/components/chain/ChainWarning';
 import { ToastContainer } from '@/components/common/Toast';
 import { GlobalErrorDisplay } from '@/components/common/GlobalErrorDisplay';
+import { NetworkSelector } from '@/components/common/NetworkSelector';
 import { useWallet } from '@/hooks/useWallet';
 import { useToastStore } from '@/stores/toastStore';
 
@@ -66,8 +67,11 @@ export function App() {
             </nav>
           </div>
 
-          {/* Wallet Connection */}
-          <WalletConnect />
+          {/* Network Selector and Wallet Connection */}
+          <div className="flex items-center gap-3">
+            <NetworkSelector />
+            <WalletConnect />
+          </div>
         </div>
       </header>
 

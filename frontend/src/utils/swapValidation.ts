@@ -59,8 +59,9 @@ export interface SwapValidationInput {
 
 /**
  * Supported chain IDs for swaps
+ * PHASE 11: ETH (1) and BSC (56) supported
  */
-const SUPPORTED_CHAIN_IDS = [1]; // Ethereum mainnet only for now
+const SUPPORTED_CHAIN_IDS = [1, 56]; // Ethereum mainnet and BSC
 
 /**
  * Slippage limits
@@ -142,7 +143,7 @@ export function validateSwapInputs(input: SwapValidationInput): ValidationResult
   // 7. Chain validation
   if (input.chainId !== null && !SUPPORTED_CHAIN_IDS.includes(input.chainId)) {
     errors.push('chain_not_supported');
-    messages.push('Please switch to Ethereum Mainnet');
+    messages.push('Please switch to Ethereum or BSC');
   }
 
   // 8. Recipient validation (if address is available)
@@ -263,7 +264,7 @@ export function getButtonValidationState(input: SwapValidationInput): {
   }
 
   if (input.chainId !== null && !SUPPORTED_CHAIN_IDS.includes(input.chainId)) {
-    return { disabled: true, text: 'Switch to Ethereum' };
+    return { disabled: true, text: 'Switch Network' };
   }
 
   return { disabled: false, text: 'Preview Swap' };

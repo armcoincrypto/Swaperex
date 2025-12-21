@@ -117,7 +117,7 @@ export function WithdrawalInterface() {
   // Select asset from list
   const selectAsset = (balance: TokenBalance) => {
     updateInput('asset', balance.symbol);
-    updateInput('chain', balance.chain);
+    updateInput('chain', balance.chain || 'ethereum');
     setShowAssetSelector(false);
   };
 
