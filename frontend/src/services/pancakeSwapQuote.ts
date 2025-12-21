@@ -201,7 +201,7 @@ export async function getPancakeQuote(
     });
 
     return {
-      amountIn,
+      amountIn: amountInWei.toString(),  // Return in wei format for consistency
       amountOut: amountOut.toString(),
       amountOutFormatted,
       priceImpact: priceImpact.toFixed(2),
