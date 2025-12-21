@@ -69,31 +69,37 @@ export const useWalletStore = create<WalletState>()((set, get) => ({
     set({ isConnecting: true });
 
     try {
-      // Register with backend
-      const response = await walletApi.connectWallet({
-        address,
-        chain_id: chainId,
-        wallet_type: walletType,
-      });
-
-      if (response.success && response.session) {
-        const { supportedChainIds } = get();
-        const wrongChain = !isChainSupported(chainId, supportedChainIds);
-
-        set({
-          isConnected: true,
-          isConnecting: false,
-          isWrongChain: wrongChain,
-          isReadOnly: false,
+      // Try to register with backend (optional for non-custodial mode)
+      let session = null;
+      try {
+        const response = await walletApi.connectWallet({
           address,
-          chainId,
-          walletType,
-          session: response.session,
-          connectionError: null,
+          chain_id: chainId,
+          wallet_type: walletType,
         });
-      } else {
-        throw new Error(response.error || 'Failed to connect');
+
+        if (response.success && response.session) {
+          session = response.session;
+        }
+      } catch (backendError) {
+        // Backend unavailable - continue without session (non-custodial mode)
+        console.warn('[Wallet] Backend unavailable, continuing without session:', backendError);
       }
+
+      const { supportedChainIds } = get();
+      const wrongChain = !isChainSupported(chainId, supportedChainIds);
+
+      set({
+        isConnected: true,
+        isConnecting: false,
+        isWrongChain: wrongChain,
+        isReadOnly: false,
+        address,
+        chainId,
+        walletType,
+        session,
+        connectionError: null,
+      });
     } catch (error) {
       set({ isConnecting: false });
       throw error;

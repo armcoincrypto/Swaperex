@@ -88,8 +88,10 @@ export function useWallet() {
       // Connect to backend
       await connect(accounts[0], currentChainId, 'injected');
 
-      // Fetch balances
-      await fetchBalances(accounts[0], ['ethereum', 'bsc', 'polygon']);
+      // Fetch balances (non-blocking - connection succeeds even if balances fail)
+      fetchBalances(accounts[0], ['ethereum', 'bsc', 'polygon']).catch((err) => {
+        console.warn('[Wallet] Balance fetch failed (non-critical):', err.message);
+      });
     } catch (err) {
       const parsed = parseWalletError(err);
       setConnectionError(parsed.message);
