@@ -21,6 +21,13 @@ import {
 import { isValidEvmAddress } from '@/services/evmBalanceService';
 import { isValidSolanaAddress } from '@/services/solanaBalanceService';
 import { SOLANA_CONFIG, getExplorerTxUrl } from '@/config/chains';
+import {
+  validateWalletAddress,
+  withRetry,
+  categorizeError,
+  formatErrorForDisplay,
+  type PortfolioError,
+} from '@/services/portfolioErrorHandler';
 
 /**
  * RPC endpoints by chain
@@ -193,6 +200,7 @@ export function useTxHistory(
     status: 'idle',
     transactions: [],
     error: null,
+    errorDetails: null,
     hasMore: false,
   });
 
@@ -200,42 +208,65 @@ export function useTxHistory(
    * Fetch transaction history
    */
   const fetchHistory = useCallback(async () => {
-    if (!address) {
+    // Validate wallet address first
+    const walletError = validateWalletAddress(address, 'txHistory');
+    if (walletError) {
       setState({
-        status: 'idle',
+        status: 'error',
         transactions: [],
-        error: null,
+        error: formatErrorForDisplay(walletError),
+        errorDetails: walletError,
         hasMore: false,
       });
       return;
     }
 
+    // Address is guaranteed non-null after validation
+    const addr = address as string;
+
     logTxHistoryLifecycle('Fetching history', {
-      address: address.slice(0, 10) + '...',
+      address: addr.slice(0, 10) + '...',
       chains,
     });
 
-    setState((s) => ({ ...s, status: 'fetching', error: null }));
+    setState((s) => ({ ...s, status: 'fetching', error: null, errorDetails: null }));
 
     try {
       const allTransactions: TransactionRecord[] = [];
 
       // Determine address type
-      const isSolana = isValidSolanaAddress(address);
-      const isEvm = isValidEvmAddress(address);
+      const isSolana = isValidSolanaAddress(addr);
+      const isEvm = isValidEvmAddress(addr);
 
       if (isSolana) {
-        const txs = await fetchSolanaTransactions(address, limit);
+        const txs = await withRetry(
+          () => fetchSolanaTransactions(addr, limit),
+          { maxRetries: 2 },
+          { operation: 'fetchSolanaTransactions', chain: 'solana' }
+        );
         allTransactions.push(...txs);
       } else if (isEvm) {
-        // Fetch from each chain
+        // Fetch from each chain with retry
         for (const chain of chains) {
           if (chain === 'solana') continue;
-          const txs = await fetchEvmTransactions(address, chain, limit);
-          allTransactions.push(...txs);
+          try {
+            const txs = await withRetry(
+              () => fetchEvmTransactions(addr, chain, limit),
+              { maxRetries: 2 },
+              { operation: 'fetchEvmTransactions', chain }
+            );
+            allTransactions.push(...txs);
+          } catch (chainError) {
+            // Log error but continue with other chains
+            logTxHistoryLifecycle('Chain fetch failed', {
+              chain,
+              error: chainError instanceof Error ? chainError.message : String(chainError),
+            });
+          }
         }
       } else {
-        throw new Error('Invalid wallet address');
+        const invalidError = categorizeError(new Error('Invalid wallet address'));
+        throw invalidError;
       }
 
       // Sort by timestamp (newest first)
@@ -249,16 +280,25 @@ export function useTxHistory(
         status: 'success',
         transactions: allTransactions.slice(0, limit),
         error: null,
+        errorDetails: null,
         hasMore: allTransactions.length > limit,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch history';
-      logTxHistoryLifecycle('History error', { error: message });
+      // Categorize the error for better handling
+      const txError = error instanceof Error ? categorizeError(error) : (error as PortfolioError);
+      const displayMessage = formatErrorForDisplay(txError);
+
+      logTxHistoryLifecycle('History error', {
+        error: txError.message,
+        category: txError.category,
+        retryable: txError.retryable,
+      });
 
       setState((s) => ({
         ...s,
         status: 'error',
-        error: message,
+        error: displayMessage,
+        errorDetails: txError,
       }));
     }
   }, [address, chains, limit]);
@@ -297,6 +337,7 @@ export function useTxHistory(
     status: state.status,
     transactions: state.transactions,
     error: state.error,
+    errorDetails: state.errorDetails,
     hasMore: state.hasMore,
     isLoading: state.status === 'fetching',
 

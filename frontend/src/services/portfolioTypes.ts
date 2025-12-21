@@ -112,6 +112,12 @@ export interface TxHistoryState {
   status: 'idle' | 'fetching' | 'success' | 'error';
   transactions: TransactionRecord[];
   error: string | null;
+  errorDetails?: {
+    category: string;
+    message: string;
+    retryable: boolean;
+    chain?: string;
+  } | null;
   hasMore: boolean;
   cursor?: string;
 }

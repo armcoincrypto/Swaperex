@@ -6,6 +6,12 @@
  *
  * Lifecycle: idle → fetching → success/error
  *
+ * Error Handling:
+ * - Validates wallet address before fetching
+ * - Validates chain support
+ * - Retry logic with exponential backoff for network errors
+ * - Clear error categorization and user-friendly messages
+ *
  * SECURITY: Read-only operations, no signing required.
  */
 
@@ -31,6 +37,14 @@ import {
   enrichEvmChainBalance,
   enrichSolanaChainBalance,
 } from '@/services/priceService';
+import {
+  validateWalletAddress,
+  validateChain,
+  withRetry,
+  categorizeError,
+  formatErrorForDisplay,
+  type PortfolioError,
+} from '@/services/portfolioErrorHandler';
 
 /**
  * Portfolio state
@@ -39,6 +53,7 @@ interface PortfolioState {
   status: PortfolioStatus;
   portfolio: Portfolio | null;
   error: string | null;
+  errorDetails: PortfolioError | null;
   lastUpdated: number | null;
 }
 
@@ -77,6 +92,7 @@ export function usePortfolio(
     status: 'idle',
     portfolio: null,
     error: null,
+    errorDetails: null,
     lastUpdated: null,
   });
 
@@ -97,9 +113,20 @@ export function usePortfolio(
    */
   const fetchEvmPortfolio = useCallback(
     async (addr: string): Promise<Portfolio> => {
+      // Filter to only supported chains
+      const supportedChains = evmChains.filter((chain) => {
+        const chainError = validateChain(chain, 'portfolio');
+        if (chainError) {
+          logPortfolioLifecycle('Skipping unsupported chain', { chain });
+          return false;
+        }
+        return true;
+      });
+
       logPortfolioLifecycle('Fetching EVM portfolio', {
         address: addr.slice(0, 10) + '...',
-        chains: evmChains,
+        chains: supportedChains,
+        skippedChains: evmChains.filter((c) => !supportedChains.includes(c)),
       });
 
       const chains: Record<PortfolioChain, ChainBalance | null> = {
@@ -110,17 +137,28 @@ export function usePortfolio(
         solana: null,
       };
 
-      // Fetch all EVM chains
-      const evmBalances = await fetchMultiEvmBalances(
-        addr,
-        evmChains as string[]
+      // Fetch all EVM chains with retry logic
+      const evmBalances = await withRetry(
+        () => fetchMultiEvmBalances(addr, supportedChains as string[]),
+        { maxRetries: 2 },
+        { operation: 'fetchMultiEvmBalances', chain: 'multi' }
       );
 
-      // Enrich with USD prices if enabled
+      // Enrich with USD prices if enabled (with retry)
       for (const [chain, balance] of Object.entries(evmBalances)) {
-        if (includeUsdPrices) {
-          chains[chain as PortfolioChain] = await enrichEvmChainBalance(balance);
-        } else {
+        try {
+          if (includeUsdPrices) {
+            chains[chain as PortfolioChain] = await withRetry(
+              () => enrichEvmChainBalance(balance),
+              { maxRetries: 1 },
+              { operation: 'enrichEvmChainBalance', chain }
+            );
+          } else {
+            chains[chain as PortfolioChain] = balance;
+          }
+        } catch (priceError) {
+          // If price enrichment fails, use balance without prices
+          logPortfolioLifecycle('Price enrichment failed, using raw balance', { chain });
           chains[chain as PortfolioChain] = balance;
         }
       }
@@ -161,12 +199,24 @@ export function usePortfolio(
         solana: null,
       };
 
-      // Fetch Solana balance
-      let solanaBalance = await fetchSolanaBalance(addr);
+      // Fetch Solana balance with retry
+      let solanaBalance = await withRetry(
+        () => fetchSolanaBalance(addr),
+        { maxRetries: 2 },
+        { operation: 'fetchSolanaBalance', chain: 'solana' }
+      );
 
-      // Enrich with USD prices if enabled
+      // Enrich with USD prices if enabled (with retry)
       if (includeUsdPrices) {
-        solanaBalance = await enrichSolanaChainBalance(solanaBalance);
+        try {
+          solanaBalance = await withRetry(
+            () => enrichSolanaChainBalance(solanaBalance),
+            { maxRetries: 1 },
+            { operation: 'enrichSolanaChainBalance', chain: 'solana' }
+          );
+        } catch (priceError) {
+          logPortfolioLifecycle('Solana price enrichment failed, using raw balance');
+        }
       }
 
       chains.solana = solanaBalance;
@@ -186,43 +236,50 @@ export function usePortfolio(
    * Fetch full portfolio (EVM + optionally Solana)
    */
   const fetchPortfolio = useCallback(async () => {
-    if (!address) {
+    // Validate wallet address first
+    const walletError = validateWalletAddress(address, 'portfolio');
+    if (walletError) {
       setState({
-        status: 'idle',
+        status: 'error',
         portfolio: null,
-        error: null,
+        error: formatErrorForDisplay(walletError),
+        errorDetails: walletError,
         lastUpdated: null,
       });
       return;
     }
 
-    const addressType = getAddressType(address);
+    // Address is guaranteed non-null after validation
+    const addr = address as string;
+    const addressType = getAddressType(addr);
 
     if (!addressType) {
-      logPortfolioLifecycle('Invalid address', { address: address.slice(0, 10) + '...' });
+      const invalidError = categorizeError(new Error('Invalid wallet address'));
+      logPortfolioLifecycle('Invalid address', { address: addr.slice(0, 10) + '...' });
       setState({
         status: 'error',
         portfolio: null,
-        error: 'Invalid wallet address',
+        error: formatErrorForDisplay(invalidError),
+        errorDetails: invalidError,
         lastUpdated: null,
       });
       return;
     }
 
     logPortfolioLifecycle('Fetching portfolio', {
-      address: address.slice(0, 10) + '...',
+      address: addr.slice(0, 10) + '...',
       addressType,
     });
 
-    setState((s) => ({ ...s, status: 'fetching', error: null }));
+    setState((s) => ({ ...s, status: 'fetching', error: null, errorDetails: null }));
 
     try {
       let portfolio: Portfolio;
 
       if (addressType === 'solana') {
-        portfolio = await fetchSolanaPortfolio(address);
+        portfolio = await fetchSolanaPortfolio(addr);
       } else {
-        portfolio = await fetchEvmPortfolio(address);
+        portfolio = await fetchEvmPortfolio(addr);
 
         // Also fetch Solana if we have a Solana address in options
         if (includeSolana) {
@@ -242,16 +299,25 @@ export function usePortfolio(
         status: 'success',
         portfolio,
         error: null,
+        errorDetails: null,
         lastUpdated: Date.now(),
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch portfolio';
-      logPortfolioLifecycle('Portfolio error', { error: message });
+      // Categorize the error for better handling
+      const portfolioError = categorizeError(error);
+      const displayMessage = formatErrorForDisplay(portfolioError);
+
+      logPortfolioLifecycle('Portfolio error', {
+        error: portfolioError.message,
+        category: portfolioError.category,
+        retryable: portfolioError.retryable,
+      });
 
       setState((s) => ({
         ...s,
         status: 'error',
-        error: message,
+        error: displayMessage,
+        errorDetails: portfolioError,
       }));
     }
   }, [
@@ -365,6 +431,7 @@ export function usePortfolio(
     status: state.status,
     portfolio: state.portfolio,
     error: state.error,
+    errorDetails: state.errorDetails,
     lastUpdated: state.lastUpdated,
     isLoading: state.status === 'fetching',
 
