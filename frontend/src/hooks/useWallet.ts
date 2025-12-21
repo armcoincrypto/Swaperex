@@ -167,12 +167,25 @@ export function useWallet() {
   );
 
   // Get signer for transactions
+  // Recreates provider from window.ethereum if needed (handles page refresh)
   const getSigner = useCallback(async () => {
-    if (!provider) {
-      throw new Error('Not connected');
+    // If we have a provider, use it
+    if (provider) {
+      return provider.getSigner();
     }
-    return provider.getSigner();
-  }, [provider]);
+
+    // Try to recreate provider from window.ethereum if wallet is connected
+    if (window.ethereum && address) {
+      console.log('[Wallet] Recreating provider from window.ethereum');
+      const browserProvider = new BrowserProvider(window.ethereum);
+      const walletSigner = await browserProvider.getSigner();
+      setProvider(browserProvider);
+      setSigner(walletSigner);
+      return walletSigner;
+    }
+
+    throw new Error('Not connected');
+  }, [provider, address]);
 
   // Listen for account and chain changes
   useEffect(() => {
