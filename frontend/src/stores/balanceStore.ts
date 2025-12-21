@@ -1,16 +1,42 @@
 /**
  * Balance State Store
  *
- * Caches wallet balances fetched from blockchain.
+ * Fetches wallet balances directly from blockchain RPCs.
+ * No backend required - fully non-custodial.
  */
 
 import { create } from 'zustand';
-import type { TokenBalance, WalletBalanceResponse } from '@/types/api';
-import { balancesApi } from '@/api';
+import { JsonRpcProvider, formatEther } from 'ethers';
+
+// Chain RPC endpoints
+const RPC_URLS: Record<string, string> = {
+  ethereum: 'https://eth.llamarpc.com',
+  bsc: 'https://bsc-dataseed.binance.org',
+  polygon: 'https://polygon-rpc.com',
+};
+
+// Chain native token info
+const NATIVE_TOKENS: Record<string, { symbol: string; decimals: number }> = {
+  ethereum: { symbol: 'ETH', decimals: 18 },
+  bsc: { symbol: 'BNB', decimals: 18 },
+  polygon: { symbol: 'MATIC', decimals: 18 },
+};
+
+interface TokenBalance {
+  symbol: string;
+  balance: string;
+  decimals: number;
+}
+
+interface ChainBalance {
+  chain: string;
+  native_balance: TokenBalance;
+  token_balances: TokenBalance[];
+}
 
 interface BalanceState {
   // Balances by chain
-  balances: Record<string, WalletBalanceResponse>;
+  balances: Record<string, ChainBalance>;
 
   // Loading state
   isLoading: boolean;
@@ -38,26 +64,47 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
     set({ isLoading: true });
 
     try {
-      const response = await balancesApi.getMultiChainBalance({
-        address,
-        chains,
-        include_tokens: true,
-      });
+      const balanceMap: Record<string, ChainBalance> = {};
 
-      const balanceMap: Record<string, WalletBalanceResponse> = {};
-      for (const chainBalance of response.chain_balances) {
-        balanceMap[chainBalance.chain] = chainBalance;
-      }
+      // Fetch all chains in parallel
+      await Promise.all(
+        chains.map(async (chain) => {
+          try {
+            const rpcUrl = RPC_URLS[chain];
+            const nativeToken = NATIVE_TOKENS[chain];
+
+            if (!rpcUrl || !nativeToken) {
+              console.warn(`[Balance] Unknown chain: ${chain}`);
+              return;
+            }
+
+            const provider = new JsonRpcProvider(rpcUrl);
+            const balanceWei = await provider.getBalance(address);
+            const balance = formatEther(balanceWei);
+
+            balanceMap[chain] = {
+              chain,
+              native_balance: {
+                symbol: nativeToken.symbol,
+                balance,
+                decimals: nativeToken.decimals,
+              },
+              token_balances: [], // TODO: Add ERC20 token fetching
+            };
+          } catch (err) {
+            console.warn(`[Balance] Failed to fetch ${chain} balance:`, err);
+          }
+        })
+      );
 
       set({
         balances: balanceMap,
         isLoading: false,
         lastUpdated: Date.now(),
-        totalUsdValue: response.total_usd_value || null,
       });
     } catch (error) {
       set({ isLoading: false });
-      throw error;
+      console.error('[Balance] Failed to fetch balances:', error);
     }
   },
 
@@ -66,23 +113,38 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
     set({ isLoading: true });
 
     try {
-      const response = await balancesApi.getWalletBalance({
-        address,
-        chain,
-        include_tokens: true,
-      });
+      const rpcUrl = RPC_URLS[chain];
+      const nativeToken = NATIVE_TOKENS[chain];
+
+      if (!rpcUrl || !nativeToken) {
+        console.warn(`[Balance] Unknown chain: ${chain}`);
+        set({ isLoading: false });
+        return;
+      }
+
+      const provider = new JsonRpcProvider(rpcUrl);
+      const balanceWei = await provider.getBalance(address);
+      const balance = formatEther(balanceWei);
 
       set((state) => ({
         balances: {
           ...state.balances,
-          [chain]: response,
+          [chain]: {
+            chain,
+            native_balance: {
+              symbol: nativeToken.symbol,
+              balance,
+              decimals: nativeToken.decimals,
+            },
+            token_balances: [],
+          },
         },
         isLoading: false,
         lastUpdated: Date.now(),
       }));
     } catch (error) {
       set({ isLoading: false });
-      throw error;
+      console.error(`[Balance] Failed to fetch ${chain} balance:`, error);
     }
   },
 
