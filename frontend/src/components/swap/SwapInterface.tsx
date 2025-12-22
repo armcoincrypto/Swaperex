@@ -233,8 +233,27 @@ export function SwapInterface() {
     setCustomSlippage(value);
   };
 
-  // Open preview modal
+  // Open preview modal - ONLY if quote is valid and fresh
   const handlePreviewSwap = async () => {
+    // Guard: Must have valid input
+    const amount = parseFloat(fromAmount || '0');
+    if (!fromAmount || isNaN(amount) || amount <= 0) {
+      console.warn('[Swap] Preview blocked - no valid input amount');
+      return;
+    }
+
+    // Guard: Must have a quote with output
+    if (!swapQuote || !swapQuote.amountOutFormatted || parseFloat(swapQuote.amountOutFormatted) <= 0) {
+      console.warn('[Swap] Preview blocked - no valid quote');
+      return;
+    }
+
+    // Guard: Status must be previewing (quote ready)
+    if (status !== 'previewing') {
+      console.warn('[Swap] Preview blocked - status is not previewing:', status);
+      return;
+    }
+
     try {
       await swap();
       setShowPreview(true);

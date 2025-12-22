@@ -172,6 +172,9 @@ export function useSwap() {
   // Track if operation was cancelled by wallet event
   const isCancelledRef = useRef(false);
 
+  // Quote request ID counter - prevents stale responses from updating UI
+  const quoteRequestIdRef = useRef(0);
+
   // PHASE 14: Handle wallet events (disconnect, chain change, account change)
   useEffect(() => {
     // Only listen when swap is in progress
@@ -210,8 +213,12 @@ export function useSwap() {
     };
   }, [state.status, clearQuote]);
 
-  // Reset state
+  // Reset state and invalidate any pending quote requests
   const reset = useCallback(() => {
+    // Increment request ID to invalidate any in-flight requests
+    quoteRequestIdRef.current += 1;
+    console.log('[Swap] Reset - invalidating pending requests, new ID:', quoteRequestIdRef.current);
+
     logLifecycle(state.status, 'idle', { action: 'reset' });
     setState({ status: 'idle', quote: null, txHash: null, explorerUrl: null, error: null });
     setSwapQuote(null);
@@ -258,6 +265,7 @@ export function useSwap() {
   );
 
   // PHASE 10: Fetch swap quote using aggregator (1inch primary, Uniswap fallback)
+  // Uses request ID to prevent stale responses from updating UI
   const fetchSwapQuote = useCallback(async (): Promise<SwapQuote | null> => {
     if (!address || !fromAsset || !toAsset || !fromAmount) {
       return null;
@@ -270,6 +278,11 @@ export function useSwap() {
       setState((s) => ({ ...s, status: 'error', error: 'Invalid tokens selected' }));
       return null;
     }
+
+    // Increment request ID and capture it for this request
+    quoteRequestIdRef.current += 1;
+    const thisRequestId = quoteRequestIdRef.current;
+    console.log('[Swap] Quote request started, ID:', thisRequestId);
 
     // PHASE 9: Log lifecycle transition
     logLifecycle(state.status, 'fetching_quote', { fromSymbol, toSymbol, fromAmount });
@@ -373,6 +386,12 @@ export function useSwap() {
         minimum_received: aggregatedQuote.minAmountOutFormatted,
       };
 
+      // Check if this request is still valid (inputs haven't changed)
+      if (thisRequestId !== quoteRequestIdRef.current) {
+        console.log('[Swap] Quote response ignored - stale request ID:', thisRequestId, 'current:', quoteRequestIdRef.current);
+        return null;
+      }
+
       logLifecycle('checking_allowance', 'previewing', {
         provider: aggregatedQuote.provider,
         quote: aggregatedQuote.amountOutFormatted,
@@ -407,6 +426,12 @@ export function useSwap() {
 
       return extendedQuote;
     } catch (err) {
+      // Check if this request is still valid before showing error
+      if (thisRequestId !== quoteRequestIdRef.current) {
+        console.log('[Swap] Error ignored - stale request ID:', thisRequestId, 'current:', quoteRequestIdRef.current);
+        return null;
+      }
+
       const errorMessage = err instanceof Error ? err.message : 'Failed to get quote';
       console.error('[Swap] Quote error:', err);
       logLifecycle(state.status, 'error', { error: errorMessage });
