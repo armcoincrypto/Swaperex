@@ -100,8 +100,13 @@ export function SwapInterface() {
   const [showToSelector, setShowToSelector] = useState(false);
   const [customSlippage, setCustomSlippage] = useState('');
 
+  // Delayed spinner state - don't show spinner immediately (Uniswap-style UX)
+  const [showSpinner, setShowSpinner] = useState(false);
+
   // Ref for debounced quote fetching
   const quoteTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Ref for delayed spinner
+  const spinnerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Track previous chain to detect changes
   const [prevChainId, setPrevChainId] = useState(currentChainId);
@@ -133,6 +138,33 @@ export function SwapInterface() {
       setToAsset(AVAILABLE_TOKENS[2] || AVAILABLE_TOKENS[1]);
     }
   }, [currentChainId, prevChainId, fromAsset, toAsset, setFromAsset, setToAsset, setFromAmount, reset, AVAILABLE_TOKENS]);
+
+  // Delayed spinner - wait 250ms before showing spinner (Uniswap-style UX)
+  // If quote resolves fast, spinner never appears = feels instant
+  const SPINNER_DELAY_MS = 250;
+  useEffect(() => {
+    const isFetching = isQuoting || status === 'fetching_quote';
+
+    if (isFetching) {
+      // Start delay timer - only show spinner after 250ms
+      spinnerTimeoutRef.current = setTimeout(() => {
+        setShowSpinner(true);
+      }, SPINNER_DELAY_MS);
+    } else {
+      // Clear timer and hide spinner immediately when done
+      if (spinnerTimeoutRef.current) {
+        clearTimeout(spinnerTimeoutRef.current);
+        spinnerTimeoutRef.current = null;
+      }
+      setShowSpinner(false);
+    }
+
+    return () => {
+      if (spinnerTimeoutRef.current) {
+        clearTimeout(spinnerTimeoutRef.current);
+      }
+    };
+  }, [isQuoting, status]);
 
   // Get balance for selected asset
   const getBalance = useCallback((asset: AssetInfo | null): string => {
@@ -467,7 +499,7 @@ export function SwapInterface() {
               )}
             </div>
             <div className="flex-1 text-right">
-              {isQuoting || status === 'fetching_quote' ? (
+              {showSpinner ? (
                 <div className="flex items-center justify-end gap-2">
                   <LoadingSpinner />
                   <span className="text-dark-400">Getting quote...</span>
@@ -589,7 +621,7 @@ export function SwapInterface() {
         <Button
           onClick={handlePreviewSwap}
           disabled={isButtonDisabled()}
-          loading={isQuoting || status === 'fetching_quote'}
+          loading={showSpinner}
           fullWidth
           className="mt-4"
           size="lg"
