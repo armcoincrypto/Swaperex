@@ -52,27 +52,27 @@ export const useSwapStore = create<SwapState>((set, get) => ({
   isSwapping: false,
   txHash: null,
 
-  // Set from asset
+  // Set from asset - RULE 1: Clear derived state (quote, toAmount)
   setFromAsset: (asset) => {
-    set({ fromAsset: asset, quote: null });
+    set({ fromAsset: asset, quote: null, toAmount: '', quoteError: null });
   },
 
-  // Set to asset
+  // Set to asset - RULE 1: Clear derived state (quote, toAmount)
   setToAsset: (asset) => {
-    set({ toAsset: asset, quote: null });
+    set({ toAsset: asset, quote: null, toAmount: '', quoteError: null });
   },
 
-  // Set from amount
+  // Set from amount - RULE 1: Clear derived state (quote, toAmount)
   setFromAmount: (amount) => {
-    set({ fromAmount: amount, quote: null });
+    set({ fromAmount: amount, quote: null, toAmount: '', quoteError: null });
   },
 
-  // Set slippage
+  // Set slippage - RULE 1: Clear quote since minAmountOut depends on slippage
   setSlippage: (slippage) => {
-    set({ slippage });
+    set({ slippage, quote: null, toAmount: '', quoteError: null });
   },
 
-  // Swap from/to assets
+  // Swap from/to assets - RULE 1: Clear derived state
   swapAssets: () => {
     const { fromAsset, toAsset, fromAmount, toAmount } = get();
     set({
@@ -81,6 +81,7 @@ export const useSwapStore = create<SwapState>((set, get) => ({
       fromAmount: toAmount,
       toAmount: fromAmount,
       quote: null,
+      quoteError: null,
     });
   },
 

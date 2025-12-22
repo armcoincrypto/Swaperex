@@ -90,6 +90,7 @@ export function SwapInterface() {
     swapAssets,
     isQuoting,
     quoteError,
+    clearQuote,
   } = useSwapStore();
 
   const [showSettings, setShowSettings] = useState(false);
@@ -164,23 +165,30 @@ export function SwapInterface() {
   }, [fromBalance, fromAsset, currentChainId]);
 
   // Debounced quote fetching when amount changes
+  // RULE 2: ZERO INPUT = ZERO EVERYTHING
+  // RULE 3: Quote lifecycle must be finite
   useEffect(() => {
-    // Clear previous timeout
+    // Clear previous timeout immediately
     if (quoteTimeoutRef.current) {
       clearTimeout(quoteTimeoutRef.current);
+      quoteTimeoutRef.current = null;
     }
 
-    // Don't fetch if conditions not met
-    if (!isConnected || !fromAsset || !toAsset || !fromAmount) {
+    // RULE 2: If amount is empty or zero, clear everything and return to idle
+    const amount = parseFloat(fromAmount || '0');
+    if (!fromAmount || isNaN(amount) || amount <= 0) {
+      // Immediately clear quote and output - no delay
+      clearQuote();
+      reset();
       return;
     }
 
-    const amount = parseFloat(fromAmount);
-    if (isNaN(amount) || amount <= 0) {
+    // Don't fetch if other conditions not met
+    if (!isConnected || !fromAsset || !toAsset) {
       return;
     }
 
-    // Debounce quote fetching - fetch regardless of balance (let user see the quote)
+    // Debounce quote fetching
     quoteTimeoutRef.current = setTimeout(() => {
       console.log('[Swap] Fetching quote for:', fromAmount, fromAsset.symbol, '→', toAsset.symbol);
       fetchSwapQuote().catch((err) => {
@@ -188,12 +196,14 @@ export function SwapInterface() {
       });
     }, QUOTE_DEBOUNCE_MS);
 
+    // Cleanup: cancel pending quote on unmount or input change
     return () => {
       if (quoteTimeoutRef.current) {
         clearTimeout(quoteTimeoutRef.current);
+        quoteTimeoutRef.current = null;
       }
     };
-  }, [fromAmount, fromAsset, toAsset, isConnected, fetchSwapQuote]);
+  }, [fromAmount, fromAsset, toAsset, isConnected, fetchSwapQuote, clearQuote, reset]);
 
   // Token selection handlers
   const handleFromTokenSelect = useCallback((asset: AssetInfo) => {
