@@ -34,7 +34,8 @@ const GAS_BUFFER: Record<number, number> = {
 };
 
 // Minimum output value in USD to prevent dust swaps
-const MIN_OUTPUT_USD = 0.01;
+// DISABLED: We don't have USD prices for all tokens, so this check was incorrect
+// const MIN_OUTPUT_USD = 0.01;
 
 // Debounce delay for quote fetching (ms)
 const QUOTE_DEBOUNCE_MS = 500;
@@ -276,11 +277,6 @@ export function SwapInterface() {
     }
   };
 
-  // Check if output is below dust threshold
-  const outputTooLow = swapQuote &&
-    swapQuote.amountOutFormatted &&
-    parseFloat(swapQuote.amountOutFormatted) < MIN_OUTPUT_USD;
-
   // Get button text
   const getButtonText = (): string => {
     if (!isConnected) return 'Connect Wallet';
@@ -289,7 +285,6 @@ export function SwapInterface() {
     if (insufficientBalance) return `Insufficient ${fromAsset?.symbol || ''} Balance`;
     if (isQuoting || status === 'fetching_quote') return 'Getting Quote...';
     if (quoteError) return 'Quote Error - Try Again';
-    if (outputTooLow) return 'Amount Too Small';
     if (!swapQuote && fromAmount && parseFloat(fromAmount) > 0) return 'Getting Quote...';
     return 'Preview Swap';
   };
@@ -302,7 +297,6 @@ export function SwapInterface() {
     if (insufficientBalance) return true;
     if (isQuoting || status === 'fetching_quote') return true;
     if (quoteError) return true;
-    if (outputTooLow) return true;
     // Must have a quote to proceed
     if (!swapQuote) return true;
     return false;
