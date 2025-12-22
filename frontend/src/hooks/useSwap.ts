@@ -156,7 +156,7 @@ const ALLOWANCE_ABI = [
 
 export function useSwap() {
   const { address, isWrongChain, chainId, getSigner, provider } = useWallet();
-  const { fromAsset, toAsset, fromAmount, setQuote, clearQuote } = useSwapStore();
+  const { fromAsset, toAsset, fromAmount, slippage, setQuote, clearQuote } = useSwapStore();
   const { fetchBalances } = useBalanceStore();
 
   const [state, setState] = useState<SwapState>({
@@ -293,12 +293,13 @@ export function useSwap() {
       }
 
       // PHASE 10: Fetch best quote via aggregator (compares 1inch vs Uniswap)
+      // Use slippage from store (user-selected) with fallback to default
       const aggregatedQuote = await getAggregatedQuote(
         fromSymbol,
         toSymbol,
         fromAmount,
         chainId || 1,
-        DEFAULT_SLIPPAGE
+        slippage || DEFAULT_SLIPPAGE
       );
 
       console.log('[Swap] Aggregator selected:', aggregatedQuote.provider, '|', aggregatedQuote.amountOutFormatted, toSymbol);
@@ -356,7 +357,7 @@ export function useSwap() {
         toSymbol,
         minAmountOut: aggregatedQuote.minAmountOut,
         minAmountOutFormatted: aggregatedQuote.minAmountOutFormatted,
-        slippage: DEFAULT_SLIPPAGE,
+        slippage: slippage || DEFAULT_SLIPPAGE,
         needsApproval: !hasAllowance,
         // PHASE 10: Provider info
         provider: aggregatedQuote.provider,
@@ -707,7 +708,7 @@ export function useSwap() {
       toToken: toSymbol,
       fromAmount,
       fromBalance: '999999', // Skip balance check here, done in UI
-      slippage: DEFAULT_SLIPPAGE,
+      slippage: slippage || DEFAULT_SLIPPAGE,
       chainId: chainId || 1,
     });
 
@@ -719,7 +720,7 @@ export function useSwap() {
         toToken: toSymbol,
         fromAmount,
         fromBalance: '0',
-        slippage: DEFAULT_SLIPPAGE,
+        slippage: slippage || DEFAULT_SLIPPAGE,
         chainId: chainId || 1,
       }, validationResult);
 
