@@ -14,6 +14,7 @@ import { ChainWarningBanner } from '@/components/chain/ChainWarning';
 import { ToastContainer } from '@/components/common/Toast';
 import { GlobalErrorDisplay } from '@/components/common/GlobalErrorDisplay';
 import { NetworkSelector } from '@/components/common/NetworkSelector';
+import { SwapHistory } from '@/components/history/SwapHistory';
 import { useWallet } from '@/hooks/useWallet';
 import { useToastStore } from '@/stores/toastStore';
 
@@ -131,7 +132,10 @@ export function App() {
         {currentPage === 'portfolio' && (
           <div className="max-w-2xl mx-auto">
             {isConnected ? (
-              <TokenList />
+              <>
+                <TokenList />
+                <SwapHistory />
+              </>
             ) : (
               <div className="text-center py-16">
                 <h2 className="text-2xl font-bold mb-4">Connect Your Wallet</h2>

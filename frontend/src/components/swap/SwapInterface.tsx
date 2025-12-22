@@ -26,6 +26,19 @@ const CHAIN_NAMES: Record<number, string> = {
   42161: 'arbitrum',
 };
 
+// Gas buffer for native tokens (to leave enough for transaction fees)
+const GAS_BUFFER: Record<number, number> = {
+  1: 0.01,    // ETH - leave 0.01 ETH for gas
+  56: 0.005,  // BNB - leave 0.005 BNB for gas
+  137: 1,     // MATIC - leave 1 MATIC for gas
+};
+
+// Minimum output value in USD to prevent dust swaps
+const MIN_OUTPUT_USD = 0.01;
+
+// Debounce delay for quote fetching (ms)
+const QUOTE_DEBOUNCE_MS = 500;
+
 // Convert Token to AssetInfo for compatibility
 function tokenToAsset(token: Token, chainId: number): AssetInfo {
   const chainName = CHAIN_NAMES[chainId] || 'ethereum';
@@ -68,7 +81,6 @@ export function SwapInterface() {
     fromAsset,
     toAsset,
     fromAmount,
-    toAmount,
     slippage,
     setFromAsset,
     setToAsset,
@@ -85,6 +97,9 @@ export function SwapInterface() {
   const [showFromSelector, setShowFromSelector] = useState(false);
   const [showToSelector, setShowToSelector] = useState(false);
   const [customSlippage, setCustomSlippage] = useState('');
+
+  // Ref for debounced quote fetching
+  const quoteTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Track previous chain to detect changes
   const [prevChainId, setPrevChainId] = useState(currentChainId);
@@ -129,6 +144,60 @@ export function SwapInterface() {
   const insufficientBalance = fromAmount &&
     parseFloat(fromAmount) > 0 &&
     parseFloat(fromAmount) > parseFloat(fromBalance);
+
+  // Calculate MAX amount (subtract gas buffer for native tokens)
+  const getMaxAmount = useCallback((): string => {
+    const balance = parseFloat(fromBalance);
+    if (balance <= 0) return '0';
+
+    // If sending native token, subtract gas buffer
+    if (fromAsset?.is_native) {
+      const gasBuffer = GAS_BUFFER[currentChainId] || 0.01;
+      const maxAmount = Math.max(0, balance - gasBuffer);
+      // Format to reasonable precision (avoid scientific notation)
+      return maxAmount > 0 ? maxAmount.toFixed(6).replace(/\.?0+$/, '') : '0';
+    }
+
+    // For ERC20 tokens, use full balance
+    return fromBalance;
+  }, [fromBalance, fromAsset, currentChainId]);
+
+  // Debounced quote fetching when amount changes
+  useEffect(() => {
+    // Clear previous timeout
+    if (quoteTimeoutRef.current) {
+      clearTimeout(quoteTimeoutRef.current);
+    }
+
+    // Don't fetch if conditions not met
+    if (!isConnected || !fromAsset || !toAsset || !fromAmount) {
+      return;
+    }
+
+    const amount = parseFloat(fromAmount);
+    if (isNaN(amount) || amount <= 0) {
+      return;
+    }
+
+    // Don't fetch if insufficient balance
+    if (amount > parseFloat(fromBalance)) {
+      return;
+    }
+
+    // Debounce quote fetching
+    quoteTimeoutRef.current = setTimeout(() => {
+      console.log('[Swap] Fetching quote for:', fromAmount, fromAsset.symbol, '→', toAsset.symbol);
+      fetchSwapQuote().catch((err) => {
+        console.warn('[Swap] Quote fetch failed:', err.message);
+      });
+    }, QUOTE_DEBOUNCE_MS);
+
+    return () => {
+      if (quoteTimeoutRef.current) {
+        clearTimeout(quoteTimeoutRef.current);
+      }
+    };
+  }, [fromAmount, fromAsset, toAsset, isConnected, fromBalance, fetchSwapQuote]);
 
   // Token selection handlers
   const handleFromTokenSelect = useCallback((asset: AssetInfo) => {
@@ -212,15 +281,21 @@ export function SwapInterface() {
     }
   };
 
+  // Check if output is below dust threshold
+  const outputTooLow = swapQuote &&
+    swapQuote.amountOutFormatted &&
+    parseFloat(swapQuote.amountOutFormatted) < MIN_OUTPUT_USD;
+
   // Get button text
   const getButtonText = (): string => {
     if (!isConnected) return 'Connect Wallet';
     if (isWrongChain) return 'Wrong Network';
     if (!fromAmount || parseFloat(fromAmount) === 0) return 'Enter Amount';
     if (insufficientBalance) return `Insufficient ${fromAsset?.symbol || ''} Balance`;
-    if (isQuoting) return 'Getting Quote...';
-    if (quoteError) return 'Quote Error';
-    if (status === 'fetching_quote') return 'Getting Quote...';
+    if (isQuoting || status === 'fetching_quote') return 'Getting Quote...';
+    if (quoteError) return 'Quote Error - Try Again';
+    if (outputTooLow) return 'Amount Too Small';
+    if (!swapQuote && fromAmount && parseFloat(fromAmount) > 0) return 'Getting Quote...';
     return 'Preview Swap';
   };
 
@@ -231,6 +306,10 @@ export function SwapInterface() {
     if (!fromAmount || parseFloat(fromAmount) === 0) return true;
     if (insufficientBalance) return true;
     if (isQuoting || status === 'fetching_quote') return true;
+    if (quoteError) return true;
+    if (outputTooLow) return true;
+    // Must have a quote to proceed
+    if (!swapQuote) return true;
     return false;
   };
 
@@ -282,8 +361,14 @@ export function SwapInterface() {
               Balance: {formatBalance(fromBalance)}
               {isConnected && parseFloat(fromBalance) > 0 && (
                 <button
-                  onClick={() => setFromAmount(fromBalance)}
+                  onClick={() => {
+                    const maxAmount = getMaxAmount();
+                    if (parseFloat(maxAmount) > 0) {
+                      setFromAmount(maxAmount);
+                    }
+                  }}
                   className="ml-2 text-primary-400 hover:text-primary-300"
+                  title={fromAsset?.is_native ? `Max minus ${GAS_BUFFER[currentChainId] || 0.01} for gas` : 'Use full balance'}
                 >
                   MAX
                 </button>
@@ -369,18 +454,16 @@ export function SwapInterface() {
                   <LoadingSpinner />
                   <span className="text-dark-400">Getting quote...</span>
                 </div>
-              ) : swapQuote ? (
+              ) : swapQuote && swapQuote.amountOutFormatted ? (
                 <span className="text-2xl font-medium text-primary-400">
                   {formatBalance(swapQuote.amountOutFormatted, 6)}
                 </span>
+              ) : fromAmount && parseFloat(fromAmount) > 0 && !insufficientBalance ? (
+                <div className="flex items-center justify-end gap-2">
+                  <span className="text-2xl font-medium text-dark-500">~</span>
+                </div>
               ) : (
-                <input
-                  type="text"
-                  placeholder="0.0"
-                  value={toAmount}
-                  readOnly
-                  className="w-full bg-transparent text-2xl font-medium text-right outline-none text-dark-400"
-                />
+                <span className="text-2xl font-medium text-dark-500">0.0</span>
               )}
             </div>
           </div>
