@@ -15,15 +15,19 @@ import { ToastContainer } from '@/components/common/Toast';
 import { GlobalErrorDisplay } from '@/components/common/GlobalErrorDisplay';
 import { NetworkSelector } from '@/components/common/NetworkSelector';
 import { SwapHistory } from '@/components/history/SwapHistory';
+import { TokenScreener } from '@/components/screener/TokenScreener';
 import { AboutPage, TermsPage, PrivacyPage, DisclaimerPage } from '@/components/pages/StaticPages';
 import { useWallet } from '@/hooks/useWallet';
+import { useSwapStore } from '@/stores/swapStore';
 import { useToastStore } from '@/stores/toastStore';
+import { getTokenBySymbol } from '@/tokens';
 
-type Page = 'swap' | 'send' | 'portfolio' | 'about' | 'terms' | 'privacy' | 'disclaimer';
+type Page = 'swap' | 'send' | 'portfolio' | 'screener' | 'about' | 'terms' | 'privacy' | 'disclaimer';
 
 export function App() {
   const [currentPage, setCurrentPage] = useState<Page>('swap');
   const { isConnected, isWrongChain, isReadOnly, chainId, switchNetwork } = useWallet();
+  const { setFromAsset, setToAsset } = useSwapStore();
   const { toasts, removeToast } = useToastStore();
   const [bannerDismissed, setBannerDismissed] = useState(false);
 
@@ -35,6 +39,49 @@ export function App() {
     } catch (err) {
       console.error('Failed to switch network:', err);
     }
+  };
+
+  // Handle swap selection from screener - prefill swap form
+  const handleScreenerSwapSelect = async (fromSymbol: string, toSymbol: string, targetChainId: number) => {
+    // Switch chain if needed
+    if (chainId !== targetChainId) {
+      try {
+        await switchNetwork(targetChainId);
+      } catch (err) {
+        console.error('Failed to switch network:', err);
+      }
+    }
+
+    // Get token info and prefill form
+    const fromToken = getTokenBySymbol(fromSymbol, targetChainId);
+    const toToken = getTokenBySymbol(toSymbol, targetChainId);
+
+    if (fromToken) {
+      setFromAsset({
+        symbol: fromToken.symbol,
+        name: fromToken.name,
+        chain: targetChainId === 56 ? 'bsc' : 'ethereum',
+        decimals: fromToken.decimals,
+        is_native: fromSymbol === 'ETH' || fromSymbol === 'BNB',
+        contract_address: fromToken.address,
+        logo_url: fromToken.logoURI,
+      });
+    }
+
+    if (toToken) {
+      setToAsset({
+        symbol: toToken.symbol,
+        name: toToken.name,
+        chain: targetChainId === 56 ? 'bsc' : 'ethereum',
+        decimals: toToken.decimals,
+        is_native: toSymbol === 'ETH' || toSymbol === 'BNB',
+        contract_address: toToken.address,
+        logo_url: toToken.logoURI,
+      });
+    }
+
+    // Navigate to swap page
+    setCurrentPage('swap');
   };
 
   return (
@@ -65,6 +112,12 @@ export function App() {
                 onClick={() => setCurrentPage('portfolio')}
               >
                 Portfolio
+              </NavButton>
+              <NavButton
+                active={currentPage === 'screener'}
+                onClick={() => setCurrentPage('screener')}
+              >
+                Screener
               </NavButton>
             </nav>
           </div>
@@ -147,6 +200,10 @@ export function App() {
               </div>
             )}
           </div>
+        )}
+
+        {currentPage === 'screener' && (
+          <TokenScreener onSwapSelect={handleScreenerSwapSelect} />
         )}
 
         {/* Static Pages */}

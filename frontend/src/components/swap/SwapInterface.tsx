@@ -401,6 +401,18 @@ export function SwapInterface() {
           />
         )}
 
+        {/* Quick Swap Presets */}
+        <QuickSwapPresets
+          chainId={currentChainId}
+          tokens={AVAILABLE_TOKENS}
+          onSelect={(from, to) => {
+            const fromToken = AVAILABLE_TOKENS.find((t) => t.symbol === from);
+            const toToken = AVAILABLE_TOKENS.find((t) => t.symbol === to);
+            if (fromToken) setFromAsset(fromToken);
+            if (toToken) setToAsset(toToken);
+          }}
+        />
+
         {/* From Token */}
         <div className={`bg-dark-800 rounded-xl p-4 mb-2 ${
           insufficientBalance ? 'border border-red-800' : ''
@@ -522,6 +534,17 @@ export function SwapInterface() {
         {/* Quote Details (when quote available) */}
         {swapQuote && status === 'previewing' && !showPreview && (
           <div className="mt-4 p-4 bg-dark-800 rounded-xl text-sm space-y-2">
+            {/* Best Route Banner */}
+            <div className="flex items-center gap-2 pb-2 mb-2 border-b border-dark-700">
+              <div className="w-5 h-5 rounded-full bg-green-900/50 flex items-center justify-center">
+                <svg className="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <span className="text-green-400 font-medium">Best route found</span>
+              <RouteTooltip provider={swapQuote.provider} />
+            </div>
+
             {/* Rate */}
             <div className="flex justify-between">
               <span className="text-dark-400">Rate</span>
@@ -577,9 +600,11 @@ export function SwapInterface() {
             </div>
 
             {/* Provider */}
-            <div className="flex justify-between">
-              <span className="text-dark-400">Route</span>
-              <span className="text-primary-400">{swapQuote.provider}</span>
+            <div className="flex justify-between items-center">
+              <span className="text-dark-400">Route via</span>
+              <div className="flex items-center gap-2">
+                <ProviderBadge provider={swapQuote.provider} />
+              </div>
             </div>
 
             {/* Approval Notice */}
@@ -940,6 +965,116 @@ function ShieldIcon() {
     <svg className="w-4 h-4 text-dark-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
     </svg>
+  );
+}
+
+// Route Tooltip - Explains why this route was chosen
+function RouteTooltip({ provider }: { provider: string }) {
+  const [showTooltip, setShowTooltip] = useState(false);
+
+  const getProviderInfo = () => {
+    switch (provider) {
+      case '1inch':
+        return 'Aggregates multiple DEXs to find the best price with lowest slippage.';
+      case 'uniswap-v3':
+        return 'Direct swap via Uniswap V3 concentrated liquidity pools.';
+      case 'pancakeswap-v3':
+        return 'Direct swap via PancakeSwap V3 on BNB Chain.';
+      default:
+        return 'Route selected for best output amount.';
+    }
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onMouseEnter={() => setShowTooltip(true)}
+        onMouseLeave={() => setShowTooltip(false)}
+        className="text-dark-400 hover:text-dark-300"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </button>
+      {showTooltip && (
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-dark-700 rounded-lg text-xs text-white w-48 shadow-lg z-50">
+          <div className="font-medium mb-1">Why this route?</div>
+          <div className="text-dark-300">{getProviderInfo()}</div>
+          <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-dark-700" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Provider Badge - Visual indicator for DEX provider
+function ProviderBadge({ provider }: { provider: string }) {
+  const getProviderStyle = () => {
+    switch (provider) {
+      case '1inch':
+        return { bg: 'bg-red-900/30', text: 'text-red-400', label: '1inch' };
+      case 'uniswap-v3':
+        return { bg: 'bg-pink-900/30', text: 'text-pink-400', label: 'Uniswap V3' };
+      case 'pancakeswap-v3':
+        return { bg: 'bg-yellow-900/30', text: 'text-yellow-400', label: 'PancakeSwap' };
+      default:
+        return { bg: 'bg-primary-900/30', text: 'text-primary-400', label: provider };
+    }
+  };
+
+  const style = getProviderStyle();
+
+  return (
+    <span className={`px-2 py-0.5 rounded-md text-xs font-medium ${style.bg} ${style.text}`}>
+      {style.label}
+    </span>
+  );
+}
+
+// Quick Swap Presets - Common trading pairs for 1-click selection
+function QuickSwapPresets({
+  chainId,
+  tokens,
+  onSelect,
+}: {
+  chainId: number;
+  tokens: AssetInfo[];
+  onSelect: (from: string, to: string) => void;
+}) {
+  // Define presets per chain
+  const presets = chainId === 56
+    ? [
+        { label: 'Sell BNB', from: 'BNB', to: 'USDT', icon: '📉' },
+        { label: 'Buy BNB', from: 'USDT', to: 'BNB', icon: '📈' },
+        { label: 'Exit to Stable', from: 'BNB', to: 'BUSD', icon: '🛡️' },
+      ]
+    : [
+        { label: 'Sell ETH', from: 'ETH', to: 'USDT', icon: '📉' },
+        { label: 'Buy ETH', from: 'USDT', to: 'ETH', icon: '📈' },
+        { label: 'Exit to Stable', from: 'ETH', to: 'USDC', icon: '🛡️' },
+      ];
+
+  // Only show presets if tokens are available
+  const hasTokens = presets.every(
+    (p) => tokens.some((t) => t.symbol === p.from) && tokens.some((t) => t.symbol === p.to)
+  );
+
+  if (!hasTokens) return null;
+
+  return (
+    <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
+      {presets.map((preset) => (
+        <button
+          key={preset.label}
+          onClick={() => onSelect(preset.from, preset.to)}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-dark-800 hover:bg-dark-700 rounded-lg text-sm font-medium transition-colors whitespace-nowrap border border-dark-700 hover:border-dark-600"
+          title={`${preset.from} → ${preset.to}`}
+        >
+          <span>{preset.icon}</span>
+          <span className="text-dark-300">{preset.label}</span>
+        </button>
+      ))}
+    </div>
   );
 }
 
