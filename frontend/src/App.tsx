@@ -15,10 +15,11 @@ import { ToastContainer } from '@/components/common/Toast';
 import { GlobalErrorDisplay } from '@/components/common/GlobalErrorDisplay';
 import { NetworkSelector } from '@/components/common/NetworkSelector';
 import { SwapHistory } from '@/components/history/SwapHistory';
+import { AboutPage, TermsPage, PrivacyPage, DisclaimerPage } from '@/components/pages/StaticPages';
 import { useWallet } from '@/hooks/useWallet';
 import { useToastStore } from '@/stores/toastStore';
 
-type Page = 'swap' | 'withdraw' | 'portfolio';
+type Page = 'swap' | 'send' | 'portfolio' | 'about' | 'terms' | 'privacy' | 'disclaimer';
 
 export function App() {
   const [currentPage, setCurrentPage] = useState<Page>('swap');
@@ -54,10 +55,10 @@ export function App() {
                 Swap
               </NavButton>
               <NavButton
-                active={currentPage === 'withdraw'}
-                onClick={() => setCurrentPage('withdraw')}
+                active={currentPage === 'send'}
+                onClick={() => setCurrentPage('send')}
               >
-                Withdraw
+                Send
               </NavButton>
               <NavButton
                 active={currentPage === 'portfolio'}
@@ -103,9 +104,9 @@ export function App() {
           </div>
         )}
 
-        {currentPage === 'withdraw' && (
+        {currentPage === 'send' && (
           <div className="flex flex-col lg:flex-row gap-8">
-            {/* Withdrawal Panel */}
+            {/* Send Panel */}
             <div className="flex-1 flex justify-center">
               {isConnected ? (
                 <WithdrawalInterface />
@@ -113,7 +114,7 @@ export function App() {
                 <div className="w-full max-w-md mx-auto bg-dark-900 rounded-2xl p-8 border border-dark-800 text-center">
                   <h2 className="text-xl font-bold mb-4">Connect Your Wallet</h2>
                   <p className="text-dark-400 mb-6">
-                    Connect your wallet to withdraw your tokens.
+                    Connect your wallet to send tokens.
                   </p>
                   <WalletConnect />
                 </div>
@@ -147,6 +148,12 @@ export function App() {
             )}
           </div>
         )}
+
+        {/* Static Pages */}
+        {currentPage === 'about' && <AboutPage onBack={() => setCurrentPage('swap')} />}
+        {currentPage === 'terms' && <TermsPage onBack={() => setCurrentPage('swap')} />}
+        {currentPage === 'privacy' && <PrivacyPage onBack={() => setCurrentPage('swap')} />}
+        {currentPage === 'disclaimer' && <DisclaimerPage onBack={() => setCurrentPage('swap')} />}
       </main>
 
       {/* Footer */}
@@ -154,6 +161,32 @@ export function App() {
         <div className="max-w-6xl mx-auto px-4 py-6 text-center text-sm text-dark-400">
           <p>Swaperex - Web3 Non-Custodial Swap Platform</p>
           <p className="mt-1">All transactions are signed locally in your wallet.</p>
+          <div className="mt-3 flex justify-center gap-4">
+            <button
+              onClick={() => setCurrentPage('about')}
+              className="hover:text-white transition-colors"
+            >
+              About
+            </button>
+            <button
+              onClick={() => setCurrentPage('terms')}
+              className="hover:text-white transition-colors"
+            >
+              Terms
+            </button>
+            <button
+              onClick={() => setCurrentPage('privacy')}
+              className="hover:text-white transition-colors"
+            >
+              Privacy
+            </button>
+            <button
+              onClick={() => setCurrentPage('disclaimer')}
+              className="hover:text-white transition-colors"
+            >
+              Disclaimer
+            </button>
+          </div>
         </div>
       </footer>
 

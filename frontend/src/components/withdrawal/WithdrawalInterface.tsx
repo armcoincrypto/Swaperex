@@ -1,8 +1,9 @@
 /**
- * Withdrawal Interface Component
+ * Send Interface Component
  *
- * Main withdrawal UI with asset selection, amount input, and destination address.
+ * Main send/transfer UI with asset selection, amount input, and destination address.
  * ALL signing happens client-side via the connected wallet.
+ * NON-CUSTODIAL: User signs transaction directly with their wallet.
  *
  * Flow: Select asset → Enter amount → Enter address → Preview → Confirm in wallet → Success
  */
@@ -131,7 +132,7 @@ export function WithdrawalInterface() {
     if (!input.destinationAddress) return 'Enter Address';
     if (addressError) return addressError;
     if (status === 'fetching_template') return 'Loading...';
-    return 'Preview Withdrawal';
+    return 'Preview Send';
   };
 
   // Check if button should be disabled
@@ -150,7 +151,7 @@ export function WithdrawalInterface() {
       <div className="w-full max-w-md mx-auto bg-dark-900 rounded-2xl p-4 border border-dark-800">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold">Withdraw</h2>
+          <h2 className="text-xl font-bold">Send</h2>
         </div>
 
         {/* Asset Selector */}
@@ -180,7 +181,7 @@ export function WithdrawalInterface() {
                   </div>
                 </>
               ) : (
-                <span className="text-dark-400">Select asset to withdraw</span>
+                <span className="text-dark-400">Select asset to send</span>
               )}
             </div>
             <ChevronDownIcon />

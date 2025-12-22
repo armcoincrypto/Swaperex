@@ -52,6 +52,50 @@ export function useWallet() {
   // Check if MetaMask is available
   const hasInjectedWallet = typeof window !== 'undefined' && !!window.ethereum;
 
+  // Auto-reconnect on page load if wallet was previously connected
+  useEffect(() => {
+    const autoReconnect = async () => {
+      if (!window.ethereum || isConnected || isConnecting) return;
+
+      try {
+        // Check if already connected (doesn't prompt user)
+        const accounts = (await window.ethereum.request({
+          method: 'eth_accounts',
+        })) as string[];
+
+        if (accounts && accounts.length > 0) {
+          console.log('[Wallet] Auto-reconnecting to:', accounts[0]);
+
+          // Get chain ID
+          const chainIdHex = (await window.ethereum.request({
+            method: 'eth_chainId',
+          })) as string;
+          const currentChainId = parseInt(chainIdHex, 16);
+
+          // Create provider and signer
+          const browserProvider = new BrowserProvider(window.ethereum);
+          const walletSigner = await browserProvider.getSigner();
+
+          setProvider(browserProvider);
+          setSigner(walletSigner);
+
+          // Connect to store
+          await connect(accounts[0], currentChainId, 'injected');
+
+          // Fetch balances
+          fetchBalances(accounts[0], ['ethereum', 'bsc', 'polygon']).catch((err) => {
+            console.warn('[Wallet] Auto-reconnect balance fetch failed:', err.message);
+          });
+        }
+      } catch (err) {
+        console.warn('[Wallet] Auto-reconnect failed:', err);
+      }
+    };
+
+    autoReconnect();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
+
   // Connect to injected wallet (MetaMask)
   const connectInjected = useCallback(async () => {
     if (!window.ethereum) {
