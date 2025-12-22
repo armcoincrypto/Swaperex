@@ -413,7 +413,8 @@ export function useSwap() {
       toast.error(errorMessage);
       return null;
     }
-  }, [address, fromAsset, toAsset, fromAmount, chainId, checkAllowance, setQuote, state.status]);
+  // Note: state.status removed from deps to prevent infinite loop - it's only used for logging
+  }, [address, fromAsset, toAsset, fromAmount, chainId, checkAllowance, setQuote]);
 
   // Execute token approval
   const executeApproval = useCallback(async (): Promise<boolean> => {
