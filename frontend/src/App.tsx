@@ -84,6 +84,36 @@ export function App() {
     setCurrentPage('swap');
   };
 
+  // Handle swap from portfolio - prefill from token and go to swap
+  const handlePortfolioSwap = (symbol: string) => {
+    const token = getTokenBySymbol(symbol, chainId || 1);
+    if (token) {
+      setFromAsset({
+        symbol: token.symbol,
+        name: token.name,
+        chain: chainId === 56 ? 'bsc' : 'ethereum',
+        decimals: token.decimals,
+        is_native: symbol === 'ETH' || symbol === 'BNB',
+        contract_address: token.address,
+        logo_url: token.logoURI,
+      });
+      // Set USDT as default "to" token
+      const stablecoin = getTokenBySymbol('USDT', chainId || 1);
+      if (stablecoin && stablecoin.symbol !== symbol) {
+        setToAsset({
+          symbol: stablecoin.symbol,
+          name: stablecoin.name,
+          chain: chainId === 56 ? 'bsc' : 'ethereum',
+          decimals: stablecoin.decimals,
+          is_native: false,
+          contract_address: stablecoin.address,
+          logo_url: stablecoin.logoURI,
+        });
+      }
+    }
+    setCurrentPage('swap');
+  };
+
   return (
     <div className="min-h-screen bg-dark-950">
       {/* Header */}
@@ -187,8 +217,13 @@ export function App() {
           <div className="max-w-2xl mx-auto">
             {isConnected ? (
               <>
-                <TokenList />
-                <SwapHistory />
+                <TokenList
+                  onSwapToken={handlePortfolioSwap}
+                  showSwapButtons={true}
+                />
+                <div className="mt-8">
+                  <SwapHistory />
+                </div>
               </>
             ) : (
               <div className="text-center py-16">

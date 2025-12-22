@@ -5,6 +5,7 @@
  * Sorted: Native token first, stablecoins second, others by balance.
  *
  * PRODUCTION: No charts, no PnL, no analytics. Just accurate balances.
+ * Includes swap buttons per asset for better UX.
  */
 
 import { useMemo } from 'react';
@@ -13,13 +14,18 @@ import { BalanceCard } from './BalanceCard';
 import { formatUsd } from '@/utils/format';
 import type { TokenBalance } from '@/types/api';
 
+interface TokenListProps {
+  onSwapToken?: (symbol: string) => void;
+  showSwapButtons?: boolean;
+}
+
 // Stablecoin symbols for sorting priority
 const STABLECOINS = ['USDT', 'USDC', 'BUSD', 'DAI', 'FDUSD', 'TUSD'];
 
 // Minimum balance to display (filter dust)
 const MIN_DISPLAY_BALANCE = 0.0001;
 
-export function TokenList() {
+export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListProps) {
   const { currentChainBalances, isLoading, totalUsdValue, refresh } = useBalances();
 
   // Sort and filter balances
@@ -141,6 +147,8 @@ export function TokenList() {
           <BalanceCard
             key={`${balance.chain || 'unknown'}-${balance.symbol}-${index}`}
             balance={balance}
+            onSwap={onSwapToken}
+            showSwapButton={showSwapButtons}
           />
         ))}
       </div>

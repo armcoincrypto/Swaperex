@@ -16,30 +16,37 @@ const COINGECKO_API = 'https://api.coingecko.com/api/v3';
 
 // Token ID mappings for CoinGecko
 const COINGECKO_IDS: Record<string, string> = {
-  // Ethereum
+  // Native tokens
   ETH: 'ethereum',
-  WETH: 'weth',
+  BNB: 'binancecoin',
+  // Stablecoins
   USDT: 'tether',
   USDC: 'usd-coin',
   DAI: 'dai',
+  BUSD: 'binance-usd',
+  FDUSD: 'first-digital-usd',
+  // Wrapped tokens
+  WETH: 'weth',
+  WBNB: 'wbnb',
   WBTC: 'wrapped-bitcoin',
+  BTCB: 'bitcoin-bep2',
+  // ETH Blue-chip
   LINK: 'chainlink',
   UNI: 'uniswap',
   AAVE: 'aave',
   MKR: 'maker',
+  LDO: 'lido-dao',
+  ARB: 'arbitrum',
+  CRV: 'curve-dao-token',
+  // BSC Blue-chip
+  CAKE: 'pancakeswap-token',
+  XRP: 'ripple',
+  DOGE: 'dogecoin',
+  ADA: 'cardano',
+  DOT: 'polkadot',
+  // Popular tokens
   SHIB: 'shiba-inu',
   PEPE: 'pepe',
-  ARB: 'arbitrum',
-  OP: 'optimism',
-  LDO: 'lido-dao',
-  // BSC
-  BNB: 'binancecoin',
-  WBNB: 'wbnb',
-  CAKE: 'pancakeswap-token',
-  BUSD: 'binance-usd',
-  FDUSD: 'first-digital-usd',
-  XVS: 'venus',
-  BAKE: 'bakerytoken',
 };
 
 interface TokenData {

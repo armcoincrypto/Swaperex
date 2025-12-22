@@ -33,26 +33,38 @@ const COINGECKO_IDS: Record<string, string> = {
   ETH: 'ethereum',
   BNB: 'binancecoin',
   MATIC: 'matic-network',
-  // Major tokens
+  // Stablecoins
   USDT: 'tether',
   USDC: 'usd-coin',
   DAI: 'dai',
-  WBTC: 'wrapped-bitcoin',
+  BUSD: 'binance-usd',
+  FDUSD: 'first-digital-usd',
+  // Wrapped tokens
   WETH: 'weth',
+  WBNB: 'wbnb',
+  WBTC: 'wrapped-bitcoin',
+  BTCB: 'bitcoin-bep2',
+  // ETH Blue-chip
   LINK: 'chainlink',
   UNI: 'uniswap',
   AAVE: 'aave',
-  CRV: 'curve-dao-token',
-  SUSHI: 'sushi',
-  COMP: 'compound-governance-token',
   MKR: 'maker',
-  SNX: 'synthetix-network-token',
-  // BSC tokens
+  LDO: 'lido-dao',
+  ARB: 'arbitrum',
+  CRV: 'curve-dao-token',
+  // BSC Blue-chip
   CAKE: 'pancakeswap-token',
-  BUSD: 'binance-usd',
-  // Common tokens
+  XRP: 'ripple',
+  DOGE: 'dogecoin',
+  ADA: 'cardano',
+  DOT: 'polkadot',
+  // Popular tokens
   SHIB: 'shiba-inu',
   PEPE: 'pepe',
+  // Legacy
+  SUSHI: 'sushi',
+  COMP: 'compound-governance-token',
+  SNX: 'synthetix-network-token',
 };
 
 /**
