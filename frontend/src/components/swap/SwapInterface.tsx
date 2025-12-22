@@ -179,12 +179,7 @@ export function SwapInterface() {
       return;
     }
 
-    // Don't fetch if insufficient balance
-    if (amount > parseFloat(fromBalance)) {
-      return;
-    }
-
-    // Debounce quote fetching
+    // Debounce quote fetching - fetch regardless of balance (let user see the quote)
     quoteTimeoutRef.current = setTimeout(() => {
       console.log('[Swap] Fetching quote for:', fromAmount, fromAsset.symbol, '→', toAsset.symbol);
       fetchSwapQuote().catch((err) => {
@@ -197,7 +192,7 @@ export function SwapInterface() {
         clearTimeout(quoteTimeoutRef.current);
       }
     };
-  }, [fromAmount, fromAsset, toAsset, isConnected, fromBalance, fetchSwapQuote]);
+  }, [fromAmount, fromAsset, toAsset, isConnected, fetchSwapQuote]);
 
   // Token selection handlers
   const handleFromTokenSelect = useCallback((asset: AssetInfo) => {
