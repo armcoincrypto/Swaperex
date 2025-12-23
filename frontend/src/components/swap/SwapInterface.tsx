@@ -337,9 +337,15 @@ export function SwapInterface() {
     }
   };
 
-  // Cancel preview
+  // Cancel preview or close success modal
   const handleCancelPreview = () => {
     setShowPreview(false);
+
+    // If swap was successful, clear the input for a fresh start
+    if (status === 'success') {
+      setFromAmount('');
+    }
+
     cancelPreview();
     reset();
   };
