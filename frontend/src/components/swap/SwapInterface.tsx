@@ -14,6 +14,7 @@ import { useSwapStore } from '@/stores/swapStore';
 import { useBalanceStore } from '@/stores/balanceStore';
 import { useCustomTokenStore, type CustomToken } from '@/stores/customTokenStore';
 import { Button } from '@/components/common/Button';
+import { TokenSafetyBadges } from '@/components/common/TokenSafetyBadges';
 import { SwapPreviewModal, SwapStep } from './SwapPreviewModal';
 import { formatBalance, formatPercent } from '@/utils/format';
 import { getPopularTokens, isNativeToken, isStaticToken, type Token } from '@/tokens';
@@ -932,37 +933,49 @@ function TokenSelectorDropdown({
       {isContractAddress && !tokenExists && !isStatic && !!provider && chainId && onAddToken && (
         <div className="px-3 pb-3 mb-2 border-b border-dark-700">
           {importedToken ? (
-            // Show imported token details for confirmation
+            // Show imported token details for confirmation with security data
             <div className="bg-dark-700 rounded-lg p-3">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-dark-600 flex items-center justify-center text-sm font-bold">
-                    {importedToken.symbol[0]}
-                  </div>
-                  <div>
-                    <div className="font-medium">{importedToken.symbol}</div>
-                    <div className="text-xs text-dark-400">{importedToken.name}</div>
-                  </div>
+              {/* Token Header */}
+              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-dark-600">
+                <div className="w-10 h-10 rounded-full bg-dark-600 flex items-center justify-center text-lg font-bold">
+                  {importedToken.symbol[0]}
                 </div>
-                {importedToken.verified ? (
-                  <span className="text-xs px-2 py-0.5 bg-green-900/30 text-green-400 rounded">
-                    Has Liquidity
-                  </span>
-                ) : (
-                  <span className="text-xs px-2 py-0.5 bg-yellow-900/30 text-yellow-400 rounded">
-                    No Pool Found
-                  </span>
-                )}
+                <div className="flex-1">
+                  <div className="font-medium text-lg">{importedToken.symbol}</div>
+                  <div className="text-xs text-dark-400">{importedToken.name}</div>
+                </div>
               </div>
+
+              {/* Security Signals */}
+              <div className="mb-3">
+                <div className="text-xs text-dark-400 mb-1.5">Security Check</div>
+                <TokenSafetyBadges
+                  contractAddress={importedToken.address}
+                  chainId={importedToken.chainId}
+                  compact={true}
+                  showDisclaimer={false}
+                />
+              </div>
+
+              {/* Liquidity Warning (from pool check) */}
               {importedToken.warning && (
-                <div className="text-xs text-yellow-400 mb-2 flex items-center gap-1">
+                <div className="text-xs text-yellow-400 mb-2 flex items-center gap-1 bg-yellow-900/20 px-2 py-1.5 rounded">
                   <WarningIcon />
                   {importedToken.warning}
                 </div>
               )}
-              <div className="text-xs text-dark-400 mb-3 truncate">
+
+              {/* Contract Address */}
+              <div className="text-xs text-dark-400 mb-3 font-mono truncate bg-dark-800 px-2 py-1 rounded">
                 {importedToken.address}
               </div>
+
+              {/* Disclaimer */}
+              <div className="text-[10px] text-dark-500 mb-3 leading-relaxed">
+                Security data is informational only, not financial advice. Always DYOR.
+              </div>
+
+              {/* Actions */}
               <div className="flex gap-2">
                 <button
                   onClick={() => setImportedToken(null)}
