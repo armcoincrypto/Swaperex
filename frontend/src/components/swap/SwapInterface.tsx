@@ -12,11 +12,14 @@ import { useWallet } from '@/hooks/useWallet';
 import { useSwap } from '@/hooks/useSwap';
 import { useSwapStore } from '@/stores/swapStore';
 import { useBalanceStore } from '@/stores/balanceStore';
+import { useCustomTokenStore, type CustomToken } from '@/stores/customTokenStore';
 import { Button } from '@/components/common/Button';
 import { SwapPreviewModal, SwapStep } from './SwapPreviewModal';
 import { formatBalance, formatPercent } from '@/utils/format';
-import { getPopularTokens, isNativeToken, type Token } from '@/tokens';
+import { getPopularTokens, isNativeToken, isStaticToken, type Token } from '@/tokens';
+import { validateToken } from '@/services/tokenValidation';
 import type { AssetInfo } from '@/types/api';
+import { isAddress } from 'ethers';
 
 // Chain ID to chain name mapping
 const CHAIN_NAMES: Record<number, string> = {
@@ -55,15 +58,35 @@ function tokenToAsset(token: Token, chainId: number): AssetInfo {
 }
 
 export function SwapInterface() {
-  const { isConnected, address, isWrongChain, chainId } = useWallet();
+  const { isConnected, address, isWrongChain, chainId, provider } = useWallet();
   const { getTokenBalance } = useBalanceStore();
+  const { getTokens: getCustomTokens, addToken: addCustomToken, removeToken: removeCustomToken } = useCustomTokenStore();
 
-  // Get available tokens for current chain
+  // Get available tokens for current chain (static + custom)
   const currentChainId = chainId || 1;
+  const customTokens = getCustomTokens(currentChainId);
+
   const AVAILABLE_TOKENS = useMemo(() => {
-    const tokens = getPopularTokens(currentChainId);
-    return tokens.map((t) => tokenToAsset(t, currentChainId));
-  }, [currentChainId]);
+    // Static tokens
+    const staticTokens = getPopularTokens(currentChainId).map((t) => tokenToAsset(t, currentChainId));
+
+    // Custom tokens converted to AssetInfo
+    const customAssets: AssetInfo[] = customTokens.map((t) => ({
+      symbol: t.symbol,
+      name: t.name,
+      chain: CHAIN_NAMES[currentChainId] || 'ethereum',
+      decimals: t.decimals,
+      is_native: false,
+      contract_address: t.address,
+      logo_url: undefined,
+      // Custom token marker for UI
+      isCustom: true,
+      verified: t.verified,
+      warning: t.warning,
+    } as AssetInfo & { isCustom?: boolean; verified?: boolean; warning?: string }));
+
+    return [...staticTokens, ...customAssets];
+  }, [currentChainId, customTokens]);
 
   const {
     status,
@@ -493,6 +516,10 @@ export function SwapInterface() {
                   excludeAsset={toAsset}
                   onSelect={handleFromTokenSelect}
                   onClose={() => setShowFromSelector(false)}
+                  chainId={currentChainId}
+                  provider={provider}
+                  onAddToken={addCustomToken}
+                  onRemoveToken={removeCustomToken}
                 />
               )}
             </div>
@@ -547,6 +574,10 @@ export function SwapInterface() {
                   excludeAsset={fromAsset}
                   onSelect={handleToTokenSelect}
                   onClose={() => setShowToSelector(false)}
+                  chainId={currentChainId}
+                  provider={provider}
+                  onAddToken={addCustomToken}
+                  onRemoveToken={removeCustomToken}
                 />
               )}
             </div>
@@ -770,22 +801,40 @@ function TokenButton({ asset, onClick }: { asset: AssetInfo | null; onClick: () 
   );
 }
 
-// Token Selector Dropdown
+// Extended AssetInfo type for custom tokens
+interface ExtendedAssetInfo extends AssetInfo {
+  isCustom?: boolean;
+  verified?: boolean;
+  warning?: string;
+}
+
+// Token Selector Dropdown with import functionality
 function TokenSelectorDropdown({
   assets,
   selectedAsset,
   excludeAsset,
   onSelect,
   onClose,
+  chainId,
+  provider,
+  onAddToken,
+  onRemoveToken,
 }: {
-  assets: AssetInfo[];
+  assets: ExtendedAssetInfo[];
   selectedAsset: AssetInfo | null;
   excludeAsset: AssetInfo | null;
   onSelect: (asset: AssetInfo) => void;
   onClose: () => void;
+  chainId?: number;
+  provider?: unknown;
+  onAddToken?: (token: CustomToken) => void;
+  onRemoveToken?: (chainId: number, address: string) => void;
 }) {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importedToken, setImportedToken] = useState<CustomToken | null>(null);
 
   // Close on click outside
   useEffect(() => {
@@ -799,78 +848,270 @@ function TokenSelectorDropdown({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [onClose]);
 
+  // Check if search query is a contract address
+  const isContractAddress = searchQuery.length === 42 && searchQuery.startsWith('0x') && isAddress(searchQuery);
+
+  // Check if token already exists
+  const tokenExists = isContractAddress && assets.some(
+    a => a.contract_address?.toLowerCase() === searchQuery.toLowerCase()
+  );
+
+  // Check if it's a static token (can't be removed)
+  const isStatic = isContractAddress && chainId && isStaticToken(searchQuery, chainId);
+
+  // Validate and import token
+  const handleImportToken = async () => {
+    if (!provider || !chainId || !onAddToken) return;
+
+    setIsImporting(true);
+    setImportError(null);
+
+    try {
+      const result = await validateToken(searchQuery, chainId, provider);
+
+      if (result.success && result.token) {
+        setImportedToken(result.token);
+      } else {
+        setImportError(result.error || 'Failed to import token');
+      }
+    } catch (err) {
+      setImportError('Failed to validate token');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  // Confirm adding the imported token
+  const handleConfirmImport = () => {
+    if (importedToken && onAddToken) {
+      onAddToken(importedToken);
+      // Convert to AssetInfo and select it
+      const assetInfo: AssetInfo = {
+        symbol: importedToken.symbol,
+        name: importedToken.name,
+        chain: CHAIN_NAMES[importedToken.chainId] || 'ethereum',
+        decimals: importedToken.decimals,
+        is_native: false,
+        contract_address: importedToken.address,
+      };
+      onSelect(assetInfo);
+      setImportedToken(null);
+      setSearchQuery('');
+    }
+  };
+
   // Filter tokens by search query
   const filteredAssets = assets.filter((asset) =>
     asset.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    asset.name.toLowerCase().includes(searchQuery.toLowerCase())
+    asset.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    asset.contract_address?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
     <div
       ref={dropdownRef}
-      className="absolute top-full left-0 mt-2 w-72 bg-dark-800 rounded-xl shadow-lg border border-dark-700 py-2 z-[60]"
+      className="absolute top-full left-0 mt-2 w-80 bg-dark-800 rounded-xl shadow-lg border border-dark-700 py-2 z-[60]"
     >
       {/* Search Input */}
       <div className="px-3 pb-2 mb-2 border-b border-dark-700">
         <input
           type="text"
-          placeholder="Search token..."
+          placeholder="Search or paste contract address..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setImportError(null);
+            setImportedToken(null);
+          }}
           className="w-full px-3 py-2 bg-dark-700 rounded-lg text-sm outline-none focus:ring-1 focus:ring-primary-500"
           autoFocus
         />
       </div>
 
+      {/* Import Token Section - shown when contract address is detected */}
+      {isContractAddress && !tokenExists && !isStatic && !!provider && chainId && onAddToken && (
+        <div className="px-3 pb-3 mb-2 border-b border-dark-700">
+          {importedToken ? (
+            // Show imported token details for confirmation
+            <div className="bg-dark-700 rounded-lg p-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-dark-600 flex items-center justify-center text-sm font-bold">
+                    {importedToken.symbol[0]}
+                  </div>
+                  <div>
+                    <div className="font-medium">{importedToken.symbol}</div>
+                    <div className="text-xs text-dark-400">{importedToken.name}</div>
+                  </div>
+                </div>
+                {importedToken.verified ? (
+                  <span className="text-xs px-2 py-0.5 bg-green-900/30 text-green-400 rounded">
+                    Has Liquidity
+                  </span>
+                ) : (
+                  <span className="text-xs px-2 py-0.5 bg-yellow-900/30 text-yellow-400 rounded">
+                    No Pool Found
+                  </span>
+                )}
+              </div>
+              {importedToken.warning && (
+                <div className="text-xs text-yellow-400 mb-2 flex items-center gap-1">
+                  <WarningIcon />
+                  {importedToken.warning}
+                </div>
+              )}
+              <div className="text-xs text-dark-400 mb-3 truncate">
+                {importedToken.address}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setImportedToken(null)}
+                  className="flex-1 px-3 py-1.5 bg-dark-600 rounded text-sm hover:bg-dark-500"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmImport}
+                  className="flex-1 px-3 py-1.5 bg-primary-600 rounded text-sm hover:bg-primary-500 text-white"
+                >
+                  Import Token
+                </button>
+              </div>
+            </div>
+          ) : (
+            // Show import button
+            <button
+              onClick={handleImportToken}
+              disabled={isImporting}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary-600/20 text-primary-400 rounded-lg hover:bg-primary-600/30 transition-colors disabled:opacity-50"
+            >
+              {isImporting ? (
+                <>
+                  <LoadingSpinner />
+                  <span>Validating...</span>
+                </>
+              ) : (
+                <>
+                  <PlusIcon />
+                  <span>Import Token</span>
+                </>
+              )}
+            </button>
+          )}
+          {importError && (
+            <div className="mt-2 text-xs text-red-400 text-center">
+              {importError}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Token already exists message */}
+      {isContractAddress && tokenExists && (
+        <div className="px-3 pb-2 mb-2 text-xs text-dark-400 text-center">
+          Token already in list
+        </div>
+      )}
+
       {/* Token List */}
       <div className="max-h-64 overflow-y-auto">
         {filteredAssets.length === 0 ? (
           <div className="px-4 py-3 text-center text-dark-400 text-sm">
-            No tokens found
+            {isContractAddress ? 'Token not found - import above' : 'No tokens found'}
           </div>
         ) : (
           filteredAssets.map((asset) => {
-            const isSelected = asset.symbol === selectedAsset?.symbol;
-            const isExcluded = asset.symbol === excludeAsset?.symbol;
+            const isSelected = asset.symbol === selectedAsset?.symbol &&
+              asset.contract_address?.toLowerCase() === selectedAsset?.contract_address?.toLowerCase();
+            const isExcluded = asset.symbol === excludeAsset?.symbol &&
+              asset.contract_address?.toLowerCase() === excludeAsset?.contract_address?.toLowerCase();
+            const isCustom = (asset as ExtendedAssetInfo).isCustom;
+            const verified = (asset as ExtendedAssetInfo).verified;
 
             return (
-              <button
-                key={asset.symbol}
-                onClick={() => onSelect(asset)}
-                disabled={isExcluded}
+              <div
+                key={`${asset.symbol}-${asset.contract_address}`}
                 className={`w-full px-4 py-3 text-left transition-colors flex items-center gap-3 ${
                   isSelected
                     ? 'bg-primary-600/20 text-primary-400'
                     : isExcluded
-                    ? 'opacity-50 cursor-not-allowed'
+                    ? 'opacity-50'
                     : 'hover:bg-dark-700'
                 }`}
               >
-                {asset.logo_url ? (
-                  <img
-                    src={asset.logo_url}
-                    alt={asset.symbol}
-                    className="w-8 h-8 rounded-full"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                    }}
-                  />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-dark-600 flex items-center justify-center text-sm font-bold">
-                    {asset.symbol[0]}
+                <button
+                  onClick={() => !isExcluded && onSelect(asset)}
+                  disabled={isExcluded}
+                  className="flex items-center gap-3 flex-1"
+                >
+                  {asset.logo_url ? (
+                    <img
+                      src={asset.logo_url}
+                      alt={asset.symbol}
+                      className="w-8 h-8 rounded-full"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-dark-600 flex items-center justify-center text-sm font-bold">
+                      {asset.symbol[0]}
+                    </div>
+                  )}
+                  <div className="flex-1 text-left">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-medium">{asset.symbol}</span>
+                      {isCustom && (
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${
+                          verified
+                            ? 'bg-blue-900/30 text-blue-400'
+                            : 'bg-yellow-900/30 text-yellow-400'
+                        }`}>
+                          {verified ? 'Imported' : 'Unverified'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-dark-400">{asset.name}</div>
                   </div>
+                  {isSelected && <CheckIcon />}
+                </button>
+                {/* Remove button for custom tokens */}
+                {isCustom && onRemoveToken && chainId && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemoveToken(chainId, asset.contract_address || '');
+                    }}
+                    className="p-1 text-dark-400 hover:text-red-400 transition-colors"
+                    title="Remove token"
+                  >
+                    <TrashIcon />
+                  </button>
                 )}
-                <div className="flex-1">
-                  <div className="font-medium">{asset.symbol}</div>
-                  <div className="text-xs text-dark-400">{asset.name}</div>
-                </div>
-                {isSelected && <CheckIcon />}
-              </button>
+              </div>
             );
           })
         )}
       </div>
     </div>
+  );
+}
+
+// Plus Icon for import button
+function PlusIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+    </svg>
+  );
+}
+
+// Trash Icon for remove button
+function TrashIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+    </svg>
   );
 }
 

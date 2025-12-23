@@ -88,19 +88,47 @@ export const NATIVE_SYMBOLS: Record<number, string> = {
 };
 
 /**
- * Get token by symbol
+ * Get token by symbol (checks static list, then custom tokens)
  */
 export function getTokenBySymbol(symbol: string, chainId: number = 1): Token | undefined {
   const list = getTokenList(chainId);
-  return list?.tokens.find((t) => t.symbol.toUpperCase() === symbol.toUpperCase());
+  const staticToken = list?.tokens.find((t) => t.symbol.toUpperCase() === symbol.toUpperCase());
+  if (staticToken) return staticToken;
+
+  // Check custom tokens (if store is loaded)
+  try {
+    const stored = localStorage.getItem('swaperex-custom-tokens');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      const customTokens = parsed?.state?.tokens?.[chainId] || [];
+      return customTokens.find((t: Token) => t.symbol.toUpperCase() === symbol.toUpperCase());
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return undefined;
 }
 
 /**
- * Get token by address
+ * Get token by address (checks static list, then custom tokens)
  */
 export function getTokenByAddress(address: string, chainId: number = 1): Token | undefined {
   const list = getTokenList(chainId);
-  return list?.tokens.find((t) => t.address.toLowerCase() === address.toLowerCase());
+  const staticToken = list?.tokens.find((t) => t.address.toLowerCase() === address.toLowerCase());
+  if (staticToken) return staticToken;
+
+  // Check custom tokens (if store is loaded)
+  try {
+    const stored = localStorage.getItem('swaperex-custom-tokens');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      const customTokens = parsed?.state?.tokens?.[chainId] || [];
+      return customTokens.find((t: Token) => t.address.toLowerCase() === address.toLowerCase());
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return undefined;
 }
 
 /**
@@ -198,6 +226,24 @@ export function getPopularTokens(chainId: number): Token[] {
   const tokens = getTokens(chainId);
   // Return first 8 tokens as popular (native + major stables + popular)
   return tokens.slice(0, 8);
+}
+
+/**
+ * Get all tokens for a chain (static + custom)
+ * Custom tokens are included at the end of the list
+ */
+export function getAllTokens(chainId: number): Token[] {
+  // Import dynamically to avoid circular dependency
+  // Note: Custom tokens should be fetched from the store in components
+  return getTokens(chainId);
+}
+
+/**
+ * Check if a token address is already in the static list
+ */
+export function isStaticToken(address: string, chainId: number): boolean {
+  const list = getTokenList(chainId);
+  return list?.tokens.some(t => t.address.toLowerCase() === address.toLowerCase()) ?? false;
 }
 
 export default ETHEREUM_TOKENS;

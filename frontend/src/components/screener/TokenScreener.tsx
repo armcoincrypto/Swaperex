@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { getTokens, type Token, NATIVE_SYMBOLS } from '@/tokens';
+import { getTokens } from '@/tokens';
 import { formatBalance } from '@/utils/format';
 
 // CoinGecko API
@@ -110,7 +110,7 @@ export function TokenScreener({ onSwapSelect }: TokenScreenerProps) {
 
       // Map CoinGecko data to our token format
       const tokenData: TokenData[] = chainTokens
-        .map((token) => {
+        .map((token): TokenData | null => {
           const cgId = COINGECKO_IDS[token.symbol];
           const cgData = data.find((d: { id: string }) => d.id === cgId);
 
