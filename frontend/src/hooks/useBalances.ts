@@ -18,10 +18,13 @@ export function useBalances(autoRefresh: boolean = true) {
     isLoading,
     lastUpdated,
     totalUsdValue,
+    hideZeroBalances,
     fetchBalances,
     fetchChainBalance,
     clearBalances,
     getTokenBalance,
+    setHideZeroBalances,
+    getVisibleTokens,
   } = useBalanceStore();
 
   // Refresh balances
@@ -67,10 +70,13 @@ export function useBalances(autoRefresh: boolean = true) {
     isLoading,
     lastUpdated,
     totalUsdValue,
+    hideZeroBalances,
     currentChainBalances: currentChainBalances(),
     refresh,
     refreshChain,
     getTokenBalance,
+    setHideZeroBalances,
+    getVisibleTokens,
   };
 }
 

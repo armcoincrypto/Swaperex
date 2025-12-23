@@ -2,18 +2,26 @@
  * Balance State Store
  *
  * Fetches wallet balances directly from blockchain RPCs.
- * Includes native tokens AND ERC20 tokens.
+ * Includes native tokens, popular ERC20 tokens, AND user-added custom tokens.
  * No backend required - fully non-custodial.
  */
 
 import { create } from 'zustand';
 import { JsonRpcProvider, Contract, formatUnits, formatEther } from 'ethers';
+import { useCustomTokenStore } from './customTokenStore';
 
 // Chain RPC endpoints
 const RPC_URLS: Record<string, string> = {
   ethereum: 'https://eth.llamarpc.com',
   bsc: 'https://bsc-dataseed.binance.org',
   polygon: 'https://polygon-rpc.com',
+};
+
+// Chain name to ID mapping (for custom token lookup)
+const CHAIN_NAME_TO_ID: Record<string, number> = {
+  ethereum: 1,
+  bsc: 56,
+  polygon: 137,
 };
 
 // Chain native token info
@@ -74,6 +82,7 @@ interface TokenBalance {
   name?: string;
   logo_url?: string;
   usd_value?: string;
+  isCustom?: boolean;  // User-imported token
 }
 
 interface ChainBalance {
@@ -93,11 +102,16 @@ interface BalanceState {
   // Total portfolio value
   totalUsdValue: string | null;
 
+  // Display settings
+  hideZeroBalances: boolean;
+
   // Actions
   fetchBalances: (address: string, chains: string[]) => Promise<void>;
   fetchChainBalance: (address: string, chain: string) => Promise<void>;
   clearBalances: () => void;
   getTokenBalance: (chain: string, symbol: string) => TokenBalance | null;
+  setHideZeroBalances: (hide: boolean) => void;
+  getVisibleTokens: (chain: string) => TokenBalance[];
 }
 
 /**
@@ -125,6 +139,7 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
   isLoading: false,
   lastUpdated: null,
   totalUsdValue: null,
+  hideZeroBalances: true,  // Default to hiding zero balances
 
   // Fetch balances for multiple chains
   fetchBalances: async (address: string, chains: string[]) => {
@@ -151,7 +166,7 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
             const balanceWei = await provider.getBalance(address);
             const balance = formatEther(balanceWei);
 
-            // Fetch ERC20 token balances
+            // Fetch ERC20 token balances (built-in tokens)
             const erc20Tokens = ERC20_TOKENS[chain] || [];
             const tokenBalances: TokenBalance[] = [];
 
@@ -176,6 +191,32 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
                 }
               })
             );
+
+            // Fetch custom token balances
+            const chainId = CHAIN_NAME_TO_ID[chain];
+            if (chainId) {
+              const customTokens = useCustomTokenStore.getState().getTokens(chainId);
+              await Promise.all(
+                customTokens.map(async (token) => {
+                  const tokenBalance = await fetchERC20Balance(
+                    provider,
+                    token.address,
+                    address,
+                    token.decimals
+                  );
+
+                  // Add custom tokens with isCustom flag
+                  tokenBalances.push({
+                    symbol: token.symbol,
+                    balance: tokenBalance,
+                    decimals: token.decimals,
+                    chain,
+                    name: token.name,
+                    isCustom: true,
+                  });
+                })
+              );
+            }
 
             balanceMap[chain] = {
               chain,
@@ -226,7 +267,7 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
       const balanceWei = await provider.getBalance(address);
       const balance = formatEther(balanceWei);
 
-      // Fetch ERC20 token balances
+      // Fetch ERC20 token balances (built-in tokens)
       const erc20Tokens = ERC20_TOKENS[chain] || [];
       const tokenBalances: TokenBalance[] = [];
 
@@ -251,6 +292,32 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
           }
         })
       );
+
+      // Fetch custom token balances
+      const chainId = CHAIN_NAME_TO_ID[chain];
+      if (chainId) {
+        const customTokens = useCustomTokenStore.getState().getTokens(chainId);
+        await Promise.all(
+          customTokens.map(async (token) => {
+            const tokenBalance = await fetchERC20Balance(
+              provider,
+              token.address,
+              address,
+              token.decimals
+            );
+
+            // Add custom tokens with isCustom flag
+            tokenBalances.push({
+              symbol: token.symbol,
+              balance: tokenBalance,
+              decimals: token.decimals,
+              chain,
+              name: token.name,
+              isCustom: true,
+            });
+          })
+        );
+      }
 
       set((state) => ({
         balances: {
@@ -300,6 +367,31 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
 
     // Check token balances
     return chainBalances.token_balances.find((t) => t.symbol === symbol) || null;
+  },
+
+  // Toggle hide zero balances setting
+  setHideZeroBalances: (hide: boolean) => {
+    set({ hideZeroBalances: hide });
+  },
+
+  // Get visible tokens (respects hideZeroBalances setting)
+  getVisibleTokens: (chain: string) => {
+    const { balances, hideZeroBalances } = get();
+    const chainBalances = balances[chain];
+
+    if (!chainBalances) return [];
+
+    const allTokens = chainBalances.token_balances;
+
+    if (!hideZeroBalances) {
+      return allTokens;
+    }
+
+    // Filter out zero balances (except custom tokens which always show)
+    return allTokens.filter((token) => {
+      if (token.isCustom) return true;  // Always show custom tokens
+      return parseFloat(token.balance) > 0;
+    });
   },
 }));
 

@@ -26,7 +26,14 @@ const STABLECOINS = ['USDT', 'USDC', 'BUSD', 'DAI', 'FDUSD', 'TUSD'];
 const MIN_DISPLAY_BALANCE = 0.0001;
 
 export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListProps) {
-  const { currentChainBalances, isLoading, totalUsdValue, refresh } = useBalances();
+  const {
+    currentChainBalances,
+    isLoading,
+    totalUsdValue,
+    refresh,
+    hideZeroBalances,
+    setHideZeroBalances
+  } = useBalances();
 
   // Sort and filter balances
   const sortedBalances = useMemo(() => {
@@ -37,10 +44,21 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
       ...currentChainBalances.token_balances,
     ].filter(Boolean);
 
-    // Filter out dust balances
-    const filtered = allBalances.filter(
-      (b) => parseFloat(b.balance) >= MIN_DISPLAY_BALANCE
-    );
+    // Filter balances based on hideZeroBalances setting
+    const filtered = allBalances.filter((b) => {
+      const balance = parseFloat(b.balance);
+
+      // Always filter dust
+      if (balance < MIN_DISPLAY_BALANCE && balance > 0) return false;
+
+      // If hiding zeros, skip zero balances (except custom tokens)
+      if (hideZeroBalances && balance === 0) {
+        // Custom tokens always show even with zero balance
+        return (b as TokenBalance & { isCustom?: boolean }).isCustom === true;
+      }
+
+      return true;
+    });
 
     // Sort: Native first, stables second, others by balance descending
     return filtered.sort((a, b) => {
@@ -57,7 +75,7 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
       // Sort by balance (descending)
       return parseFloat(b.balance) - parseFloat(a.balance);
     });
-  }, [currentChainBalances]);
+  }, [currentChainBalances, hideZeroBalances]);
 
   // Loading state
   if (isLoading && !currentChainBalances) {
@@ -123,14 +141,26 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">Your Tokens</h2>
-        <button
-          onClick={refresh}
-          disabled={isLoading}
-          className="flex items-center gap-1 text-sm text-primary-400 hover:text-primary-300 disabled:opacity-50"
-        >
-          {isLoading && <LoadingSpinner />}
-          {isLoading ? 'Refreshing...' : 'Refresh'}
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Hide Zero Toggle */}
+          <label className="flex items-center gap-2 text-sm text-dark-400 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={hideZeroBalances}
+              onChange={(e) => setHideZeroBalances(e.target.checked)}
+              className="w-4 h-4 rounded border-dark-600 bg-dark-700 text-primary-500 focus:ring-primary-500"
+            />
+            <span>Hide zero</span>
+          </label>
+          <button
+            onClick={refresh}
+            disabled={isLoading}
+            className="flex items-center gap-1 text-sm text-primary-400 hover:text-primary-300 disabled:opacity-50"
+          >
+            {isLoading && <LoadingSpinner />}
+            {isLoading ? 'Refreshing...' : 'Refresh'}
+          </button>
+        </div>
       </div>
 
       {/* Total Value (only show if we have USD values) */}
