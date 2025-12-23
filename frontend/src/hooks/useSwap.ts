@@ -109,6 +109,8 @@ export interface SwapQuote extends QuoteResult {
   // PHASE 10: Provider info
   provider: SwapProvider;
   aggregatedQuote?: AggregatedQuote;
+  // Quote expiry tracking (timestamp when quote was received)
+  quoteTimestamp: number;
   // UI-compatible fields (maps to SwapQuoteResponse)
   success: boolean;
   from_asset: string;
@@ -122,6 +124,9 @@ export interface SwapQuote extends QuoteResult {
 
 // Default slippage tolerance (0.5%)
 const DEFAULT_SLIPPAGE = 0.5;
+
+// Quote expires after 30 seconds
+const QUOTE_EXPIRY_MS = 30000;
 
 // PHASE 11: Supported chain IDs (ETH = 1, BSC = 56)
 const SUPPORTED_CHAIN_IDS = [1, 56] as const;
@@ -375,6 +380,8 @@ export function useSwap() {
         // PHASE 10: Provider info
         provider: aggregatedQuote.provider,
         aggregatedQuote,
+        // Quote expiry: timestamp when this quote was received
+        quoteTimestamp: Date.now(),
         // UI-compatible fields
         success: true,
         from_asset: fromSymbol,
@@ -770,6 +777,16 @@ export function useSwap() {
   const confirmSwap = useCallback(async (): Promise<string> => {
     if (state.status !== 'previewing' || !swapQuote) {
       throw new Error('No active swap to confirm. Please get a new quote and try again.');
+    }
+
+    // QUOTE EXPIRY CHECK: Block execution if quote is stale (>30 seconds old)
+    const quoteAge = Date.now() - swapQuote.quoteTimestamp;
+    if (quoteAge > QUOTE_EXPIRY_MS) {
+      const expiredSeconds = Math.floor(quoteAge / 1000);
+      const error = `Quote expired (${expiredSeconds}s old). Please refresh to get a current price before swapping.`;
+      logLifecycle('previewing', 'error', { reason: 'quote_expired', quoteAge: expiredSeconds });
+      toast.error(error);
+      throw new Error(error);
     }
 
     return executeSwap();

@@ -100,6 +100,10 @@ export function SwapInterface() {
   const [showToSelector, setShowToSelector] = useState(false);
   const [customSlippage, setCustomSlippage] = useState('');
 
+  // Quote expiry countdown (30 second TTL)
+  const QUOTE_EXPIRY_SECONDS = 30;
+  const [quoteSecondsRemaining, setQuoteSecondsRemaining] = useState<number | null>(null);
+
   // Delayed spinner state - don't show spinner immediately (Uniswap-style UX)
   const [showSpinner, setShowSpinner] = useState(false);
 
@@ -165,6 +169,36 @@ export function SwapInterface() {
       }
     };
   }, [isQuoting, status]);
+
+  // Quote expiry countdown - updates every second when quote is active
+  useEffect(() => {
+    // Only run countdown when we have a quote with timestamp
+    if (!swapQuote?.quoteTimestamp || status !== 'previewing') {
+      setQuoteSecondsRemaining(null);
+      return;
+    }
+
+    // Calculate initial remaining time
+    const calculateRemaining = () => {
+      const elapsed = Math.floor((Date.now() - swapQuote.quoteTimestamp) / 1000);
+      return Math.max(0, QUOTE_EXPIRY_SECONDS - elapsed);
+    };
+
+    setQuoteSecondsRemaining(calculateRemaining());
+
+    // Update every second
+    const intervalId = setInterval(() => {
+      const remaining = calculateRemaining();
+      setQuoteSecondsRemaining(remaining);
+
+      // Stop counting at 0
+      if (remaining <= 0) {
+        clearInterval(intervalId);
+      }
+    }, 1000);
+
+    return () => clearInterval(intervalId);
+  }, [swapQuote?.quoteTimestamp, status]);
 
   // Get balance for selected asset
   const getBalance = useCallback((asset: AssetInfo | null): string => {
@@ -534,15 +568,36 @@ export function SwapInterface() {
         {/* Quote Details (when quote available) */}
         {swapQuote && status === 'previewing' && !showPreview && (
           <div className="mt-4 p-4 bg-dark-800 rounded-xl text-sm space-y-2">
-            {/* Best Route Banner */}
-            <div className="flex items-center gap-2 pb-2 mb-2 border-b border-dark-700">
-              <div className="w-5 h-5 rounded-full bg-green-900/50 flex items-center justify-center">
-                <svg className="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                </svg>
+            {/* Best Route Banner with Countdown */}
+            <div className="flex items-center justify-between pb-2 mb-2 border-b border-dark-700">
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-full bg-green-900/50 flex items-center justify-center">
+                  <svg className="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <span className="text-green-400 font-medium">Best route found</span>
+                <RouteTooltip provider={swapQuote.provider} />
               </div>
-              <span className="text-green-400 font-medium">Best route found</span>
-              <RouteTooltip provider={swapQuote.provider} />
+              {/* Quote Expiry Countdown */}
+              {quoteSecondsRemaining !== null && (
+                <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium ${
+                  quoteSecondsRemaining <= 0
+                    ? 'bg-red-900/30 text-red-400'
+                    : quoteSecondsRemaining <= 5
+                    ? 'bg-red-900/30 text-red-400'
+                    : quoteSecondsRemaining <= 10
+                    ? 'bg-yellow-900/30 text-yellow-400'
+                    : 'bg-dark-700 text-dark-300'
+                }`}>
+                  <ClockIcon />
+                  {quoteSecondsRemaining <= 0 ? (
+                    <span>Expired - Refresh</span>
+                  ) : (
+                    <span>{quoteSecondsRemaining}s</span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Rate */}
@@ -940,6 +995,14 @@ function CheckIcon() {
   return (
     <svg className="w-5 h-5 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+    </svg>
+  );
+}
+
+function ClockIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   );
 }
