@@ -437,8 +437,8 @@ function ErrorContent({
 
       <p className="text-dark-400 mb-4">
         {isUserRejection
-          ? 'You cancelled the transaction in your wallet.'
-          : error || 'An error occurred while processing your swap.'}
+          ? 'You cancelled the transaction in your wallet. No funds were moved.'
+          : error || 'Swap could not be completed. Please try again or contact support if the issue persists.'}
       </p>
 
       <div className="flex gap-3">

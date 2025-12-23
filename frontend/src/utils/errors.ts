@@ -82,7 +82,7 @@ export function parseWalletError(error: unknown): ParsedError {
   if (message.includes('network') || message.includes('fetch') || message.includes('timeout')) {
     return {
       category: 'network_error',
-      message: 'Network error. Please check your connection.',
+      message: 'Failed to connect to wallet provider. Check your internet connection and try again.',
       isRecoverable: true,
       shouldShowRetry: true,
     };
@@ -100,7 +100,7 @@ export function parseWalletError(error: unknown): ParsedError {
 
   return {
     category: 'unknown',
-    message: err.message || 'Connection failed. Please try again.',
+    message: err.message || 'Wallet connection failed. Please unlock your wallet and try again.',
     isRecoverable: true,
     shouldShowRetry: true,
   };
@@ -126,7 +126,7 @@ export function parseTransactionError(error: unknown): ParsedError {
   if (message.includes('insufficient funds') || message.includes('insufficient balance')) {
     return {
       category: 'insufficient_balance',
-      message: 'Insufficient balance for this transaction.',
+      message: 'Insufficient balance to complete this swap. Check your wallet balance and try a smaller amount.',
       isRecoverable: false,
       shouldShowRetry: false,
     };
@@ -136,7 +136,7 @@ export function parseTransactionError(error: unknown): ParsedError {
   if (message.includes('gas') && (message.includes('failed') || message.includes('required'))) {
     return {
       category: 'transaction_error',
-      message: 'Insufficient gas. Please add more ETH for fees.',
+      message: 'Insufficient funds for transaction fees. Add more ETH/BNB to cover gas costs.',
       isRecoverable: false,
       shouldShowRetry: false,
     };
@@ -146,7 +146,7 @@ export function parseTransactionError(error: unknown): ParsedError {
   if (message.includes('slippage') || message.includes('price movement')) {
     return {
       category: 'transaction_error',
-      message: 'Price changed too much. Try increasing slippage.',
+      message: 'Swap failed: price moved beyond your slippage tolerance. Increase slippage in settings or try a smaller amount.',
       isRecoverable: true,
       shouldShowRetry: true,
     };
@@ -156,7 +156,7 @@ export function parseTransactionError(error: unknown): ParsedError {
   if (message.includes('reverted') || message.includes('revert')) {
     return {
       category: 'transaction_error',
-      message: 'Transaction failed. The contract rejected it.',
+      message: 'Transaction reverted by the smart contract. This often happens when price moves too fast. Try increasing slippage or reducing the swap amount.',
       isRecoverable: true,
       shouldShowRetry: true,
     };
@@ -166,7 +166,7 @@ export function parseTransactionError(error: unknown): ParsedError {
   if (message.includes('nonce')) {
     return {
       category: 'transaction_error',
-      message: 'Transaction conflict. Please try again.',
+      message: 'Transaction sequence conflict. You may have a pending transaction. Wait a moment and try again.',
       isRecoverable: true,
       shouldShowRetry: true,
     };
@@ -176,7 +176,7 @@ export function parseTransactionError(error: unknown): ParsedError {
   if (message.includes('network') || message.includes('timeout') || message.includes('connection')) {
     return {
       category: 'network_error',
-      message: 'Network error. Please check your connection.',
+      message: 'Network connection lost. Check your internet connection and try again.',
       isRecoverable: true,
       shouldShowRetry: true,
     };
@@ -184,7 +184,7 @@ export function parseTransactionError(error: unknown): ParsedError {
 
   return {
     category: 'unknown',
-    message: err.message || 'Transaction failed. Please try again.',
+    message: err.message || 'Transaction could not be completed. Please try again or contact support if the issue persists.',
     isRecoverable: true,
     shouldShowRetry: true,
   };
@@ -201,7 +201,7 @@ export function parseQuoteError(error: unknown): ParsedError {
   if (message.includes('expired') || message.includes('stale')) {
     return {
       category: 'quote_error',
-      message: 'Quote expired. Please refresh.',
+      message: "Quote expired (over 30 seconds old). Click 'Refresh Quote' to get current price.",
       isRecoverable: true,
       shouldShowRetry: true,
     };
@@ -211,7 +211,7 @@ export function parseQuoteError(error: unknown): ParsedError {
   if (message.includes('no route') || message.includes('no liquidity')) {
     return {
       category: 'quote_error',
-      message: 'No swap route found for this pair.',
+      message: 'No swap route available for this token pair. The token may have insufficient liquidity or is not supported.',
       isRecoverable: false,
       shouldShowRetry: false,
     };
@@ -221,7 +221,7 @@ export function parseQuoteError(error: unknown): ParsedError {
   if (message.includes('minimum') || message.includes('too small')) {
     return {
       category: 'quote_error',
-      message: 'Amount too small for this swap.',
+      message: 'Swap amount too small. Please enter a larger amount to cover minimum trade requirements.',
       isRecoverable: false,
       shouldShowRetry: false,
     };
@@ -231,7 +231,7 @@ export function parseQuoteError(error: unknown): ParsedError {
   if (message.includes('network') || message.includes('fetch')) {
     return {
       category: 'network_error',
-      message: 'Failed to fetch quote. Please try again.',
+      message: 'Failed to fetch quote from the aggregator. Check your connection and try again.',
       isRecoverable: true,
       shouldShowRetry: true,
     };
@@ -239,7 +239,7 @@ export function parseQuoteError(error: unknown): ParsedError {
 
   return {
     category: 'quote_error',
-    message: 'Failed to get quote. Please try again.',
+    message: 'Quote request failed. The pricing service is temporarily unavailable. Please try again in a few seconds.',
     isRecoverable: true,
     shouldShowRetry: true,
   };
@@ -311,7 +311,7 @@ export function parseRpcError(error: unknown): ParsedError {
   if (code === 4001 || code === 'ACTION_REJECTED' || isUserRejection(error)) {
     return {
       category: 'user_rejected',
-      message: 'Transaction rejected in wallet.',
+      message: 'Transaction rejected in wallet. No funds were moved.',
       isRecoverable: true,
       shouldShowRetry: true,
     };
@@ -321,7 +321,7 @@ export function parseRpcError(error: unknown): ParsedError {
   if (code === -32000 || message.includes('insufficient funds')) {
     return {
       category: 'insufficient_balance',
-      message: 'Insufficient ETH for gas fees.',
+      message: 'Insufficient funds for transaction fees. Add more ETH/BNB to your wallet to cover gas costs.',
       isRecoverable: false,
       shouldShowRetry: false,
     };
@@ -360,13 +360,13 @@ export function parseRpcError(error: unknown): ParsedError {
   // Contract execution reverted
   if (message.includes('execution reverted') || message.includes('revert')) {
     // Try to extract revert reason
-    let revertReason = 'Transaction would fail';
+    let revertReason = 'Transaction would fail on-chain. The token or pool may have restrictions.';
     if (message.includes('stf')) {
-      revertReason = 'Swap would fail (price moved too much)';
+      revertReason = 'Swap failed: price moved beyond your slippage tolerance. Increase slippage or try a smaller amount.';
     } else if (message.includes('too little received') || message.includes('insufficient output')) {
-      revertReason = 'Output too low - try increasing slippage';
+      revertReason = 'Output amount too low due to price movement. Increase your slippage tolerance and try again.';
     } else if (message.includes('expired') || message.includes('deadline')) {
-      revertReason = 'Transaction deadline passed';
+      revertReason = 'Transaction deadline passed. Please get a fresh quote and try again.';
     }
 
     return {
@@ -381,7 +381,7 @@ export function parseRpcError(error: unknown): ParsedError {
   if (code === -32603 || code === -32602 || code === -32601) {
     return {
       category: 'rpc_error',
-      message: 'RPC error. Please try again.',
+      message: 'Blockchain node error. The network may be congested. Please wait a moment and try again.',
       isRecoverable: true,
       shouldShowRetry: true,
     };
@@ -389,7 +389,7 @@ export function parseRpcError(error: unknown): ParsedError {
 
   return {
     category: 'unknown',
-    message: err.message || 'An unexpected error occurred.',
+    message: err.message || 'An unexpected error occurred. Please try again or contact support if the issue persists.',
     isRecoverable: true,
     shouldShowRetry: true,
   };

@@ -275,7 +275,7 @@ export function useSwap() {
     const toSymbol = getSymbol(toAsset);
 
     if (!fromSymbol || !toSymbol) {
-      setState((s) => ({ ...s, status: 'error', error: 'Invalid tokens selected' }));
+      setState((s) => ({ ...s, status: 'error', error: 'Please select both tokens to swap. Choose a token from each dropdown.' }));
       return null;
     }
 
@@ -445,7 +445,7 @@ export function useSwap() {
   // Execute token approval
   const executeApproval = useCallback(async (): Promise<boolean> => {
     if (!swapQuote || !chainId) {
-      throw new Error('No quote available');
+      throw new Error('No quote available. Please enter an amount and wait for a quote before proceeding.');
     }
 
     try {
@@ -512,7 +512,7 @@ export function useSwap() {
   // Execute the swap
   const executeSwap = useCallback(async (): Promise<string> => {
     if (!swapQuote || !address || !chainId) {
-      throw new Error('No quote available');
+      throw new Error('No quote available. Please enter an amount and wait for a quote before proceeding.');
     }
 
     try {
@@ -627,7 +627,7 @@ export function useSwap() {
 
         return tx.hash;
       } else {
-        throw new Error('Transaction failed');
+        throw new Error('Transaction was not successful. The blockchain rejected the swap. Check your transaction on the explorer for details.');
       }
     } catch (err) {
       // PHASE 7: NO silent failures - log everything
@@ -643,7 +643,7 @@ export function useSwap() {
       if (isUserRejection(err)) {
         logLifecycle(state.status, 'previewing', { reason: 'user_rejected' });
         setState((s) => ({ ...s, status: 'previewing' }));
-        toast.warning('Swap cancelled by user');
+        toast.warning('Swap cancelled. No funds were moved.');
         console.log('[Swap] User rejected transaction');
       } else {
         logLifecycle(state.status, 'error', {
@@ -651,7 +651,7 @@ export function useSwap() {
           category: parsed.category,
         });
         setState((s) => ({ ...s, status: 'error', error: parsed.message }));
-        toast.error(`Swap failed: ${parsed.message}`);
+        toast.error(parsed.message);
         console.error('[Swap] Transaction failed:', parsed);
       }
 
@@ -759,7 +759,7 @@ export function useSwap() {
     // Get fresh quote
     const quote = await fetchSwapQuote();
     if (!quote) {
-      throw new Error('Failed to get quote');
+      throw new Error('Quote request failed. The pricing service may be temporarily unavailable. Please try again.');
     }
 
     // Return the quote for preview - actual execution happens when user confirms
@@ -769,7 +769,7 @@ export function useSwap() {
   // Confirm and execute after preview
   const confirmSwap = useCallback(async (): Promise<string> => {
     if (state.status !== 'previewing' || !swapQuote) {
-      throw new Error('No swap to confirm');
+      throw new Error('No active swap to confirm. Please get a new quote and try again.');
     }
 
     return executeSwap();
