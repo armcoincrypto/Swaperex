@@ -31,11 +31,13 @@ const CHAIN_NAMES: Record<number, string> = {
 };
 
 // Gas buffer for native tokens (to leave enough for transaction fees)
-const GAS_BUFFER: Record<number, number> = {
-  1: 0.01,    // ETH - leave 0.01 ETH for gas
-  56: 0.005,  // BNB - leave 0.005 BNB for gas
-  137: 1,     // MATIC - leave 1 MATIC for gas
+// Use smaller of: fixed buffer OR 5% of balance
+const GAS_BUFFER_FIXED: Record<number, number> = {
+  1: 0.005,   // ETH - leave max 0.005 ETH for gas
+  56: 0.002,  // BNB - leave max 0.002 BNB for gas
+  137: 0.5,   // MATIC - leave max 0.5 MATIC for gas
 };
+const GAS_BUFFER_PERCENT = 0.05; // 5% of balance as minimum buffer
 
 // Minimum output value in USD to prevent dust swaps
 // DISABLED: We don't have USD prices for all tokens, so this check was incorrect
@@ -244,10 +246,16 @@ export function SwapInterface() {
 
     // If sending native token, subtract gas buffer
     if (fromAsset?.is_native) {
-      const gasBuffer = GAS_BUFFER[currentChainId] || 0.01;
-      const maxAmount = Math.max(0, balance - gasBuffer);
+      // Use smaller of: fixed buffer OR 5% of balance
+      const fixedBuffer = GAS_BUFFER_FIXED[currentChainId] || 0.005;
+      const percentBuffer = balance * GAS_BUFFER_PERCENT;
+      const gasBuffer = Math.min(fixedBuffer, percentBuffer);
+
+      // Ensure we leave at least something for gas, but use 90% if balance is tiny
+      const maxAmount = balance > gasBuffer ? balance - gasBuffer : balance * 0.9;
+
       // Format to reasonable precision (avoid scientific notation)
-      return maxAmount > 0 ? maxAmount.toFixed(6).replace(/\.?0+$/, '') : '0';
+      return maxAmount > 0 ? maxAmount.toFixed(8).replace(/\.?0+$/, '') : '0';
     }
 
     // For ERC20 tokens, use full balance
@@ -278,6 +286,11 @@ export function SwapInterface() {
       return;
     }
 
+    // Don't auto-refresh if user is already previewing/swapping - let them see the price
+    if (status === 'previewing' || status === 'approving' || status === 'swapping' || status === 'confirming') {
+      return;
+    }
+
     // Debounce quote fetching
     quoteTimeoutRef.current = setTimeout(() => {
       console.log('[Swap] Fetching quote for:', fromAmount, fromAsset.symbol, '→', toAsset.symbol);
@@ -293,7 +306,7 @@ export function SwapInterface() {
         quoteTimeoutRef.current = null;
       }
     };
-  }, [fromAmount, fromAsset, toAsset, isConnected, fetchSwapQuote, clearQuote, reset]);
+  }, [fromAmount, fromAsset, toAsset, isConnected, status, fetchSwapQuote, clearQuote, reset]);
 
   // Token selection handlers
   const handleFromTokenSelect = useCallback((asset: AssetInfo) => {
@@ -494,7 +507,7 @@ export function SwapInterface() {
                     }
                   }}
                   className="ml-2 text-primary-400 hover:text-primary-300"
-                  title={fromAsset?.is_native ? `Max minus ${GAS_BUFFER[currentChainId] || 0.01} for gas` : 'Use full balance'}
+                  title={fromAsset?.is_native ? 'Max (leaves small amount for gas)' : 'Use full balance'}
                 >
                   MAX
                 </button>
