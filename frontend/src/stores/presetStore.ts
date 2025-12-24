@@ -3,11 +3,41 @@
  *
  * Stores user's swap presets per wallet address + chain.
  * Presets allow quick swap setup with optional confirmation skip.
+ * Smart Presets can include optional intelligence guards.
  */
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { AssetInfo } from '@/types/api';
+
+/**
+ * Smart Preset Guards
+ * Optional conditions that advise or block swap execution
+ */
+export interface PresetGuards {
+  enabled: boolean;
+  mode: 'soft' | 'hard'; // soft = advise only, hard = block if fail
+  minSafetyScore?: number; // 0-100
+  maxPriceImpact?: number; // percentage (e.g., 2.5)
+  minLiquidityUsd?: number; // e.g., 50000
+}
+
+/**
+ * Result of evaluating preset guards
+ */
+export interface GuardEvaluation {
+  passed: boolean;
+  warnings: GuardWarning[];
+  blocked: boolean;
+  blockReason?: string;
+}
+
+export interface GuardWarning {
+  type: 'safety' | 'impact' | 'liquidity';
+  message: string;
+  actual: number;
+  threshold: number;
+}
 
 export interface SwapPreset {
   id: string;
@@ -21,6 +51,8 @@ export interface SwapPreset {
   lastUsed: number;
   walletAddress: string;
   chainId: number;
+  // Smart Preset guards (optional)
+  guards?: PresetGuards;
 }
 
 interface PresetState {
@@ -128,7 +160,21 @@ export const usePresetStore = create<PresetState>()(
     }),
     {
       name: 'swaperex-swap-presets',
-      version: 1,
+      version: 2,
+      migrate: (persistedState: unknown, version: number) => {
+        if (version < 2) {
+          // Migration: add guards field to existing presets
+          const state = persistedState as { presets: SwapPreset[] };
+          return {
+            ...state,
+            presets: state.presets?.map((p) => ({
+              ...p,
+              guards: p.guards || undefined,
+            })) || [],
+          };
+        }
+        return persistedState;
+      },
     }
   )
 );

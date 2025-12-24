@@ -14,10 +14,12 @@ import { useSwapStore } from '@/stores/swapStore';
 import { useBalanceStore } from '@/stores/balanceStore';
 import { useCustomTokenStore, type CustomToken } from '@/stores/customTokenStore';
 import { useFavoriteTokensStore } from '@/stores/favoriteTokensStore';
-import { usePresetStore, type SwapPreset } from '@/stores/presetStore';
+import { usePresetStore, type SwapPreset, type GuardEvaluation } from '@/stores/presetStore';
 import { PresetDropdown } from '@/components/presets/PresetDropdown';
 import { SavePresetModal } from '@/components/presets/SavePresetModal';
+import { GuardWarningPanel } from '@/components/presets/GuardWarningPanel';
 import { SwapIntelligencePanel } from '@/components/swap/intelligence';
+import { evaluatePresetGuards } from '@/services/presetGuardService';
 import { Button } from '@/components/common/Button';
 import { TokenSafetyBadges } from '@/components/common/TokenSafetyBadges';
 import { SwapPreviewModal, SwapStep } from './SwapPreviewModal';
@@ -134,6 +136,11 @@ export function SwapInterface() {
   const [showSavePreset, setShowSavePreset] = useState(false);
   const [skipConfirmationActive, setSkipConfirmationActive] = useState(false);
   const [swapIntelligence, setSwapIntelligence] = useState<SwapIntelligence | null>(null);
+
+  // Active preset for guard evaluation
+  const [activePreset, setActivePreset] = useState<SwapPreset | null>(null);
+  const [guardEvaluation, setGuardEvaluation] = useState<GuardEvaluation | null>(null);
+  const [guardsDismissed, setGuardsDismissed] = useState(false);
 
   // Preset store
   const { markPresetUsed } = usePresetStore();
@@ -481,11 +488,34 @@ export function SwapInterface() {
     // Mark preset as used
     markPresetUsed(preset.id);
 
+    // Store active preset for guard evaluation
+    setActivePreset(preset);
+    setGuardEvaluation(null);
+    setGuardsDismissed(false);
+
     // If skip confirmation is enabled, set flag for immediate execution
-    if (preset.skipConfirmation) {
+    // (but only if guards are not enabled or in soft mode)
+    if (preset.skipConfirmation && (!preset.guards?.enabled || preset.guards.mode === 'soft')) {
       setSkipConfirmationActive(true);
     }
   }, [setFromAsset, setToAsset, setFromAmount, setSlippage, markPresetUsed]);
+
+  // Evaluate guards when intelligence changes
+  useEffect(() => {
+    if (!activePreset?.guards?.enabled) {
+      setGuardEvaluation(null);
+      return;
+    }
+
+    // Evaluate guards against current intelligence
+    const evaluation = evaluatePresetGuards(activePreset.guards, swapIntelligence);
+    setGuardEvaluation(evaluation);
+
+    // If blocked in hard mode, disable skip confirmation
+    if (evaluation.blocked) {
+      setSkipConfirmationActive(false);
+    }
+  }, [activePreset, swapIntelligence]);
 
   // Check if we can save a preset (have valid swap setup)
   const canSavePreset = fromAsset && toAsset && fromAmount && parseFloat(fromAmount) > 0;
@@ -517,6 +547,8 @@ export function SwapInterface() {
     if (isQuoting || status === 'fetching_quote') return 'Getting Quote...';
     if (quoteError) return 'Quote Error - Try Again';
     if (!swapQuote && fromAmount && parseFloat(fromAmount) > 0) return 'Getting Quote...';
+    // Show blocked state if hard guards fail
+    if (guardEvaluation?.blocked && !guardsDismissed) return 'Blocked by Protection';
     return 'Preview Swap';
   };
 
@@ -530,6 +562,8 @@ export function SwapInterface() {
     if (quoteError) return true;
     // Must have a quote to proceed
     if (!swapQuote) return true;
+    // Block if hard guards fail
+    if (guardEvaluation?.blocked && !guardsDismissed) return true;
     return false;
   };
 
@@ -732,6 +766,17 @@ export function SwapInterface() {
         {swapIntelligence && status === 'previewing' && !showPreview && (
           <div className="mt-4">
             <SwapIntelligencePanel intelligence={swapIntelligence} compact />
+          </div>
+        )}
+
+        {/* Guard Warning Panel (when preset has guards and they fail) */}
+        {guardEvaluation && !guardEvaluation.passed && !guardsDismissed && status === 'previewing' && !showPreview && (
+          <div className="mt-4">
+            <GuardWarningPanel
+              evaluation={guardEvaluation}
+              onDismiss={() => setGuardsDismissed(true)}
+              onProceedAnyway={() => setGuardsDismissed(true)}
+            />
           </div>
         )}
 
