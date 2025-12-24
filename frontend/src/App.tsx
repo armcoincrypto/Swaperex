@@ -22,6 +22,7 @@ import { useWallet } from '@/hooks/useWallet';
 import { useSwapStore } from '@/stores/swapStore';
 import { useToastStore } from '@/stores/toastStore';
 import { useRadarStore, type RadarSignal } from '@/stores/radarStore';
+import { type SwapRecord } from '@/stores/swapHistoryStore';
 import { getTokenBySymbol } from '@/tokens';
 
 type Page = 'swap' | 'send' | 'portfolio' | 'radar' | 'screener' | 'about' | 'terms' | 'privacy' | 'disclaimer';
@@ -29,7 +30,7 @@ type Page = 'swap' | 'send' | 'portfolio' | 'radar' | 'screener' | 'about' | 'te
 export function App() {
   const [currentPage, setCurrentPage] = useState<Page>('swap');
   const { isConnected, isWrongChain, isReadOnly, chainId, switchNetwork } = useWallet();
-  const { setFromAsset, setToAsset } = useSwapStore();
+  const { setFromAsset, setToAsset, setFromAmount } = useSwapStore();
   const { toasts, removeToast } = useToastStore();
   const { getUnreadCount } = useRadarStore();
   const [bannerDismissed, setBannerDismissed] = useState(false);
@@ -164,6 +165,21 @@ export function App() {
     setCurrentPage('swap');
   };
 
+  // Handle Quick Repeat from swap history
+  const handleRepeatSwap = (record: SwapRecord) => {
+    // Prefill from asset
+    setFromAsset(record.fromAsset);
+
+    // Prefill to asset
+    setToAsset(record.toAsset);
+
+    // Prefill amount
+    setFromAmount(record.fromAmount);
+
+    // Navigate to swap page
+    setCurrentPage('swap');
+  };
+
   return (
     <div className="min-h-screen bg-dark-950">
       {/* Header */}
@@ -279,7 +295,7 @@ export function App() {
                   showSwapButtons={true}
                 />
                 <div className="mt-8">
-                  <SwapHistory />
+                  <SwapHistory onRepeatSwap={handleRepeatSwap} />
                 </div>
               </>
             ) : (

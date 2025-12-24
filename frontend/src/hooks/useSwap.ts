@@ -37,6 +37,7 @@ import { useBalanceStore } from '@/stores/balanceStore';
 import { toast } from '@/stores/toastStore';
 import { walletEvents, getWalletEventMessage } from '@/services/walletEvents';
 import { processQuoteForSignals } from '@/services/radarService';
+import { useSwapHistoryStore } from '@/stores/swapHistoryStore';
 import {
   isUserRejection,
   parseTransactionError,
@@ -164,6 +165,7 @@ export function useSwap() {
   const { address, isWrongChain, chainId, getSigner, provider } = useWallet();
   const { fromAsset, toAsset, fromAmount, slippage, setQuote, clearQuote } = useSwapStore();
   const { fetchBalances } = useBalanceStore();
+  const { addRecord: addSwapRecord } = useSwapHistoryStore();
 
   const [state, setState] = useState<SwapState>({
     status: 'idle',
@@ -655,6 +657,23 @@ export function useSwap() {
         });
         setState((s) => ({ ...s, status: 'success', txHash: tx.hash, explorerUrl }));
         toast.success(`Swap completed! View on explorer: ${explorerUrl}`);
+
+        // Record swap to local history for Quick Repeat
+        if (fromAsset && toAsset && swapQuote) {
+          addSwapRecord({
+            timestamp: Date.now(),
+            chainId: chainId || 1,
+            fromAsset,
+            toAsset,
+            fromAmount,
+            toAmount: swapQuote.amountOutFormatted,
+            txHash: tx.hash,
+            explorerUrl,
+            status: 'success',
+            provider: swapQuote.provider,
+            slippage,
+          });
+        }
 
         // Refresh balances for the current chain
         const chainNetwork = chainId === 56 ? 'bsc' : 'ethereum';

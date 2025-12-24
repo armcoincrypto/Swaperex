@@ -13,6 +13,7 @@ import { useSwap } from '@/hooks/useSwap';
 import { useSwapStore } from '@/stores/swapStore';
 import { useBalanceStore } from '@/stores/balanceStore';
 import { useCustomTokenStore, type CustomToken } from '@/stores/customTokenStore';
+import { useFavoriteTokensStore } from '@/stores/favoriteTokensStore';
 import { Button } from '@/components/common/Button';
 import { TokenSafetyBadges } from '@/components/common/TokenSafetyBadges';
 import { SwapPreviewModal, SwapStep } from './SwapPreviewModal';
@@ -537,6 +538,7 @@ export function SwapInterface() {
                   provider={provider}
                   onAddToken={addCustomToken}
                   onRemoveToken={removeCustomToken}
+                  showFavorites={true}
                 />
               )}
             </div>
@@ -595,6 +597,7 @@ export function SwapInterface() {
                   provider={provider}
                   onAddToken={addCustomToken}
                   onRemoveToken={removeCustomToken}
+                  showFavorites={true}
                 />
               )}
             </div>
@@ -836,6 +839,7 @@ function TokenSelectorDropdown({
   provider,
   onAddToken,
   onRemoveToken,
+  showFavorites = false,
 }: {
   assets: ExtendedAssetInfo[];
   selectedAsset: AssetInfo | null;
@@ -846,7 +850,9 @@ function TokenSelectorDropdown({
   provider?: unknown;
   onAddToken?: (token: CustomToken) => void;
   onRemoveToken?: (chainId: number, address: string) => void;
+  showFavorites?: boolean;
 }) {
+  const { isFavorite, toggleFavorite } = useFavoriteTokensStore();
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isImporting, setIsImporting] = useState(false);
@@ -918,11 +924,26 @@ function TokenSelectorDropdown({
   };
 
   // Filter tokens by search query
-  const filteredAssets = assets.filter((asset) =>
-    asset.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    asset.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    asset.contract_address?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredAssets = useMemo(() => {
+    let result = assets.filter((asset) =>
+      asset.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      asset.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      asset.contract_address?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    // Sort favorites first if enabled
+    if (showFavorites && chainId) {
+      result = [...result].sort((a, b) => {
+        const aFav = isFavorite(chainId, a.contract_address || '');
+        const bFav = isFavorite(chainId, b.contract_address || '');
+        if (aFav && !bFav) return -1;
+        if (!aFav && bFav) return 1;
+        return 0;
+      });
+    }
+
+    return result;
+  }, [assets, searchQuery, showFavorites, chainId, isFavorite]);
 
   return (
     <div
@@ -1057,6 +1078,8 @@ function TokenSelectorDropdown({
             const isCustom = (asset as ExtendedAssetInfo).isCustom;
             const verified = (asset as ExtendedAssetInfo).verified;
 
+            const isFav = showFavorites && chainId && isFavorite(chainId, asset.contract_address || '');
+
             return (
               <div
                 key={`${asset.symbol}-${asset.contract_address}`}
@@ -1068,6 +1091,28 @@ function TokenSelectorDropdown({
                     : 'hover:bg-dark-700'
                 }`}
               >
+                {/* Favorite Star Button */}
+                {showFavorites && chainId && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFavorite({
+                        symbol: asset.symbol,
+                        address: asset.contract_address || '',
+                        name: asset.name,
+                        chainId: chainId,
+                      });
+                    }}
+                    className={`p-1 transition-colors ${
+                      isFav
+                        ? 'text-yellow-400 hover:text-yellow-300'
+                        : 'text-dark-500 hover:text-yellow-400'
+                    }`}
+                    title={isFav ? 'Remove from favorites' : 'Add to favorites'}
+                  >
+                    <StarIcon filled={!!isFav} />
+                  </button>
+                )}
                 <button
                   onClick={() => !isExcluded && onSelect(asset)}
                   disabled={isExcluded}
@@ -1090,6 +1135,11 @@ function TokenSelectorDropdown({
                   <div className="flex-1 text-left">
                     <div className="flex items-center gap-1.5">
                       <span className="font-medium">{asset.symbol}</span>
+                      {isFav && (
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-yellow-900/30 text-yellow-400">
+                          Favorite
+                        </span>
+                      )}
                       {isCustom && (
                         <span className={`text-xs px-1.5 py-0.5 rounded ${
                           verified
@@ -1140,6 +1190,15 @@ function TrashIcon() {
   return (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+    </svg>
+  );
+}
+
+// Star Icon for favorites
+function StarIcon({ filled = false }: { filled?: boolean }) {
+  return (
+    <svg className="w-4 h-4" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
     </svg>
   );
 }
