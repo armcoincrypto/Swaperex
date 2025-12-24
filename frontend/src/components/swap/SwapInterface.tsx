@@ -275,9 +275,10 @@ export function SwapInterface() {
     // RULE 2: If amount is empty or zero, clear everything and return to idle
     const amount = parseFloat(fromAmount || '0');
     if (!fromAmount || isNaN(amount) || amount <= 0) {
-      // Immediately clear quote and output - no delay
-      clearQuote();
-      reset();
+      // Only clear if we're not in a swap flow
+      if (status === 'idle' || status === 'fetching_quote') {
+        clearQuote();
+      }
       return;
     }
 
@@ -287,7 +288,7 @@ export function SwapInterface() {
     }
 
     // Don't auto-refresh if user is already previewing/swapping - let them see the price
-    if (status === 'previewing' || status === 'approving' || status === 'swapping' || status === 'confirming') {
+    if (status === 'previewing' || status === 'approving' || status === 'swapping' || status === 'confirming' || status === 'success') {
       return;
     }
 
@@ -306,7 +307,9 @@ export function SwapInterface() {
         quoteTimeoutRef.current = null;
       }
     };
-  }, [fromAmount, fromAsset, toAsset, isConnected, status, fetchSwapQuote, clearQuote, reset]);
+  // Note: status removed from deps to prevent infinite loop - we check it inside the effect
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromAmount, fromAsset, toAsset, isConnected, fetchSwapQuote, clearQuote]);
 
   // Token selection handlers
   const handleFromTokenSelect = useCallback((asset: AssetInfo) => {
