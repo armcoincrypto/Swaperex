@@ -14,6 +14,9 @@ import { useSwapStore } from '@/stores/swapStore';
 import { useBalanceStore } from '@/stores/balanceStore';
 import { useCustomTokenStore, type CustomToken } from '@/stores/customTokenStore';
 import { useFavoriteTokensStore } from '@/stores/favoriteTokensStore';
+import { usePresetStore, type SwapPreset } from '@/stores/presetStore';
+import { PresetDropdown } from '@/components/presets/PresetDropdown';
+import { SavePresetModal } from '@/components/presets/SavePresetModal';
 import { Button } from '@/components/common/Button';
 import { TokenSafetyBadges } from '@/components/common/TokenSafetyBadges';
 import { SwapPreviewModal, SwapStep } from './SwapPreviewModal';
@@ -126,6 +129,11 @@ export function SwapInterface() {
   const [showFromSelector, setShowFromSelector] = useState(false);
   const [showToSelector, setShowToSelector] = useState(false);
   const [customSlippage, setCustomSlippage] = useState('');
+  const [showSavePreset, setShowSavePreset] = useState(false);
+  const [skipConfirmationActive, setSkipConfirmationActive] = useState(false);
+
+  // Preset store
+  const { markPresetUsed } = usePresetStore();
 
   // Quote expiry countdown (30 second TTL)
   const QUOTE_EXPIRY_SECONDS = 30;
@@ -340,6 +348,27 @@ export function SwapInterface() {
     setCustomSlippage(value);
   };
 
+  // Skip confirmation - auto-execute when preset with skipConfirmation is loaded
+  useEffect(() => {
+    if (!skipConfirmationActive) return;
+    if (!swapQuote || !swapQuote.amountOutFormatted) return;
+    if (status !== 'previewing') return;
+
+    // Reset the skip confirmation flag
+    setSkipConfirmationActive(false);
+
+    // Auto-execute the swap
+    console.log('[Swap] Skip confirmation active - auto-executing swap');
+    swap()
+      .then(() => {
+        // Directly confirm without showing preview
+        confirmSwap();
+      })
+      .catch((err) => {
+        console.warn('[Swap] Auto-execute failed:', err);
+      });
+  }, [skipConfirmationActive, swapQuote, status, swap, confirmSwap]);
+
   // Open preview modal - ONLY if quote is valid and fresh
   const handlePreviewSwap = async () => {
     // Guard: Must have valid input
@@ -400,6 +429,28 @@ export function SwapInterface() {
       setIsRefreshingQuote(false);
     }
   };
+
+  // Handle preset selection - prefill swap form
+  const handlePresetSelect = useCallback((preset: SwapPreset) => {
+    // Prefill assets
+    setFromAsset(preset.fromAsset);
+    setToAsset(preset.toAsset);
+
+    // Prefill amount and slippage
+    setFromAmount(preset.fromAmount);
+    setSlippage(preset.slippage);
+
+    // Mark preset as used
+    markPresetUsed(preset.id);
+
+    // If skip confirmation is enabled, set flag for immediate execution
+    if (preset.skipConfirmation) {
+      setSkipConfirmationActive(true);
+    }
+  }, [setFromAsset, setToAsset, setFromAmount, setSlippage, markPresetUsed]);
+
+  // Check if we can save a preset (have valid swap setup)
+  const canSavePreset = fromAsset && toAsset && fromAmount && parseFloat(fromAmount) > 0;
 
   // Map swap status to modal step
   const getModalStep = (): SwapStep => {
@@ -462,13 +513,30 @@ export function SwapInterface() {
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold">Swap</h2>
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className="p-2 rounded-lg hover:bg-dark-800 transition-colors"
-            title="Settings"
-          >
-            <SettingsIcon />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Preset Dropdown */}
+            {isConnected && (
+              <PresetDropdown onSelectPreset={handlePresetSelect} />
+            )}
+            {/* Save Preset Button */}
+            {isConnected && canSavePreset && (
+              <button
+                onClick={() => setShowSavePreset(true)}
+                className="p-2 rounded-lg hover:bg-dark-800 transition-colors text-dark-400 hover:text-primary-400"
+                title="Save as preset"
+              >
+                <SaveIcon />
+              </button>
+            )}
+            {/* Settings Button */}
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className="p-2 rounded-lg hover:bg-dark-800 transition-colors"
+              title="Settings"
+            >
+              <SettingsIcon />
+            </button>
+          </div>
         </div>
 
         {/* Settings Panel */}
@@ -790,6 +858,18 @@ export function SwapInterface() {
         onRefreshQuote={handleRefreshQuote}
         isRefreshing={isRefreshingQuote}
       />
+
+      {/* Save Preset Modal */}
+      {fromAsset && toAsset && (
+        <SavePresetModal
+          isOpen={showSavePreset}
+          onClose={() => setShowSavePreset(false)}
+          fromAsset={fromAsset}
+          toAsset={toAsset}
+          fromAmount={fromAmount}
+          slippage={slippage}
+        />
+      )}
     </>
   );
 }
@@ -1293,6 +1373,14 @@ function LoadingSpinner() {
 }
 
 // Icons
+function SaveIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+    </svg>
+  );
+}
+
 function SettingsIcon() {
   return (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
