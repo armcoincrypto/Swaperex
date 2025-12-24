@@ -17,14 +17,16 @@ import { NetworkSelector } from '@/components/common/NetworkSelector';
 import { SwapHistory } from '@/components/history/SwapHistory';
 import { TokenScreener } from '@/components/screener/TokenScreener';
 import { RadarPanel } from '@/components/radar/RadarPanel';
+import { PairList } from '@/components/pairs/PairList';
 import { AboutPage, TermsPage, PrivacyPage, DisclaimerPage } from '@/components/pages/StaticPages';
 import { useWallet } from '@/hooks/useWallet';
 import { useSwapStore } from '@/stores/swapStore';
 import { useToastStore } from '@/stores/toastStore';
 import { useRadarStore, type RadarSignal } from '@/stores/radarStore';
+import { usePairStore, type TrendingPair } from '@/stores/pairStore';
 import { getTokenBySymbol } from '@/tokens';
 
-type Page = 'swap' | 'send' | 'portfolio' | 'radar' | 'screener' | 'about' | 'terms' | 'privacy' | 'disclaimer';
+type Page = 'swap' | 'send' | 'portfolio' | 'radar' | 'pairs' | 'screener' | 'about' | 'terms' | 'privacy' | 'disclaimer';
 
 export function App() {
   const [currentPage, setCurrentPage] = useState<Page>('swap');
@@ -32,9 +34,11 @@ export function App() {
   const { setFromAsset, setToAsset } = useSwapStore();
   const { toasts, removeToast } = useToastStore();
   const { getUnreadCount } = useRadarStore();
+  const { getUnviewedCount } = usePairStore();
   const [bannerDismissed, setBannerDismissed] = useState(false);
 
   const radarUnreadCount = getUnreadCount();
+  const pairsUnviewedCount = getUnviewedCount();
 
   // Handle chain switch from banner
   const handleBannerSwitch = async () => {
@@ -164,6 +168,41 @@ export function App() {
     setCurrentPage('swap');
   };
 
+  // Handle pair click from Pairs tab - navigate to swap with pair prefilled
+  const handlePairClick = async (pair: TrendingPair) => {
+    // Switch to the pair's chain if needed
+    if (chainId !== pair.chainId) {
+      try {
+        await switchNetwork(pair.chainId);
+      } catch (err) {
+        console.error('Failed to switch network:', err);
+      }
+    }
+
+    // Set from asset (base token)
+    setFromAsset({
+      symbol: pair.baseToken.symbol,
+      name: pair.baseToken.name,
+      chain: pair.chainName,
+      decimals: 18, // Default, will be overwritten if known
+      is_native: false,
+      contract_address: pair.baseToken.address,
+    });
+
+    // Set to asset (quote token - usually stablecoin)
+    setToAsset({
+      symbol: pair.quoteToken.symbol,
+      name: pair.quoteToken.name,
+      chain: pair.chainName,
+      decimals: 18,
+      is_native: pair.quoteToken.symbol === 'ETH' || pair.quoteToken.symbol === 'BNB' || pair.quoteToken.symbol === 'MATIC',
+      contract_address: pair.quoteToken.address,
+    });
+
+    // Navigate to swap
+    setCurrentPage('swap');
+  };
+
   return (
     <div className="min-h-screen bg-dark-950">
       {/* Header */}
@@ -199,6 +238,13 @@ export function App() {
                 badge={radarUnreadCount > 0 ? radarUnreadCount : undefined}
               >
                 Radar
+              </NavButton>
+              <NavButton
+                active={currentPage === 'pairs'}
+                onClick={() => setCurrentPage('pairs')}
+                badge={pairsUnviewedCount > 0 ? pairsUnviewedCount : undefined}
+              >
+                Pairs
               </NavButton>
               <NavButton
                 active={currentPage === 'screener'}
@@ -296,6 +342,10 @@ export function App() {
 
         {currentPage === 'radar' && (
           <RadarPanel onSignalClick={handleRadarSignalClick} />
+        )}
+
+        {currentPage === 'pairs' && (
+          <PairList onPairClick={handlePairClick} />
         )}
 
         {currentPage === 'screener' && (
