@@ -17,12 +17,14 @@ import { useFavoriteTokensStore } from '@/stores/favoriteTokensStore';
 import { usePresetStore, type SwapPreset } from '@/stores/presetStore';
 import { PresetDropdown } from '@/components/presets/PresetDropdown';
 import { SavePresetModal } from '@/components/presets/SavePresetModal';
+import { SwapIntelligencePanel } from '@/components/swap/intelligence';
 import { Button } from '@/components/common/Button';
 import { TokenSafetyBadges } from '@/components/common/TokenSafetyBadges';
 import { SwapPreviewModal, SwapStep } from './SwapPreviewModal';
 import { formatBalance, formatPercent } from '@/utils/format';
 import { getPopularTokens, isNativeToken, isStaticToken, type Token } from '@/tokens';
 import { validateToken } from '@/services/tokenValidation';
+import { analyzeSwapFromContext, type SwapIntelligence } from '@/services/dex';
 import type { AssetInfo } from '@/types/api';
 import { isAddress } from 'ethers';
 
@@ -131,6 +133,7 @@ export function SwapInterface() {
   const [customSlippage, setCustomSlippage] = useState('');
   const [showSavePreset, setShowSavePreset] = useState(false);
   const [skipConfirmationActive, setSkipConfirmationActive] = useState(false);
+  const [swapIntelligence, setSwapIntelligence] = useState<SwapIntelligence | null>(null);
 
   // Preset store
   const { markPresetUsed } = usePresetStore();
@@ -234,6 +237,41 @@ export function SwapInterface() {
 
     return () => clearInterval(intervalId);
   }, [swapQuote?.quoteTimestamp, status]);
+
+  // Compute swap intelligence when quote is available
+  useEffect(() => {
+    // Clear intelligence if no quote
+    if (!swapQuote || !fromAsset || !toAsset) {
+      setSwapIntelligence(null);
+      return;
+    }
+
+    // Only compute when previewing
+    if (status !== 'previewing') {
+      return;
+    }
+
+    // Compute intelligence
+    const computeIntelligence = async () => {
+      try {
+        const intelligence = await analyzeSwapFromContext(
+          fromAsset,
+          toAsset,
+          fromAmount,
+          swapQuote.amountOutFormatted,
+          parseFloat(swapQuote.price_impact || '0'),
+          currentChainId,
+          slippage
+        );
+        setSwapIntelligence(intelligence);
+      } catch (err) {
+        console.warn('[Intelligence] Failed to analyze swap:', err);
+        // Don't block the swap if intelligence fails
+      }
+    };
+
+    computeIntelligence();
+  }, [swapQuote, fromAsset, toAsset, fromAmount, status, currentChainId, slippage]);
 
   // Get balance for selected asset
   const getBalance = useCallback((asset: AssetInfo | null): string => {
@@ -689,6 +727,13 @@ export function SwapInterface() {
             </div>
           </div>
         </div>
+
+        {/* Swap Intelligence Panel (when quote available) */}
+        {swapIntelligence && status === 'previewing' && !showPreview && (
+          <div className="mt-4">
+            <SwapIntelligencePanel intelligence={swapIntelligence} compact />
+          </div>
+        )}
 
         {/* Quote Details (when quote available) */}
         {swapQuote && status === 'previewing' && !showPreview && (
