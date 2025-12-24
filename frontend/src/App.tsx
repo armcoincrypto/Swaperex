@@ -16,20 +16,25 @@ import { GlobalErrorDisplay } from '@/components/common/GlobalErrorDisplay';
 import { NetworkSelector } from '@/components/common/NetworkSelector';
 import { SwapHistory } from '@/components/history/SwapHistory';
 import { TokenScreener } from '@/components/screener/TokenScreener';
+import { RadarPanel } from '@/components/radar/RadarPanel';
 import { AboutPage, TermsPage, PrivacyPage, DisclaimerPage } from '@/components/pages/StaticPages';
 import { useWallet } from '@/hooks/useWallet';
 import { useSwapStore } from '@/stores/swapStore';
 import { useToastStore } from '@/stores/toastStore';
+import { useRadarStore, type RadarSignal } from '@/stores/radarStore';
 import { getTokenBySymbol } from '@/tokens';
 
-type Page = 'swap' | 'send' | 'portfolio' | 'screener' | 'about' | 'terms' | 'privacy' | 'disclaimer';
+type Page = 'swap' | 'send' | 'portfolio' | 'radar' | 'screener' | 'about' | 'terms' | 'privacy' | 'disclaimer';
 
 export function App() {
   const [currentPage, setCurrentPage] = useState<Page>('swap');
   const { isConnected, isWrongChain, isReadOnly, chainId, switchNetwork } = useWallet();
   const { setFromAsset, setToAsset } = useSwapStore();
   const { toasts, removeToast } = useToastStore();
+  const { getUnreadCount } = useRadarStore();
   const [bannerDismissed, setBannerDismissed] = useState(false);
+
+  const radarUnreadCount = getUnreadCount();
 
   // Handle chain switch from banner
   const handleBannerSwitch = async () => {
@@ -114,6 +119,51 @@ export function App() {
     setCurrentPage('swap');
   };
 
+  // Handle radar signal click - navigate to swap with token prefilled
+  const handleRadarSignalClick = (signal: RadarSignal) => {
+    // Try to find the token in our known tokens
+    const token = getTokenBySymbol(signal.tokenSymbol, signal.chainId);
+
+    if (token) {
+      setFromAsset({
+        symbol: token.symbol,
+        name: token.name,
+        chain: signal.chainId === 56 ? 'bsc' : signal.chainId === 137 ? 'polygon' : 'ethereum',
+        decimals: token.decimals,
+        is_native: signal.tokenSymbol === 'ETH' || signal.tokenSymbol === 'BNB' || signal.tokenSymbol === 'MATIC',
+        contract_address: token.address,
+        logo_url: token.logoURI,
+      });
+    } else {
+      // For custom tokens, create asset from signal data
+      setFromAsset({
+        symbol: signal.tokenSymbol,
+        name: signal.tokenSymbol,
+        chain: signal.chainId === 56 ? 'bsc' : signal.chainId === 137 ? 'polygon' : 'ethereum',
+        decimals: 18,
+        is_native: false,
+        contract_address: signal.tokenAddress,
+      });
+    }
+
+    // Set stablecoin as "to" token
+    const stablecoin = getTokenBySymbol('USDT', signal.chainId);
+    if (stablecoin) {
+      setToAsset({
+        symbol: stablecoin.symbol,
+        name: stablecoin.name,
+        chain: signal.chainId === 56 ? 'bsc' : signal.chainId === 137 ? 'polygon' : 'ethereum',
+        decimals: stablecoin.decimals,
+        is_native: false,
+        contract_address: stablecoin.address,
+        logo_url: stablecoin.logoURI,
+      });
+    }
+
+    // Navigate to swap
+    setCurrentPage('swap');
+  };
+
   return (
     <div className="min-h-screen bg-dark-950">
       {/* Header */}
@@ -142,6 +192,13 @@ export function App() {
                 onClick={() => setCurrentPage('portfolio')}
               >
                 Portfolio
+              </NavButton>
+              <NavButton
+                active={currentPage === 'radar'}
+                onClick={() => setCurrentPage('radar')}
+                badge={radarUnreadCount > 0 ? radarUnreadCount : undefined}
+              >
+                Radar
               </NavButton>
               <NavButton
                 active={currentPage === 'screener'}
@@ -237,6 +294,10 @@ export function App() {
           </div>
         )}
 
+        {currentPage === 'radar' && (
+          <RadarPanel onSignalClick={handleRadarSignalClick} />
+        )}
+
         {currentPage === 'screener' && (
           <TokenScreener onSwapSelect={handleScreenerSwapSelect} />
         )}
@@ -295,21 +356,28 @@ function NavButton({
   active,
   onClick,
   children,
+  badge,
 }: {
   active: boolean;
   onClick: () => void;
   children: React.ReactNode;
+  badge?: number;
 }) {
   return (
     <button
       onClick={onClick}
-      className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+      className={`relative px-4 py-2 rounded-lg font-medium transition-colors ${
         active
           ? 'bg-dark-800 text-white'
           : 'text-dark-400 hover:text-white hover:bg-dark-800/50'
       }`}
     >
       {children}
+      {badge !== undefined && badge > 0 && (
+        <span className="absolute -top-1 -right-1 px-1.5 py-0.5 bg-primary-500 text-white text-xs font-bold rounded-full min-w-[18px] text-center">
+          {badge > 9 ? '9+' : badge}
+        </span>
+      )}
     </button>
   );
 }

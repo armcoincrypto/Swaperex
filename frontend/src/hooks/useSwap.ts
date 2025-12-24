@@ -36,6 +36,7 @@ import { useSwapStore } from '@/stores/swapStore';
 import { useBalanceStore } from '@/stores/balanceStore';
 import { toast } from '@/stores/toastStore';
 import { walletEvents, getWalletEventMessage } from '@/services/walletEvents';
+import { processQuoteForSignals } from '@/services/radarService';
 import {
   isUserRejection,
   parseTransactionError,
@@ -433,6 +434,30 @@ export function useSwap() {
           estimated_cost_native: '0',
         },
       });
+
+      // RADAR: Process quote for price movement signals
+      try {
+        const toToken = getTokenBySymbol(toSymbol, chainId || 1);
+        processQuoteForSignals(
+          {
+            address: tokenIn?.address || '',
+            symbol: fromSymbol,
+          },
+          {
+            address: toToken?.address || '',
+            symbol: toSymbol,
+          },
+          chainId || 1,
+          {
+            rate: parseFloat(rate),
+            amountOut: parseFloat(aggregatedQuote.amountOutFormatted),
+            provider: aggregatedQuote.provider,
+          }
+        );
+      } catch (radarErr) {
+        // Radar errors should never block swaps
+        console.warn('[Radar] Signal processing failed:', radarErr);
+      }
 
       return extendedQuote;
     } catch (err) {

@@ -19,10 +19,12 @@ import {
   type SecuritySignal,
   type RiskLevel,
 } from '@/services/tokenSecurity';
+import { processSecurityForSignals } from '@/services/radarService';
 
 interface TokenSafetyBadgesProps {
   contractAddress: string;
   chainId: number;
+  tokenSymbol?: string;  // For radar signal tracking
   compact?: boolean;  // Show only icons, not full labels
   showDisclaimer?: boolean;
 }
@@ -30,6 +32,7 @@ interface TokenSafetyBadgesProps {
 export function TokenSafetyBadges({
   contractAddress,
   chainId,
+  tokenSymbol,
   compact = false,
   showDisclaimer = false,
 }: TokenSafetyBadgesProps) {
@@ -48,6 +51,35 @@ export function TokenSafetyBadges({
         const data = await fetchTokenSecurity(contractAddress, chainId);
         if (!cancelled) {
           setSecurityData(data);
+
+          // RADAR: Process security data for risk change signals
+          if (tokenSymbol && data) {
+            try {
+              // Extract tax percentages from security signals
+              const buyTaxSignal = data.buyTax;
+              const sellTaxSignal = data.sellTax;
+
+              // Parse tax values from "X%" format
+              const parseTax = (value: string): number => {
+                const match = value.match(/(\d+(?:\.\d+)?)/);
+                return match ? parseFloat(match[1]) : 0;
+              };
+
+              processSecurityForSignals(
+                contractAddress,
+                tokenSymbol,
+                chainId,
+                {
+                  buyTax: parseTax(buyTaxSignal.value),
+                  sellTax: parseTax(sellTaxSignal.value),
+                  isHoneypot: data.isHoneypot,
+                }
+              );
+            } catch (radarErr) {
+              // Radar errors should never block UI
+              console.warn('[Radar] Security signal processing failed:', radarErr);
+            }
+          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -65,7 +97,7 @@ export function TokenSafetyBadges({
     return () => {
       cancelled = true;
     };
-  }, [contractAddress, chainId]);
+  }, [contractAddress, chainId, tokenSymbol]);
 
   if (isLoading) {
     return (
