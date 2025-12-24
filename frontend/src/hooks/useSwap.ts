@@ -228,7 +228,10 @@ export function useSwap() {
     setState({ status: 'idle', quote: null, txHash: null, explorerUrl: null, error: null });
     setSwapQuote(null);
     clearQuote();
-  }, [clearQuote, state.status]);
+  // Note: state.status removed from deps to prevent reset identity from changing
+  // when status changes, which would cause infinite loops in consuming components
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clearQuote]);
 
   // Check if can swap
   const canSwap = address && fromAsset && toAsset && fromAmount && !isWrongChain;
