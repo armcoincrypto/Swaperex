@@ -74,27 +74,27 @@ export function PresetDropdown({ onSelectPreset, onDeletePreset }: PresetDropdow
     <div ref={dropdownRef} className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 bg-dark-800 hover:bg-dark-700 rounded-lg text-sm transition-colors border border-dark-700"
+        className="flex items-center gap-2 px-3 py-2 bg-electro-panel/80 hover:bg-electro-panelHover rounded-lg text-sm transition-all duration-200 border border-white/[0.06] hover:border-white/[0.1]"
         title="Load saved preset"
       >
         <BookmarkIcon />
-        <span className="text-dark-300">Presets</span>
-        <span className="bg-primary-600/30 text-primary-400 text-xs px-1.5 py-0.5 rounded">
+        <span className="text-gray-400">Presets</span>
+        <span className="bg-accent/15 text-accent text-xs px-1.5 py-0.5 rounded font-medium">
           {presets.length}
         </span>
         <ChevronIcon isOpen={isOpen} />
       </button>
 
       {isOpen && (
-        <div className="absolute top-full right-0 mt-2 w-80 bg-dark-800 rounded-xl shadow-lg border border-dark-700 py-2 z-50 max-h-80 overflow-y-auto">
-          <div className="px-3 pb-2 mb-2 border-b border-dark-700">
-            <span className="text-xs text-dark-400">Saved Presets</span>
+        <div className="absolute top-full right-0 mt-2 w-80 bg-electro-panel/95 backdrop-blur-glass rounded-glass shadow-glass border border-white/[0.08] py-2 z-50 max-h-80 overflow-y-auto">
+          <div className="px-3 pb-2 mb-2 border-b border-white/[0.06]">
+            <span className="text-xs text-gray-500">Saved Presets</span>
           </div>
 
           {presets.map((preset) => (
             <div
               key={preset.id}
-              className="px-3 py-2 hover:bg-dark-700 cursor-pointer transition-colors"
+              className="px-3 py-2.5 hover:bg-electro-panelHover cursor-pointer transition-all duration-200"
               onClick={() => handleSelect(preset)}
             >
               <div className="flex items-center justify-between mb-1">
@@ -165,11 +165,11 @@ export function PresetDropdown({ onSelectPreset, onDeletePreset }: PresetDropdow
             </div>
           ))}
 
-          <div className="px-3 pt-2 mt-2 border-t border-dark-700 space-y-0.5">
-            <p className="text-[10px] text-dark-500 flex items-center gap-1">
+          <div className="px-3 pt-2 mt-2 border-t border-white/[0.06] space-y-0.5">
+            <p className="text-[10px] text-gray-500 flex items-center gap-1">
               <BoltIcon /> = Instant swap
             </p>
-            <p className="text-[10px] text-dark-500 flex items-center gap-1">
+            <p className="text-[10px] text-gray-500 flex items-center gap-1">
               <ShieldIcon /> = Smart protection
             </p>
           </div>

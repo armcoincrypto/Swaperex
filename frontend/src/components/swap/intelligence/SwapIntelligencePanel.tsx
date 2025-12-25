@@ -23,19 +23,19 @@ export function SwapIntelligencePanel({ intelligence, compact = false }: SwapInt
   // Compact mode: show summary badges only
   if (compact && !expanded) {
     return (
-      <div className="bg-dark-800/50 rounded-xl p-3 border border-dark-700">
+      <div className="bg-electro-bgAlt/60 backdrop-blur-sm rounded-glass-sm p-3 border border-white/[0.06]">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 flex-wrap">
             {/* Safety Score Badge */}
             <div
-              className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border backdrop-blur-sm ${
                 intelligence.safetyScore.level === 'safe'
-                  ? 'bg-green-900/20 border-green-800'
+                  ? 'bg-accent/10 border-accent/20'
                   : intelligence.safetyScore.level === 'moderate'
-                  ? 'bg-yellow-900/20 border-yellow-800'
+                  ? 'bg-warning/10 border-warning/20'
                   : intelligence.safetyScore.level === 'risky'
-                  ? 'bg-orange-900/20 border-orange-800'
-                  : 'bg-red-900/20 border-red-800'
+                  ? 'bg-orange-500/10 border-orange-500/20'
+                  : 'bg-danger/10 border-danger/20'
               }`}
             >
               <ShieldIcon
@@ -74,7 +74,7 @@ export function SwapIntelligencePanel({ intelligence, compact = false }: SwapInt
 
           <button
             onClick={() => setExpanded(true)}
-            className="text-xs text-primary-400 hover:text-primary-300 transition-colors"
+            className="text-xs text-accent hover:text-accent/80 transition-colors font-medium"
           >
             Details
           </button>
@@ -85,17 +85,17 @@ export function SwapIntelligencePanel({ intelligence, compact = false }: SwapInt
 
   // Expanded mode: show full details
   return (
-    <div className="bg-dark-800/30 rounded-xl border border-dark-700 overflow-hidden">
+    <div className="bg-electro-bgAlt/60 backdrop-blur-sm rounded-glass-sm border border-white/[0.06] overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-dark-700">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
         <div className="flex items-center gap-2">
-          <BrainIcon className="w-5 h-5 text-primary-400" />
-          <span className="font-medium">Swap Intelligence</span>
+          <BrainIcon className="w-5 h-5 text-cyan" />
+          <span className="font-medium text-white">Swap Intelligence</span>
         </div>
         {compact && (
           <button
             onClick={() => setExpanded(false)}
-            className="text-xs text-dark-400 hover:text-white transition-colors"
+            className="text-xs text-gray-400 hover:text-white transition-colors"
           >
             Collapse
           </button>
@@ -123,8 +123,8 @@ export function SwapIntelligencePanel({ intelligence, compact = false }: SwapInt
         )}
 
         {/* Timestamp */}
-        <div className="flex items-center justify-end pt-2 border-t border-dark-700">
-          <span className="text-[10px] text-dark-500">
+        <div className="flex items-center justify-end pt-2 border-t border-white/[0.04]">
+          <span className="text-[10px] text-gray-500">
             Updated {new Date(intelligence.timestamp).toLocaleTimeString()}
           </span>
         </div>

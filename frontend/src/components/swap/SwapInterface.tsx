@@ -20,7 +20,6 @@ import { SavePresetModal } from '@/components/presets/SavePresetModal';
 import { GuardWarningPanel } from '@/components/presets/GuardWarningPanel';
 import { SwapIntelligencePanel } from '@/components/swap/intelligence';
 import { evaluatePresetGuards } from '@/services/presetGuardService';
-import { Button } from '@/components/common/Button';
 import { TokenSafetyBadges } from '@/components/common/TokenSafetyBadges';
 import { SwapPreviewModal, SwapStep } from './SwapPreviewModal';
 import { formatBalance, formatPercent } from '@/utils/format';
@@ -578,13 +577,18 @@ export function SwapInterface() {
     return tiers[feeTier] || `${(feeTier / 10000).toFixed(2)}%`;
   };
 
+  // Check if swap is ready (for glow effect)
+  const isSwapReady = !isButtonDisabled() && swapQuote && status === 'previewing';
+
   // Render swap form
   return (
     <>
-      <div className="w-full max-w-md mx-auto bg-dark-900 rounded-2xl p-4 border border-dark-800">
+      <div className="w-full max-w-md mx-auto bg-electro-panel/90 backdrop-blur-glass rounded-glass p-4 border border-white/[0.08] shadow-glass relative overflow-hidden">
+        {/* Subtle gradient overlay */}
+        <div className="absolute inset-0 bg-glass-gradient pointer-events-none" />
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold">Swap</h2>
+        <div className="relative z-10 flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-white">Swap</h2>
           <div className="flex items-center gap-2">
             {/* Preset Dropdown */}
             {isConnected && (
@@ -635,8 +639,8 @@ export function SwapInterface() {
         />
 
         {/* From Token */}
-        <div className={`bg-dark-800 rounded-xl p-4 mb-2 ${
-          insufficientBalance ? 'border border-red-800' : ''
+        <div className={`relative z-10 bg-electro-bgAlt/80 rounded-glass-sm p-4 mb-2 border transition-all duration-200 ${
+          insufficientBalance ? 'border-danger/50 shadow-glow-danger' : 'border-white/[0.06] hover:border-white/[0.1]'
         }`}>
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-dark-400">You Pay</span>
@@ -699,18 +703,20 @@ export function SwapInterface() {
         </div>
 
         {/* Swap Direction Button */}
-        <div className="flex justify-center -my-2 relative z-10">
+        <div className="flex justify-center -my-2 relative z-20">
           <button
             onClick={swapAssets}
-            className="p-2 bg-dark-700 rounded-lg hover:bg-dark-600 transition-colors border-4 border-dark-900"
+            className="p-2.5 bg-electro-panel rounded-xl hover:bg-electro-panelHover transition-all duration-200 border-4 border-electro-bg hover:border-accent/20 group"
             title="Swap direction"
           >
-            <SwapIcon />
+            <div className="text-gray-400 group-hover:text-accent transition-colors">
+              <SwapIcon />
+            </div>
           </button>
         </div>
 
         {/* To Token */}
-        <div className="bg-dark-800 rounded-xl p-4 mt-2">
+        <div className="relative z-10 bg-electro-bgAlt/80 rounded-glass-sm p-4 mt-2 border border-white/[0.06] hover:border-white/[0.1] transition-all duration-200">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-dark-400">You Receive</span>
             <span className="text-sm text-dark-400">
@@ -782,7 +788,7 @@ export function SwapInterface() {
 
         {/* Quote Details (when quote available) */}
         {swapQuote && status === 'previewing' && !showPreview && (
-          <div className="mt-4 p-4 bg-dark-800 rounded-xl text-sm space-y-2">
+          <div className="relative z-10 mt-4 p-4 bg-electro-bgAlt/60 rounded-glass-sm text-sm space-y-2 border border-white/[0.06]">
             {/* Best Route Banner with Countdown */}
             <div className="flex items-center justify-between pb-2 mb-2 border-b border-dark-700">
               <div className="flex items-center gap-2">
@@ -913,22 +919,38 @@ export function SwapInterface() {
         )}
 
         {/* Swap Button */}
-        <Button
-          onClick={handlePreviewSwap}
-          disabled={isButtonDisabled()}
-          loading={showSpinner}
-          fullWidth
-          className="mt-4"
-          size="lg"
-        >
-          {getButtonText()}
-        </Button>
+        <div className="relative z-10 mt-4">
+          <button
+            onClick={handlePreviewSwap}
+            disabled={isButtonDisabled()}
+            className={`
+              w-full py-3.5 rounded-glass-sm font-semibold text-base
+              transition-all duration-200
+              disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none
+              ${isSwapReady
+                ? 'bg-accent text-electro-bg shadow-glow-accent hover:brightness-110'
+                : showSpinner
+                  ? 'bg-electro-panel text-gray-400 border border-white/[0.1]'
+                  : 'bg-electro-panel text-gray-400 border border-white/[0.1] hover:bg-electro-panelHover hover:border-white/[0.15]'
+              }
+            `}
+          >
+            {showSpinner ? (
+              <span className="flex items-center justify-center gap-2">
+                <LoadingSpinner />
+                <span>Getting Quote...</span>
+              </span>
+            ) : (
+              getButtonText()
+            )}
+          </button>
+        </div>
 
         {/* Security Footer */}
         {isConnected && (
-          <div className="flex items-center justify-center gap-2 mt-3">
+          <div className="relative z-10 flex items-center justify-center gap-2 mt-3">
             <ShieldIcon />
-            <p className="text-xs text-dark-500">
+            <p className="text-xs text-gray-500">
               All transactions are signed locally in your wallet
             </p>
           </div>
@@ -969,7 +991,7 @@ function TokenButton({ asset, onClick }: { asset: AssetInfo | null; onClick: () 
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-2 px-3 py-2 bg-dark-700 rounded-xl hover:bg-dark-600 transition-colors"
+      className="flex items-center gap-2 px-3 py-2 bg-electro-panel/80 rounded-xl hover:bg-electro-panelHover transition-all duration-200 border border-white/[0.06] hover:border-white/[0.1]"
     >
       {asset?.logo_url ? (
         <img
@@ -1118,7 +1140,7 @@ function TokenSelectorDropdown({
   return (
     <div
       ref={dropdownRef}
-      className="absolute top-full left-0 mt-2 w-80 bg-dark-800 rounded-xl shadow-lg border border-dark-700 py-2 z-[60]"
+      className="absolute top-full left-0 mt-2 w-80 bg-electro-panel/95 backdrop-blur-glass rounded-glass shadow-glass border border-white/[0.08] py-2 z-[60]"
     >
       {/* Search Input */}
       <div className="px-3 pb-2 mb-2 border-b border-dark-700">
@@ -1391,10 +1413,10 @@ function SlippageSettings({
   const isCustom = !presets.includes(value);
 
   return (
-    <div className="mb-4 p-4 bg-dark-800 rounded-xl">
+    <div className="relative z-10 mb-4 p-4 bg-electro-bgAlt/80 rounded-glass-sm border border-white/[0.06]">
       <div className="flex items-center justify-between mb-3">
-        <span className="font-medium">Slippage Tolerance</span>
-        <button onClick={onClose} className="text-dark-400 hover:text-white">
+        <span className="font-medium text-white">Slippage Tolerance</span>
+        <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
           <CloseIcon />
         </button>
       </div>
@@ -1407,10 +1429,10 @@ function SlippageSettings({
               onChange(opt);
               onCustomChange('');
             }}
-            className={`px-4 py-2 rounded-lg text-sm transition-colors ${
+            className={`px-4 py-2 rounded-lg text-sm transition-all duration-200 ${
               value === opt
-                ? 'bg-primary-600 text-white'
-                : 'bg-dark-700 hover:bg-dark-600'
+                ? 'bg-accent text-electro-bg font-medium'
+                : 'bg-electro-panel hover:bg-electro-panelHover border border-white/[0.06]'
             }`}
           >
             {opt}%
@@ -1418,8 +1440,8 @@ function SlippageSettings({
         ))}
 
         {/* Custom Input */}
-        <div className={`flex-1 flex items-center gap-1 px-3 py-2 rounded-lg ${
-          isCustom ? 'bg-primary-600/20 border border-primary-600' : 'bg-dark-700'
+        <div className={`flex-1 flex items-center gap-1 px-3 py-2 rounded-lg transition-all duration-200 ${
+          isCustom ? 'bg-accent/10 border border-accent/30' : 'bg-electro-panel border border-white/[0.06]'
         }`}>
           <input
             type="text"
@@ -1638,16 +1660,16 @@ function QuickSwapPresets({
   if (!hasTokens) return null;
 
   return (
-    <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
+    <div className="relative z-10 flex gap-2 mb-4 overflow-x-auto pb-1">
       {presets.map((preset) => (
         <button
           key={preset.label}
           onClick={() => onSelect(preset.from, preset.to)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-dark-800 hover:bg-dark-700 rounded-lg text-sm font-medium transition-colors whitespace-nowrap border border-dark-700 hover:border-dark-600"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-electro-bgAlt/60 hover:bg-electro-panel rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap border border-white/[0.04] hover:border-white/[0.08]"
           title={`${preset.from} → ${preset.to}`}
         >
           <span>{preset.icon}</span>
-          <span className="text-dark-300">{preset.label}</span>
+          <span className="text-gray-400">{preset.label}</span>
         </button>
       ))}
     </div>

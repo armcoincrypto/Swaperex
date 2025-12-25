@@ -181,13 +181,13 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-dark-950">
+    <div className="min-h-screen bg-electro-bg bg-bg-mesh">
       {/* Header */}
-      <header className="border-b border-dark-800">
+      <header className="border-b border-white/[0.06] backdrop-blur-sm bg-electro-bg/80 sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-8">
             {/* Logo */}
-            <h1 className="text-xl font-bold text-primary-400">Swaperex</h1>
+            <h1 className="text-xl font-bold text-accent">Swaperex</h1>
 
             {/* Navigation */}
             <nav className="flex gap-1">
@@ -326,8 +326,8 @@ export function App() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-dark-800 mt-auto">
-        <div className="max-w-6xl mx-auto px-4 py-6 text-center text-sm text-dark-400">
+      <footer className="border-t border-white/[0.06] mt-auto">
+        <div className="max-w-6xl mx-auto px-4 py-6 text-center text-sm text-gray-500">
           <p>Swaperex - Web3 Non-Custodial Swap Platform</p>
           <p className="mt-1">All transactions are signed locally in your wallet.</p>
           <div className="mt-3 flex justify-center gap-4">
@@ -382,15 +382,15 @@ function NavButton({
   return (
     <button
       onClick={onClick}
-      className={`relative px-4 py-2 rounded-lg font-medium transition-colors ${
+      className={`relative px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
         active
-          ? 'bg-dark-800 text-white'
-          : 'text-dark-400 hover:text-white hover:bg-dark-800/50'
+          ? 'bg-electro-panel text-white border border-white/[0.08]'
+          : 'text-gray-400 hover:text-white hover:bg-electro-panel/50'
       }`}
     >
       {children}
       {badge !== undefined && badge > 0 && (
-        <span className="absolute -top-1 -right-1 px-1.5 py-0.5 bg-primary-500 text-white text-xs font-bold rounded-full min-w-[18px] text-center">
+        <span className="absolute -top-1 -right-1 px-1.5 py-0.5 bg-accent text-electro-bg text-xs font-bold rounded-full min-w-[18px] text-center">
           {badge > 9 ? '9+' : badge}
         </span>
       )}
