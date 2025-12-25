@@ -49,6 +49,7 @@ export interface SwapPreset {
   skipConfirmation: boolean;
   createdAt: number;
   lastUsed: number;
+  useCount: number; // How many times this preset has been used
   walletAddress: string;
   chainId: number;
   // Smart Preset guards (optional)
@@ -59,7 +60,7 @@ interface PresetState {
   presets: SwapPreset[];
 
   // Actions
-  addPreset: (preset: Omit<SwapPreset, 'id' | 'createdAt' | 'lastUsed'>) => string;
+  addPreset: (preset: Omit<SwapPreset, 'id' | 'createdAt' | 'lastUsed' | 'useCount'>) => string;
   removePreset: (id: string) => void;
   updatePreset: (id: string, changes: Partial<SwapPreset>) => void;
   getPresetsForWallet: (chainId: number, walletAddress: string) => SwapPreset[];
@@ -101,6 +102,7 @@ export const usePresetStore = create<PresetState>()(
           id,
           createdAt: now,
           lastUsed: now,
+          useCount: 0,
         };
 
         set((state) => ({
@@ -137,7 +139,9 @@ export const usePresetStore = create<PresetState>()(
       markPresetUsed: (id) => {
         set((state) => ({
           presets: state.presets.map((p) =>
-            p.id === id ? { ...p, lastUsed: Date.now() } : p
+            p.id === id
+              ? { ...p, lastUsed: Date.now(), useCount: (p.useCount || 0) + 1 }
+              : p
           ),
         }));
       },
@@ -160,11 +164,12 @@ export const usePresetStore = create<PresetState>()(
     }),
     {
       name: 'swaperex-swap-presets',
-      version: 2,
+      version: 3,
       migrate: (persistedState: unknown, version: number) => {
+        const state = persistedState as { presets: SwapPreset[] };
+
         if (version < 2) {
-          // Migration: add guards field to existing presets
-          const state = persistedState as { presets: SwapPreset[] };
+          // Migration v1 -> v2: add guards field to existing presets
           return {
             ...state,
             presets: state.presets?.map((p) => ({
@@ -173,6 +178,18 @@ export const usePresetStore = create<PresetState>()(
             })) || [],
           };
         }
+
+        if (version < 3) {
+          // Migration v2 -> v3: add useCount field to existing presets
+          return {
+            ...state,
+            presets: state.presets?.map((p) => ({
+              ...p,
+              useCount: p.useCount || 0,
+            })) || [],
+          };
+        }
+
         return persistedState;
       },
     }

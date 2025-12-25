@@ -14,6 +14,22 @@ interface PresetDropdownProps {
   onDeletePreset?: (id: string) => void;
 }
 
+// Format timestamp to relative time (e.g., "2h ago", "3d ago")
+function formatRelativeTime(timestamp: number): string {
+  const now = Date.now();
+  const diff = now - timestamp;
+
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days < 30) return `${days}d ago`;
+  return `${Math.floor(days / 30)}mo ago`;
+}
+
 export function PresetDropdown({ onSelectPreset, onDeletePreset }: PresetDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -125,13 +141,26 @@ export function PresetDropdown({ onSelectPreset, onDeletePreset }: PresetDropdow
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 text-xs text-dark-400">
+              {/* Swap Details */}
+              <div className="flex items-center gap-2 text-xs text-dark-400 mb-1">
                 <span className="text-primary-400">{preset.fromAmount}</span>
                 <span>{preset.fromAsset.symbol}</span>
                 <ArrowIcon />
                 <span>{preset.toAsset.symbol}</span>
                 <span className="text-dark-600">•</span>
                 <span>{preset.slippage}% slip</span>
+              </div>
+
+              {/* Usage Stats */}
+              <div className="flex items-center gap-3 text-[10px] text-dark-500">
+                <span className="flex items-center gap-1">
+                  <UsageIcon />
+                  Used {preset.useCount || 0}x
+                </span>
+                <span className="flex items-center gap-1">
+                  <ClockIcon />
+                  {formatRelativeTime(preset.lastUsed)}
+                </span>
               </div>
             </div>
           ))}
@@ -200,6 +229,22 @@ function ShieldIcon() {
   return (
     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+    </svg>
+  );
+}
+
+function UsageIcon() {
+  return (
+    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+    </svg>
+  );
+}
+
+function ClockIcon() {
+  return (
+    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   );
 }

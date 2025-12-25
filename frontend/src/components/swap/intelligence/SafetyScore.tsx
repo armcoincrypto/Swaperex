@@ -6,6 +6,7 @@
 
 import { useState } from 'react';
 import type { SafetyFactor } from '@/services/dex/types';
+import { WhyButton } from '@/components/common/ExplainerTooltip';
 
 interface SafetyScoreProps {
   score: number;
@@ -89,11 +90,20 @@ export function SafetyScore({ score, level, factors, compact = false }: SafetySc
 
       {/* Level Label */}
       <div className="flex items-center justify-between text-xs">
-        <span className={getScoreColor()}>
+        <span className={`flex items-center gap-2 ${getScoreColor()}`}>
           {level === 'safe' && 'Safe to swap'}
           {level === 'moderate' && 'Moderate risk'}
           {level === 'risky' && 'Higher risk'}
           {level === 'dangerous' && 'High risk - proceed with caution'}
+          <WhyButton
+            explainerId={
+              level === 'safe'
+                ? 'safetyScoreHigh'
+                : level === 'moderate'
+                ? 'safetyScoreMedium'
+                : 'safetyScoreLow'
+            }
+          />
         </span>
         {factors.length > 0 && (
           <button

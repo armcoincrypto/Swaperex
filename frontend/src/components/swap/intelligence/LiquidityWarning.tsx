@@ -5,6 +5,7 @@
  */
 
 import type { LiquidityAnalysis } from '@/services/dex/types';
+import { WhyButton } from '@/components/common/ExplainerTooltip';
 
 interface LiquidityWarningProps {
   liquidity: LiquidityAnalysis;
@@ -104,11 +105,20 @@ export function LiquidityWarning({ liquidity, compact = false }: LiquidityWarnin
       </div>
 
       <div className="flex items-center justify-between text-xs">
-        <span className={getTextColor()}>
+        <span className={`flex items-center gap-2 ${getTextColor()}`}>
           {level === 'high' && 'Deep liquidity'}
           {level === 'medium' && 'Moderate liquidity'}
           {level === 'low' && 'Limited liquidity'}
           {level === 'critical' && 'Very thin liquidity'}
+          <WhyButton
+            explainerId={
+              level === 'high'
+                ? 'liquidityHigh'
+                : level === 'medium'
+                ? 'liquidityMedium'
+                : 'liquidityLow'
+            }
+          />
         </span>
         <span className="text-dark-500">Target: $500K+</span>
       </div>

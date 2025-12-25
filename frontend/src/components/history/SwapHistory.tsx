@@ -11,6 +11,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useWalletStore } from '@/stores/walletStore';
 import { useSwapHistoryStore, type SwapRecord } from '@/stores/swapHistoryStore';
+import { NoHistoryEmptyState } from '@/components/common/EmptyState';
 import {
   getRecentSwaps,
   formatTimeAgo,
@@ -100,12 +101,8 @@ export function SwapHistory({ onRepeatSwap }: SwapHistoryProps = {}) {
     return (
       <div className="mt-8">
         <h2 className="text-xl font-bold mb-4">Recent Swaps</h2>
-        <div className="p-6 bg-dark-800 rounded-xl text-center">
-          <SwapIcon />
-          <p className="text-dark-400 mt-2">No swap history found</p>
-          <p className="text-dark-500 text-sm mt-1">
-            Your recent swaps will appear here
-          </p>
+        <div className="bg-dark-800 rounded-xl p-4">
+          <NoHistoryEmptyState />
         </div>
       </div>
     );
@@ -296,14 +293,6 @@ function TransactionRow({ transaction }: { transaction: Transaction }) {
 }
 
 // Icons
-function SwapIcon() {
-  return (
-    <svg className="w-12 h-12 mx-auto text-dark-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-    </svg>
-  );
-}
-
 function CheckIcon() {
   return (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

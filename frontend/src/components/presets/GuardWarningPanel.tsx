@@ -4,12 +4,27 @@
  * Displays warnings or blocks when preset guards fail.
  */
 
-import type { GuardEvaluation } from '@/stores/presetStore';
+import type { GuardEvaluation, GuardWarning } from '@/stores/presetStore';
+import { WhyButton } from '@/components/common/ExplainerTooltip';
 
 interface GuardWarningPanelProps {
   evaluation: GuardEvaluation;
   onDismiss?: () => void;
   onProceedAnyway?: () => void;
+}
+
+// Map warning types to explainer IDs
+function getExplainerForWarning(warning: GuardWarning): string {
+  switch (warning.type) {
+    case 'safety':
+      return 'guardSafetyFailed';
+    case 'impact':
+      return 'guardImpactFailed';
+    case 'liquidity':
+      return 'guardLiquidityFailed';
+    default:
+      return 'guardSafetyFailed';
+  }
 }
 
 export function GuardWarningPanel({ evaluation, onDismiss, onProceedAnyway }: GuardWarningPanelProps) {
@@ -50,12 +65,15 @@ export function GuardWarningPanel({ evaluation, onDismiss, onProceedAnyway }: Gu
         {evaluation.warnings.map((warning, index) => (
           <div
             key={index}
-            className={`flex items-start gap-2 text-sm ${
+            className={`flex items-center justify-between text-sm ${
               isBlocked ? 'text-red-300' : 'text-yellow-300'
             }`}
           >
-            <span className="mt-0.5">•</span>
-            <span>{warning.message}</span>
+            <div className="flex items-start gap-2">
+              <span className="mt-0.5">•</span>
+              <span>{warning.message}</span>
+            </div>
+            <WhyButton explainerId={getExplainerForWarning(warning)} />
           </div>
         ))}
       </div>

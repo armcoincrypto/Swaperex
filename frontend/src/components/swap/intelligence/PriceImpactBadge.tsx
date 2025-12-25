@@ -5,6 +5,7 @@
  */
 
 import type { PriceImpactAnalysis } from '@/services/dex/types';
+import { WhyButton } from '@/components/common/ExplainerTooltip';
 
 interface PriceImpactBadgeProps {
   impact: PriceImpactAnalysis;
@@ -85,12 +86,23 @@ export function PriceImpactBadge({ impact, compact = false }: PriceImpactBadgePr
       )}
 
       {!impact.warning && (
-        <p className="text-xs text-dark-400">
-          {impact.level === 'low' && 'Minimal price impact - good trade size'}
-          {impact.level === 'medium' && 'Moderate impact - consider smaller trades'}
-          {impact.level === 'high' && 'Significant impact on execution price'}
-          {impact.level === 'extreme' && 'Very high impact - split into smaller trades'}
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-dark-400">
+            {impact.level === 'low' && 'Minimal price impact - good trade size'}
+            {impact.level === 'medium' && 'Moderate impact - consider smaller trades'}
+            {impact.level === 'high' && 'Significant impact on execution price'}
+            {impact.level === 'extreme' && 'Very high impact - split into smaller trades'}
+          </p>
+          <WhyButton
+            explainerId={
+              impact.level === 'low'
+                ? 'priceImpactLow'
+                : impact.level === 'medium'
+                ? 'priceImpactMedium'
+                : 'priceImpactHigh'
+            }
+          />
+        </div>
       )}
     </div>
   );
