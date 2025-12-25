@@ -32,6 +32,11 @@ export interface RadarSignal {
     newValue?: string | number;
     percentChange?: number;
     source?: string;
+    // Smart signal fields
+    confidence?: number; // 0-1 confidence score
+    escalated?: boolean; // Signal escalated from lower severity
+    previousSeverity?: string; // Previous severity level
+    riskFactors?: string[]; // Risk factors for risk signals
   };
 }
 
