@@ -38,6 +38,7 @@ import { toast } from '@/stores/toastStore';
 import { walletEvents, getWalletEventMessage } from '@/services/walletEvents';
 import { processQuoteForSignals } from '@/services/radarService';
 import { useSwapHistoryStore } from '@/stores/swapHistoryStore';
+import { useUsageStore } from '@/stores/usageStore';
 import {
   isUserRejection,
   parseTransactionError,
@@ -166,6 +167,7 @@ export function useSwap() {
   const { fromAsset, toAsset, fromAmount, slippage, setQuote, clearQuote } = useSwapStore();
   const { fetchBalances } = useBalanceStore();
   const { addRecord: addSwapRecord } = useSwapHistoryStore();
+  const { trackEvent } = useUsageStore();
 
   const [state, setState] = useState<SwapState>({
     status: 'idle',
@@ -674,6 +676,9 @@ export function useSwap() {
             slippage,
           });
         }
+
+        // Track usage for analytics (local only, no personal data)
+        trackEvent('swap_completed');
 
         // Refresh balances for the current chain
         const chainNetwork = chainId === 56 ? 'bsc' : 'ethereum';

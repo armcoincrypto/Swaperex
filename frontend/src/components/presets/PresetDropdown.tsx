@@ -8,6 +8,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { usePresetStore, type SwapPreset } from '@/stores/presetStore';
 import { useWalletStore } from '@/stores/walletStore';
+import { useUsageStore } from '@/stores/usageStore';
+import { TierBadge } from '@/components/common/TierBadge';
 
 interface PresetDropdownProps {
   onSelectPreset: (preset: SwapPreset) => void;
@@ -35,6 +37,7 @@ export function PresetDropdown({ onSelectPreset, onDeletePreset }: PresetDropdow
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { address, chainId } = useWalletStore();
   const { getPresetsForWallet, removePreset, toggleSkipConfirmation } = usePresetStore();
+  const { trackEvent } = useUsageStore();
 
   const presets = address && chainId ? getPresetsForWallet(chainId, address) : [];
 
@@ -57,6 +60,7 @@ export function PresetDropdown({ onSelectPreset, onDeletePreset }: PresetDropdow
   const handleSelect = (preset: SwapPreset) => {
     onSelectPreset(preset);
     setIsOpen(false);
+    trackEvent('preset_used');
   };
 
   const handleDelete = (e: React.MouseEvent, id: string) => {
@@ -87,8 +91,9 @@ export function PresetDropdown({ onSelectPreset, onDeletePreset }: PresetDropdow
 
       {isOpen && (
         <div className="absolute top-full right-0 mt-2 w-80 bg-electro-panel/95 backdrop-blur-glass rounded-glass shadow-glass border border-white/[0.08] py-2 z-50 max-h-80 overflow-y-auto">
-          <div className="px-3 pb-2 mb-2 border-b border-white/[0.06]">
+          <div className="px-3 pb-2 mb-2 border-b border-white/[0.06] flex items-center justify-between">
             <span className="text-xs text-gray-500">Saved Presets</span>
+            <TierBadge tier="pro" />
           </div>
 
           {presets.map((preset) => (

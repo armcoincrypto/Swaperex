@@ -7,7 +7,9 @@
 
 import { useState, useMemo } from 'react';
 import { useRadarStore, type RadarSignalType, type RadarSignal, getSignalTypeInfo } from '@/stores/radarStore';
+import { useUsageStore } from '@/stores/usageStore';
 import { RadarItem } from './RadarItem';
+import { TierBadge } from '@/components/common/TierBadge';
 
 interface RadarPanelProps {
   onSignalClick: (signal: RadarSignal) => void;
@@ -24,6 +26,7 @@ const FILTER_OPTIONS: { value: FilterType; label: string }[] = [
 
 export function RadarPanel({ onSignalClick }: RadarPanelProps) {
   const { signals, markAsRead, markAllAsRead, removeSignal, getUnreadCount } = useRadarStore();
+  const { trackEvent } = useUsageStore();
   const [filter, setFilter] = useState<FilterType>('all');
 
   const unreadCount = getUnreadCount();
@@ -59,6 +62,7 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
   const handleSignalClick = (signal: RadarSignal) => {
     markAsRead(signal.id);
     onSignalClick(signal);
+    trackEvent('signal_viewed');
   };
 
   return (
@@ -67,6 +71,7 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <h2 className="text-2xl font-bold">Radar</h2>
+          <TierBadge tier="early-access" />
           {unreadCount > 0 && (
             <span className="px-2 py-0.5 bg-primary-600 text-white text-sm font-medium rounded-full">
               {unreadCount} new

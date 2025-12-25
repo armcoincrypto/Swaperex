@@ -5,12 +5,14 @@
  * Displayed before swap confirmation.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { SwapIntelligence } from '@/services/dex/types';
 import { SafetyScore } from './SafetyScore';
 import { PriceImpactBadge } from './PriceImpactBadge';
 import { LiquidityWarning } from './LiquidityWarning';
 import { RouteComparison } from './RouteComparison';
+import { TierBadge } from '@/components/common/TierBadge';
+import { useUsageStore } from '@/stores/usageStore';
 
 interface SwapIntelligencePanelProps {
   intelligence: SwapIntelligence;
@@ -19,6 +21,14 @@ interface SwapIntelligencePanelProps {
 
 export function SwapIntelligencePanel({ intelligence, compact = false }: SwapIntelligencePanelProps) {
   const [expanded, setExpanded] = useState(!compact);
+  const { trackEvent } = useUsageStore();
+
+  // Track when user expands to view details
+  useEffect(() => {
+    if (expanded) {
+      trackEvent('intelligence_expanded');
+    }
+  }, [expanded, trackEvent]);
 
   // Compact mode: show summary badges only
   if (compact && !expanded) {
@@ -91,6 +101,7 @@ export function SwapIntelligencePanel({ intelligence, compact = false }: SwapInt
         <div className="flex items-center gap-2">
           <BrainIcon className="w-5 h-5 text-cyan" />
           <span className="font-medium text-white">Swap Intelligence</span>
+          <TierBadge tier="advanced" />
         </div>
         {compact && (
           <button
