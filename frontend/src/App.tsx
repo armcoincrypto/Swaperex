@@ -5,7 +5,7 @@
  * SECURITY: All signing happens client-side via connected wallet.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { WalletConnect } from '@/components/wallet/WalletConnect';
 import { SwapInterface } from '@/components/swap/SwapInterface';
 import { WithdrawalInterface } from '@/components/withdrawal/WithdrawalInterface';
@@ -22,6 +22,7 @@ import { useWallet } from '@/hooks/useWallet';
 import { useSwapStore } from '@/stores/swapStore';
 import { useToastStore } from '@/stores/toastStore';
 import { useRadarStore, type RadarSignal } from '@/stores/radarStore';
+import { useSignalsHealthStore } from '@/stores/signalsHealthStore';
 import { type SwapRecord } from '@/stores/swapHistoryStore';
 import { getTokenBySymbol } from '@/tokens';
 
@@ -36,6 +37,16 @@ export function App() {
   const [bannerDismissed, setBannerDismissed] = useState(false);
 
   const radarUnreadCount = getUnreadCount();
+
+  // Signals health check
+  const refreshSignalsHealth = useSignalsHealthStore((s) => s.refresh);
+
+  // Auto-check signals health on mount and every 60 seconds
+  useEffect(() => {
+    refreshSignalsHealth();
+    const intervalId = setInterval(refreshSignalsHealth, 60_000);
+    return () => clearInterval(intervalId);
+  }, [refreshSignalsHealth]);
 
   // Handle chain switch from banner
   const handleBannerSwitch = async () => {

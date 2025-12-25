@@ -12,6 +12,7 @@ import { PriceImpactBadge } from './PriceImpactBadge';
 import { LiquidityWarning } from './LiquidityWarning';
 import { RouteComparison } from './RouteComparison';
 import { TierBadge } from '@/components/common/TierBadge';
+import { SignalsStatusBadge } from '@/components/signals/SignalsStatusBadge';
 import { useUsageStore } from '@/stores/usageStore';
 
 interface SwapIntelligencePanelProps {
@@ -115,6 +116,9 @@ export function SwapIntelligencePanel({ intelligence, compact = false }: SwapInt
 
       {/* Content */}
       <div className="p-4 space-y-3">
+        {/* Signals Offline Warning (compact) */}
+        <SignalsStatusBadge compact />
+
         {/* Safety Score */}
         <SafetyScore
           score={intelligence.safetyScore.score}

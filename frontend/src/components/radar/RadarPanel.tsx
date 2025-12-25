@@ -10,6 +10,7 @@ import { useRadarStore, type RadarSignalType, type RadarSignal, getSignalTypeInf
 import { useUsageStore } from '@/stores/usageStore';
 import { RadarItem } from './RadarItem';
 import { TierBadge } from '@/components/common/TierBadge';
+import { SignalsStatusBadge } from '@/components/signals/SignalsStatusBadge';
 
 interface RadarPanelProps {
   onSignalClick: (signal: RadarSignal) => void;
@@ -87,6 +88,9 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
           </button>
         )}
       </div>
+
+      {/* Signals Offline Warning */}
+      <SignalsStatusBadge className="mb-4" />
 
       {/* Filter Pills */}
       <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
