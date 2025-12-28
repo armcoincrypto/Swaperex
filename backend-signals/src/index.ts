@@ -48,12 +48,13 @@ app.get("/api/v1/signals", async (req, reply) => {
     return { timestamp: Date.now(), disabled: true };
   }
 
-  const { chainId, token } = req.query as any;
+  const { chainId, token, debug } = req.query as any;
   if (!chainId || !token) {
     return reply.code(400).send({ error: "Missing params: chainId, token" });
   }
 
-  return getSignals(Number(chainId), token.toLowerCase());
+  const includeDebug = debug === "1" || debug === "true";
+  return getSignals(Number(chainId), token.toLowerCase(), includeDebug);
 });
 
 // Legacy endpoint (redirect to v1)

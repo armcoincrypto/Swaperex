@@ -5,12 +5,15 @@
  * Includes filtering, mark all as read, and empty state.
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRadarStore, type RadarSignalType, type RadarSignal, getSignalTypeInfo } from '@/stores/radarStore';
 import { useUsageStore } from '@/stores/usageStore';
+import { useDebugStore, useDebugMode } from '@/stores/debugStore';
 import { RadarItem } from './RadarItem';
 import { TierBadge } from '@/components/common/TierBadge';
 import { SignalsStatusBadge } from '@/components/signals/SignalsStatusBadge';
+import { SignalDebugPanel } from '@/components/signals/SignalDebugPanel';
+import { fetchSignals, type SignalDebugData } from '@/services/signalsHealth';
 
 interface RadarPanelProps {
   onSignalClick: (signal: RadarSignal) => void;
@@ -28,9 +31,45 @@ const FILTER_OPTIONS: { value: FilterType; label: string }[] = [
 export function RadarPanel({ onSignalClick }: RadarPanelProps) {
   const { signals, markAsRead, markAllAsRead, removeSignal, getUnreadCount } = useRadarStore();
   const { trackEvent } = useUsageStore();
+  const debugEnabled = useDebugMode();
+  const toggleDebug = useDebugStore((s) => s.toggle);
   const [filter, setFilter] = useState<FilterType>('all');
 
+  // Debug state
+  const [debugData, setDebugData] = useState<SignalDebugData | null>(null);
+  const [debugLoading, setDebugLoading] = useState(false);
+  const [debugError, setDebugError] = useState<string | null>(null);
+
   const unreadCount = getUnreadCount();
+
+  // Fetch debug data when debug mode is enabled
+  useEffect(() => {
+    if (!debugEnabled) {
+      setDebugData(null);
+      return;
+    }
+
+    // Use a test token to fetch debug data
+    const fetchDebugData = async () => {
+      setDebugLoading(true);
+      setDebugError(null);
+      try {
+        // Use USDC on Ethereum as a test token
+        const response = await fetchSignals(1, '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', true);
+        if (response?.debug) {
+          setDebugData(response.debug);
+        } else {
+          setDebugError('No debug data returned');
+        }
+      } catch (err) {
+        setDebugError('Failed to fetch debug data');
+      } finally {
+        setDebugLoading(false);
+      }
+    };
+
+    fetchDebugData();
+  }, [debugEnabled]);
 
   // Filter signals
   const filteredSignals = useMemo(() => {
@@ -203,6 +242,15 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
         </div>
       )}
 
+      {/* Debug Panel (only visible in debug mode) */}
+      {debugEnabled && (
+        <SignalDebugPanel
+          debug={debugData}
+          loading={debugLoading}
+          error={debugError}
+        />
+      )}
+
       {/* Info Footer */}
       <div className="mt-8 p-4 bg-dark-800 rounded-xl text-center">
         <p className="text-xs text-dark-400">
@@ -210,6 +258,18 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
           <br />
           Signals are stored locally and cleared after 24 hours.
         </p>
+
+        {/* Debug Toggle (subtle, only visible on hover or when enabled) */}
+        <button
+          onClick={toggleDebug}
+          className={`mt-3 text-[10px] font-mono transition-opacity ${
+            debugEnabled
+              ? 'text-yellow-500 opacity-100'
+              : 'text-dark-600 opacity-0 hover:opacity-100'
+          }`}
+        >
+          {debugEnabled ? '[ DEBUG MODE ON ]' : '[ debug ]'}
+        </button>
       </div>
     </div>
   );

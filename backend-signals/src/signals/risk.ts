@@ -7,6 +7,7 @@ import {
   getLastSeverity,
   isEscalation,
 } from "../cache/signalCooldown.js";
+import type { RiskCheck, CooldownStatus } from "../types/SignalDebug.js";
 
 // Risk factors to check from GoPlus API
 interface GoPlusResult {
@@ -65,13 +66,68 @@ export interface RiskSignal {
   suppressed?: boolean;
 }
 
+export interface RiskResult {
+  signal: RiskSignal | null;
+  debug: {
+    check: RiskCheck;
+    cooldown: CooldownStatus;
+  };
+}
+
+// Build cooldown status for debug
+function buildCooldownStatus(chainId: number, token: string): CooldownStatus {
+  const entry = isInCooldown(chainId, token, 'risk');
+  if (!entry) {
+    return {
+      active: false,
+      remainingSeconds: 0,
+      startedAt: null,
+      expiresAt: null,
+      lastSeverity: null,
+    };
+  }
+  return {
+    active: true,
+    remainingSeconds: Math.max(0, Math.floor((entry.expiresAt - Date.now()) / 1000)),
+    startedAt: entry.startedAt,
+    expiresAt: entry.expiresAt,
+    lastSeverity: entry.lastSeverity,
+  };
+}
+
 export async function checkRiskChange(
   chainId: number,
-  token: string
-): Promise<RiskSignal | null> {
+  token: string,
+  includeDebug: boolean = false
+): Promise<RiskResult> {
   const key = `risk:${chainId}:${token}`;
+
+  // Check cache first
   const cached = getCache<RiskSignal>(key);
-  if (cached) return cached;
+  if (cached) {
+    return {
+      signal: cached,
+      debug: {
+        check: {
+          passed: true,
+          riskFactorCount: cached.riskFactors.length,
+          riskFactors: cached.riskFactors,
+          isHoneypot: cached.riskFactors.includes('honeypot'),
+          reason: 'Returned from cache',
+        },
+        cooldown: buildCooldownStatus(chainId, token),
+      },
+    };
+  }
+
+  // Default debug state
+  let debugCheck: RiskCheck = {
+    passed: false,
+    riskFactorCount: 0,
+    riskFactors: [],
+    isHoneypot: false,
+    reason: 'Not evaluated',
+  };
 
   try {
     const url = `https://api.gopluslabs.io/api/v1/token_security/${chainId}?contract_addresses=${token}`;
@@ -79,7 +135,16 @@ export async function checkRiskChange(
     const json = await res.json() as any;
 
     const info: GoPlusResult = json.result?.[token.toLowerCase()];
-    if (!info) return null;
+    if (!info) {
+      debugCheck.reason = 'No security data available from GoPlus';
+      return {
+        signal: null,
+        debug: {
+          check: debugCheck,
+          cooldown: buildCooldownStatus(chainId, token),
+        },
+      };
+    }
 
     // Collect risk factors
     const riskFactors: string[] = [];
@@ -98,15 +163,27 @@ export async function checkRiskChange(
     if (info.cannot_sell_all === "1") riskFactors.push("cannot_sell_all");
     if (info.slippage_modifiable === "1") riskFactors.push("slippage_modifiable");
 
+    const isHoneypot = info.is_honeypot === "1";
+    debugCheck.riskFactorCount = riskFactors.length;
+    debugCheck.riskFactors = riskFactors;
+    debugCheck.isHoneypot = isHoneypot;
+
     // If no risk factors, token is safe - no signal needed
     if (riskFactors.length === 0) {
+      debugCheck.passed = false;
+      debugCheck.reason = 'Token is safe (no risk factors detected)';
       // Cache the safe status to avoid repeated API calls
       setCache(key, null, 300_000);
-      return null;
+      return {
+        signal: null,
+        debug: {
+          check: debugCheck,
+          cooldown: buildCooldownStatus(chainId, token),
+        },
+      };
     }
 
     // Calculate risk severity
-    const isHoneypot = info.is_honeypot === "1";
     const hasOwnershipIssues =
       info.can_take_back_ownership === "1" ||
       info.owner_change_balance === "1" ||
@@ -128,7 +205,15 @@ export async function checkRiskChange(
     // If in cooldown and NOT escalating, suppress the signal
     if (cooldownEntry && !escalated) {
       console.log(`[risk] Signal suppressed (cooldown): ${token}`);
-      return null;
+      debugCheck.passed = true;
+      debugCheck.reason = 'Signal suppressed (cooldown active, no escalation)';
+      return {
+        signal: null,
+        debug: {
+          check: debugCheck,
+          cooldown: buildCooldownStatus(chainId, token),
+        },
+      };
     }
 
     // Build result
@@ -151,9 +236,31 @@ export async function checkRiskChange(
     }
 
     setCache(key, result, 300_000);
-    return result;
+
+    debugCheck.passed = true;
+    debugCheck.reason = isHoneypot
+      ? 'CRITICAL: Honeypot detected!'
+      : escalated
+      ? `Signal fired (escalation: ${previousSeverity} → ${severity})`
+      : `Signal fired (${riskFactors.length} risk factors detected)`;
+
+    return {
+      signal: result,
+      debug: {
+        check: debugCheck,
+        cooldown: buildCooldownStatus(chainId, token),
+      },
+    };
   } catch (err) {
     console.error("[risk] API error:", (err as Error).message);
-    return null;
+    debugCheck.reason = `API error: ${(err as Error).message}`;
+
+    return {
+      signal: null,
+      debug: {
+        check: debugCheck,
+        cooldown: buildCooldownStatus(chainId, token),
+      },
+    };
   }
 }

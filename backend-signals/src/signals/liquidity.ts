@@ -6,7 +6,12 @@ import {
   resetCooldown,
   getLastSeverity,
   isEscalation,
+  type CooldownEntry,
 } from "../cache/signalCooldown.js";
+import type { LiquidityCheck, CooldownStatus } from "../types/SignalDebug.js";
+
+// Liquidity drop threshold (minimum to trigger signal)
+const DROP_THRESHOLD = 30;
 
 // Severity thresholds for liquidity drop
 function getSeverity(dropPct: number): 'warning' | 'danger' | 'critical' {
@@ -41,13 +46,70 @@ export interface LiquiditySignal {
   suppressed?: boolean;
 }
 
+export interface LiquidityResult {
+  signal: LiquiditySignal | null;
+  debug: {
+    check: LiquidityCheck;
+    cooldown: CooldownStatus;
+  };
+}
+
+// Build cooldown status for debug
+function buildCooldownStatus(chainId: number, token: string): CooldownStatus {
+  const entry = isInCooldown(chainId, token, 'liquidity');
+  if (!entry) {
+    return {
+      active: false,
+      remainingSeconds: 0,
+      startedAt: null,
+      expiresAt: null,
+      lastSeverity: null,
+    };
+  }
+  return {
+    active: true,
+    remainingSeconds: Math.max(0, Math.floor((entry.expiresAt - Date.now()) / 1000)),
+    startedAt: entry.startedAt,
+    expiresAt: entry.expiresAt,
+    lastSeverity: entry.lastSeverity,
+  };
+}
+
 export async function checkLiquidityDrop(
   chainId: number,
-  token: string
-): Promise<LiquiditySignal | null> {
+  token: string,
+  includeDebug: boolean = false
+): Promise<LiquidityResult> {
   const key = `liq:${chainId}:${token}`;
+
+  // Check cache first
   const cached = getCache<LiquiditySignal>(key);
-  if (cached) return cached;
+  if (cached) {
+    return {
+      signal: cached,
+      debug: {
+        check: {
+          passed: true,
+          currentLiquidity: null,
+          previousLiquidity: null,
+          dropPct: cached.dropPct,
+          threshold: DROP_THRESHOLD,
+          reason: 'Returned from cache',
+        },
+        cooldown: buildCooldownStatus(chainId, token),
+      },
+    };
+  }
+
+  // Default debug state
+  let debugCheck: LiquidityCheck = {
+    passed: false,
+    currentLiquidity: null,
+    previousLiquidity: null,
+    dropPct: null,
+    threshold: DROP_THRESHOLD,
+    reason: 'Not evaluated',
+  };
 
   try {
     const url = `https://api.dexscreener.com/latest/dex/tokens/${token}`;
@@ -55,54 +117,109 @@ export async function checkLiquidityDrop(
     const data = await res.json() as any;
 
     const pair = data.pairs?.[0];
-    if (!pair?.liquidity?.usd) return null;
-
-    const change = pair.liquidityChange?.m10 ?? 0;
-    if (change <= -30) {
-      const dropPct = Math.abs(change);
-      const severity = getSeverity(dropPct);
-      const hasVolume = (pair.volume?.h24 ?? 0) > 0;
-      const confidence = calculateConfidence(dropPct, hasVolume);
-
-      // Check cooldown
-      const cooldownEntry = isInCooldown(chainId, token, 'liquidity');
-      const previousSeverity = getLastSeverity(chainId, token, 'liquidity');
-
-      // Check if this is an escalation
-      const escalated = isEscalation(previousSeverity, severity);
-
-      // If in cooldown and NOT escalating, suppress the signal
-      if (cooldownEntry && !escalated) {
-        console.log(`[liquidity] Signal suppressed (cooldown): ${token}`);
-        return null; // Signal suppressed during cooldown
-      }
-
-      // Build result
-      const result: LiquiditySignal = {
-        dropPct,
-        window: "10m",
-        severity,
-        confidence,
+    if (!pair?.liquidity?.usd) {
+      debugCheck.reason = 'No liquidity data available';
+      return {
+        signal: null,
+        debug: {
+          check: debugCheck,
+          cooldown: buildCooldownStatus(chainId, token),
+        },
       };
-
-      // Add escalation info if applicable
-      if (escalated && previousSeverity) {
-        result.previous = previousSeverity;
-        result.escalated = true;
-        // Reset cooldown on escalation
-        resetCooldown(chainId, token, 'liquidity', severity);
-      } else {
-        // Start fresh cooldown
-        startCooldown(chainId, token, 'liquidity', severity);
-      }
-
-      setCache(key, result, 120_000);
-      return result;
     }
 
-    return null;
+    const currentLiquidity = pair.liquidity.usd;
+    const change = pair.liquidityChange?.m10 ?? 0;
+    const dropPct = Math.abs(change);
+
+    debugCheck.currentLiquidity = currentLiquidity;
+    debugCheck.dropPct = change < 0 ? dropPct : 0;
+
+    if (change > -DROP_THRESHOLD) {
+      debugCheck.passed = false;
+      debugCheck.reason = change >= 0
+        ? `Liquidity increased (+${change.toFixed(1)}%)`
+        : `Drop ${dropPct.toFixed(1)}% below threshold (${DROP_THRESHOLD}%)`;
+
+      return {
+        signal: null,
+        debug: {
+          check: debugCheck,
+          cooldown: buildCooldownStatus(chainId, token),
+        },
+      };
+    }
+
+    // Signal condition met
+    const severity = getSeverity(dropPct);
+    const hasVolume = (pair.volume?.h24 ?? 0) > 0;
+    const confidence = calculateConfidence(dropPct, hasVolume);
+
+    // Check cooldown
+    const cooldownEntry = isInCooldown(chainId, token, 'liquidity');
+    const previousSeverity = getLastSeverity(chainId, token, 'liquidity');
+
+    // Check if this is an escalation
+    const escalated = isEscalation(previousSeverity, severity);
+
+    // If in cooldown and NOT escalating, suppress the signal
+    if (cooldownEntry && !escalated) {
+      console.log(`[liquidity] Signal suppressed (cooldown): ${token}`);
+      debugCheck.passed = true;
+      debugCheck.reason = 'Signal suppressed (cooldown active, no escalation)';
+
+      return {
+        signal: null,
+        debug: {
+          check: debugCheck,
+          cooldown: buildCooldownStatus(chainId, token),
+        },
+      };
+    }
+
+    // Build result
+    const result: LiquiditySignal = {
+      dropPct,
+      window: "10m",
+      severity,
+      confidence,
+    };
+
+    // Add escalation info if applicable
+    if (escalated && previousSeverity) {
+      result.previous = previousSeverity;
+      result.escalated = true;
+      // Reset cooldown on escalation
+      resetCooldown(chainId, token, 'liquidity', severity);
+    } else {
+      // Start fresh cooldown
+      startCooldown(chainId, token, 'liquidity', severity);
+    }
+
+    setCache(key, result, 120_000);
+
+    debugCheck.passed = true;
+    debugCheck.reason = escalated
+      ? `Signal fired (escalation: ${previousSeverity} → ${severity})`
+      : `Signal fired (drop ${dropPct.toFixed(1)}% >= ${DROP_THRESHOLD}%)`;
+
+    return {
+      signal: result,
+      debug: {
+        check: debugCheck,
+        cooldown: buildCooldownStatus(chainId, token),
+      },
+    };
   } catch (err) {
     console.error("[liquidity] API error:", (err as Error).message);
-    return null;
+    debugCheck.reason = `API error: ${(err as Error).message}`;
+
+    return {
+      signal: null,
+      debug: {
+        check: debugCheck,
+        cooldown: buildCooldownStatus(chainId, token),
+      },
+    };
   }
 }

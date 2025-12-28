@@ -68,3 +68,98 @@ export async function getSignalsHealthDetails(): Promise<SignalsHealthResponse |
     return null;
   }
 }
+
+/**
+ * Signal debug data types
+ */
+export interface SignalDebugData {
+  liquidity: {
+    check: {
+      passed: boolean;
+      currentLiquidity: number | null;
+      previousLiquidity: number | null;
+      dropPct: number | null;
+      threshold: number;
+      reason: string;
+    };
+    cooldown: {
+      active: boolean;
+      remainingSeconds: number;
+      startedAt: number | null;
+      expiresAt: number | null;
+      lastSeverity: string | null;
+    };
+  };
+  risk: {
+    check: {
+      passed: boolean;
+      riskFactorCount: number;
+      riskFactors: string[];
+      isHoneypot: boolean;
+      reason: string;
+    };
+    cooldown: {
+      active: boolean;
+      remainingSeconds: number;
+      startedAt: number | null;
+      expiresAt: number | null;
+      lastSeverity: string | null;
+    };
+  };
+  evaluatedAt: number;
+  version: string;
+}
+
+export interface SignalsResponse {
+  liquidity?: {
+    dropPct: number;
+    window: string;
+    severity: string;
+    confidence: number;
+    escalated?: boolean;
+    previous?: string;
+  };
+  risk?: {
+    status: string;
+    severity: string;
+    confidence: number;
+    riskFactors: string[];
+    escalated?: boolean;
+    previous?: string;
+  };
+  timestamp: number;
+  debug?: SignalDebugData;
+}
+
+/**
+ * Fetch signals for a token with optional debug data.
+ * Returns null on failure.
+ */
+export async function fetchSignals(
+  chainId: number,
+  token: string,
+  includeDebug: boolean = false
+): Promise<SignalsResponse | null> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+    const debugParam = includeDebug ? '&debug=1' : '';
+    const res = await fetch(
+      `${SIGNALS_API_URL}/api/v1/signals?chainId=${chainId}&token=${token}${debugParam}`,
+      {
+        method: 'GET',
+        cache: 'no-store',
+        signal: controller.signal,
+      }
+    );
+
+    clearTimeout(timeoutId);
+
+    if (!res.ok) return null;
+
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
