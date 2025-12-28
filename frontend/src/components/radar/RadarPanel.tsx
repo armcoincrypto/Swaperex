@@ -298,13 +298,13 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
           Signals are stored locally and cleared after 24 hours.
         </p>
 
-        {/* Debug Toggle (subtle, only visible on hover or when enabled) */}
+        {/* Debug Toggle */}
         <button
           onClick={toggleDebug}
-          className={`mt-3 text-[10px] font-mono transition-opacity ${
+          className={`mt-3 text-[10px] font-mono transition-colors ${
             debugEnabled
-              ? 'text-yellow-500 opacity-100'
-              : 'text-dark-600 opacity-0 hover:opacity-100'
+              ? 'text-yellow-500'
+              : 'text-dark-500 hover:text-dark-300'
           }`}
         >
           {debugEnabled ? '[ DEBUG MODE ON ]' : '[ debug ]'}
