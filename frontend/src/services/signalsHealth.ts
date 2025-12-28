@@ -163,3 +163,106 @@ export async function fetchSignals(
     return null;
   }
 }
+
+/**
+ * Fetch signals and automatically record to history.
+ * This is the main function to use for signal fetching with history capture.
+ */
+export async function fetchSignalsWithHistory(
+  chainId: number,
+  token: string,
+  tokenSymbol?: string,
+  captureToHistory?: (entry: SignalHistoryCapture) => void
+): Promise<SignalsResponse | null> {
+  // Always include debug for history capture
+  const response = await fetchSignals(chainId, token, true);
+
+  if (!response || !captureToHistory) {
+    return response;
+  }
+
+  // Capture liquidity signal to history
+  if (response.liquidity) {
+    captureToHistory({
+      token,
+      tokenSymbol,
+      chainId,
+      type: 'liquidity',
+      severity: response.liquidity.severity as 'warning' | 'danger' | 'critical',
+      confidence: response.liquidity.confidence,
+      reason: response.debug?.liquidity.check.reason || `Liquidity dropped ${response.liquidity.dropPct}%`,
+      debugSnapshot: response.debug ? {
+        liquidity: {
+          currentLiquidity: response.debug.liquidity.check.currentLiquidity,
+          dropPct: response.debug.liquidity.check.dropPct,
+          threshold: response.debug.liquidity.check.threshold,
+        },
+        cooldown: {
+          active: response.debug.liquidity.cooldown.active,
+          remainingSeconds: response.debug.liquidity.cooldown.remainingSeconds,
+        },
+      } : undefined,
+      escalated: response.liquidity.escalated,
+      previousSeverity: response.liquidity.previous,
+    });
+  }
+
+  // Capture risk signal to history
+  if (response.risk) {
+    captureToHistory({
+      token,
+      tokenSymbol,
+      chainId,
+      type: 'risk',
+      severity: response.risk.severity as 'warning' | 'danger' | 'critical',
+      confidence: response.risk.confidence,
+      reason: response.debug?.risk.check.reason || `${response.risk.riskFactors.length} risk factors detected`,
+      debugSnapshot: response.debug ? {
+        risk: {
+          riskFactorCount: response.debug.risk.check.riskFactorCount,
+          riskFactors: response.debug.risk.check.riskFactors,
+          isHoneypot: response.debug.risk.check.isHoneypot,
+        },
+        cooldown: {
+          active: response.debug.risk.cooldown.active,
+          remainingSeconds: response.debug.risk.cooldown.remainingSeconds,
+        },
+      } : undefined,
+      escalated: response.risk.escalated,
+      previousSeverity: response.risk.previous,
+    });
+  }
+
+  return response;
+}
+
+/**
+ * Type for signal history capture
+ */
+export interface SignalHistoryCapture {
+  token: string;
+  tokenSymbol?: string;
+  chainId: number;
+  type: 'liquidity' | 'risk';
+  severity: 'warning' | 'danger' | 'critical';
+  confidence: number;
+  reason: string;
+  debugSnapshot?: {
+    liquidity?: {
+      currentLiquidity: number | null;
+      dropPct: number | null;
+      threshold: number;
+    };
+    risk?: {
+      riskFactorCount: number;
+      riskFactors: string[];
+      isHoneypot: boolean;
+    };
+    cooldown?: {
+      active: boolean;
+      remainingSeconds: number;
+    };
+  };
+  escalated?: boolean;
+  previousSeverity?: string;
+}

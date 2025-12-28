@@ -5,15 +5,17 @@
  * Includes filtering, mark all as read, and empty state.
  */
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRadarStore, type RadarSignalType, type RadarSignal, getSignalTypeInfo } from '@/stores/radarStore';
 import { useUsageStore } from '@/stores/usageStore';
 import { useDebugStore, useDebugMode } from '@/stores/debugStore';
+import { useSignalHistoryStore } from '@/stores/signalHistoryStore';
 import { RadarItem } from './RadarItem';
 import { TierBadge } from '@/components/common/TierBadge';
 import { SignalsStatusBadge } from '@/components/signals/SignalsStatusBadge';
 import { SignalDebugPanel } from '@/components/signals/SignalDebugPanel';
-import { fetchSignals, type SignalDebugData } from '@/services/signalsHealth';
+import { SignalHistoryPanel } from '@/components/signals/SignalHistoryPanel';
+import { fetchSignalsWithHistory, type SignalDebugData, type SignalHistoryCapture } from '@/services/signalsHealth';
 
 interface RadarPanelProps {
   onSignalClick: (signal: RadarSignal) => void;
@@ -33,7 +35,9 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
   const { trackEvent } = useUsageStore();
   const debugEnabled = useDebugMode();
   const toggleDebug = useDebugStore((s) => s.toggle);
+  const addHistoryEntry = useSignalHistoryStore((s) => s.addEntry);
   const [filter, setFilter] = useState<FilterType>('all');
+  const [showHistory, setShowHistory] = useState(false);
 
   // Debug state
   const [debugData, setDebugData] = useState<SignalDebugData | null>(null);
@@ -41,6 +45,14 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
   const [debugError, setDebugError] = useState<string | null>(null);
 
   const unreadCount = getUnreadCount();
+
+  // Capture signal to history
+  const captureToHistory = useCallback((entry: SignalHistoryCapture) => {
+    addHistoryEntry({
+      ...entry,
+      timestamp: Date.now(),
+    });
+  }, [addHistoryEntry]);
 
   // Fetch debug data when debug mode is enabled
   useEffect(() => {
@@ -54,8 +66,13 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
       setDebugLoading(true);
       setDebugError(null);
       try {
-        // Use USDC on Ethereum as a test token
-        const response = await fetchSignals(1, '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', true);
+        // Use USDC on Ethereum as a test token - also captures to history
+        const response = await fetchSignalsWithHistory(
+          1,
+          '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+          'USDC',
+          captureToHistory
+        );
         if (response?.debug) {
           setDebugData(response.debug);
         } else {
@@ -69,7 +86,7 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
     };
 
     fetchDebugData();
-  }, [debugEnabled]);
+  }, [debugEnabled, captureToHistory]);
 
   // Filter signals
   const filteredSignals = useMemo(() => {
@@ -241,6 +258,28 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
           )}
         </div>
       )}
+
+      {/* Signal History Section */}
+      <div className="mt-8">
+        <button
+          onClick={() => setShowHistory(!showHistory)}
+          className="w-full flex items-center justify-between px-4 py-3 bg-dark-800 rounded-lg hover:bg-dark-700 transition-colors mb-3"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-dark-300">Signal History</span>
+            <span className="px-1.5 py-0.5 bg-dark-700 text-dark-400 text-xs rounded font-mono">
+              24h
+            </span>
+          </div>
+          <span className="text-dark-500 text-xs">
+            {showHistory ? '▼' : '▶'}
+          </span>
+        </button>
+
+        {showHistory && (
+          <SignalHistoryPanel maxEntries={10} />
+        )}
+      </div>
 
       {/* Debug Panel (only visible in debug mode) */}
       {debugEnabled && (
