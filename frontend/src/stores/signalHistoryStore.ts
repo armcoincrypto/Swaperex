@@ -14,6 +14,24 @@ import { persist } from 'zustand/middleware';
 const MAX_ENTRIES = 50;
 // Maximum age in milliseconds (24 hours)
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
+// Deduplication window in milliseconds (5 minutes)
+const DEDUP_WINDOW_MS = 5 * 60 * 1000;
+
+/**
+ * Generate a hash for signal state
+ * Used for deduplication to prevent identical signals
+ */
+function hashSignalState(entry: Omit<SignalHistoryEntry, 'id'>): string {
+  const key = `${entry.token.toLowerCase()}:${entry.type}:${entry.chainId}:${entry.severity}:${entry.confidence}`;
+  // Simple hash - we just need uniqueness, not cryptographic security
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) {
+    const char = key.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return hash.toString(16);
+}
 
 export interface SignalHistoryEntry {
   id: string;
@@ -25,6 +43,8 @@ export interface SignalHistoryEntry {
   confidence: number;
   reason: string;
   timestamp: number;
+  /** Hash of signal state for deduplication */
+  stateHash?: string;
   // Debug snapshot at time of signal
   debugSnapshot?: {
     liquidity?: {
@@ -71,24 +91,35 @@ export const useSignalHistoryStore = create<SignalHistoryState>()(
       lastUpdated: 0,
 
       addEntry: (entryData) => {
+        const stateHash = hashSignalState(entryData as Omit<SignalHistoryEntry, 'id'>);
         const entry: SignalHistoryEntry = {
           ...entryData,
           id: generateEntryId(),
+          stateHash,
         };
 
         set((state) => {
-          // Check for duplicates (same token + type within last 5 minutes)
-          const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+          const cutoff = Date.now() - DEDUP_WINDOW_MS;
+
+          // Hash-based deduplication: same state hash within dedup window
           const isDuplicate = state.entries.some(
             (e) =>
+              e.stateHash === stateHash &&
+              e.timestamp > cutoff
+          );
+
+          // Fallback: same token + type + chain within dedup window (for old entries without hash)
+          const isFallbackDuplicate = state.entries.some(
+            (e) =>
+              !e.stateHash &&
               e.token.toLowerCase() === entry.token.toLowerCase() &&
               e.type === entry.type &&
               e.chainId === entry.chainId &&
-              e.timestamp > fiveMinutesAgo
+              e.timestamp > cutoff
           );
 
-          if (isDuplicate) {
-            console.log('[SignalHistory] Duplicate entry ignored');
+          if (isDuplicate || isFallbackDuplicate) {
+            console.log('[SignalHistory] Duplicate entry ignored (hash:', stateHash, ')');
             return state;
           }
 
@@ -98,7 +129,7 @@ export const useSignalHistoryStore = create<SignalHistoryState>()(
           // Trim to max entries
           const trimmedEntries = newEntries.slice(0, MAX_ENTRIES);
 
-          console.log('[SignalHistory] New entry added:', entry.type, entry.token);
+          console.log('[SignalHistory] New entry added:', entry.type, entry.token, 'hash:', stateHash);
 
           return {
             entries: trimmedEntries,

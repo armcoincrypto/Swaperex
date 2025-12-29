@@ -31,7 +31,7 @@ await app.register(rateLimit, {
   timeWindow: "1 minute",
 });
 
-// Health check endpoint
+// Simple health check (for load balancers / quick checks)
 app.get("/health", async () => {
   return {
     status: "ok",
@@ -41,6 +41,68 @@ app.get("/health", async () => {
     timestamp: Date.now(),
   };
 });
+
+// Rich health check endpoint (for system status UI)
+app.get("/api/v1/health", async () => {
+  const uptime = Math.floor((Date.now() - startTime) / 1000);
+
+  // Check external API status (DexScreener, GoPlus)
+  const externalChecks = await checkExternalApis();
+
+  // Overall system status
+  const signalsEngineStatus = SIGNALS_ENABLED && externalChecks.dexscreener && externalChecks.goplus
+    ? "running"
+    : SIGNALS_ENABLED && (externalChecks.dexscreener || externalChecks.goplus)
+    ? "degraded"
+    : SIGNALS_ENABLED
+    ? "unavailable"
+    : "disabled";
+
+  return {
+    status: signalsEngineStatus === "running" ? "ok" : signalsEngineStatus === "degraded" ? "partial" : "error",
+    signalsEngine: signalsEngineStatus,
+    version: VERSION,
+    uptime,
+    timestamp: Date.now(),
+    services: {
+      dexscreener: externalChecks.dexscreener ? "up" : "down",
+      goplus: externalChecks.goplus ? "up" : "down",
+    },
+  };
+});
+
+// External API health checks
+async function checkExternalApis(): Promise<{ dexscreener: boolean; goplus: boolean }> {
+  const results = { dexscreener: false, goplus: false };
+
+  try {
+    // Check DexScreener
+    const dexController = new AbortController();
+    const dexTimeout = setTimeout(() => dexController.abort(), 3000);
+    const dexRes = await fetch("https://api.dexscreener.com/latest/dex/tokens/0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", {
+      signal: dexController.signal,
+    });
+    clearTimeout(dexTimeout);
+    results.dexscreener = dexRes.ok;
+  } catch {
+    results.dexscreener = false;
+  }
+
+  try {
+    // Check GoPlus (simple ping to token security endpoint)
+    const goplusController = new AbortController();
+    const goplusTimeout = setTimeout(() => goplusController.abort(), 3000);
+    const goplusRes = await fetch("https://api.gopluslabs.io/api/v1/token_security/1?contract_addresses=0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", {
+      signal: goplusController.signal,
+    });
+    clearTimeout(goplusTimeout);
+    results.goplus = goplusRes.ok;
+  } catch {
+    results.goplus = false;
+  }
+
+  return results;
+}
 
 // V1 Signals endpoint (versioned)
 app.get("/api/v1/signals", async (req, reply) => {

@@ -7,6 +7,7 @@ import {
   getLastSeverity,
   isEscalation,
 } from "../cache/signalCooldown.js";
+import { isDuplicateSignal } from "../cache/signalDedup.js";
 import type { RiskCheck, CooldownStatus } from "../types/SignalDebug.js";
 
 // Risk factors to check from GoPlus API
@@ -233,6 +234,20 @@ export async function checkRiskChange(
     } else {
       // Start fresh cooldown
       startCooldown(chainId, token, 'risk', severity);
+    }
+
+    // Deduplication guard - prevent identical signals from firing
+    const signalStateForDedup = { riskFactors: riskFactors.sort(), severity, confidence };
+    if (isDuplicateSignal(chainId, token, 'risk', signalStateForDedup)) {
+      debugCheck.passed = true;
+      debugCheck.reason = 'Signal suppressed (duplicate state detected)';
+      return {
+        signal: null,
+        debug: {
+          check: debugCheck,
+          cooldown: buildCooldownStatus(chainId, token),
+        },
+      };
     }
 
     setCache(key, result, 300_000);

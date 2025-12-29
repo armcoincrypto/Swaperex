@@ -18,11 +18,13 @@ import { SwapHistory } from '@/components/history/SwapHistory';
 import { TokenScreener } from '@/components/screener/TokenScreener';
 import { RadarPanel } from '@/components/radar/RadarPanel';
 import { AboutPage, TermsPage, PrivacyPage, DisclaimerPage } from '@/components/pages/StaticPages';
+import { SystemStatusIndicator } from '@/components/common/SystemStatusIndicator';
 import { useWallet } from '@/hooks/useWallet';
 import { useSwapStore } from '@/stores/swapStore';
 import { useToastStore } from '@/stores/toastStore';
 import { useRadarStore, type RadarSignal } from '@/stores/radarStore';
 import { useSignalsHealthStore } from '@/stores/signalsHealthStore';
+import { useSystemStatusStore } from '@/stores/systemStatusStore';
 import { type SwapRecord } from '@/stores/swapHistoryStore';
 import { getTokenBySymbol } from '@/tokens';
 
@@ -38,15 +40,20 @@ export function App() {
 
   const radarUnreadCount = getUnreadCount();
 
-  // Signals health check
+  // Health checks
   const refreshSignalsHealth = useSignalsHealthStore((s) => s.refresh);
+  const refreshSystemStatus = useSystemStatusStore((s) => s.refresh);
 
-  // Auto-check signals health on mount and every 60 seconds
+  // Auto-check health on mount and every 60 seconds
   useEffect(() => {
     refreshSignalsHealth();
-    const intervalId = setInterval(refreshSignalsHealth, 60_000);
+    refreshSystemStatus();
+    const intervalId = setInterval(() => {
+      refreshSignalsHealth();
+      refreshSystemStatus();
+    }, 60_000);
     return () => clearInterval(intervalId);
-  }, [refreshSignalsHealth]);
+  }, [refreshSignalsHealth, refreshSystemStatus]);
 
   // Handle chain switch from banner
   const handleBannerSwitch = async () => {
@@ -366,6 +373,11 @@ export function App() {
             >
               Disclaimer
             </button>
+          </div>
+
+          {/* System Status Indicator */}
+          <div className="mt-4 pt-3 border-t border-white/[0.04]">
+            <SystemStatusIndicator />
           </div>
         </div>
       </footer>

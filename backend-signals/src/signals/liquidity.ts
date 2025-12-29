@@ -8,6 +8,7 @@ import {
   isEscalation,
   type CooldownEntry,
 } from "../cache/signalCooldown.js";
+import { isDuplicateSignal, getDedupStatus } from "../cache/signalDedup.js";
 import type { LiquidityCheck, CooldownStatus } from "../types/SignalDebug.js";
 
 // Liquidity drop threshold (minimum to trigger signal)
@@ -194,6 +195,20 @@ export async function checkLiquidityDrop(
     } else {
       // Start fresh cooldown
       startCooldown(chainId, token, 'liquidity', severity);
+    }
+
+    // Deduplication guard - prevent identical signals from firing
+    const signalStateForDedup = { dropPct, severity, confidence };
+    if (isDuplicateSignal(chainId, token, 'liquidity', signalStateForDedup)) {
+      debugCheck.passed = true;
+      debugCheck.reason = 'Signal suppressed (duplicate state detected)';
+      return {
+        signal: null,
+        debug: {
+          check: debugCheck,
+          cooldown: buildCooldownStatus(chainId, token),
+        },
+      };
     }
 
     setCache(key, result, 120_000);
