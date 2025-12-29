@@ -11,7 +11,7 @@
  * - Replay mode (visual simulation)
  */
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   useSignalHistoryStore,
   type SignalHistoryEntry,
@@ -19,25 +19,49 @@ import {
   getSeverityColor,
   getSeverityIcon,
 } from '@/stores/signalHistoryStore';
+import { useSignalFilterStore, shouldShowSignal } from '@/stores/signalFilterStore';
 import { getImpactIcon } from '@/components/signals/ImpactBadge';
 
 interface SignalHistoryPanelProps {
   maxEntries?: number;
   compact?: boolean;
+  /** Bypass filters (for debug mode) */
+  bypassFilters?: boolean;
 }
 
-export function SignalHistoryPanel({ maxEntries = 10, compact = false }: SignalHistoryPanelProps) {
+export function SignalHistoryPanel({ maxEntries = 10, compact = false, bypassFilters = false }: SignalHistoryPanelProps) {
   const { entries, clearHistory } = useSignalHistoryStore();
+  const filters = useSignalFilterStore();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [replayingId, setReplayingId] = useState<string | null>(null);
 
-  const displayEntries = entries.slice(0, maxEntries);
+  // Apply filters to entries
+  const filteredEntries = useMemo(() => {
+    if (bypassFilters) return entries;
+
+    return entries.filter((entry) =>
+      shouldShowSignal(
+        {
+          type: entry.type,
+          confidence: entry.confidence,
+          impact: entry.impact,
+        },
+        filters
+      )
+    );
+  }, [entries, filters, bypassFilters]);
+
+  const displayEntries = filteredEntries.slice(0, maxEntries);
+  const hiddenByFilters = entries.length - filteredEntries.length;
 
   if (displayEntries.length === 0) {
     return (
       <div className="p-4 bg-dark-800/50 rounded-lg border border-dark-700">
         <div className="text-center text-dark-500 text-sm font-mono">
-          <span className="text-dark-600">$</span> No signal history yet
+          <span className="text-dark-600">$</span>{' '}
+          {hiddenByFilters > 0
+            ? `${hiddenByFilters} signals hidden by filters`
+            : 'No signal history yet'}
         </div>
       </div>
     );
@@ -84,9 +108,14 @@ export function SignalHistoryPanel({ maxEntries = 10, compact = false }: SignalH
       </div>
 
       {/* More indicator */}
-      {entries.length > maxEntries && (
-        <div className="text-center text-[10px] text-dark-600 font-mono">
-          +{entries.length - maxEntries} more signals
+      {(filteredEntries.length > maxEntries || hiddenByFilters > 0) && (
+        <div className="text-center text-[10px] text-dark-600 font-mono space-x-2">
+          {filteredEntries.length > maxEntries && (
+            <span>+{filteredEntries.length - maxEntries} more</span>
+          )}
+          {hiddenByFilters > 0 && (
+            <span className="text-dark-500">({hiddenByFilters} filtered)</span>
+          )}
         </div>
       )}
     </div>

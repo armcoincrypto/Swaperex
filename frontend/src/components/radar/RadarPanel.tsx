@@ -15,6 +15,7 @@ import { TierBadge } from '@/components/common/TierBadge';
 import { SignalsStatusBadge } from '@/components/signals/SignalsStatusBadge';
 import { SignalDebugPanel } from '@/components/signals/SignalDebugPanel';
 import { SignalHistoryPanel } from '@/components/signals/SignalHistoryPanel';
+import { SignalFilters } from '@/components/signals/SignalFilters';
 import { fetchSignalsWithHistory, type SignalDebugData, type SignalHistoryCapture } from '@/services/signalsHealth';
 
 interface RadarPanelProps {
@@ -125,7 +126,7 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
   return (
     <div className="max-w-2xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <h2 className="text-2xl font-bold">Radar</h2>
           <TierBadge tier="early-access" />
@@ -135,15 +136,20 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
             </span>
           )}
         </div>
-        {unreadCount > 0 && (
-          <button
-            onClick={markAllAsRead}
-            className="text-sm text-primary-400 hover:text-primary-300 transition-colors"
-          >
-            Mark all as read
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {unreadCount > 0 && (
+            <button
+              onClick={markAllAsRead}
+              className="text-sm text-primary-400 hover:text-primary-300 transition-colors"
+            >
+              Mark all as read
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Signal Filters */}
+      <SignalFilters className="mb-4" />
 
       {/* Signals Offline Warning */}
       <SignalsStatusBadge className="mb-4" />
