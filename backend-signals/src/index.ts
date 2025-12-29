@@ -9,6 +9,7 @@ const SIGNALS_ENABLED = process.env.SIGNALS_ENABLED !== "false";
 const ALLOWED_ORIGINS = process.env.CORS_ORIGINS?.split(",") || [
   "http://localhost:3000",
   "http://localhost:5173",
+  "http://207.180.212.142:3000",
   "https://swaperex.com",
   "https://www.swaperex.com"
 ];
