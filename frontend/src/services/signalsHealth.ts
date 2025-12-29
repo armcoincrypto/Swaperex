@@ -110,12 +110,22 @@ export interface SignalDebugData {
   version: string;
 }
 
+/**
+ * Impact score returned by backend
+ */
+export interface ImpactScore {
+  score: number;
+  level: 'high' | 'medium' | 'low';
+  reason: string;
+}
+
 export interface SignalsResponse {
   liquidity?: {
     dropPct: number;
     window: string;
     severity: string;
     confidence: number;
+    impact: ImpactScore;
     escalated?: boolean;
     previous?: string;
   };
@@ -124,6 +134,7 @@ export interface SignalsResponse {
     severity: string;
     confidence: number;
     riskFactors: string[];
+    impact: ImpactScore;
     escalated?: boolean;
     previous?: string;
   };
@@ -191,6 +202,7 @@ export async function fetchSignalsWithHistory(
       severity: response.liquidity.severity as 'warning' | 'danger' | 'critical',
       confidence: response.liquidity.confidence,
       reason: response.debug?.liquidity.check.reason || `Liquidity dropped ${response.liquidity.dropPct}%`,
+      impact: response.liquidity.impact,
       debugSnapshot: response.debug ? {
         liquidity: {
           currentLiquidity: response.debug.liquidity.check.currentLiquidity,
@@ -217,6 +229,7 @@ export async function fetchSignalsWithHistory(
       severity: response.risk.severity as 'warning' | 'danger' | 'critical',
       confidence: response.risk.confidence,
       reason: response.debug?.risk.check.reason || `${response.risk.riskFactors.length} risk factors detected`,
+      impact: response.risk.impact,
       debugSnapshot: response.debug ? {
         risk: {
           riskFactorCount: response.debug.risk.check.riskFactorCount,
@@ -247,6 +260,7 @@ export interface SignalHistoryCapture {
   severity: 'warning' | 'danger' | 'critical';
   confidence: number;
   reason: string;
+  impact?: ImpactScore;
   debugSnapshot?: {
     liquidity?: {
       currentLiquidity: number | null;

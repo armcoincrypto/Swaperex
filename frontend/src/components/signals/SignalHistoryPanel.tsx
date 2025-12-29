@@ -19,6 +19,7 @@ import {
   getSeverityColor,
   getSeverityIcon,
 } from '@/stores/signalHistoryStore';
+import { getImpactIcon } from '@/components/signals/ImpactBadge';
 
 interface SignalHistoryPanelProps {
   maxEntries?: number;
@@ -140,6 +141,22 @@ function SignalHistoryItem({
           {entry.type === 'liquidity' ? 'LIQ' : 'RISK'}
         </span>
 
+        {/* Impact Badge */}
+        {entry.impact && (
+          <span
+            className={`px-1 text-[10px] ${
+              entry.impact.level === 'high'
+                ? 'text-red-400'
+                : entry.impact.level === 'medium'
+                ? 'text-orange-400'
+                : 'text-gray-500'
+            }`}
+            title={`Impact: ${entry.impact.score} - ${entry.impact.reason}`}
+          >
+            {getImpactIcon(entry.impact.level)}
+          </span>
+        )}
+
         {/* Token */}
         <span className="text-dark-200 font-medium truncate flex-1">
           {entry.tokenSymbol || entry.token.slice(0, 8) + '...'}
@@ -168,6 +185,20 @@ function SignalHistoryItem({
           <div className="text-dark-400">
             <span className="text-dark-600">reason:</span> {entry.reason}
           </div>
+
+          {/* Impact Score */}
+          {entry.impact && (
+            <div className={`${
+              entry.impact.level === 'high'
+                ? 'text-red-400'
+                : entry.impact.level === 'medium'
+                ? 'text-orange-400'
+                : 'text-gray-400'
+            }`}>
+              <span className="text-dark-600">impact:</span>{' '}
+              {getImpactIcon(entry.impact.level)} {entry.impact.score}/100 ({entry.impact.level})
+            </div>
+          )}
 
           {/* Escalation */}
           {entry.escalated && (

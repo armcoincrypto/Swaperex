@@ -33,6 +33,13 @@ function hashSignalState(entry: Omit<SignalHistoryEntry, 'id'>): string {
   return hash.toString(16);
 }
 
+/** Impact score for signal prioritization */
+export interface SignalImpact {
+  score: number;
+  level: 'high' | 'medium' | 'low';
+  reason: string;
+}
+
 export interface SignalHistoryEntry {
   id: string;
   token: string;
@@ -43,6 +50,8 @@ export interface SignalHistoryEntry {
   confidence: number;
   reason: string;
   timestamp: number;
+  /** Impact score for prioritization */
+  impact?: SignalImpact;
   /** Hash of signal state for deduplication */
   stateHash?: string;
   // Debug snapshot at time of signal

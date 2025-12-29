@@ -8,6 +8,7 @@ import {
   isEscalation,
 } from "../cache/signalCooldown.js";
 import { isDuplicateSignal } from "../cache/signalDedup.js";
+import { calculateRiskImpact, type ImpactScore } from "../scoring/impactScore.js";
 import type { RiskCheck, CooldownStatus } from "../types/SignalDebug.js";
 
 // Risk factors to check from GoPlus API
@@ -62,6 +63,7 @@ export interface RiskSignal {
   severity: 'warning' | 'danger' | 'critical';
   confidence: number;
   riskFactors: string[];
+  impact: ImpactScore;
   previous?: string;
   escalated?: boolean;
   suppressed?: boolean;
@@ -217,12 +219,16 @@ export async function checkRiskChange(
       };
     }
 
+    // Calculate impact score
+    const impact = calculateRiskImpact(riskFactors.length, isHoneypot, severity, confidence, riskFactors);
+
     // Build result
     const result: RiskSignal = {
       status,
       severity,
       confidence,
       riskFactors,
+      impact,
     };
 
     // Add escalation info if applicable

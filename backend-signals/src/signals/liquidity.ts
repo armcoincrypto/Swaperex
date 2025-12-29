@@ -9,6 +9,7 @@ import {
   type CooldownEntry,
 } from "../cache/signalCooldown.js";
 import { isDuplicateSignal, getDedupStatus } from "../cache/signalDedup.js";
+import { calculateLiquidityImpact, type ImpactScore } from "../scoring/impactScore.js";
 import type { LiquidityCheck, CooldownStatus } from "../types/SignalDebug.js";
 
 // Liquidity drop threshold (minimum to trigger signal)
@@ -42,6 +43,7 @@ export interface LiquiditySignal {
   window: string;
   severity: 'warning' | 'danger' | 'critical';
   confidence: number;
+  impact: ImpactScore;
   previous?: string;
   escalated?: boolean;
   suppressed?: boolean;
@@ -178,12 +180,16 @@ export async function checkLiquidityDrop(
       };
     }
 
+    // Calculate impact score
+    const impact = calculateLiquidityImpact(dropPct, severity, confidence, currentLiquidity);
+
     // Build result
     const result: LiquiditySignal = {
       dropPct,
       window: "10m",
       severity,
       confidence,
+      impact,
     };
 
     // Add escalation info if applicable
