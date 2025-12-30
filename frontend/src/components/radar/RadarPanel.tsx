@@ -16,6 +16,7 @@ import { SignalsStatusBadge } from '@/components/signals/SignalsStatusBadge';
 import { SignalDebugPanel } from '@/components/signals/SignalDebugPanel';
 import { SignalHistoryPanel } from '@/components/signals/SignalHistoryPanel';
 import { SignalFilters } from '@/components/signals/SignalFilters';
+import { TokenCheckInput } from '@/components/signals/TokenCheckInput';
 import { fetchSignalsWithHistory, type SignalDebugData, type SignalHistoryCapture } from '@/services/signalsHealth';
 
 interface RadarPanelProps {
@@ -147,6 +148,9 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
           )}
         </div>
       </div>
+
+      {/* Token Check Input */}
+      <TokenCheckInput className="mb-4" />
 
       {/* Signal Filters */}
       <SignalFilters className="mb-4" />
