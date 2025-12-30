@@ -15,12 +15,16 @@ import { useState, useMemo } from 'react';
 import {
   useSignalHistoryStore,
   type SignalHistoryEntry,
-  formatRelativeTime,
   getSeverityColor,
   getSeverityIcon,
+  getTrendIcon,
+  getTrendColorClass,
+  formatRecurrenceText,
 } from '@/stores/signalHistoryStore';
 import { useSignalFilterStore, shouldShowSignal } from '@/stores/signalFilterStore';
 import { getImpactIcon } from '@/components/signals/ImpactBadge';
+import { SignalAge } from '@/components/signals/SignalAge';
+import { RecurrenceBadge } from '@/components/signals/RecurrenceBadge';
 
 interface SignalHistoryPanelProps {
   maxEntries?: number;
@@ -186,6 +190,11 @@ function SignalHistoryItem({
           </span>
         )}
 
+        {/* Recurrence Badge (Priority 10.3) */}
+        {entry.recurrence && (
+          <RecurrenceBadge recurrence={entry.recurrence} compact />
+        )}
+
         {/* Token */}
         <span className="text-dark-200 font-medium truncate flex-1">
           {entry.tokenSymbol || entry.token.slice(0, 8) + '...'}
@@ -196,10 +205,12 @@ function SignalHistoryItem({
           {Math.round(entry.confidence * 100)}%
         </span>
 
-        {/* Time */}
-        <span className="text-dark-500 text-[10px] flex-shrink-0">
-          {formatRelativeTime(entry.timestamp)}
-        </span>
+        {/* Time (Live-updating - Priority 10.3.1) */}
+        <SignalAge
+          timestamp={entry.timestamp}
+          compact
+          className="text-dark-500 text-[10px] flex-shrink-0"
+        />
 
         {/* Expand Arrow */}
         <span className="text-dark-600 text-[10px]">
@@ -233,6 +244,19 @@ function SignalHistoryItem({
           {entry.escalated && (
             <div className="text-orange-400">
               <span className="text-dark-600">escalated:</span> {entry.previousSeverity} → {entry.severity}
+            </div>
+          )}
+
+          {/* Recurrence Info (Priority 10.3) */}
+          {entry.recurrence && (
+            <div className={getTrendColorClass(entry.recurrence.trend)}>
+              <span className="text-dark-600">recurrence:</span>{' '}
+              {getTrendIcon(entry.recurrence.trend)} {formatRecurrenceText(entry.recurrence)}
+              {entry.recurrence.previousImpact !== null && (
+                <span className="text-dark-500 ml-2">
+                  (prev: {entry.recurrence.previousImpact})
+                </span>
+              )}
             </div>
           )}
 

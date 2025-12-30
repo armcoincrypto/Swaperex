@@ -10,6 +10,7 @@ import {
 } from "../cache/signalCooldown.js";
 import { isDuplicateSignal, getDedupStatus } from "../cache/signalDedup.js";
 import { calculateLiquidityImpact, type ImpactScore } from "../scoring/impactScore.js";
+import { getRecurrenceInfo, recordOccurrence, type RecurrenceInfo } from "../cache/recurrence.js";
 import type { LiquidityCheck, CooldownStatus } from "../types/SignalDebug.js";
 
 // Liquidity drop threshold (minimum to trigger signal)
@@ -44,6 +45,7 @@ export interface LiquiditySignal {
   severity: 'warning' | 'danger' | 'critical';
   confidence: number;
   impact: ImpactScore;
+  recurrence: RecurrenceInfo;
   previous?: string;
   escalated?: boolean;
   suppressed?: boolean;
@@ -183,6 +185,9 @@ export async function checkLiquidityDrop(
     // Calculate impact score
     const impact = calculateLiquidityImpact(dropPct, severity, confidence, currentLiquidity);
 
+    // Get recurrence info BEFORE recording this occurrence
+    const recurrence = getRecurrenceInfo(chainId, token, 'liquidity', impact.score);
+
     // Build result
     const result: LiquiditySignal = {
       dropPct,
@@ -190,6 +195,7 @@ export async function checkLiquidityDrop(
       severity,
       confidence,
       impact,
+      recurrence,
     };
 
     // Add escalation info if applicable
@@ -218,6 +224,9 @@ export async function checkLiquidityDrop(
     }
 
     setCache(key, result, 120_000);
+
+    // Record this occurrence for future recurrence tracking
+    recordOccurrence(chainId, token, 'liquidity', severity, impact.score);
 
     debugCheck.passed = true;
     debugCheck.reason = escalated

@@ -9,6 +9,7 @@ import {
 } from "../cache/signalCooldown.js";
 import { isDuplicateSignal } from "../cache/signalDedup.js";
 import { calculateRiskImpact, type ImpactScore } from "../scoring/impactScore.js";
+import { getRecurrenceInfo, recordOccurrence, type RecurrenceInfo } from "../cache/recurrence.js";
 import type { RiskCheck, CooldownStatus } from "../types/SignalDebug.js";
 
 // Risk factors to check from GoPlus API
@@ -64,6 +65,7 @@ export interface RiskSignal {
   confidence: number;
   riskFactors: string[];
   impact: ImpactScore;
+  recurrence: RecurrenceInfo;
   previous?: string;
   escalated?: boolean;
   suppressed?: boolean;
@@ -222,6 +224,9 @@ export async function checkRiskChange(
     // Calculate impact score
     const impact = calculateRiskImpact(riskFactors.length, isHoneypot, severity, confidence, riskFactors);
 
+    // Get recurrence info BEFORE recording this occurrence
+    const recurrence = getRecurrenceInfo(chainId, token, 'risk', impact.score);
+
     // Build result
     const result: RiskSignal = {
       status,
@@ -229,6 +234,7 @@ export async function checkRiskChange(
       confidence,
       riskFactors,
       impact,
+      recurrence,
     };
 
     // Add escalation info if applicable
@@ -257,6 +263,9 @@ export async function checkRiskChange(
     }
 
     setCache(key, result, 300_000);
+
+    // Record this occurrence for future recurrence tracking
+    recordOccurrence(chainId, token, 'risk', severity, impact.score);
 
     debugCheck.passed = true;
     debugCheck.reason = isHoneypot

@@ -40,6 +40,16 @@ export interface SignalImpact {
   reason: string;
 }
 
+/** Recurrence info for time context (Priority 10.3) */
+export interface SignalRecurrence {
+  occurrences24h: number;
+  lastSeen: number | null;
+  isRepeat: boolean;
+  trend: 'increasing' | 'decreasing' | 'stable' | 'new';
+  previousImpact: number | null;
+  timeSinceLastSeconds: number | null;
+}
+
 export interface SignalHistoryEntry {
   id: string;
   token: string;
@@ -52,6 +62,8 @@ export interface SignalHistoryEntry {
   timestamp: number;
   /** Impact score for prioritization */
   impact?: SignalImpact;
+  /** Recurrence info for time context (Priority 10.3) */
+  recurrence?: SignalRecurrence;
   /** Hash of signal state for deduplication */
   stateHash?: string;
   // Debug snapshot at time of signal
@@ -225,4 +237,52 @@ export function getSeverityIcon(severity: string): string {
     default:
       return '⚪';
   }
+}
+
+// Helper to get trend icon (Priority 10.3)
+export function getTrendIcon(trend: SignalRecurrence['trend']): string {
+  switch (trend) {
+    case 'increasing':
+      return '⬆';
+    case 'decreasing':
+      return '⬇';
+    case 'stable':
+      return '➖';
+    case 'new':
+      return '🆕';
+    default:
+      return '';
+  }
+}
+
+// Helper to get trend color class (Priority 10.3)
+export function getTrendColorClass(trend: SignalRecurrence['trend']): string {
+  switch (trend) {
+    case 'increasing':
+      return 'text-red-400';
+    case 'decreasing':
+      return 'text-green-400';
+    case 'stable':
+      return 'text-gray-400';
+    case 'new':
+      return 'text-blue-400';
+    default:
+      return 'text-gray-500';
+  }
+}
+
+// Helper to format recurrence text (Priority 10.3)
+export function formatRecurrenceText(recurrence: SignalRecurrence): string {
+  if (!recurrence.isRepeat) {
+    return 'First occurrence';
+  }
+
+  const count = recurrence.occurrences24h;
+  const trendText = recurrence.trend === 'increasing'
+    ? 'worsening'
+    : recurrence.trend === 'decreasing'
+    ? 'improving'
+    : 'stable';
+
+  return `${count}× in 24h (${trendText})`;
 }

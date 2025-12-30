@@ -119,6 +119,24 @@ export interface ImpactScore {
   reason: string;
 }
 
+/**
+ * Recurrence info returned by backend (Priority 10.3)
+ */
+export interface RecurrenceInfo {
+  /** Number of occurrences in last 24h (including current) */
+  occurrences24h: number;
+  /** Timestamp of last occurrence (before current) */
+  lastSeen: number | null;
+  /** Is this a repeat signal? */
+  isRepeat: boolean;
+  /** Trend direction based on impact score delta */
+  trend: 'increasing' | 'decreasing' | 'stable' | 'new';
+  /** Previous impact score (if available) */
+  previousImpact: number | null;
+  /** Time since last occurrence in seconds */
+  timeSinceLastSeconds: number | null;
+}
+
 export interface SignalsResponse {
   liquidity?: {
     dropPct: number;
@@ -126,6 +144,7 @@ export interface SignalsResponse {
     severity: string;
     confidence: number;
     impact: ImpactScore;
+    recurrence: RecurrenceInfo;
     escalated?: boolean;
     previous?: string;
   };
@@ -135,6 +154,7 @@ export interface SignalsResponse {
     confidence: number;
     riskFactors: string[];
     impact: ImpactScore;
+    recurrence: RecurrenceInfo;
     escalated?: boolean;
     previous?: string;
   };
@@ -203,6 +223,7 @@ export async function fetchSignalsWithHistory(
       confidence: response.liquidity.confidence,
       reason: response.debug?.liquidity.check.reason || `Liquidity dropped ${response.liquidity.dropPct}%`,
       impact: response.liquidity.impact,
+      recurrence: response.liquidity.recurrence,
       debugSnapshot: response.debug ? {
         liquidity: {
           currentLiquidity: response.debug.liquidity.check.currentLiquidity,
@@ -230,6 +251,7 @@ export async function fetchSignalsWithHistory(
       confidence: response.risk.confidence,
       reason: response.debug?.risk.check.reason || `${response.risk.riskFactors.length} risk factors detected`,
       impact: response.risk.impact,
+      recurrence: response.risk.recurrence,
       debugSnapshot: response.debug ? {
         risk: {
           riskFactorCount: response.debug.risk.check.riskFactorCount,
@@ -261,6 +283,7 @@ export interface SignalHistoryCapture {
   confidence: number;
   reason: string;
   impact?: ImpactScore;
+  recurrence?: RecurrenceInfo;
   debugSnapshot?: {
     liquidity?: {
       currentLiquidity: number | null;
