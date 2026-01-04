@@ -27,6 +27,7 @@ import { useSignalsHealthStore } from '@/stores/signalsHealthStore';
 import { useSystemStatusStore } from '@/stores/systemStatusStore';
 import { type SwapRecord } from '@/stores/swapHistoryStore';
 import { getTokenBySymbol } from '@/tokens';
+import { startWatchlistMonitor } from '@/services/watchlistMonitor';
 
 type Page = 'swap' | 'send' | 'portfolio' | 'radar' | 'screener' | 'about' | 'terms' | 'privacy' | 'disclaimer';
 
@@ -48,6 +49,10 @@ export function App() {
   useEffect(() => {
     refreshSignalsHealth();
     refreshSystemStatus();
+
+    // Start watchlist monitor (singleton - safe to call multiple times)
+    startWatchlistMonitor();
+
     const intervalId = setInterval(() => {
       refreshSignalsHealth();
       refreshSystemStatus();

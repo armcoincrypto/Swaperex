@@ -17,6 +17,7 @@ import { SignalDebugPanel } from '@/components/signals/SignalDebugPanel';
 import { SignalHistoryPanel } from '@/components/signals/SignalHistoryPanel';
 import { SignalFilters } from '@/components/signals/SignalFilters';
 import { TokenCheckInput } from '@/components/signals/TokenCheckInput';
+import { WatchlistPanel } from '@/components/signals/WatchlistPanel';
 import { fetchSignalsWithHistory, type SignalDebugData, type SignalHistoryCapture } from '@/services/signalsHealth';
 
 interface RadarPanelProps {
@@ -269,8 +270,11 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
         </div>
       )}
 
+      {/* Watchlist Section (Priority 11.1) */}
+      <WatchlistPanel className="mt-6" />
+
       {/* Signal History Section */}
-      <div className="mt-8">
+      <div className="mt-6">
         <button
           onClick={() => setShowHistory(!showHistory)}
           className="w-full flex items-center justify-between px-4 py-3 bg-dark-800 rounded-lg hover:bg-dark-700 transition-colors mb-3"

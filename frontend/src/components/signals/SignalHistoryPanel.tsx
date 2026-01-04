@@ -22,6 +22,7 @@ import {
   formatRecurrenceText,
 } from '@/stores/signalHistoryStore';
 import { useSignalFilterStore, shouldShowSignal } from '@/stores/signalFilterStore';
+import { useWatchlistStore } from '@/stores/watchlistStore';
 import { getImpactIcon } from '@/components/signals/ImpactBadge';
 import { SignalAge } from '@/components/signals/SignalAge';
 import { RecurrenceBadge } from '@/components/signals/RecurrenceBadge';
@@ -145,6 +146,17 @@ function SignalHistoryItem({
 }: SignalHistoryItemProps) {
   const severityColor = getSeverityColor(entry.severity);
   const severityIcon = getSeverityIcon(entry.severity);
+  const { addToken, hasToken } = useWatchlistStore();
+  const isWatching = hasToken(entry.chainId, entry.token);
+
+  const handleWatch = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    addToken({
+      chainId: entry.chainId,
+      address: entry.token,
+      symbol: entry.tokenSymbol,
+    });
+  };
 
   return (
     <div
@@ -333,6 +345,20 @@ function SignalHistoryItem({
             >
               ▶ Replay
             </button>
+            {!isWatching && (
+              <button
+                onClick={handleWatch}
+                className="px-2 py-1 bg-yellow-900/30 text-yellow-400 rounded text-[10px] hover:bg-yellow-900/50 transition-colors"
+                title="Add to watchlist"
+              >
+                ☆ Watch
+              </button>
+            )}
+            {isWatching && (
+              <span className="px-2 py-1 text-yellow-400 text-[10px]" title="In watchlist">
+                ★ Watching
+              </span>
+            )}
             <span className="text-dark-600 text-[10px]">
               Chain {entry.chainId}
             </span>

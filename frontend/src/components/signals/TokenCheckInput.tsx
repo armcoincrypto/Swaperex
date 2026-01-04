@@ -6,11 +6,13 @@
  *
  * Priority 10.3 - Manual Token Check
  * Priority 10.4 - Chain correctness fix
+ * Priority 11.1 - Watchlist integration
  */
 
 import { useState, useCallback, useEffect } from 'react';
 import { useSignalHistoryStore } from '@/stores/signalHistoryStore';
 import { useWalletStore } from '@/stores/walletStore';
+import { useWatchlistStore } from '@/stores/watchlistStore';
 import { fetchSignalsWithHistory, type SignalHistoryCapture } from '@/services/signalsHealth';
 
 // Supported chains
@@ -80,6 +82,33 @@ export function TokenCheckInput({ className = '' }: TokenCheckInputProps) {
   const chainMismatch = isConnected && selectedChainId !== walletChainId;
 
   const addHistoryEntry = useSignalHistoryStore((s) => s.addEntry);
+
+  // Watchlist integration
+  const { addToken, hasToken, removeToken } = useWatchlistStore();
+  const [watchlistError, setWatchlistError] = useState<string | null>(null);
+
+  // Check if current token is valid and in watchlist
+  const isValidAddress = tokenAddress?.startsWith('0x') && tokenAddress.length === 42;
+  const isWatching = isValidAddress && hasToken(selectedChainId, tokenAddress);
+
+  // Handle watch/unwatch
+  const handleToggleWatch = () => {
+    if (!isValidAddress) return;
+
+    setWatchlistError(null);
+
+    if (isWatching) {
+      removeToken(selectedChainId, tokenAddress);
+    } else {
+      const success = addToken({
+        chainId: selectedChainId,
+        address: tokenAddress,
+      });
+      if (!success) {
+        setWatchlistError('Watchlist full (max 20 tokens)');
+      }
+    }
+  };
 
   const captureToHistory = useCallback((entry: SignalHistoryCapture) => {
     addHistoryEntry({
@@ -222,12 +251,35 @@ export function TokenCheckInput({ className = '' }: TokenCheckInputProps) {
         >
           {loading ? '...' : 'Check'}
         </button>
+
+        {/* Watch Button */}
+        <button
+          onClick={handleToggleWatch}
+          disabled={!isValidAddress}
+          className={`px-3 py-2 rounded-lg text-sm transition-colors ${
+            !isValidAddress
+              ? 'bg-dark-700 text-dark-500 cursor-not-allowed'
+              : isWatching
+              ? 'bg-yellow-900/30 text-yellow-400 hover:bg-yellow-900/50'
+              : 'bg-dark-700 text-dark-300 hover:bg-dark-600'
+          }`}
+          title={isWatching ? 'Remove from watchlist' : 'Add to watchlist'}
+        >
+          {isWatching ? '★' : '☆'}
+        </button>
       </div>
 
       {/* Error */}
       {error && (
         <div className="text-red-400 text-xs mb-3">
           {error}
+        </div>
+      )}
+
+      {/* Watchlist Error */}
+      {watchlistError && (
+        <div className="text-orange-400 text-xs mb-3">
+          {watchlistError}
         </div>
       )}
 
