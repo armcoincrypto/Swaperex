@@ -5,10 +5,12 @@
  * Shows impact + recurrence info for any token.
  *
  * Priority 10.3 - Manual Token Check
+ * Priority 10.4 - Chain correctness fix
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useSignalHistoryStore } from '@/stores/signalHistoryStore';
+import { useWalletStore } from '@/stores/walletStore';
 import { fetchSignalsWithHistory, type SignalHistoryCapture } from '@/services/signalsHealth';
 
 // Supported chains
@@ -18,6 +20,12 @@ const CHAINS = [
   { id: 8453, name: 'Base', label: 'Base' },
   { id: 42161, name: 'ARB', label: 'Arbitrum' },
 ];
+
+// Get chain name by ID
+function getChainName(id: number): string {
+  const chain = CHAINS.find((c) => c.id === id);
+  return chain?.label || `Chain ${id}`;
+}
 
 interface TokenCheckResult {
   hasSignals: boolean;
@@ -43,10 +51,33 @@ interface TokenCheckInputProps {
 
 export function TokenCheckInput({ className = '' }: TokenCheckInputProps) {
   const [tokenAddress, setTokenAddress] = useState('');
-  const [chainId, setChainId] = useState(1);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<TokenCheckResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Get wallet chain info
+  const walletChainId = useWalletStore((s) => s.chainId);
+  const isConnected = useWalletStore((s) => s.isConnected);
+
+  // Selected chain for checking (defaults to wallet chain)
+  const [selectedChainId, setSelectedChainId] = useState(() => {
+    // Default to wallet chain if supported, otherwise ETH
+    const supported = CHAINS.find((c) => c.id === walletChainId);
+    return supported ? walletChainId : 1;
+  });
+
+  // Sync with wallet chain when it changes
+  useEffect(() => {
+    if (isConnected) {
+      const supported = CHAINS.find((c) => c.id === walletChainId);
+      if (supported) {
+        setSelectedChainId(walletChainId);
+      }
+    }
+  }, [walletChainId, isConnected]);
+
+  // Check if selected chain differs from wallet chain
+  const chainMismatch = isConnected && selectedChainId !== walletChainId;
 
   const addHistoryEntry = useSignalHistoryStore((s) => s.addEntry);
 
@@ -70,7 +101,7 @@ export function TokenCheckInput({ className = '' }: TokenCheckInputProps) {
 
     try {
       const response = await fetchSignalsWithHistory(
-        chainId,
+        selectedChainId,
         tokenAddress.toLowerCase(),
         undefined,
         captureToHistory
@@ -144,12 +175,22 @@ export function TokenCheckInput({ className = '' }: TokenCheckInputProps) {
         <h3 className="text-sm font-medium text-dark-200">Check Token Signals</h3>
       </div>
 
+      {/* Chain Mismatch Warning */}
+      {chainMismatch && (
+        <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-yellow-900/20 border border-yellow-700/30 rounded-lg text-xs text-yellow-400">
+          <span>⚠️</span>
+          <span>
+            Checking {getChainName(selectedChainId)} while connected to {getChainName(walletChainId)}
+          </span>
+        </div>
+      )}
+
       {/* Input Row */}
       <div className="flex gap-2 mb-3">
         {/* Chain Selector */}
         <select
-          value={chainId}
-          onChange={(e) => setChainId(Number(e.target.value))}
+          value={selectedChainId}
+          onChange={(e) => setSelectedChainId(Number(e.target.value))}
           className="px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-sm text-dark-200 focus:outline-none focus:border-primary-500"
         >
           {CHAINS.map((chain) => (
