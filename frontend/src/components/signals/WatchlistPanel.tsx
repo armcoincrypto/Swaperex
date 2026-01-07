@@ -32,9 +32,10 @@ export function WatchlistPanel({ className = '' }: WatchlistPanelProps) {
         <div className="flex items-center gap-2 mb-2">
           <span className="text-lg">⭐</span>
           <h3 className="text-sm font-medium text-dark-300">Watchlist</h3>
+          <span className="text-[10px] text-dark-500">(Auto-monitor)</span>
         </div>
         <p className="text-[11px] text-dark-500">
-          No tokens watched. Use ☆ to add tokens for auto-monitoring.
+          No tokens watched. Use ☆ to add tokens for automatic signal monitoring.
         </p>
       </div>
     );
@@ -47,6 +48,7 @@ export function WatchlistPanel({ className = '' }: WatchlistPanelProps) {
         <div className="flex items-center gap-2">
           <span className="text-lg">⭐</span>
           <h3 className="text-sm font-medium text-dark-300">Watchlist</h3>
+          <span className="text-[10px] text-dark-500">(Auto-monitor)</span>
           <span className="px-1.5 py-0.5 bg-dark-700 text-dark-400 text-[10px] rounded">
             {tokens.length}/20
           </span>

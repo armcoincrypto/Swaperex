@@ -15,13 +15,15 @@ import {
 
 interface RecurrenceBadgeProps {
   recurrence: SignalRecurrence;
+  /** Impact level for context (optional) */
+  impactLevel?: 'high' | 'medium' | 'low';
   /** Compact mode - smaller badge */
   compact?: boolean;
   /** Additional CSS classes */
   className?: string;
 }
 
-export function RecurrenceBadge({ recurrence, compact = false, className = '' }: RecurrenceBadgeProps) {
+export function RecurrenceBadge({ recurrence, impactLevel, compact = false, className = '' }: RecurrenceBadgeProps) {
   const trendIcon = getTrendIcon(recurrence.trend);
   const trendColorClass = getTrendColorClass(recurrence.trend);
 
@@ -40,13 +42,17 @@ export function RecurrenceBadge({ recurrence, compact = false, className = '' }:
     );
   }
 
+  // Check if this is a "calm" repeat (low impact + stable/decreasing trend)
+  const isCalm = impactLevel === 'low' && (recurrence.trend === 'stable' || recurrence.trend === 'decreasing');
+  const contextLabel = isCalm ? (recurrence.trend === 'stable' ? 'stable' : 'improving') : null;
+
   // Repeat occurrence
   return (
     <span
       className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-dark-700/50 ${
         compact ? 'text-[9px]' : 'text-[10px]'
       } ${className}`}
-      title={`${recurrence.occurrences24h} occurrences in 24h, trend: ${recurrence.trend}`}
+      title={`${recurrence.occurrences24h} occurrences in 24h, trend: ${recurrence.trend}${isCalm ? ' (expected behavior)' : ''}`}
     >
       {/* Repeat indicator */}
       <span className="text-dark-400">↻</span>
@@ -55,6 +61,11 @@ export function RecurrenceBadge({ recurrence, compact = false, className = '' }:
       {/* Trend arrow */}
       {recurrence.trend !== 'new' && (
         <span className={trendColorClass}>{trendIcon}</span>
+      )}
+
+      {/* Context label for calm repeats */}
+      {!compact && contextLabel && (
+        <span className="text-dark-500">({contextLabel})</span>
       )}
     </span>
   );

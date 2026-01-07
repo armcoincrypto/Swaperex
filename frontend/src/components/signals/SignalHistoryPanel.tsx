@@ -204,7 +204,7 @@ function SignalHistoryItem({
 
         {/* Recurrence Badge (Priority 10.3) */}
         {entry.recurrence && (
-          <RecurrenceBadge recurrence={entry.recurrence} compact />
+          <RecurrenceBadge recurrence={entry.recurrence} impactLevel={entry.impact?.level} compact />
         )}
 
         {/* Token */}

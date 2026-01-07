@@ -10,6 +10,7 @@ import { useRadarStore, type RadarSignalType, type RadarSignal, getSignalTypeInf
 import { useUsageStore } from '@/stores/usageStore';
 import { useDebugStore, useDebugMode } from '@/stores/debugStore';
 import { useSignalHistoryStore } from '@/stores/signalHistoryStore';
+import { useSignalFilterStore } from '@/stores/signalFilterStore';
 import { RadarItem } from './RadarItem';
 import { TierBadge } from '@/components/common/TierBadge';
 import { SignalsStatusBadge } from '@/components/signals/SignalsStatusBadge';
@@ -39,8 +40,14 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
   const debugEnabled = useDebugMode();
   const toggleDebug = useDebugStore((s) => s.toggle);
   const addHistoryEntry = useSignalHistoryStore((s) => s.addEntry);
+  const historyEntries = useSignalHistoryStore((s) => s.entries);
+  const signalFilters = useSignalFilterStore();
   const [filter, setFilter] = useState<FilterType>('all');
   const [showHistory, setShowHistory] = useState(false);
+
+  // Check if filters are restricting view
+  const hasHistoryEntries = historyEntries.length > 0;
+  const isFilterRestricted = signalFilters.impactFilter !== 'all' || signalFilters.minConfidence > 0.4;
 
   // Debug state
   const [debugData, setDebugData] = useState<SignalDebugData | null>(null);
@@ -195,15 +202,40 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
         })}
       </div>
 
-      {/* Empty State */}
+      {/* Empty State - Context-aware messaging */}
       {filteredSignals.length === 0 && (
         <div className="text-center py-16">
           <div className="text-4xl mb-4">📡</div>
-          <h3 className="text-xl font-bold mb-2">No signals yet</h3>
+          <h3 className="text-xl font-bold mb-2">
+            {isFilterRestricted && hasHistoryEntries
+              ? 'No visible signals'
+              : hasHistoryEntries
+              ? 'No new alerts right now'
+              : 'Live Alerts'}
+          </h3>
           <p className="text-dark-400 max-w-md mx-auto">
-            {filter === 'all'
-              ? 'Radar monitors tokens you interact with for important changes. Start swapping to see signals here.'
-              : `No ${FILTER_OPTIONS.find((o) => o.value === filter)?.label.toLowerCase()} signals yet.`}
+            {isFilterRestricted && hasHistoryEntries ? (
+              <>
+                Some signals may be hidden by your filters.
+                <br />
+                <span className="text-primary-400">Try Impact → All to view them.</span>
+              </>
+            ) : hasHistoryEntries ? (
+              <>
+                Recent signals are available in{' '}
+                <button
+                  onClick={() => setShowHistory(true)}
+                  className="text-primary-400 hover:underline"
+                >
+                  Signal History
+                </button>{' '}
+                below.
+              </>
+            ) : filter === 'all' ? (
+              'Radar monitors tokens you interact with. Start by checking a token above or adding one to your watchlist.'
+            ) : (
+              `No ${FILTER_OPTIONS.find((o) => o.value === filter)?.label.toLowerCase()} alerts yet.`
+            )}
           </p>
         </div>
       )}
@@ -282,8 +314,13 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-dark-300">Signal History</span>
             <span className="px-1.5 py-0.5 bg-dark-700 text-dark-400 text-xs rounded font-mono">
-              24h
+              Last 24h
             </span>
+            {historyEntries.length > 0 && (
+              <span className="px-1.5 py-0.5 bg-dark-600 text-dark-300 text-xs rounded">
+                {historyEntries.length}
+              </span>
+            )}
           </div>
           <span className="text-dark-500 text-xs">
             {showHistory ? '▼' : '▶'}
