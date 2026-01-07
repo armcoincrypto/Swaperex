@@ -43,7 +43,7 @@ export interface SignalFilterState {
 
 const DEFAULT_FILTERS = {
   impactFilter: 'high+medium' as ImpactFilter,
-  minConfidence: 40,
+  minConfidence: 60, // Calmer default: ≥60% confidence
   showLiquidity: true,
   showRisk: true,
 };
@@ -80,7 +80,7 @@ export const useSignalFilterStore = create<SignalFilterState>()(
         const state = get();
         let count = 0;
         if (state.impactFilter !== 'all') count++;
-        if (state.minConfidence > 40) count++;
+        if (state.minConfidence > 60) count++;
         if (!state.showLiquidity) count++;
         if (!state.showRisk) count++;
         return count;
@@ -135,7 +135,7 @@ export function getFilterSummary(filters: SignalFilterState): string {
     parts.push('🔥⚠️');
   }
 
-  if (filters.minConfidence > 40) {
+  if (filters.minConfidence > 60) {
     parts.push(`≥${filters.minConfidence}%`);
   }
 

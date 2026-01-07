@@ -45,9 +45,9 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
   const [filter, setFilter] = useState<FilterType>('all');
   const [showHistory, setShowHistory] = useState(false);
 
-  // Check if filters are restricting view
+  // Check if filters are restricting view (beyond default of 60%)
   const hasHistoryEntries = historyEntries.length > 0;
-  const isFilterRestricted = signalFilters.impactFilter !== 'all' || signalFilters.minConfidence > 0.4;
+  const isFilterRestricted = signalFilters.impactFilter !== 'all' || signalFilters.minConfidence > 60;
 
   // Debug state
   const [debugData, setDebugData] = useState<SignalDebugData | null>(null);
@@ -138,6 +138,13 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <h2 className="text-2xl font-bold">Radar</h2>
+          {/* Info tooltip */}
+          <span
+            className="text-dark-500 hover:text-dark-300 cursor-help transition-colors"
+            title="Radar monitors token safety. It alerts you to risk and liquidity issues — not price movements."
+          >
+            ℹ️
+          </span>
           <TierBadge tier="early-access" />
           {unreadCount > 0 && (
             <span className="px-2 py-0.5 bg-primary-600 text-white text-sm font-medium rounded-full">
