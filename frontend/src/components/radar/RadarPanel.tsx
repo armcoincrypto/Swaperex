@@ -45,9 +45,9 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
   const [filter, setFilter] = useState<FilterType>('all');
   const [showHistory, setShowHistory] = useState(false);
 
-  // Check if filters are restricting view (beyond default of 60%)
+  // Check if filters are restricting view (user changed from defaults)
   const hasHistoryEntries = historyEntries.length > 0;
-  const isFilterRestricted = signalFilters.impactFilter !== 'all' || signalFilters.minConfidence > 60;
+  const isFilterRestricted = !signalFilters.isDefaultFilters();
 
   // Debug state
   const [debugData, setDebugData] = useState<SignalDebugData | null>(null);

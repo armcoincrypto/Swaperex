@@ -79,10 +79,11 @@ export const useSignalFilterStore = create<SignalFilterState>()(
       getActiveFilterCount: () => {
         const state = get();
         let count = 0;
-        if (state.impactFilter !== 'all') count++;
-        if (state.minConfidence > 60) count++;
-        if (!state.showLiquidity) count++;
-        if (!state.showRisk) count++;
+        // Count only deviations from defaults
+        if (state.impactFilter !== DEFAULT_FILTERS.impactFilter) count++;
+        if (state.minConfidence !== DEFAULT_FILTERS.minConfidence) count++;
+        if (state.showLiquidity !== DEFAULT_FILTERS.showLiquidity) count++;
+        if (state.showRisk !== DEFAULT_FILTERS.showRisk) count++;
         return count;
       },
     }),
@@ -124,21 +125,26 @@ export function shouldShowSignal(
 }
 
 /**
- * Get human-readable filter summary
+ * Get human-readable filter summary (shows deviations from default)
  */
 export function getFilterSummary(filters: SignalFilterState): string {
   const parts: string[] = [];
 
-  if (filters.impactFilter === 'high') {
-    parts.push('🔥 High only');
-  } else if (filters.impactFilter === 'high+medium') {
-    parts.push('🔥⚠️');
+  // Show impact filter only if different from default
+  if (filters.impactFilter !== DEFAULT_FILTERS.impactFilter) {
+    if (filters.impactFilter === 'high') {
+      parts.push('🔥 High only');
+    } else if (filters.impactFilter === 'all') {
+      parts.push('All impacts');
+    }
   }
 
-  if (filters.minConfidence > 60) {
+  // Show confidence only if different from default
+  if (filters.minConfidence !== DEFAULT_FILTERS.minConfidence) {
     parts.push(`≥${filters.minConfidence}%`);
   }
 
+  // Show type filters only if disabled
   if (!filters.showLiquidity) {
     parts.push('-LIQ');
   }
@@ -146,8 +152,11 @@ export function getFilterSummary(filters: SignalFilterState): string {
     parts.push('-RISK');
   }
 
-  return parts.length > 0 ? parts.join(' ') : 'All signals';
+  return parts.length > 0 ? parts.join(' ') : 'Default filters';
 }
+
+// Export defaults for external comparison
+export { DEFAULT_FILTERS };
 
 // Convenience hooks
 export const useImpactFilter = () => useSignalFilterStore((s) => s.impactFilter);
