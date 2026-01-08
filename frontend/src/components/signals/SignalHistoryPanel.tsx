@@ -26,6 +26,7 @@ import { useWatchlistStore } from '@/stores/watchlistStore';
 import { getImpactIcon } from '@/components/signals/ImpactBadge';
 import { SignalAge } from '@/components/signals/SignalAge';
 import { RecurrenceBadge } from '@/components/signals/RecurrenceBadge';
+import { SignalGuidance } from '@/components/signals/SignalGuidance';
 
 interface SignalHistoryPanelProps {
   maxEntries?: number;
@@ -333,6 +334,13 @@ function SignalHistoryItem({
               )}
             </div>
           )}
+
+          {/* Signal Guidance (Education) */}
+          <SignalGuidance
+            type={entry.type}
+            impactLevel={entry.impact?.level}
+            recurrence={entry.recurrence}
+          />
 
           {/* Actions */}
           <div className="flex items-center gap-2 pt-1">

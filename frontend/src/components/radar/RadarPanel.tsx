@@ -19,6 +19,8 @@ import { SignalHistoryPanel } from '@/components/signals/SignalHistoryPanel';
 import { SignalFilters } from '@/components/signals/SignalFilters';
 import { TokenCheckInput } from '@/components/signals/TokenCheckInput';
 import { WatchlistPanel } from '@/components/signals/WatchlistPanel';
+import { RadarIntroCard } from '@/components/radar/RadarIntroCard';
+import { resetRadarIntro } from '@/utils/onboarding';
 import { fetchSignalsWithHistory, type SignalDebugData, type SignalHistoryCapture } from '@/services/signalsHealth';
 
 interface RadarPanelProps {
@@ -163,6 +165,9 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
           )}
         </div>
       </div>
+
+      {/* First-Visit Intro Card */}
+      <RadarIntroCard className="mb-4" />
 
       {/* Token Check Input */}
       <TokenCheckInput className="mb-4" />
@@ -367,6 +372,19 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
         >
           {debugEnabled ? '[ DEBUG MODE ON ]' : '[ debug ]'}
         </button>
+
+        {/* Reset Onboarding (only visible in debug mode) */}
+        {debugEnabled && (
+          <button
+            onClick={() => {
+              resetRadarIntro();
+              window.location.reload();
+            }}
+            className="ml-3 text-[10px] font-mono text-dark-500 hover:text-dark-300 transition-colors"
+          >
+            [ reset onboarding ]
+          </button>
+        )}
       </div>
     </div>
   );
