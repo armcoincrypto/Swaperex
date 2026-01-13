@@ -20,6 +20,9 @@ import { SignalFilters } from '@/components/signals/SignalFilters';
 import { TokenCheckInput } from '@/components/signals/TokenCheckInput';
 import { WatchlistPanel } from '@/components/signals/WatchlistPanel';
 import { RadarIntroCard } from '@/components/radar/RadarIntroCard';
+import { AlertsPanel } from '@/components/signals/AlertsPanel';
+import { AlertToast } from '@/components/signals/AlertToast';
+import { useSignalAlerts, triggerTestAlert } from '@/hooks/useSignalAlerts';
 import { resetRadarIntro } from '@/utils/onboarding';
 import { fetchSignalsWithHistory, type SignalDebugData, type SignalHistoryCapture } from '@/services/signalsHealth';
 
@@ -46,6 +49,9 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
   const signalFilters = useSignalFilterStore();
   const [filter, setFilter] = useState<FilterType>('all');
   const [showHistory, setShowHistory] = useState(false);
+
+  // Hook signal alerts system (fires alerts on new history entries)
+  useSignalAlerts();
 
   // Check if filters are restricting view (user changed from defaults)
   const hasHistoryEntries = historyEntries.length > 0;
@@ -317,6 +323,15 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
       {/* Watchlist Section (Priority 11.1) */}
       <WatchlistPanel className="mt-6" />
 
+      {/* Alerts Section (Priority 12.1-12.2) */}
+      <AlertsPanel
+        className="mt-6"
+        onAlertClick={() => {
+          // Open history when clicking alert
+          setShowHistory(true);
+        }}
+      />
+
       {/* Signal History Section */}
       <div className="mt-6">
         <button
@@ -385,7 +400,29 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
             [ reset onboarding ]
           </button>
         )}
+
+        {/* Debug Test Alerts (only visible in debug mode) */}
+        {debugEnabled && (
+          <div className="mt-3 flex items-center justify-center gap-2">
+            <span className="text-[10px] font-mono text-dark-600">Test alerts:</span>
+            <button
+              onClick={() => triggerTestAlert('risk', 'high')}
+              className="text-[10px] font-mono text-red-500 hover:text-red-400 transition-colors"
+            >
+              [ High Risk ]
+            </button>
+            <button
+              onClick={() => triggerTestAlert('liquidity', 'medium')}
+              className="text-[10px] font-mono text-orange-500 hover:text-orange-400 transition-colors"
+            >
+              [ Med Liquidity ]
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Toast Notifications */}
+      <AlertToast />
     </div>
   );
 }
