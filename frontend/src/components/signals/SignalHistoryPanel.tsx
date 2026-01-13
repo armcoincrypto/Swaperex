@@ -3,6 +3,7 @@
  *
  * Displays recent signal history with replay capability.
  * Priority 8.4 - Signal History & Replay
+ * Step 1 - Token Metadata Layer
  *
  * Features:
  * - Compact scrollable list
@@ -11,7 +12,7 @@
  * - Replay mode (visual simulation)
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   useSignalHistoryStore,
   type SignalHistoryEntry,
@@ -27,6 +28,8 @@ import { getImpactIcon } from '@/components/signals/ImpactBadge';
 import { SignalAge } from '@/components/signals/SignalAge';
 import { RecurrenceBadge } from '@/components/signals/RecurrenceBadge';
 import { SignalGuidance } from '@/components/signals/SignalGuidance';
+import { TokenBadge } from '@/components/common/TokenDisplay';
+import { prefetchTokenMeta, getChainShortName } from '@/services/tokenMeta';
 
 interface SignalHistoryPanelProps {
   maxEntries?: number;
@@ -40,6 +43,17 @@ export function SignalHistoryPanel({ maxEntries = 10, compact = false, bypassFil
   const filters = useSignalFilterStore();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [replayingId, setReplayingId] = useState<string | null>(null);
+
+  // Prefetch metadata for all history entries
+  useEffect(() => {
+    if (entries.length > 0) {
+      prefetchTokenMeta(entries.map((e) => ({
+        chainId: e.chainId,
+        address: e.token,
+        symbol: e.tokenSymbol,
+      })));
+    }
+  }, [entries]);
 
   // Apply filters to entries
   const filteredEntries = useMemo(() => {
@@ -208,10 +222,13 @@ function SignalHistoryItem({
           <RecurrenceBadge recurrence={entry.recurrence} impactLevel={entry.impact?.level} compact />
         )}
 
-        {/* Token */}
-        <span className="text-dark-200 font-medium truncate flex-1">
-          {entry.tokenSymbol || entry.token.slice(0, 8) + '...'}
-        </span>
+        {/* Token with Logo */}
+        <TokenBadge
+          chainId={entry.chainId}
+          address={entry.token}
+          symbol={entry.tokenSymbol}
+          className="truncate flex-1"
+        />
 
         {/* Confidence */}
         <span className={`px-1 py-0.5 rounded text-[10px] ${severityColor}`}>
@@ -368,7 +385,7 @@ function SignalHistoryItem({
               </span>
             )}
             <span className="text-dark-600 text-[10px]">
-              Chain {entry.chainId}
+              {getChainShortName(entry.chainId)}
             </span>
           </div>
         </div>

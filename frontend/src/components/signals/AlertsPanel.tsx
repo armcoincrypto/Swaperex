@@ -5,6 +5,7 @@
  * Shows last 10 alerts with unread badge.
  *
  * Priority 12.1-12.2 - In-App Alerts
+ * Step 1 - Token Metadata Layer
  */
 
 import { useState } from 'react';
@@ -13,7 +14,9 @@ import { useSignalHistoryStore } from '@/stores/signalHistoryStore';
 import { getImpactIcon } from '@/components/signals/ImpactBadge';
 import { SignalAge } from '@/components/signals/SignalAge';
 import { AlertSettings } from '@/components/signals/AlertSettings';
-import { getChainName, getActionGuidance } from '@/utils/alerts';
+import { getActionGuidance } from '@/utils/alerts';
+import { TokenBadge } from '@/components/common/TokenDisplay';
+import { getChainShortName } from '@/services/tokenMeta';
 
 interface AlertsPanelProps {
   className?: string;
@@ -166,14 +169,17 @@ function AlertItemRow({ alert, onClick }: AlertItemRowProps) {
           {alert.type === 'liquidity' ? 'LIQ' : 'RISK'}
         </span>
 
-        {/* Token */}
-        <span className="text-dark-200 text-xs font-medium truncate flex-1">
-          {alert.tokenSymbol || alert.token.slice(0, 8) + '...'}
-        </span>
+        {/* Token with Logo */}
+        <TokenBadge
+          chainId={alert.chainId}
+          address={alert.token}
+          symbol={alert.tokenSymbol}
+          className="text-xs truncate flex-1"
+        />
 
         {/* Chain */}
         <span className="text-dark-500 text-[10px] flex-shrink-0">
-          {getChainName(alert.chainId)}
+          {getChainShortName(alert.chainId)}
         </span>
 
         {/* Time */}

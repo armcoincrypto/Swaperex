@@ -3,11 +3,14 @@
  *
  * Displays watched tokens with quick actions.
  * Priority 11.1 - Watchlist + Auto-Monitor
+ * Step 1 - Token Metadata Layer
  */
 
-import { useWatchlistStore, getChainName, formatAddress } from '@/stores/watchlistStore';
+import { useState, useEffect } from 'react';
+import { useWatchlistStore } from '@/stores/watchlistStore';
 import { pollSingleToken } from '@/services/watchlistMonitor';
-import { useState } from 'react';
+import { TokenDisplay } from '@/components/common/TokenDisplay';
+import { prefetchTokenMeta } from '@/services/tokenMeta';
 
 interface WatchlistPanelProps {
   className?: string;
@@ -16,6 +19,17 @@ interface WatchlistPanelProps {
 export function WatchlistPanel({ className = '' }: WatchlistPanelProps) {
   const { tokens, removeToken, clear } = useWatchlistStore();
   const [checkingToken, setCheckingToken] = useState<string | null>(null);
+
+  // Prefetch metadata for all watchlist tokens
+  useEffect(() => {
+    if (tokens.length > 0) {
+      prefetchTokenMeta(tokens.map((t) => ({
+        chainId: t.chainId,
+        address: t.address,
+        symbol: t.symbol,
+      })));
+    }
+  }, [tokens]);
 
   const handleCheckNow = async (chainId: number, address: string) => {
     setCheckingToken(address);
@@ -70,22 +84,16 @@ export function WatchlistPanel({ className = '' }: WatchlistPanelProps) {
             key={`${token.chainId}-${token.address}`}
             className="flex items-center gap-2 px-2 py-1.5 bg-dark-700/50 rounded-lg group"
           >
-            {/* Chain Badge */}
-            <span className="px-1.5 py-0.5 bg-dark-600 text-dark-300 text-[10px] rounded font-medium">
-              {getChainName(token.chainId)}
-            </span>
-
-            {/* Token Info */}
-            <div className="flex-1 min-w-0">
-              <span className="text-dark-200 text-xs font-mono">
-                {token.symbol || formatAddress(token.address)}
-              </span>
-              {token.symbol && (
-                <span className="text-dark-500 text-[10px] ml-1">
-                  {formatAddress(token.address)}
-                </span>
-              )}
-            </div>
+            {/* Token Display with Logo/Name/Price */}
+            <TokenDisplay
+              chainId={token.chainId}
+              address={token.address}
+              symbol={token.symbol}
+              showPrice
+              showChain
+              compact
+              className="flex-1 min-w-0"
+            />
 
             {/* Actions */}
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

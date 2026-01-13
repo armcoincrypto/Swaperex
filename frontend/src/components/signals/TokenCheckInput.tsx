@@ -7,6 +7,7 @@
  * Priority 10.3 - Manual Token Check
  * Priority 10.4 - Chain correctness fix
  * Priority 11.1 - Watchlist integration
+ * Step 1 - Token Metadata Layer
  */
 
 import { useState, useCallback, useEffect } from 'react';
@@ -14,6 +15,9 @@ import { useSignalHistoryStore } from '@/stores/signalHistoryStore';
 import { useWalletStore } from '@/stores/walletStore';
 import { useWatchlistStore } from '@/stores/watchlistStore';
 import { fetchSignalsWithHistory, type SignalHistoryCapture } from '@/services/signalsHealth';
+import { TokenDisplay } from '@/components/common/TokenDisplay';
+import { getTokenMeta } from '@/services/tokenMeta';
+import { type TokenMeta } from '@/stores/tokenMetaStore';
 
 // Supported chains
 const CHAINS = [
@@ -56,6 +60,7 @@ export function TokenCheckInput({ className = '' }: TokenCheckInputProps) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<TokenCheckResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tokenMeta, setTokenMeta] = useState<TokenMeta | null>(null);
 
   // Get wallet chain info
   const walletChainId = useWalletStore((s) => s.chainId);
@@ -127,14 +132,21 @@ export function TokenCheckInput({ className = '' }: TokenCheckInputProps) {
     setLoading(true);
     setError(null);
     setResult(null);
+    setTokenMeta(null);
 
     try {
-      const response = await fetchSignalsWithHistory(
-        selectedChainId,
-        tokenAddress.toLowerCase(),
-        undefined,
-        captureToHistory
-      );
+      // Fetch token metadata and signals in parallel
+      const [meta, response] = await Promise.all([
+        getTokenMeta(selectedChainId, tokenAddress.toLowerCase()),
+        fetchSignalsWithHistory(
+          selectedChainId,
+          tokenAddress.toLowerCase(),
+          undefined,
+          captureToHistory
+        ),
+      ]);
+
+      setTokenMeta(meta);
 
       if (!response) {
         setError('Failed to fetch signals. Backend may be offline.');
@@ -285,7 +297,20 @@ export function TokenCheckInput({ className = '' }: TokenCheckInputProps) {
 
       {/* Results */}
       {result && (
-        <div className="space-y-2">
+        <div className="space-y-3">
+          {/* Token Info Header */}
+          <div className="bg-dark-700/50 rounded-lg p-3">
+            <TokenDisplay
+              chainId={selectedChainId}
+              address={tokenAddress}
+              symbol={tokenMeta?.symbol}
+              showPrice
+              showChain
+              showCopy
+            />
+          </div>
+
+          {/* Signal Status */}
           {!result.hasSignals && (
             <div className="text-green-400 text-sm flex items-center gap-2">
               <span>✓</span>
