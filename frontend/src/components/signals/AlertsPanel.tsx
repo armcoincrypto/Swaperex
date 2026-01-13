@@ -6,6 +6,7 @@
  *
  * Priority 12.1-12.2 - In-App Alerts
  * Step 1 - Token Metadata Layer
+ * Step 2 - Quick Actions
  */
 
 import { useState } from 'react';
@@ -17,6 +18,7 @@ import { AlertSettings } from '@/components/signals/AlertSettings';
 import { getActionGuidance } from '@/utils/alerts';
 import { TokenBadge } from '@/components/common/TokenDisplay';
 import { getChainShortName } from '@/services/tokenMeta';
+import { QuickActions } from '@/components/signals/QuickActions';
 
 interface AlertsPanelProps {
   className?: string;
@@ -126,6 +128,7 @@ interface AlertItemRowProps {
 function AlertItemRow({ alert, onClick }: AlertItemRowProps) {
   const { markRead } = useAlertStore();
   const historyEntries = useSignalHistoryStore((s) => s.entries);
+  const [showActions, setShowActions] = useState(false);
 
   // Check if the history entry still exists
   const entryExists = historyEntries.some((e) => e.id === alert.entryHash);
@@ -138,73 +141,92 @@ function AlertItemRow({ alert, onClick }: AlertItemRowProps) {
   };
 
   return (
-    <button
-      onClick={handleClick}
+    <div
       className={`
-        w-full text-left px-3 py-2 rounded-lg transition-colors
+        w-full text-left px-3 py-2 rounded-lg transition-colors group
         ${alert.read ? 'bg-dark-800/50' : 'bg-dark-700/50'}
-        ${entryExists ? 'hover:bg-dark-700 cursor-pointer' : 'opacity-60 cursor-default'}
+        ${entryExists ? 'hover:bg-dark-700' : 'opacity-60'}
       `}
-      disabled={!entryExists}
+      onMouseEnter={() => setShowActions(true)}
+      onMouseLeave={() => setShowActions(false)}
     >
-      <div className="flex items-center gap-2">
-        {/* Unread indicator */}
-        {!alert.read && (
-          <span className="w-1.5 h-1.5 bg-red-500 rounded-full flex-shrink-0" />
-        )}
+      <button
+        onClick={handleClick}
+        disabled={!entryExists}
+        className="w-full text-left"
+      >
+        <div className="flex items-center gap-2">
+          {/* Unread indicator */}
+          {!alert.read && (
+            <span className="w-1.5 h-1.5 bg-red-500 rounded-full flex-shrink-0" />
+          )}
 
-        {/* Impact icon */}
-        <span className="text-xs flex-shrink-0">
-          {getImpactIcon(alert.impactLevel)}
-        </span>
+          {/* Impact icon */}
+          <span className="text-xs flex-shrink-0">
+            {getImpactIcon(alert.impactLevel)}
+          </span>
 
-        {/* Type badge */}
-        <span
-          className={`px-1.5 py-0.5 rounded text-[10px] font-medium uppercase flex-shrink-0 ${
-            alert.type === 'liquidity'
-              ? 'bg-blue-900/30 text-blue-400'
-              : 'bg-orange-900/30 text-orange-400'
-          }`}
-        >
-          {alert.type === 'liquidity' ? 'LIQ' : 'RISK'}
-        </span>
+          {/* Type badge */}
+          <span
+            className={`px-1.5 py-0.5 rounded text-[10px] font-medium uppercase flex-shrink-0 ${
+              alert.type === 'liquidity'
+                ? 'bg-blue-900/30 text-blue-400'
+                : 'bg-orange-900/30 text-orange-400'
+            }`}
+          >
+            {alert.type === 'liquidity' ? 'LIQ' : 'RISK'}
+          </span>
 
-        {/* Token with Logo */}
-        <TokenBadge
-          chainId={alert.chainId}
-          address={alert.token}
-          symbol={alert.tokenSymbol}
-          className="text-xs truncate flex-1"
-        />
+          {/* Token with Logo */}
+          <TokenBadge
+            chainId={alert.chainId}
+            address={alert.token}
+            symbol={alert.tokenSymbol}
+            className="text-xs truncate flex-1"
+          />
 
-        {/* Chain */}
-        <span className="text-dark-500 text-[10px] flex-shrink-0">
-          {getChainShortName(alert.chainId)}
-        </span>
+          {/* Chain */}
+          <span className="text-dark-500 text-[10px] flex-shrink-0">
+            {getChainShortName(alert.chainId)}
+          </span>
 
-        {/* Time */}
-        <SignalAge
-          timestamp={alert.timestamp}
-          compact
-          className="text-dark-500 text-[10px] flex-shrink-0"
-        />
-      </div>
+          {/* Time */}
+          <SignalAge
+            timestamp={alert.timestamp}
+            compact
+            className="text-dark-500 text-[10px] flex-shrink-0"
+          />
+        </div>
 
-      {/* Reason preview */}
-      <div className="text-[10px] text-dark-500 mt-1 truncate pl-4">
-        {alert.reason}
-      </div>
+        {/* Reason preview */}
+        <div className="text-[10px] text-dark-500 mt-1 truncate pl-4">
+          {alert.reason}
+        </div>
 
-      {/* Action guidance */}
-      {(() => {
-        const guidance = getActionGuidance(alert.impactLevel);
-        return (
-          <div className={`text-[10px] mt-1.5 pl-4 ${guidance.className}`}>
-            {guidance.icon} {guidance.text}
-          </div>
-        );
-      })()}
-    </button>
+        {/* Action guidance */}
+        {(() => {
+          const guidance = getActionGuidance(alert.impactLevel);
+          return (
+            <div className={`text-[10px] mt-1.5 pl-4 ${guidance.className}`}>
+              {guidance.icon} {guidance.text}
+            </div>
+          );
+        })()}
+      </button>
+
+      {/* Quick Actions (hover reveal) */}
+      {showActions && (
+        <div className="mt-2 pt-2 border-t border-dark-700/50">
+          <QuickActions
+            chainId={alert.chainId}
+            address={alert.token}
+            symbol={alert.tokenSymbol}
+            compact
+            showSwap={false}
+          />
+        </div>
+      )}
+    </div>
   );
 }
 

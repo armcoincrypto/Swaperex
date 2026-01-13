@@ -18,6 +18,7 @@ import { fetchSignalsWithHistory, type SignalHistoryCapture } from '@/services/s
 import { TokenDisplay } from '@/components/common/TokenDisplay';
 import { getTokenMeta } from '@/services/tokenMeta';
 import { type TokenMeta } from '@/stores/tokenMetaStore';
+import { QuickActions } from '@/components/signals/QuickActions';
 
 // Supported chains
 const CHAINS = [
@@ -308,6 +309,15 @@ export function TokenCheckInput({ className = '' }: TokenCheckInputProps) {
               showChain
               showCopy
             />
+            {/* Quick Actions */}
+            <div className="mt-3 pt-2 border-t border-dark-600/50">
+              <QuickActions
+                chainId={selectedChainId}
+                address={tokenAddress}
+                symbol={tokenMeta?.symbol}
+                showSwap={false}
+              />
+            </div>
           </div>
 
           {/* Signal Status */}
