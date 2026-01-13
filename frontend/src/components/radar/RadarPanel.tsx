@@ -22,6 +22,7 @@ import { WatchlistPanel } from '@/components/signals/WatchlistPanel';
 import { RadarIntroCard } from '@/components/radar/RadarIntroCard';
 import { RadarUsageGuide } from '@/components/radar/RadarUsageGuide';
 import { WhyRadar } from '@/components/radar/WhyRadar';
+import { WalletScan } from '@/components/radar/WalletScan';
 import { MonitoringStatus } from '@/components/radar/MonitoringStatus';
 import { AlertsPanel } from '@/components/signals/AlertsPanel';
 import { AlertToast } from '@/components/signals/AlertToast';
@@ -331,6 +332,9 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
 
       {/* Watchlist Section (Priority 11.1) */}
       <WatchlistPanel className="mt-6" />
+
+      {/* Wallet Scan Section (Step 5) */}
+      <WalletScan className="mt-6" />
 
       {/* Alerts Section (Priority 12.1-12.2) */}
       <AlertsPanel
