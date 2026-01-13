@@ -21,6 +21,7 @@ import { TokenCheckInput } from '@/components/signals/TokenCheckInput';
 import { WatchlistPanel } from '@/components/signals/WatchlistPanel';
 import { RadarIntroCard } from '@/components/radar/RadarIntroCard';
 import { RadarUsageGuide } from '@/components/radar/RadarUsageGuide';
+import { WhyRadar } from '@/components/radar/WhyRadar';
 import { MonitoringStatus } from '@/components/radar/MonitoringStatus';
 import { AlertsPanel } from '@/components/signals/AlertsPanel';
 import { AlertToast } from '@/components/signals/AlertToast';
@@ -176,6 +177,9 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
 
       {/* First-Visit Intro Card */}
       <RadarIntroCard className="mb-4" />
+
+      {/* Why Radar Section (Step 4) */}
+      <WhyRadar className="mb-4" />
 
       {/* Usage Guide (always visible) */}
       <RadarUsageGuide className="mb-4" />
