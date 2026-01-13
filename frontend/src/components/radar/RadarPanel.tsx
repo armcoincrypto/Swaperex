@@ -20,6 +20,8 @@ import { SignalFilters } from '@/components/signals/SignalFilters';
 import { TokenCheckInput } from '@/components/signals/TokenCheckInput';
 import { WatchlistPanel } from '@/components/signals/WatchlistPanel';
 import { RadarIntroCard } from '@/components/radar/RadarIntroCard';
+import { RadarUsageGuide } from '@/components/radar/RadarUsageGuide';
+import { MonitoringStatus } from '@/components/radar/MonitoringStatus';
 import { AlertsPanel } from '@/components/signals/AlertsPanel';
 import { AlertToast } from '@/components/signals/AlertToast';
 import { useSignalAlerts, triggerTestAlert } from '@/hooks/useSignalAlerts';
@@ -174,6 +176,9 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
 
       {/* First-Visit Intro Card */}
       <RadarIntroCard className="mb-4" />
+
+      {/* Usage Guide (always visible) */}
+      <RadarUsageGuide className="mb-4" />
 
       {/* Token Check Input */}
       <TokenCheckInput className="mb-4" />
@@ -370,6 +375,9 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
 
       {/* Info Footer */}
       <div className="mt-8 p-4 bg-dark-800 rounded-xl text-center">
+        {/* Monitoring Status */}
+        <MonitoringStatus className="mb-3" />
+
         <p className="text-xs text-dark-400">
           Radar monitors tokens you interact with and alerts you to significant changes.
           <br />

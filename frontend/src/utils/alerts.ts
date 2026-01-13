@@ -110,6 +110,38 @@ export function getChainName(chainId: number): string {
 }
 
 /**
+ * Get action guidance text based on impact level
+ * Calm, non-financial advice tone
+ */
+export function getActionGuidance(impactLevel: 'high' | 'medium' | 'low'): {
+  icon: string;
+  text: string;
+  className: string;
+} {
+  switch (impactLevel) {
+    case 'high':
+      return {
+        icon: '🔴',
+        text: 'Action suggested: Review & consider exiting',
+        className: 'text-red-400',
+      };
+    case 'medium':
+      return {
+        icon: '🟡',
+        text: 'Monitor closely',
+        className: 'text-yellow-400',
+      };
+    case 'low':
+    default:
+      return {
+        icon: 'ℹ️',
+        text: 'Informational — no action needed',
+        className: 'text-dark-400',
+      };
+  }
+}
+
+/**
  * Play alert sound (WebAudio - no file needed)
  */
 export function playAlertSound(): void {

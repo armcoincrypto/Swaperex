@@ -13,7 +13,7 @@ import { useSignalHistoryStore } from '@/stores/signalHistoryStore';
 import { getImpactIcon } from '@/components/signals/ImpactBadge';
 import { SignalAge } from '@/components/signals/SignalAge';
 import { AlertSettings } from '@/components/signals/AlertSettings';
-import { getChainName } from '@/utils/alerts';
+import { getChainName, getActionGuidance } from '@/utils/alerts';
 
 interface AlertsPanelProps {
   className?: string;
@@ -188,6 +188,16 @@ function AlertItemRow({ alert, onClick }: AlertItemRowProps) {
       <div className="text-[10px] text-dark-500 mt-1 truncate pl-4">
         {alert.reason}
       </div>
+
+      {/* Action guidance */}
+      {(() => {
+        const guidance = getActionGuidance(alert.impactLevel);
+        return (
+          <div className={`text-[10px] mt-1.5 pl-4 ${guidance.className}`}>
+            {guidance.icon} {guidance.text}
+          </div>
+        );
+      })()}
     </button>
   );
 }
