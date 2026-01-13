@@ -19,6 +19,7 @@ import { TokenDisplay } from '@/components/common/TokenDisplay';
 import { getTokenMeta } from '@/services/tokenMeta';
 import { type TokenMeta } from '@/stores/tokenMetaStore';
 import { QuickActions } from '@/components/signals/QuickActions';
+import { RiskScoreBreakdown } from '@/components/signals/RiskScoreBreakdown';
 
 // Supported chains
 const CHAINS = [
@@ -192,14 +193,6 @@ export function TokenCheckInput({ className = '' }: TokenCheckInputProps) {
     }
   };
 
-  const getImpactColor = (level: string) => {
-    switch (level) {
-      case 'high': return 'text-red-400';
-      case 'medium': return 'text-orange-400';
-      default: return 'text-gray-400';
-    }
-  };
-
   const getTrendIcon = (trend: string) => {
     switch (trend) {
       case 'increasing': return '⬆';
@@ -330,50 +323,46 @@ export function TokenCheckInput({ className = '' }: TokenCheckInputProps) {
 
           {/* Risk Signal */}
           {result.risk && (
-            <div className="bg-dark-700/50 rounded-lg p-3 space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-yellow-400 text-sm font-medium">
-                  ⚠️ Risk Signal
-                </span>
-                <span className={`text-xs ${getImpactColor(result.risk.impact.level)}`}>
-                  Impact: {result.risk.impact.score}/100
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-yellow-400 text-sm font-medium">
+                <span>⚠️</span>
+                <span>Risk Signal</span>
+                <span className="text-[10px] text-dark-500 font-normal">
+                  Confidence: {Math.round(result.risk.confidence * 100)}%
                 </span>
               </div>
-              <div className="text-xs text-dark-400">
-                {result.risk.riskFactors.join(', ')}
-              </div>
-              <div className="flex items-center gap-3 text-[10px] text-dark-500">
-                <span>Confidence: {Math.round(result.risk.confidence * 100)}%</span>
-                <span>
-                  {result.risk.recurrence.isRepeat
-                    ? `↻ ${result.risk.recurrence.occurrences24h}× ${getTrendIcon(result.risk.recurrence.trend)}`
-                    : '🆕 First occurrence'}
-                </span>
+              <RiskScoreBreakdown
+                impact={result.risk.impact}
+                type="risk"
+                riskFactors={result.risk.riskFactors}
+              />
+              <div className="text-[10px] text-dark-500">
+                {result.risk.recurrence.isRepeat
+                  ? `↻ ${result.risk.recurrence.occurrences24h}× in 24h ${getTrendIcon(result.risk.recurrence.trend)}`
+                  : '🆕 First occurrence'}
               </div>
             </div>
           )}
 
           {/* Liquidity Signal */}
           {result.liquidity && (
-            <div className="bg-dark-700/50 rounded-lg p-3 space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-green-400 text-sm font-medium">
-                  💧 Liquidity Signal
-                </span>
-                <span className={`text-xs ${getImpactColor(result.liquidity.impact.level)}`}>
-                  Impact: {result.liquidity.impact.score}/100
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-blue-400 text-sm font-medium">
+                <span>💧</span>
+                <span>Liquidity Signal</span>
+                <span className="text-[10px] text-dark-500 font-normal">
+                  Confidence: {Math.round(result.liquidity.confidence * 100)}%
                 </span>
               </div>
-              <div className="text-xs text-dark-400">
-                Dropped {result.liquidity.dropPct}%
-              </div>
-              <div className="flex items-center gap-3 text-[10px] text-dark-500">
-                <span>Confidence: {Math.round(result.liquidity.confidence * 100)}%</span>
-                <span>
-                  {result.liquidity.recurrence.isRepeat
-                    ? `↻ ${result.liquidity.recurrence.occurrences24h}× ${getTrendIcon(result.liquidity.recurrence.trend)}`
-                    : '🆕 First occurrence'}
-                </span>
+              <RiskScoreBreakdown
+                impact={result.liquidity.impact}
+                type="liquidity"
+                liquidityDropPct={result.liquidity.dropPct}
+              />
+              <div className="text-[10px] text-dark-500">
+                {result.liquidity.recurrence.isRepeat
+                  ? `↻ ${result.liquidity.recurrence.occurrences24h}× in 24h ${getTrendIcon(result.liquidity.recurrence.trend)}`
+                  : '🆕 First occurrence'}
               </div>
             </div>
           )}

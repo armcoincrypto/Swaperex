@@ -30,6 +30,7 @@ import { SignalGuidance } from '@/components/signals/SignalGuidance';
 import { TokenBadge } from '@/components/common/TokenDisplay';
 import { prefetchTokenMeta } from '@/services/tokenMeta';
 import { QuickActions } from '@/components/signals/QuickActions';
+import { RiskScoreBreakdown } from '@/components/signals/RiskScoreBreakdown';
 
 interface SignalHistoryPanelProps {
   maxEntries?: number;
@@ -245,18 +246,15 @@ function SignalHistoryItem({
             <span className="text-dark-600">reason:</span> {entry.reason}
           </div>
 
-          {/* Impact Score */}
+          {/* Impact Score Breakdown (Step 3) */}
           {entry.impact && (
-            <div className={`${
-              entry.impact.level === 'high'
-                ? 'text-red-400'
-                : entry.impact.level === 'medium'
-                ? 'text-orange-400'
-                : 'text-gray-400'
-            }`}>
-              <span className="text-dark-600">impact:</span>{' '}
-              {getImpactIcon(entry.impact.level)} {entry.impact.score}/100 ({entry.impact.level})
-            </div>
+            <RiskScoreBreakdown
+              impact={entry.impact}
+              type={entry.type}
+              riskFactors={entry.debugSnapshot?.risk?.riskFactors}
+              liquidityDropPct={entry.debugSnapshot?.liquidity?.dropPct ?? undefined}
+              className="mt-2"
+            />
           )}
 
           {/* Escalation */}
