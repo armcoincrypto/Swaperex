@@ -5,9 +5,11 @@
  * Collapsible settings panel inside AlertsPanel.
  *
  * Priority 12.2 - Alert Preferences
+ * Priority 12.3 - Telegram Alerts
  */
 
 import { useAlertStore } from '@/stores/alertStore';
+import { TelegramSettings } from '@/components/signals/TelegramSettings';
 
 interface AlertSettingsProps {
   className?: string;
@@ -104,6 +106,9 @@ export function AlertSettings({ className = '' }: AlertSettingsProps) {
           </div>
         )}
       </div>
+
+      {/* Telegram Alerts */}
+      <TelegramSettings className="mt-3 border-t border-dark-700 pt-3" />
     </div>
   );
 }

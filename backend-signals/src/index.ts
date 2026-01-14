@@ -2,6 +2,15 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import { getSignals } from "./api.js";
+import {
+  initTelegram,
+  generateStartToken,
+  getSubscription,
+  updateSubscription,
+  isTelegramConfigured,
+  isDryRunMode,
+} from "./telegram/index.js";
+import { triggerSignalNotification } from "./telegram/trigger.js";
 
 // Configuration
 const PORT = Number(process.env.PORT) || 4001;
@@ -22,7 +31,7 @@ const app = Fastify({ logger: true });
 // CORS - allow frontend origins
 await app.register(cors, {
   origin: ALLOWED_ORIGINS,
-  methods: ["GET"],
+  methods: ["GET", "POST", "PUT"],
 });
 
 // Rate limiting - 100 requests per minute per IP
@@ -126,17 +135,139 @@ app.get("/api/signals", async (req, reply) => {
   return reply.redirect(301, `/api/v1/signals?chainId=${chainId}&token=${token}`);
 });
 
+// ============================================
+// Telegram Notification Endpoints
+// ============================================
+
+// Get Telegram status for a wallet
+app.get("/api/v1/telegram/status", async (req, reply) => {
+  const { wallet } = req.query as any;
+  if (!wallet) {
+    return reply.code(400).send({ error: "Missing wallet parameter" });
+  }
+
+  const subscription = getSubscription(wallet);
+  const botUsername = process.env.TELEGRAM_BOT_USERNAME || "SwaperexRadarBot";
+
+  return {
+    configured: isTelegramConfigured(),
+    dryRun: isDryRunMode(),
+    botUsername,
+    subscription: subscription
+      ? {
+          enabled: subscription.enabled,
+          minImpact: subscription.minImpact,
+          minConfidence: subscription.minConfidence,
+          quietHoursStart: subscription.quietHoursStart,
+          quietHoursEnd: subscription.quietHoursEnd,
+          connected: true,
+        }
+      : null,
+  };
+});
+
+// Generate a start token for wallet linking
+app.post("/api/v1/telegram/connect", async (req, reply) => {
+  const { wallet } = req.body as any;
+  if (!wallet) {
+    return reply.code(400).send({ error: "Missing wallet parameter" });
+  }
+
+  if (!isTelegramConfigured()) {
+    return reply.code(503).send({ error: "Telegram not configured" });
+  }
+
+  const token = generateStartToken(wallet);
+  const botUsername = process.env.TELEGRAM_BOT_USERNAME || "SwaperexRadarBot";
+  const connectUrl = `https://t.me/${botUsername}?start=${token}`;
+
+  return {
+    token,
+    connectUrl,
+    expiresIn: 600, // 10 minutes in seconds
+  };
+});
+
+// Update Telegram settings
+app.put("/api/v1/telegram/settings", async (req, reply) => {
+  const { wallet, enabled, minImpact, minConfidence, quietHoursStart, quietHoursEnd } = req.body as any;
+
+  if (!wallet) {
+    return reply.code(400).send({ error: "Missing wallet parameter" });
+  }
+
+  const subscription = getSubscription(wallet);
+  if (!subscription) {
+    return reply.code(404).send({ error: "No subscription found for this wallet" });
+  }
+
+  const updates: any = {};
+  if (typeof enabled === "boolean") updates.enabled = enabled;
+  if (minImpact) updates.minImpact = minImpact;
+  if (typeof minConfidence === "number") updates.minConfidence = minConfidence;
+  if (quietHoursStart !== undefined) updates.quietHoursStart = quietHoursStart;
+  if (quietHoursEnd !== undefined) updates.quietHoursEnd = quietHoursEnd;
+
+  const updated = updateSubscription(wallet, updates);
+
+  return {
+    success: true,
+    subscription: {
+      enabled: updated?.enabled,
+      minImpact: updated?.minImpact,
+      minConfidence: updated?.minConfidence,
+      quietHoursStart: updated?.quietHoursStart,
+      quietHoursEnd: updated?.quietHoursEnd,
+    },
+  };
+});
+
+// Test notification endpoint (for debugging)
+app.post("/api/v1/telegram/test", async (req, reply) => {
+  const { wallet } = req.body as any;
+  if (!wallet) {
+    return reply.code(400).send({ error: "Missing wallet parameter" });
+  }
+
+  const result = await triggerSignalNotification({
+    walletAddress: wallet,
+    type: "risk",
+    impactLevel: "high",
+    impactScore: 75,
+    confidence: 0.85,
+    tokenAddress: "0x0000000000000000000000000000000000000000",
+    tokenName: "Test Token",
+    tokenSymbol: "TEST",
+    chainId: 1,
+    chainName: "Ethereum",
+    reason: "This is a test notification from Swaperex Radar.",
+  });
+
+  return result;
+});
+
 // Start server
 try {
   await app.listen({ port: PORT, host: "0.0.0.0" });
+
+  const telegramStatus = isTelegramConfigured()
+    ? isDryRunMode()
+      ? "DRY_RUN"
+      : "ENABLED"
+    : "DISABLED";
+
   console.log(`
 ╔════════════════════════════════════════════╗
 ║  Signals Backend v${VERSION}                   ║
 ║  Port: ${PORT}                                ║
 ║  Signals: ${SIGNALS_ENABLED ? "ENABLED" : "DISABLED"}                        ║
+║  Telegram: ${telegramStatus}                       ║
 ║  CORS: ${ALLOWED_ORIGINS.length} origins                       ║
 ╚════════════════════════════════════════════╝
   `);
+
+  // Initialize Telegram bot (if configured)
+  initTelegram();
 } catch (err) {
   app.log.error(err);
   process.exit(1);
