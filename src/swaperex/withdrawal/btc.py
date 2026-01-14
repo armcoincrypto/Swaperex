@@ -239,3 +239,166 @@ class BTCWithdrawalHandler(WithdrawalHandler):
             logger.error(f"Failed to get UTXOs for {address}: {e}")
 
         return []
+
+
+class LTCWithdrawalHandler(WithdrawalHandler):
+    """Litecoin withdrawal handler.
+
+    Uses similar UTXO model as Bitcoin with different address prefixes.
+    Native SegWit addresses start with ltc1.
+    """
+
+    # Blockcypher API for LTC (Blockstream only supports BTC)
+    BLOCKCYPHER_MAINNET = "https://api.blockcypher.com/v1/ltc/main"
+    BLOCKCYPHER_TESTNET = "https://api.blockcypher.com/v1/ltc/test"
+
+    def __init__(self, testnet: bool = False):
+        super().__init__("LTC", testnet)
+        self.api_url = self.BLOCKCYPHER_TESTNET if testnet else self.BLOCKCYPHER_MAINNET
+
+    async def validate_address(self, address: str) -> bool:
+        """Validate Litecoin address format."""
+        if not address:
+            return False
+
+        # LTC address prefixes
+        # Mainnet: L (legacy), M (P2SH), ltc1 (bech32)
+        # Testnet: m, n, tltc1
+        if self.testnet:
+            valid_prefixes = ("m", "n", "2", "tltc1")
+        else:
+            valid_prefixes = ("L", "M", "ltc1")
+
+        if not address.startswith(valid_prefixes):
+            return False
+
+        # Length checks
+        if address.startswith(("ltc1", "tltc1")):
+            return 42 <= len(address) <= 64
+        else:
+            return 25 <= len(address) <= 35
+
+    async def estimate_fee(
+        self, amount: Decimal, destination: str, priority: str = "normal"
+    ) -> FeeEstimate:
+        """Estimate LTC transaction fee."""
+        # LTC typically has lower fees than BTC
+        if priority == "high":
+            fee_ltc = Decimal("0.001")
+            est_time = "~5 minutes"
+        elif priority == "low":
+            fee_ltc = Decimal("0.0001")
+            est_time = "~30 minutes"
+        else:
+            fee_ltc = Decimal("0.0005")
+            est_time = "~10 minutes"
+
+        return FeeEstimate(
+            asset="LTC",
+            network_fee=fee_ltc,
+            service_fee=Decimal("0"),
+            total_fee=fee_ltc,
+            fee_asset="LTC",
+            estimated_time=est_time,
+            priority=priority,
+        )
+
+    async def execute_withdrawal(
+        self,
+        private_key: str,
+        destination: str,
+        amount: Decimal,
+        fee_priority: str = "normal",
+    ) -> WithdrawalResult:
+        """Execute LTC withdrawal (simulated for now)."""
+        import secrets
+        return WithdrawalResult(
+            success=True,
+            txid=f"sim_ltc_{secrets.token_hex(32)}",
+            status=WithdrawalStatus.BROADCAST,
+            message=f"[SIMULATED] Would send {amount} LTC to {destination}",
+            fee_paid=Decimal("0.0005"),
+        )
+
+    async def get_transaction_status(self, txid: str) -> WithdrawalStatus:
+        """Check LTC transaction status."""
+        return WithdrawalStatus.CONFIRMING
+
+
+class DASHWithdrawalHandler(WithdrawalHandler):
+    """DASH withdrawal handler.
+
+    DASH uses similar UTXO model as Bitcoin.
+    Mainnet addresses start with X, testnet with y.
+    """
+
+    # Blockcypher API for DASH
+    BLOCKCYPHER_MAINNET = "https://api.blockcypher.com/v1/dash/main"
+
+    def __init__(self, testnet: bool = False):
+        super().__init__("DASH", testnet)
+        self.api_url = self.BLOCKCYPHER_MAINNET
+
+    async def validate_address(self, address: str) -> bool:
+        """Validate DASH address format."""
+        if not address:
+            return False
+
+        # DASH address prefixes
+        # Mainnet: X (P2PKH), 7 (P2SH)
+        # Testnet: y (P2PKH), 8 (P2SH)
+        if self.testnet:
+            valid_prefixes = ("y", "8")
+        else:
+            valid_prefixes = ("X", "7")
+
+        if not address.startswith(valid_prefixes):
+            return False
+
+        return 25 <= len(address) <= 35
+
+    async def estimate_fee(
+        self, amount: Decimal, destination: str, priority: str = "normal"
+    ) -> FeeEstimate:
+        """Estimate DASH transaction fee."""
+        # DASH has InstantSend for faster confirmations
+        if priority == "high":
+            fee_dash = Decimal("0.001")  # With InstantSend
+            est_time = "~2 seconds (InstantSend)"
+        elif priority == "low":
+            fee_dash = Decimal("0.00001")
+            est_time = "~5 minutes"
+        else:
+            fee_dash = Decimal("0.0001")
+            est_time = "~2.5 minutes"
+
+        return FeeEstimate(
+            asset="DASH",
+            network_fee=fee_dash,
+            service_fee=Decimal("0"),
+            total_fee=fee_dash,
+            fee_asset="DASH",
+            estimated_time=est_time,
+            priority=priority,
+        )
+
+    async def execute_withdrawal(
+        self,
+        private_key: str,
+        destination: str,
+        amount: Decimal,
+        fee_priority: str = "normal",
+    ) -> WithdrawalResult:
+        """Execute DASH withdrawal (simulated for now)."""
+        import secrets
+        return WithdrawalResult(
+            success=True,
+            txid=f"sim_dash_{secrets.token_hex(32)}",
+            status=WithdrawalStatus.BROADCAST,
+            message=f"[SIMULATED] Would send {amount} DASH to {destination}",
+            fee_paid=Decimal("0.0001"),
+        )
+
+    async def get_transaction_status(self, txid: str) -> WithdrawalStatus:
+        """Check DASH transaction status."""
+        return WithdrawalStatus.CONFIRMING

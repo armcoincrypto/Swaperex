@@ -1,10 +1,28 @@
-"""Factory for creating withdrawal handlers."""
+"""Factory for creating withdrawal handlers.
 
+SECURITY NOTE:
+- In WEB_NON_CUSTODIAL mode, all withdrawal operations are disabled
+- get_withdrawal_handler() will raise RuntimeError if called in web mode
+- This prevents accidental exposure of transaction broadcasting to web layer
+"""
+
+import logging
 import os
 from typing import Optional
 
-from swaperex.config import get_settings
+from swaperex.config import get_settings, ExecutionMode
 from swaperex.withdrawal.base import WithdrawalHandler
+
+logger = logging.getLogger(__name__)
+
+
+def _log_blocked_withdrawal_attempt(asset: str) -> None:
+    """Log blocked withdrawal attempt in web mode."""
+    logger.warning(
+        "🚫 SECURITY BLOCK: Withdrawal handler request for '%s' blocked in WEB_NON_CUSTODIAL mode. "
+        "Transaction broadcasting is DISABLED. Use /withdrawals/template endpoint instead.",
+        asset,
+    )
 
 
 # Cache for handler instances
@@ -19,14 +37,21 @@ def get_withdrawal_handler(asset: str) -> Optional[WithdrawalHandler]:
 
     Returns:
         WithdrawalHandler instance or None if unsupported
+
+    Raises:
+        RuntimeError: If called in WEB_NON_CUSTODIAL mode
     """
+    # SECURITY: Block withdrawal handlers in web mode
+    settings = get_settings()
+    if settings.mode == ExecutionMode.WEB_NON_CUSTODIAL:
+        _log_blocked_withdrawal_attempt(asset)
+    settings.require_custodial_mode("Withdrawal transaction handling")
+
     asset_upper = asset.upper()
 
     # Check cache
     if asset_upper in _handler_cache:
         return _handler_cache[asset_upper]
-
-    settings = get_settings()
     testnet = not settings.is_production
 
     handler: Optional[WithdrawalHandler] = None
@@ -36,11 +61,15 @@ def get_withdrawal_handler(asset: str) -> Optional[WithdrawalHandler]:
         from swaperex.withdrawal.btc import BTCWithdrawalHandler
         handler = BTCWithdrawalHandler(testnet=testnet)
 
-    # LTC (uses similar structure to BTC)
+    # LTC
     elif asset_upper == "LTC":
-        from swaperex.withdrawal.btc import BTCWithdrawalHandler
-        handler = BTCWithdrawalHandler(testnet=testnet)
-        handler.asset = "LTC"
+        from swaperex.withdrawal.btc import LTCWithdrawalHandler
+        handler = LTCWithdrawalHandler(testnet=testnet)
+
+    # DASH
+    elif asset_upper == "DASH":
+        from swaperex.withdrawal.btc import DASHWithdrawalHandler
+        handler = DASHWithdrawalHandler(testnet=testnet)
 
     # ETH
     elif asset_upper == "ETH":
@@ -101,12 +130,13 @@ def get_supported_withdrawal_assets() -> list[str]:
     return [
         "BTC",
         "LTC",
+        "DASH",
         "ETH",
+        "BSC",
+        "TRX",
         "USDT-ERC20",
         "USDC",
-        "TRX",
         "USDT-TRC20",
-        "BSC",
     ]
 
 

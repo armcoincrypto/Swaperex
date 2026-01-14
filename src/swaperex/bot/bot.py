@@ -9,6 +9,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from swaperex.bot.handlers import setup_routers
 from swaperex.config import get_settings
 from swaperex.ledger.database import init_db
+from swaperex.services.deposit_sweeper import run_sweeper_loop
 
 logger = logging.getLogger(__name__)
 
@@ -56,12 +57,17 @@ async def run_bot() -> None:
     # Create bot
     bot, dp = create_bot()
 
+    # Start deposit sweeper in background (checks every 5 minutes)
+    sweeper_task = asyncio.create_task(run_sweeper_loop(interval_seconds=300))
+    logger.info("Deposit sweeper started (interval: 5 min)")
+
     try:
         # Delete webhook if any and start polling
         await bot.delete_webhook(drop_pending_updates=True)
         logger.info("Starting polling...")
         await dp.start_polling(bot)
     finally:
+        sweeper_task.cancel()
         await bot.session.close()
 
 

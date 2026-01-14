@@ -14,6 +14,7 @@ from swaperex.config import get_settings
 from swaperex.ledger.database import get_db
 from swaperex.ledger.repository import LedgerRepository
 from swaperex.withdrawal.factory import get_withdrawal_handler, get_supported_withdrawal_assets
+from swaperex.services.balance_sync import get_all_chain_balances_with_addresses
 
 router = Router()
 
@@ -49,23 +50,38 @@ async def handle_withdraw_asset(callback: CallbackQuery, state: FSMContext) -> N
 
     asset = callback.data.split(":")[1]
 
-    # Check if user has balance
-    async with get_db() as session:
-        repo = LedgerRepository(session)
-        user = await repo.get_or_create_user(telegram_id=callback.from_user.id)
-        balance = await repo.get_balance(user.id, asset)
+    # Check REAL blockchain balance (not internal ledger)
+    # Map assets to chains
+    asset_chain_map = {
+        "BNB": "bsc",
+        "ETH": "ethereum",
+        "USDT": "bsc",  # Default USDT to BSC
+        "USDC": "ethereum",
+        "MATIC": "polygon",
+        "AVAX": "avalanche",
+        "SOL": "solana",
+        "TRX": "tron",
+        "ATOM": "cosmos",
+    }
+    chain = asset_chain_map.get(asset, "bsc")
 
-        available = balance.available if balance else Decimal("0")
+    try:
+        all_balances = await get_all_chain_balances_with_addresses()
+        chain_data = all_balances.get(chain, {})
+        balances = chain_data.get("balances", {})
+        available = balances.get(asset, Decimal("0"))
+    except Exception:
+        available = Decimal("0")
 
-        if available <= 0:
-            await callback.message.edit_text(
-                f"Insufficient {asset} balance.\n\n"
-                f"You have {available:.8f} {asset} available.\n\n"
-                f"Use /deposit to add funds."
-            )
-            await state.clear()
-            await callback.answer()
-            return
+    if available <= 0:
+        await callback.message.edit_text(
+            f"Insufficient {asset} balance.\n\n"
+            f"You have {available:.8f} {asset} available.\n\n"
+            f"Use /deposit to add funds."
+        )
+        await state.clear()
+        await callback.answer()
+        return
 
     await state.update_data(asset=asset, available=str(available))
     await state.set_state(WithdrawStates.entering_address)

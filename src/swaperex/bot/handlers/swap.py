@@ -1,6 +1,7 @@
 """Swap handlers with quote comparison."""
 
 import json
+import logging
 from decimal import Decimal, InvalidOperation
 
 from aiogram import Router, F
@@ -9,10 +10,19 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, CallbackQuery
 
-from swaperex.bot.keyboards import swap_from_keyboard, swap_to_keyboard, confirm_swap_keyboard
+from swaperex.bot.keyboards import (
+    swap_chain_keyboard,
+    swap_from_keyboard,
+    swap_to_keyboard,
+    confirm_swap_keyboard,
+)
 from swaperex.ledger.database import get_db
 from swaperex.ledger.repository import LedgerRepository
-from swaperex.routing.dry_run import create_default_aggregator
+from swaperex.routing.factory import create_chain_aggregator
+from swaperex.services.swap_executor import execute_swap
+from swaperex.services.balance_sync import get_all_chain_balances_with_addresses
+
+logger = logging.getLogger(__name__)
 
 router = Router()
 
@@ -20,6 +30,7 @@ router = Router()
 class SwapStates(StatesGroup):
     """FSM states for swap flow."""
 
+    selecting_chain = State()
     selecting_from = State()
     selecting_to = State()
     entering_amount = State()
@@ -29,15 +40,79 @@ class SwapStates(StatesGroup):
 @router.message(Command("swap"))
 @router.message(F.text == "💱 Swap")
 async def cmd_swap(message: Message, state: FSMContext) -> None:
-    """Start swap flow."""
+    """Start swap flow with chain/DEX selection."""
     await state.clear()
+    await state.set_state(SwapStates.selecting_chain)
+
+    text = """💱 Swap Dashboard
+
+Select your chain to trade:
+
+🟡 BNB Chain - PancakeSwap
+   USDT, USDC, BUSD, CAKE, XRP, DOGE...
+
+🔵 Ethereum - Uniswap V3
+   USDT, USDC, DAI, LINK, UNI, AAVE...
+
+🔗 Cross-Chain - THORChain
+   BTC ↔ ETH ↔ BNB ↔ ATOM
+
+🟣 Solana - Jupiter
+   SOL, USDT, USDC, RAY, JUP, BONK...
+
+⚛️ Cosmos - Osmosis
+   ATOM, OSMO, INJ, TIA, JUNO...
+
+💜 Polygon - QuickSwap
+   MATIC, USDT, USDC, AAVE, LINK...
+
+🔺 Avalanche - TraderJoe
+   AVAX, USDT, USDC, GMX, JOE...
+
+🔴 Tron - SunSwap
+   TRX, USDT, USDC, BTT, SUN...
+
+💎 TON - STON.fi
+   TON ↔ USDT ↔ USDC
+
+🌐 NEAR - Ref Finance
+   NEAR ↔ USDT ↔ USDC"""
+
+    await message.answer(text, reply_markup=swap_chain_keyboard())
+
+
+@router.callback_query(SwapStates.selecting_chain, F.data.startswith("swap_chain:"))
+async def handle_chain_selection(callback: CallbackQuery, state: FSMContext) -> None:
+    """Handle chain/DEX selection."""
+    if not callback.data:
+        return
+
+    chain = callback.data.split(":")[1]
+    await state.update_data(chain=chain)
     await state.set_state(SwapStates.selecting_from)
 
-    text = """Swap Coins
+    # Chain display names
+    chain_names = {
+        "pancakeswap": "🟡 PancakeSwap (BNB Chain)",
+        "uniswap": "🔵 Uniswap V3 (Ethereum)",
+        "thorchain": "🔗 THORChain (Cross-Chain)",
+        "jupiter": "🟣 Jupiter (Solana)",
+        "osmosis": "⚛️ Osmosis (Cosmos)",
+        "quickswap": "💜 QuickSwap (Polygon)",
+        "traderjoe": "🔺 TraderJoe (Avalanche)",
+        "sunswap": "🔴 SunSwap (Tron)",
+        "stonfi": "💎 STON.fi (TON)",
+        "ref_finance": "🌐 Ref Finance (NEAR)",
+    }
+
+    chain_name = chain_names.get(chain, chain.title())
+
+    text = f"""💱 Swap on {chain_name}
 
 Select the coin you want to swap FROM:"""
 
-    await message.answer(text, reply_markup=swap_from_keyboard())
+    await callback.message.edit_text(text, reply_markup=swap_from_keyboard(chain))
+    await callback.answer()
 
 
 @router.callback_query(SwapStates.selecting_from, F.data.startswith("swap_from:"))
@@ -47,14 +122,17 @@ async def handle_swap_from(callback: CallbackQuery, state: FSMContext) -> None:
         return
 
     from_asset = callback.data.split(":")[1]
+    data = await state.get_data()
+    chain = data.get("chain")
+
     await state.update_data(from_asset=from_asset)
     await state.set_state(SwapStates.selecting_to)
 
-    text = f"""Swap FROM: {from_asset}
+    text = f"""💱 Swap FROM: {from_asset}
 
 Now select the coin you want to swap TO:"""
 
-    await callback.message.edit_text(text, reply_markup=swap_to_keyboard(from_asset))
+    await callback.message.edit_text(text, reply_markup=swap_to_keyboard(from_asset, chain))
     await callback.answer()
 
 
@@ -98,24 +176,91 @@ async def handle_swap_amount(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     from_asset = data.get("from_asset")
     to_asset = data.get("to_asset")
+    chain = data.get("chain", "")
 
-    # Check balance
-    async with get_db() as session:
-        repo = LedgerRepository(session)
-        user = await repo.get_or_create_user(telegram_id=message.from_user.id)
-        balance = await repo.get_balance(user.id, from_asset)
+    # Check REAL blockchain balance (not internal ledger)
+    # Map chain/DEX names to balance_sync chain IDs
+    chain_map = {
+        # Chain names
+        "bnb": "bsc",
+        "bsc": "bsc",
+        "eth": "ethereum",
+        "ethereum": "ethereum",
+        "polygon": "polygon",
+        "avalanche": "avalanche",
+        "solana": "solana",
+        "tron": "tron",
+        # DEX names -> their chains
+        "pancakeswap": "bsc",
+        "uniswap": "ethereum",
+        "quickswap": "polygon",
+        "traderjoe": "avalanche",
+        "jupiter": "solana",
+        "sunswap": "tron",
+        "thorchain": "bsc",  # Cross-chain, default to BSC (overridden below for native tokens)
+        "osmosis": "cosmos",
+        "stonfi": "ton",
+        "ref_finance": "near",
+    }
 
-        available = balance.available if balance else Decimal("0")
+    # For cross-chain (THORChain), detect chain from the FROM asset
+    # Native tokens map to their specific chains
+    native_asset_chains = {
+        "ETH": "ethereum",
+        "BNB": "bsc",
+        "AVAX": "avalanche",
+        "MATIC": "polygon",
+        "SOL": "solana",
+        "TRX": "tron",
+        "ATOM": "cosmos",
+        "TON": "ton",
+    }
 
-        if available < amount:
-            await message.answer(
-                f"Insufficient balance. You have {available:.8f} {from_asset} available.\n\n"
-                f"Use /deposit to add funds."
-            )
-            return
+    chain_id = chain_map.get(chain.lower(), "bsc")
 
-    # Get quotes from all providers
-    aggregator = create_default_aggregator()
+    # Override for native assets on cross-chain DEXes
+    if chain.lower() in ("thorchain",) and from_asset.upper() in native_asset_chains:
+        chain_id = native_asset_chains[from_asset.upper()]
+
+    try:
+        all_balances = await get_all_chain_balances_with_addresses()
+        chain_data = all_balances.get(chain_id, {})
+        balances = chain_data.get("balances", {})
+        available = balances.get(from_asset, Decimal("0"))
+
+        # If no balance found, check ALL chains for the asset (multi-chain tokens)
+        if available == Decimal("0"):
+            for check_chain, check_data in all_balances.items():
+                check_balances = check_data.get("balances", {})
+                check_available = check_balances.get(from_asset, Decimal("0"))
+                if check_available > available:
+                    available = check_available
+                    chain_id = check_chain  # Update chain_id to where we found balance
+
+    except Exception as e:
+        logger.error(f"Failed to get blockchain balance: {e}")
+        available = Decimal("0")
+
+    # Use small tolerance for precision comparison (allow swapping full balance)
+    # Quantize both to 8 decimal places for fair comparison
+    precision = Decimal("0.00000001")
+    available_normalized = available.quantize(precision)
+    amount_normalized = amount.quantize(precision)
+
+    if available_normalized < amount_normalized:
+        await message.answer(
+            f"Insufficient balance. You have {available:.8f} {from_asset} available.\n\n"
+            f"Use /deposit to add funds."
+        )
+        return
+
+    # If user is swapping their full balance, use the actual available amount
+    # to avoid "dust" issues from precision differences
+    if available_normalized == amount_normalized:
+        amount = available
+
+    # Get quotes from chain-specific providers
+    aggregator = create_chain_aggregator(chain)
     quotes = await aggregator.get_all_quotes(from_asset, to_asset, amount)
 
     if not quotes:
@@ -141,6 +286,7 @@ async def handle_swap_amount(message: Message, state: FSMContext) -> None:
                 "fee_asset": q.fee_asset,
                 "slippage_percent": str(q.slippage_percent),
                 "estimated_time": q.estimated_time_seconds,
+                "is_simulated": getattr(q, 'is_simulated', True),
             }
             for q in quotes
         ],
@@ -165,7 +311,11 @@ async def handle_swap_amount(message: Message, state: FSMContext) -> None:
         )
 
     lines.append("\nBest rate selected automatically.")
-    lines.append("(Simulated quote - PoC)")
+    # Show if real or simulated
+    if best_quote.is_simulated:
+        lines.append("(Simulated quote - PoC)")
+    else:
+        lines.append("(Real DEX quote via API)")
 
     await message.answer("\n".join(lines), reply_markup=confirm_swap_keyboard("best"))
 
@@ -180,6 +330,7 @@ async def handle_confirm_swap(callback: CallbackQuery, state: FSMContext) -> Non
     from_asset = data.get("from_asset")
     to_asset = data.get("to_asset")
     amount = Decimal(data.get("amount", "0"))
+    chain = data.get("chain", "")
     quotes = data.get("quotes", [])
 
     if not quotes:
@@ -189,6 +340,82 @@ async def handle_confirm_swap(callback: CallbackQuery, state: FSMContext) -> Non
         return
 
     selected_quote = quotes[0]  # Best quote
+    is_simulated = selected_quote.get('is_simulated', True)
+
+    # Check if user has enough native token for gas/energy fees (for real swaps)
+    if not is_simulated:
+        # Minimum gas/fee requirements per chain (in native tokens)
+        min_gas_requirements = {
+            "sunswap": ("TRX", Decimal("50"), "Energy fees for Tron smart contracts are expensive. You need at least 50 TRX for energy costs."),
+            "pancakeswap": ("BNB", Decimal("0.005"), "Gas fee required for BNB Chain transactions."),
+            "uniswap": ("ETH", Decimal("0.01"), "Gas fee required for Ethereum transactions."),
+            "quickswap": ("MATIC", Decimal("0.1"), "Gas fee required for Polygon transactions."),
+            "traderjoe": ("AVAX", Decimal("0.05"), "Gas fee required for Avalanche transactions."),
+            "jupiter": ("SOL", Decimal("0.01"), "Transaction fee required for Solana."),
+            "osmosis": ("ATOM", Decimal("0.1"), "Gas fee required for Cosmos transactions."),
+            "stonfi": ("TON", Decimal("0.5"), "Gas fee required for TON transactions."),
+            "ref_finance": ("NEAR", Decimal("0.1"), "Gas fee required for NEAR transactions."),
+        }
+
+        # Map chain to balance_sync chain IDs
+        chain_to_balance_id = {
+            "sunswap": "tron",
+            "pancakeswap": "bsc",
+            "uniswap": "ethereum",
+            "quickswap": "polygon",
+            "traderjoe": "avalanche",
+            "jupiter": "solana",
+            "osmosis": "cosmos",
+            "stonfi": "ton",
+            "ref_finance": "near",
+        }
+
+        chain_lower = chain.lower()
+        if chain_lower in min_gas_requirements:
+            gas_token, min_amount, reason = min_gas_requirements[chain_lower]
+            balance_chain_id = chain_to_balance_id.get(chain_lower)
+
+            try:
+                all_balances = await get_all_chain_balances_with_addresses()
+                chain_data = all_balances.get(balance_chain_id, {})
+                balances = chain_data.get("balances", {})
+                gas_balance = balances.get(gas_token, Decimal("0"))
+
+                # For swaps FROM the native token, account for the swap amount
+                if from_asset.upper() == gas_token.upper():
+                    available_for_gas = gas_balance - amount
+                else:
+                    available_for_gas = gas_balance
+
+                if available_for_gas < min_amount:
+                    await callback.message.edit_text(
+                        f"⚠️ Insufficient {gas_token} for fees!\n\n"
+                        f"You have: {gas_balance:.6f} {gas_token}\n"
+                        f"Minimum needed: {min_amount} {gas_token}\n"
+                        f"(Plus {amount} {from_asset} for the swap)\n\n"
+                        f"Reason: {reason}\n\n"
+                        f"Please deposit more {gas_token} to your wallet and try again.\n\n"
+                        f"Use /deposit to get your deposit address."
+                    )
+                    await state.clear()
+                    await callback.answer()
+                    return
+
+            except Exception as e:
+                logger.warning(f"Failed to check gas balance: {e}")
+                # Continue anyway - let the swap fail naturally if balance is low
+
+    # Track original value - if we started as real swap, always skip ledger ops
+    # (even if swap fails, we never locked the balance in the first place)
+    skip_ledger = not is_simulated
+
+    # Show "executing" message
+    await callback.message.edit_text(
+        f"Executing swap...\n\n"
+        f"{amount} {from_asset} -> {to_asset}\n"
+        f"Route: {selected_quote['provider']}\n\n"
+        f"Please wait, this may take up to 2 minutes..."
+    )
 
     async with get_db() as session:
         repo = LedgerRepository(session)
@@ -196,6 +423,7 @@ async def handle_confirm_swap(callback: CallbackQuery, state: FSMContext) -> Non
 
         try:
             # Create swap record
+            # Skip ledger balance lock for real on-chain swaps (uses blockchain balance)
             swap = await repo.create_swap(
                 user_id=user.id,
                 from_asset=from_asset,
@@ -206,25 +434,99 @@ async def handle_confirm_swap(callback: CallbackQuery, state: FSMContext) -> Non
                 fee_asset=selected_quote["fee_asset"],
                 fee_amount=Decimal(selected_quote["fee_amount"]),
                 route_details=json.dumps(selected_quote),
+                skip_balance_lock=skip_ledger,  # Skip for real swaps
             )
 
-            # In PoC, immediately complete the swap
+            # Execute REAL swap on-chain if not simulated
+            txid = None
+            actual_to_amount = Decimal(selected_quote["to_amount"])
+
+            if not is_simulated:
+                logger.info(f"Executing real swap: {amount} {from_asset} -> {to_asset} on {chain}")
+
+                # Execute real on-chain swap
+                result = await execute_swap(
+                    from_asset=from_asset,
+                    to_asset=to_asset,
+                    amount=amount,
+                    chain=chain,
+                    quote_data=selected_quote,
+                )
+
+                if result.success:
+                    txid = result.txid
+                    if result.to_amount:
+                        actual_to_amount = Decimal(result.to_amount)
+                    logger.info(f"Swap executed: txid={txid}")
+                else:
+                    logger.error(f"Swap failed: {result.error}")
+                    # Show error to user instead of silently falling back to simulated
+                    await repo.fail_swap(swap.id, error_message=result.error)
+                    await callback.message.edit_text(
+                        f"Swap Failed!\n\n"
+                        f"{amount} {from_asset} -> {to_asset}\n\n"
+                        f"Error: {result.error}\n\n"
+                        f"This was a real swap attempt that failed.\n"
+                        f"Your balance was not changed.\n\n"
+                        f"Try again with /swap"
+                    )
+                    await state.clear()
+                    await callback.answer()
+                    return
+
+            # Complete the swap in database
+            # Skip ledger operations for real on-chain swaps (blockchain handles the transfer)
             completed_swap = await repo.complete_swap(
                 swap.id,
-                actual_to_amount=Decimal(selected_quote["to_amount"]),
+                actual_to_amount=actual_to_amount,
+                tx_hash=txid,
+                skip_ledger_operations=skip_ledger,  # Skip for real swaps
             )
 
-            text = (
-                f"Swap Completed!\n\n"
-                f"{amount} {from_asset} -> {completed_swap.to_amount:.8f} {to_asset}\n\n"
-                f"Route: {selected_quote['provider']}\n"
-                f"Fee: ${selected_quote['fee_amount']}\n\n"
-                f"(Simulated swap - PoC)\n\n"
-                f"Use /wallet to check your balance."
-            )
+            # Build result message
+            if txid:
+                # Real swap executed
+                # Generate explorer link based on chain
+                explorer_links = {
+                    "pancakeswap": f"https://bscscan.com/tx/{txid}",
+                    "uniswap": f"https://etherscan.io/tx/{txid}",
+                    "quickswap": f"https://polygonscan.com/tx/{txid}",
+                    "traderjoe": f"https://snowtrace.io/tx/{txid}",
+                    "sunswap": f"https://tronscan.org/#/transaction/{txid}",
+                    "jupiter": f"https://solscan.io/tx/{txid}",
+                    "osmosis": f"https://www.mintscan.io/osmosis/tx/{txid}",
+                    "stonfi": f"https://tonviewer.com/transaction/{txid}",
+                    "ref_finance": f"https://explorer.near.org/transactions/{txid}",
+                    "thorchain": f"https://viewblock.io/thorchain/tx/{txid}",
+                }
+                explorer_url = explorer_links.get(chain.lower(), f"TX: {txid[:16]}...")
+
+                text = (
+                    f"Swap Completed!\n\n"
+                    f"{amount} {from_asset} -> {actual_to_amount:.8f} {to_asset}\n\n"
+                    f"Route: {selected_quote['provider']}\n"
+                    f"Fee: ~${selected_quote['fee_amount']}\n\n"
+                    f"Transaction: {txid[:16]}...{txid[-8:]}\n"
+                    f"View on explorer: {explorer_url}\n\n"
+                    f"(Real DEX swap executed on blockchain)\n\n"
+                    f"Use /sync to check your real balance."
+                )
+            else:
+                # Simulated swap
+                text = (
+                    f"Swap Completed!\n\n"
+                    f"{amount} {from_asset} -> {completed_swap.to_amount:.8f} {to_asset}\n\n"
+                    f"Route: {selected_quote['provider']}\n"
+                    f"Fee: ${selected_quote['fee_amount']}\n\n"
+                    f"(Simulated swap - internal ledger only)\n\n"
+                    f"Use /wallet to check your balance."
+                )
 
         except ValueError as e:
             text = f"Swap Failed\n\n{str(e)}"
+        except Exception as e:
+            logger.error(f"Swap error: {e}")
+            text = f"Swap Failed\n\nError: {str(e)}"
 
     await callback.message.edit_text(text)
     await state.clear()
@@ -239,6 +541,7 @@ async def handle_cancel_swap(callback: CallbackQuery, state: FSMContext) -> None
     await callback.answer()
 
 
+@router.callback_query(SwapStates.selecting_chain, F.data == "cancel")
 @router.callback_query(SwapStates.selecting_from, F.data == "cancel")
 @router.callback_query(SwapStates.selecting_to, F.data == "cancel")
 async def handle_cancel_selection(callback: CallbackQuery, state: FSMContext) -> None:

@@ -1,9 +1,11 @@
 """Admin API endpoints (token-protected)."""
 
+import logging
+import secrets
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
 from swaperex.config import get_settings
@@ -12,21 +14,44 @@ from swaperex.ledger.models import Balance, Deposit, Swap, User, Withdrawal, Wit
 from swaperex.ledger.repository import LedgerRepository
 from swaperex.providers import get_provider
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
-async def require_admin_token(x_admin_token: str = Header(None)) -> bool:
+async def require_admin_token(x_admin_token: Optional[str] = Header(None)) -> bool:
     """Verify admin token from header.
 
-    If ADMIN_TOKEN is not set, allows access (dev mode).
+    Security: Always requires a token in production.
+    In development without a token configured, access is allowed with a warning.
     """
     settings = get_settings()
 
-    if not settings.admin_token:
-        # Dev mode - no token required (warn in production)
+    # In production, ALWAYS require a token
+    if settings.is_production:
+        if not settings.admin_token:
+            logger.error("SECURITY: ADMIN_TOKEN not set in production!")
+            raise HTTPException(
+                status_code=500,
+                detail="Admin API misconfigured. Contact administrator."
+            )
+        if not x_admin_token:
+            raise HTTPException(status_code=401, detail="Admin token required")
+        # Use constant-time comparison to prevent timing attacks
+        if not secrets.compare_digest(x_admin_token, settings.admin_token):
+            logger.warning("Invalid admin token attempt")
+            raise HTTPException(status_code=401, detail="Invalid admin token")
         return True
 
-    if x_admin_token != settings.admin_token:
+    # Development mode
+    if not settings.admin_token:
+        logger.warning("SECURITY: Admin API accessible without token (dev mode)")
+        return True
+
+    if not x_admin_token:
+        raise HTTPException(status_code=401, detail="Admin token required")
+
+    if not secrets.compare_digest(x_admin_token, settings.admin_token):
         raise HTTPException(status_code=401, detail="Invalid admin token")
 
     return True

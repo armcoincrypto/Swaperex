@@ -62,18 +62,30 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title="Swaperex API",
-        description="Crypto wallet and swap API backend",
+        description="Crypto wallet and swap API backend for Telegram bot",
         version="0.1.0",
         lifespan=lifespan,
         debug=settings.debug,
+        docs_url="/docs" if settings.debug else None,  # Disable docs in production
+        redoc_url="/redoc" if settings.debug else None,
     )
 
-    # CORS middleware
+    # CORS middleware - be careful with credentials
+    if settings.is_production:
+        # In production, only allow specific origins (configure via env)
+        allowed_origins = os.environ.get("ALLOWED_ORIGINS", "").split(",")
+        allowed_origins = [o.strip() for o in allowed_origins if o.strip()]
+        logger.info(f"CORS: Production mode, allowed origins: {allowed_origins or '(none)'}")
+    else:
+        # In development, allow all but log a warning
+        allowed_origins = ["*"]
+        logger.warning("CORS: Development mode - allowing all origins. Do NOT use in production!")
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"] if settings.debug else [],
-        allow_credentials=True,
-        allow_methods=["*"],
+        allow_origins=allowed_origins,
+        allow_credentials=True if settings.is_production else False,  # Don't send credentials in dev
+        allow_methods=["GET", "POST", "PUT", "DELETE"],
         allow_headers=["*"],
     )
 

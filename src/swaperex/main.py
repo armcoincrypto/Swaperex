@@ -11,8 +11,9 @@ from fastapi import FastAPI
 
 from swaperex.api.app import create_app
 from swaperex.bot.bot import create_bot
-from swaperex.config import get_settings
+from swaperex.config import get_settings, ExecutionMode
 from swaperex.ledger.database import close_db, init_db
+from swaperex.safety import print_startup_banner, setup_safety_guards
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +37,13 @@ class Application:
             format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         )
 
+        # Print startup banner and initialize safety guards
+        print_startup_banner()
+        setup_safety_guards()
+
         logger.info("Starting Swaperex...")
         logger.info(f"Environment: {self.settings.environment}")
+        logger.info(f"Execution Mode: {self.settings.mode.value}")
 
         # Initialize database
         await init_db()
