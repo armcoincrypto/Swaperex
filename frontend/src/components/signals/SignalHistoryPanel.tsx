@@ -16,13 +16,13 @@ import { useState, useMemo, useEffect } from 'react';
 import {
   useSignalHistoryStore,
   type SignalHistoryEntry,
-  getSeverityColor,
   getSeverityIcon,
   getTrendIcon,
   getTrendColorClass,
   formatRecurrenceText,
 } from '@/stores/signalHistoryStore';
 import { useSignalFilterStore, shouldShowSignal } from '@/stores/signalFilterStore';
+import { useDebugMode } from '@/stores/debugStore';
 import { getImpactIcon } from '@/components/signals/ImpactBadge';
 import { SignalAge } from '@/components/signals/SignalAge';
 import { RecurrenceBadge } from '@/components/signals/RecurrenceBadge';
@@ -31,6 +31,7 @@ import { TokenBadge } from '@/components/common/TokenDisplay';
 import { prefetchTokenMeta } from '@/services/tokenMeta';
 import { QuickActions } from '@/components/signals/QuickActions';
 import { RiskScoreBreakdown } from '@/components/signals/RiskScoreBreakdown';
+import { ConfidenceExplainer } from '@/components/signals/ConfidenceExplainer';
 
 interface SignalHistoryPanelProps {
   maxEntries?: number;
@@ -42,6 +43,7 @@ interface SignalHistoryPanelProps {
 export function SignalHistoryPanel({ maxEntries = 10, compact = false, bypassFilters = false }: SignalHistoryPanelProps) {
   const { entries, clearHistory } = useSignalHistoryStore();
   const filters = useSignalFilterStore();
+  const debugEnabled = useDebugMode();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [replayingId, setReplayingId] = useState<string | null>(null);
 
@@ -122,6 +124,7 @@ export function SignalHistoryPanel({ maxEntries = 10, compact = false, bypassFil
             expanded={expandedId === entry.id}
             replaying={replayingId === entry.id}
             compact={compact}
+            debugEnabled={debugEnabled}
             onToggle={() => setExpandedId(expandedId === entry.id ? null : entry.id)}
             onReplay={() => handleReplay(entry)}
           />
@@ -148,6 +151,7 @@ interface SignalHistoryItemProps {
   expanded: boolean;
   replaying: boolean;
   compact: boolean;
+  debugEnabled: boolean;
   onToggle: () => void;
   onReplay: () => void;
 }
@@ -157,10 +161,10 @@ function SignalHistoryItem({
   expanded,
   replaying,
   compact,
+  debugEnabled,
   onToggle,
   onReplay,
 }: SignalHistoryItemProps) {
-  const severityColor = getSeverityColor(entry.severity);
   const severityIcon = getSeverityIcon(entry.severity);
 
   return (
@@ -220,10 +224,13 @@ function SignalHistoryItem({
           className="truncate flex-1"
         />
 
-        {/* Confidence */}
-        <span className={`px-1 py-0.5 rounded text-[10px] ${severityColor}`}>
-          {Math.round(entry.confidence * 100)}%
-        </span>
+        {/* Confidence with tooltip explanation */}
+        <ConfidenceExplainer
+          confidence={entry.confidence}
+          occurrences24h={entry.recurrence?.occurrences24h}
+          isRepeat={entry.recurrence?.isRepeat}
+          mode="tooltip"
+        />
 
         {/* Time (Live-updating - Priority 10.3.1) */}
         <SignalAge
@@ -241,10 +248,12 @@ function SignalHistoryItem({
       {/* Expanded Details */}
       {expanded && (
         <div className="px-3 pb-3 pt-1 border-t border-dark-700/50 space-y-2">
-          {/* Reason */}
-          <div className="text-dark-400">
-            <span className="text-dark-600">reason:</span> {entry.reason}
-          </div>
+          {/* Reason - hide technical messages in non-debug mode */}
+          {(debugEnabled || !entry.reason.toLowerCase().includes('cache')) && (
+            <div className="text-dark-400">
+              <span className="text-dark-600">reason:</span> {entry.reason}
+            </div>
+          )}
 
           {/* Impact Score Breakdown (Step 3) */}
           {entry.impact && (
@@ -344,6 +353,8 @@ function SignalHistoryItem({
             type={entry.type}
             impactLevel={entry.impact?.level}
             recurrence={entry.recurrence}
+            riskFactors={entry.debugSnapshot?.risk?.riskFactors}
+            liquidityDropPct={entry.debugSnapshot?.liquidity?.dropPct ?? undefined}
           />
 
           {/* Quick Actions */}

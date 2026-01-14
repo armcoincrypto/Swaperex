@@ -24,6 +24,7 @@ import { RadarUsageGuide } from '@/components/radar/RadarUsageGuide';
 import { WhyRadar } from '@/components/radar/WhyRadar';
 import { WalletScan } from '@/components/radar/WalletScan';
 import { MonitoringStatus } from '@/components/radar/MonitoringStatus';
+import { RadarStatusSummary } from '@/components/radar/RadarStatusSummary';
 import { AlertsPanel } from '@/components/signals/AlertsPanel';
 import { AlertToast } from '@/components/signals/AlertToast';
 import { useSignalAlerts, triggerTestAlert } from '@/hooks/useSignalAlerts';
@@ -176,6 +177,9 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
         </div>
       </div>
 
+      {/* Status Summary - "Am I safe right now?" */}
+      <RadarStatusSummary className="mb-4" />
+
       {/* First-Visit Intro Card */}
       <RadarIntroCard className="mb-4" />
 
@@ -236,7 +240,7 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
           <div className="text-4xl mb-4">📡</div>
           <h3 className="text-xl font-bold mb-2">
             {isFilterRestricted && hasHistoryEntries
-              ? 'No visible signals'
+              ? 'No signals matching your filters'
               : hasHistoryEntries
               ? 'No new alerts right now'
               : 'Live Alerts'}
@@ -390,6 +394,9 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
           Radar monitors tokens you interact with and alerts you to significant changes.
           <br />
           Signals are stored locally and cleared after 24 hours.
+        </p>
+        <p className="text-[10px] text-dark-500 mt-2">
+          Radar is informational only, not financial advice. Always DYOR.
         </p>
 
         {/* Debug Toggle */}

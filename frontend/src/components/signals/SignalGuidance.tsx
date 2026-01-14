@@ -2,129 +2,97 @@
  * Signal Guidance Component
  *
  * Provides in-context education for signal details.
- * Shows guidance based on signal type, impact level, and recurrence.
+ * Shows guidance based on signal type, impact level, recurrence, and specific risk factors.
+ *
+ * Radar Context & Guidance Upgrade - Step 1
  */
 
-import { useState } from 'react';
 import { type SignalRecurrence } from '@/stores/signalHistoryStore';
+import {
+  getSignalGuidance,
+  RECURRENCE_GUIDANCE,
+  IMPACT_LEVEL_GUIDANCE,
+} from '@/utils/radarGuidanceMap';
 
 interface SignalGuidanceProps {
   type: 'liquidity' | 'risk';
   impactLevel?: 'high' | 'medium' | 'low';
   recurrence?: SignalRecurrence;
+  /** Risk factors for detailed guidance */
+  riskFactors?: string[];
+  /** Liquidity drop percentage */
+  liquidityDropPct?: number;
 }
 
-/**
- * Get guidance text based on signal type and impact level
- */
-function getGuidanceText(type: 'liquidity' | 'risk', impactLevel?: 'high' | 'medium' | 'low'): string {
-  if (type === 'risk') {
-    switch (impactLevel) {
-      case 'high':
-        return 'Multiple serious contract risks detected. Avoid interaction.';
-      case 'medium':
-        return 'Contract has permissions that may be abused. Proceed with caution.';
-      case 'low':
-      default:
-        return 'Common contract structure. Usually safe, but centralized control exists.';
-    }
-  } else {
-    // Liquidity
-    return 'Liquidity changed significantly. Low liquidity increases price manipulation risk.';
-  }
-}
-
-/**
- * Get guidance icon based on impact level
- */
-function getGuidanceIcon(impactLevel?: 'high' | 'medium' | 'low'): string {
-  switch (impactLevel) {
-    case 'high':
-      return '🔥';
-    case 'medium':
-      return '⚠';
-    case 'low':
-    default:
-      return 'ℹ';
-  }
-}
-
-/**
- * Get recurrence explanation text
- */
-function getRecurrenceExplanation(recurrence: SignalRecurrence): string | null {
-  if (!recurrence.isRepeat) {
-    return null;
-  }
-
-  switch (recurrence.trend) {
-    case 'stable':
-      return 'This repeats consistently. No escalation detected.';
-    case 'increasing':
-      return 'Signals are increasing. Conditions may be worsening.';
-    case 'decreasing':
-      return 'Signals are decreasing. Conditions may be improving.';
-    default:
-      return null;
-  }
-}
-
-export function SignalGuidance({ type, impactLevel, recurrence }: SignalGuidanceProps) {
-  const [showWhyFlagged, setShowWhyFlagged] = useState(false);
-
-  const guidanceText = getGuidanceText(type, impactLevel);
-  const guidanceIcon = getGuidanceIcon(impactLevel);
-  const recurrenceExplanation = recurrence ? getRecurrenceExplanation(recurrence) : null;
+export function SignalGuidance({
+  type,
+  impactLevel = 'low',
+  recurrence,
+  riskFactors,
+  liquidityDropPct,
+}: SignalGuidanceProps) {
+  // Get comprehensive guidance
+  const guidance = getSignalGuidance(
+    type,
+    impactLevel,
+    riskFactors,
+    liquidityDropPct,
+    recurrence?.isRepeat,
+    recurrence?.trend
+  );
 
   return (
-    <div className="space-y-2 mt-2 pt-2 border-t border-dark-700/30">
-      {/* Micro-education: Signal interpretation */}
-      <div className={`text-[11px] flex items-start gap-1.5 ${
-        impactLevel === 'high'
-          ? 'text-red-400/90'
-          : impactLevel === 'medium'
-          ? 'text-orange-400/90'
-          : 'text-dark-400'
-      }`}>
-        <span className="flex-shrink-0">{guidanceIcon}</span>
-        <span>{guidanceText}</span>
+    <div className="bg-dark-800/50 border border-dark-700/50 rounded-lg p-3 mt-2">
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-base">🧭</span>
+        <span className="text-[11px] font-medium text-dark-300 uppercase tracking-wide">
+          Radar Guidance
+        </span>
       </div>
 
-      {/* Recurrence explanation */}
-      {recurrenceExplanation && (
-        <div className="text-[11px] text-dark-500 flex items-start gap-1.5">
-          <span className="flex-shrink-0">↻</span>
-          <span>{recurrenceExplanation}</span>
+      {/* Summary */}
+      <p className="text-xs text-dark-400 leading-relaxed mb-2">
+        {guidance.summary}
+      </p>
+
+      {/* Specific factor guidance (for risk signals) */}
+      {guidance.details.length > 0 && (
+        <div className="space-y-2 mb-3">
+          {guidance.details.map(({ factor, guidance: factorGuidance }, index) => (
+            <div
+              key={index}
+              className="flex items-start gap-2 text-[11px] pl-2 border-l-2 border-dark-600"
+            >
+              <span className="text-dark-500 font-medium capitalize min-w-[80px]">
+                {factor.replace(/_/g, ' ')}:
+              </span>
+              <span className="text-dark-400">{factorGuidance}</span>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* How to use this information */}
-      <div className="bg-dark-800/50 rounded p-2 text-[10px] text-dark-500">
-        <div className="font-medium text-dark-400 mb-1">How to use this:</div>
-        <ul className="space-y-0.5">
-          <li>• Low impact → informational</li>
-          <li>• Medium impact → be cautious</li>
-          <li>• High impact → avoid interaction</li>
-        </ul>
-      </div>
+      {/* Recurrence context */}
+      {recurrence?.isRepeat && recurrence.trend && (
+        <div className="text-[11px] text-dark-500 flex items-start gap-1.5 mb-2">
+          <span className="flex-shrink-0">↻</span>
+          <span>{RECURRENCE_GUIDANCE[recurrence.trend]}</span>
+        </div>
+      )}
 
-      {/* Why did Radar flag this? (collapsible) */}
-      <div>
-        <button
-          onClick={() => setShowWhyFlagged(!showWhyFlagged)}
-          className="text-[10px] text-dark-500 hover:text-dark-400 transition-colors flex items-center gap-1"
-        >
-          <span>{showWhyFlagged ? '▼' : '▶'}</span>
-          <span>Why did Radar flag this?</span>
-        </button>
-
-        {showWhyFlagged && (
-          <div className="mt-1.5 pl-3 text-[10px] text-dark-500 space-y-0.5">
-            <div>• Contract permissions and risk factors</div>
-            <div>• Liquidity changes from DEX data</div>
-            <div>• Repeated patterns over time (recurrence)</div>
-          </div>
-        )}
+      {/* Action hint based on impact level */}
+      <div className={`text-[11px] pt-2 border-t border-dark-700/50 ${
+        impactLevel === 'high'
+          ? 'text-red-400/80'
+          : impactLevel === 'medium'
+          ? 'text-orange-400/80'
+          : 'text-dark-500'
+      }`}>
+        <span className="font-medium">
+          {impactLevel === 'high' ? '⚠️' : impactLevel === 'medium' ? '👁️' : 'ℹ️'}
+        </span>{' '}
+        {IMPACT_LEVEL_GUIDANCE[impactLevel]}
       </div>
     </div>
   );
