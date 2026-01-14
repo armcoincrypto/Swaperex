@@ -10,6 +10,7 @@ import { useRadarStore, type RadarSignalType, type RadarSignal, getSignalTypeInf
 import { useUsageStore } from '@/stores/usageStore';
 import { useDebugStore, useDebugMode } from '@/stores/debugStore';
 import { useSignalHistoryStore } from '@/stores/signalHistoryStore';
+import { useSignalFilterStore, shouldShowSignal } from '@/stores/signalFilterStore';
 import { RadarItem } from './RadarItem';
 import { TierBadge } from '@/components/common/TierBadge';
 import { SignalsStatusBadge } from '@/components/signals/SignalsStatusBadge';
@@ -51,8 +52,25 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
   const toggleDebug = useDebugStore((s) => s.toggle);
   const addHistoryEntry = useSignalHistoryStore((s) => s.addEntry);
   const historyEntries = useSignalHistoryStore((s) => s.entries);
+  const signalFilters = useSignalFilterStore();
   const [filter, setFilter] = useState<FilterType>('all');
   const [showHistory, setShowHistory] = useState(false);
+
+  // Calculate filtered history count for header display
+  const filteredHistoryCount = useMemo(() => {
+    return historyEntries.filter((entry) =>
+      shouldShowSignal(
+        {
+          type: entry.type,
+          confidence: entry.confidence,
+          impact: entry.impact,
+        },
+        signalFilters
+      )
+    ).length;
+  }, [historyEntries, signalFilters]);
+
+  const hiddenByFilters = historyEntries.length - filteredHistoryCount;
 
   // Hook signal alerts system (fires alerts on new history entries)
   useSignalAlerts();
@@ -229,12 +247,41 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
         })}
       </div>
 
-      {/* Empty State - Smart context-aware messaging */}
+      {/* Empty State - Context-aware messaging */}
       {filteredSignals.length === 0 && (
-        <SmartFilterEmptyState
-          allEntries={historyEntries}
-          isMainPanel={true}
-        />
+        <>
+          {/* If filters are hiding history signals, show SmartFilterEmptyState */}
+          {hiddenByFilters > 0 ? (
+            <SmartFilterEmptyState
+              allEntries={historyEntries}
+              isMainPanel={true}
+            />
+          ) : historyEntries.length > 0 ? (
+            /* History has signals but no live alerts - simple message */
+            <div className="text-center py-8">
+              <div className="text-3xl mb-3">✅</div>
+              <h3 className="text-lg font-semibold mb-2 text-dark-300">
+                No new alerts right now
+              </h3>
+              <p className="text-dark-500 text-sm max-w-sm mx-auto">
+                Your monitored tokens are stable. Check{' '}
+                <button
+                  onClick={() => setShowHistory(true)}
+                  className="text-primary-400 hover:underline"
+                >
+                  Signal History
+                </button>{' '}
+                for past signals.
+              </p>
+            </div>
+          ) : (
+            /* No signals at all - onboarding message */
+            <SmartFilterEmptyState
+              allEntries={historyEntries}
+              isMainPanel={true}
+            />
+          )}
+        </>
       )}
 
       {/* Signal Groups */}
@@ -326,8 +373,19 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
               Last 24h
             </span>
             {historyEntries.length > 0 && (
-              <span className="px-1.5 py-0.5 bg-dark-600 text-dark-300 text-xs rounded">
-                {historyEntries.length}
+              <span className={`px-1.5 py-0.5 text-xs rounded ${
+                hiddenByFilters > 0
+                  ? 'bg-yellow-600/20 text-yellow-400'
+                  : 'bg-dark-600 text-dark-300'
+              }`}>
+                {hiddenByFilters > 0
+                  ? `${filteredHistoryCount} of ${historyEntries.length}`
+                  : historyEntries.length}
+              </span>
+            )}
+            {hiddenByFilters > 0 && (
+              <span className="text-[10px] text-dark-500 font-mono">
+                (filtered)
               </span>
             )}
           </div>
