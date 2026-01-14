@@ -32,6 +32,7 @@ import { prefetchTokenMeta } from '@/services/tokenMeta';
 import { QuickActions } from '@/components/signals/QuickActions';
 import { RiskScoreBreakdown } from '@/components/signals/RiskScoreBreakdown';
 import { ConfidenceExplainer } from '@/components/signals/ConfidenceExplainer';
+import { SmartFilterEmptyState } from '@/components/signals/SmartFilterEmptyState';
 
 interface SignalHistoryPanelProps {
   maxEntries?: number;
@@ -80,12 +81,11 @@ export function SignalHistoryPanel({ maxEntries = 10, compact = false, bypassFil
   if (displayEntries.length === 0) {
     return (
       <div className="p-4 bg-dark-800/50 rounded-lg border border-dark-700">
-        <div className="text-center text-dark-500 text-sm font-mono">
-          <span className="text-dark-600">$</span>{' '}
-          {hiddenByFilters > 0
-            ? `${hiddenByFilters} signals hidden by filters`
-            : 'No signal history yet'}
-        </div>
+        <SmartFilterEmptyState
+          allEntries={entries}
+          isMainPanel={false}
+          className="py-4"
+        />
       </div>
     );
   }
