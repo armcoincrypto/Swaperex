@@ -111,7 +111,7 @@ export function getChainName(chainId: number): string {
 
 /**
  * Get action guidance text based on impact level
- * Calm, non-financial advice tone
+ * Calm, non-financial advice tone - no panic language
  */
 export function getActionGuidance(impactLevel: 'high' | 'medium' | 'low'): {
   icon: string;
@@ -122,20 +122,20 @@ export function getActionGuidance(impactLevel: 'high' | 'medium' | 'low'): {
     case 'high':
       return {
         icon: '🔴',
-        text: 'Action suggested: Review & consider exiting',
+        text: 'Suggested next step: Review token details and monitor closely',
         className: 'text-red-400',
       };
     case 'medium':
       return {
         icon: '🟡',
-        text: 'Monitor closely',
+        text: 'Suggested next step: Review the risk indicators',
         className: 'text-yellow-400',
       };
     case 'low':
     default:
       return {
         icon: 'ℹ️',
-        text: 'Informational — no action needed',
+        text: 'Informational: No immediate action typically needed',
         className: 'text-dark-400',
       };
   }

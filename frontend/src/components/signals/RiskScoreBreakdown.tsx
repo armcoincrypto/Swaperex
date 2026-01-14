@@ -7,6 +7,8 @@
  * Step 3 - Risk Score Breakdown
  */
 
+import { useDebugMode } from '@/stores/debugStore';
+
 interface SimpleImpact {
   score: number;
   level: 'high' | 'medium' | 'low' | string;
@@ -132,8 +134,14 @@ export function RiskScoreBreakdown({
   type,
   className = '',
 }: RiskScoreBreakdownProps) {
+  const debugEnabled = useDebugMode();
   const scoreColor = getScoreColor(impact.level);
   const scoreBgColor = getScoreBgColor(impact.level);
+
+  // Parse factor count from reason text if available (e.g., "1 risk factors detected")
+  const factorCountFromReason = impact.reason
+    ? parseInt(impact.reason.match(/(\d+)\s*(?:risk\s*)?factors?/i)?.[1] || '0')
+    : 0;
 
   // Build factors list
   const factors: Array<{ label: string; weight: number; icon: string }> = [];
@@ -153,6 +161,9 @@ export function RiskScoreBreakdown({
 
   // Sort by weight (highest first)
   factors.sort((a, b) => b.weight - a.weight);
+
+  // Determine if we have a count mismatch (reason says factors but none in list)
+  const hasFactorCountMismatch = type === 'risk' && factorCountFromReason > 0 && factors.length === 0;
 
   return (
     <div className={`rounded-lg border border-dark-700 ${className}`}>
@@ -187,9 +198,24 @@ export function RiskScoreBreakdown({
       {/* Factors List */}
       <div className="px-3 py-2 space-y-1.5">
         {factors.length === 0 ? (
-          <p className="text-[10px] text-dark-500 text-center py-2">
-            No specific factors detected
-          </p>
+          hasFactorCountMismatch ? (
+            /* Count mismatch: reason says factors exist but we don't have details */
+            <div className="text-center py-2">
+              <p className="text-[10px] text-dark-400">
+                ❓ {factorCountFromReason} factor{factorCountFromReason !== 1 ? 's' : ''} detected (details unavailable)
+              </p>
+              {debugEnabled && riskFactors && (
+                <p className="text-[9px] text-dark-600 mt-1 font-mono">
+                  raw: {JSON.stringify(riskFactors)}
+                </p>
+              )}
+            </div>
+          ) : (
+            /* No factors at all */
+            <p className="text-[10px] text-dark-500 text-center py-2">
+              No risk factors detected
+            </p>
+          )
         ) : (
           factors.slice(0, 5).map((factor, index) => (
             <div

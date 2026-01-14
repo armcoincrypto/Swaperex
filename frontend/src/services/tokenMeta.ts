@@ -211,7 +211,7 @@ export function shortenAddress(address: string): string {
  * Format price for display
  */
 export function formatPrice(price: number | null): string {
-  if (price === null) return '—';
+  if (price === null) return 'Price unavailable';
 
   if (price < 0.00001) {
     return `$${price.toExponential(2)}`;

@@ -71,6 +71,11 @@ export function AlertsPanel({ className = '', onAlertClick }: AlertsPanelProps) 
             <AlertSettings className="mb-3" />
           )}
 
+          {/* Clarity line - explain Alerts vs History */}
+          <p className="text-[10px] text-dark-600 mb-3 border-b border-dark-700/50 pb-2">
+            Alerts show high-impact changes. History shows all signals from the last 24h.
+          </p>
+
           {/* Actions */}
           {alerts.length > 0 && (
             <div className="flex items-center gap-3 mb-3 text-[10px]">
