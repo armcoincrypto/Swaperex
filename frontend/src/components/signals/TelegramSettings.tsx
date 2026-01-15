@@ -28,7 +28,7 @@ interface TelegramSettingsProps {
   className?: string;
 }
 
-const API_BASE = import.meta.env.VITE_SIGNALS_API_URL || 'http://localhost:4001';
+const API_BASE = import.meta.env.VITE_SIGNALS_API_URL || 'http://207.180.212.142:4001';
 
 export function TelegramSettings({ className = '' }: TelegramSettingsProps) {
   const { address, isConnected } = useWallet();
