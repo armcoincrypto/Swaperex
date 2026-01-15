@@ -7,7 +7,7 @@
  * Priority 12.3 - Telegram Alerts
  */
 
-import { readFileSync, writeFileSync, existsSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { randomBytes } from "crypto";
@@ -49,7 +49,6 @@ let loaded = false;
 function ensureDataDir(): void {
   const dataDir = join(__dirname, "../../data");
   if (!existsSync(dataDir)) {
-    const { mkdirSync } = require("fs");
     mkdirSync(dataDir, { recursive: true });
   }
 }
