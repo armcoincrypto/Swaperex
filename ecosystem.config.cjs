@@ -30,7 +30,10 @@ module.exports = {
       cwd: "/root/Swaperex/backend-signals",
       script: "dist/index.js",
       env: {
-        NODE_ENV: "production"
+        NODE_ENV: "production",
+        PORT: 4001,
+        TELEGRAM_BOT_TOKEN: "8531960718:AAHuXuZwDUGO49MDhPlVC13sYgz61IEcWPI",
+        TELEGRAM_DRY_RUN: "false"
       },
       // Restart policy
       max_restarts: 10,
