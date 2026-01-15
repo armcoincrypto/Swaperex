@@ -33,6 +33,7 @@ module.exports = {
         NODE_ENV: "production",
         PORT: 4001,
         TELEGRAM_BOT_TOKEN: "8531960718:AAHuXuZwDUGO49MDhPlVC13sYgz61IEcWPI",
+        TELEGRAM_BOT_USERNAME: "kobbexradarbot",
         TELEGRAM_DRY_RUN: "false"
       },
       // Restart policy

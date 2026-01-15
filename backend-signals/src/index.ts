@@ -147,7 +147,7 @@ app.get("/api/v1/telegram/status", async (req, reply) => {
   }
 
   const subscription = getSubscription(wallet);
-  const botUsername = process.env.TELEGRAM_BOT_USERNAME || "SwaperexRadarBot";
+  const botUsername = process.env.TELEGRAM_BOT_USERNAME || "kobbexradarbot";
 
   return {
     configured: isTelegramConfigured(),
@@ -178,7 +178,7 @@ app.post("/api/v1/telegram/connect", async (req, reply) => {
   }
 
   const token = generateStartToken(wallet);
-  const botUsername = process.env.TELEGRAM_BOT_USERNAME || "SwaperexRadarBot";
+  const botUsername = process.env.TELEGRAM_BOT_USERNAME || "kobbexradarbot";
   const connectUrl = `https://t.me/${botUsername}?start=${token}`;
 
   return {
