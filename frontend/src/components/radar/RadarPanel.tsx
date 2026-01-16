@@ -5,8 +5,10 @@
  * Includes filtering, mark all as read, and empty state.
  */
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useRadarStore, type RadarSignalType, type RadarSignal, getSignalTypeInfo } from '@/stores/radarStore';
+import { useWalletStore } from '@/stores/walletStore';
+import { trackRadarOpened } from '@/services/metrics';
 import { useUsageStore } from '@/stores/usageStore';
 import { useDebugStore, useDebugMode } from '@/stores/debugStore';
 import { useSignalHistoryStore } from '@/stores/signalHistoryStore';
@@ -48,6 +50,17 @@ const FILTER_OPTIONS: { value: FilterType; label: string }[] = [
 export function RadarPanel({ onSignalClick }: RadarPanelProps) {
   const { signals, markAsRead, markAllAsRead, removeSignal, getUnreadCount } = useRadarStore();
   const { trackEvent } = useUsageStore();
+  const walletAddress = useWalletStore((s) => s.address);
+  const chainId = useWalletStore((s) => s.chainId);
+
+  // Track radar opened once on mount
+  const hasTrackedOpen = useRef(false);
+  useEffect(() => {
+    if (!hasTrackedOpen.current) {
+      hasTrackedOpen.current = true;
+      trackRadarOpened(walletAddress || undefined, chainId || undefined);
+    }
+  }, [walletAddress, chainId]);
   const debugEnabled = useDebugMode();
   const toggleDebug = useDebugStore((s) => s.toggle);
   const addHistoryEntry = useSignalHistoryStore((s) => s.addEntry);

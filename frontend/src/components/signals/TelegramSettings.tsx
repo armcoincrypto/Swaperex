@@ -7,8 +7,9 @@
  * Priority 12.3 - Telegram Alerts
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useWallet } from '@/hooks/useWallet';
+import { trackTelegramConnected } from '@/services/metrics';
 
 interface TelegramStatus {
   configured: boolean;
@@ -37,6 +38,9 @@ export function TelegramSettings({ className = '' }: TelegramSettingsProps) {
   const [connectUrl, setConnectUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Track if we already tracked connection for this session
+  const hasTrackedConnection = useRef(false);
+
   // Fetch Telegram status
   const fetchStatus = useCallback(async () => {
     if (!address) return;
@@ -44,6 +48,13 @@ export function TelegramSettings({ className = '' }: TelegramSettingsProps) {
     try {
       const response = await fetch(`${API_BASE}/api/v1/telegram/status?wallet=${address}`);
       const data = await response.json();
+
+      // Track telegram_connected when status first shows connected
+      if (data.subscription?.connected && !hasTrackedConnection.current) {
+        hasTrackedConnection.current = true;
+        trackTelegramConnected(address);
+      }
+
       setStatus(data);
       setError(null);
     } catch (err) {

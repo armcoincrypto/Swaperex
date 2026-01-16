@@ -12,6 +12,7 @@ import {
 } from "./telegram/index.js";
 import { triggerSignalNotification } from "./telegram/trigger.js";
 import { getWalletTokens, isChainSupported, SUPPORTED_CHAINS } from "./walletScan/index.js";
+import { logEvent, calculateSummary, shortWallet } from "./metrics/index.js";
 
 // Configuration
 const PORT = Number(process.env.PORT) || 4001;
@@ -292,6 +293,77 @@ app.get("/api/v1/wallet-tokens", async (req, reply) => {
   }
 
   return result;
+});
+
+// ============================================
+// Metrics Endpoints
+// ============================================
+
+// Rate limit tracking for events endpoint
+const eventRateLimits = new Map<string, { count: number; resetAt: number }>();
+
+// POST /api/v1/events - Record frontend events
+app.post("/api/v1/events", async (req, reply) => {
+  const ip = req.ip || "unknown";
+
+  // Rate limiting: 10 events/minute per IP
+  const now = Date.now();
+  const limit = eventRateLimits.get(ip);
+  if (limit) {
+    if (now < limit.resetAt) {
+      if (limit.count >= 10) {
+        return reply.code(429).send({ error: "Rate limit exceeded" });
+      }
+      limit.count++;
+    } else {
+      eventRateLimits.set(ip, { count: 1, resetAt: now + 60000 });
+    }
+  } else {
+    eventRateLimits.set(ip, { count: 1, resetAt: now + 60000 });
+  }
+
+  const { event, wallet, chainId, meta } = req.body as any;
+
+  // Validation
+  if (!event || typeof event !== "string") {
+    return reply.code(400).send({ error: "Missing or invalid 'event' field" });
+  }
+
+  if (event.length > 50) {
+    return reply.code(400).send({ error: "Event name too long (max 50 chars)" });
+  }
+
+  if (wallet && typeof wallet === "string" && wallet.length > 20) {
+    // Wallet should already be in short format, reject if full address
+    return reply.code(400).send({ error: "Wallet should be in short format (0x1234...abcd)" });
+  }
+
+  if (meta && JSON.stringify(meta).length > 1024) {
+    return reply.code(400).send({ error: "Meta object too large (max 1KB)" });
+  }
+
+  // Log the event
+  logEvent({
+    ts: now,
+    event,
+    wallet: wallet || undefined,
+    chainId: typeof chainId === "number" ? chainId : undefined,
+    meta: meta || undefined,
+  });
+
+  return { ok: true };
+});
+
+// GET /api/v1/metrics/summary - Get aggregated metrics
+app.get("/api/v1/metrics/summary", async (req, reply) => {
+  const { hours } = req.query as any;
+  const hoursNum = Number(hours) || 24;
+
+  // Cap at 168 hours (1 week)
+  const cappedHours = Math.min(Math.max(hoursNum, 1), 168);
+
+  const summary = calculateSummary(cappedHours);
+  return summary;
 });
 
 // Start server

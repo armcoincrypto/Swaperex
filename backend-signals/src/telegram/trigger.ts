@@ -24,6 +24,7 @@ import {
   getWhyNowText,
   type EscalationReason,
 } from "./alertState.js";
+import { logEvent, shortWallet } from "../metrics/index.js";
 
 // Notification cooldown per token (5 minutes)
 const NOTIFICATION_COOLDOWN_MS = 5 * 60 * 1000;
@@ -152,6 +153,20 @@ export async function triggerSignalNotification(
       lastImpact: impactLevel,
       lastConfidence: confidence,
       lastLiquidity: liquidityDrop,
+    });
+
+    // Log metric event
+    logEvent({
+      ts: now,
+      event: "telegram_alert_sent",
+      wallet: shortWallet(walletAddress),
+      chainId,
+      meta: {
+        type,
+        impactLevel,
+        tokenSymbol: params.tokenSymbol,
+        escalationReason: escalationReason || "first_alert",
+      },
     });
 
     console.log(

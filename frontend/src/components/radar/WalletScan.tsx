@@ -12,9 +12,10 @@
  * Radar: Wallet Scan V2
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { useWalletStore } from '@/stores/walletStore';
 import { useWatchlistStore } from '@/stores/watchlistStore';
+import { trackScanStarted, trackScanCompleted, trackScanAddSelected } from '@/services/metrics';
 
 const API_BASE = import.meta.env.VITE_SIGNALS_API_URL || 'http://207.180.212.142:4001';
 const MAX_WATCHLIST_SIZE = 20;
@@ -135,6 +136,9 @@ export function WalletScan({ className = '', debug = false }: WalletScanProps) {
     return { display: sorted, alreadyWatched, belowLocalMin };
   }, [scanData, chainId, hasToken, minUsdFilter, showLowValue, sortMode]);
 
+  // Track scan start time
+  const scanStartTime = useRef<number>(0);
+
   // Scan wallet
   const handleScan = useCallback(async () => {
     if (!isConnected || !walletAddress) return;
@@ -144,6 +148,10 @@ export function WalletScan({ className = '', debug = false }: WalletScanProps) {
     setScanData(null);
     setSelected(new Set());
     setAddedCount(0);
+
+    // Track scan started
+    scanStartTime.current = Date.now();
+    trackScanStarted(walletAddress, chainId);
 
     try {
       const response = await fetch(
@@ -158,6 +166,18 @@ export function WalletScan({ className = '', debug = false }: WalletScanProps) {
       const data: ScanResponse = await response.json();
       setScanData(data);
       setState('results');
+
+      // Calculate already watched count
+      const alreadyWatched = data.tokens.filter((t) => hasToken(chainId, t.address)).length;
+
+      // Track scan completed
+      trackScanCompleted(walletAddress, chainId, {
+        providerTokens: data.stats.providerTokens,
+        finalTokens: data.stats.finalTokens,
+        belowMin: data.stats.belowMinValue,
+        alreadyWatched,
+        durationMs: Date.now() - scanStartTime.current,
+      });
 
       // Auto-select top new tokens
       const newTokens = data.tokens.filter((t) => !hasToken(chainId, t.address));
@@ -212,6 +232,7 @@ export function WalletScan({ className = '', debug = false }: WalletScanProps) {
   // Add to watchlist
   const handleAddToWatchlist = useCallback(() => {
     let added = 0;
+    const selectedCount = selected.size;
 
     for (const token of processedTokens.display) {
       if (selected.has(token.address)) {
@@ -225,13 +246,18 @@ export function WalletScan({ className = '', debug = false }: WalletScanProps) {
       }
     }
 
+    // Track add selected
+    if (walletAddress) {
+      trackScanAddSelected(walletAddress, chainId, selectedCount, added);
+    }
+
     setAddedCount(added);
     setState('idle');
     setScanData(null);
     setSelected(new Set());
 
     setTimeout(() => setAddedCount(0), 3000);
-  }, [processedTokens.display, selected, chainId, addToken]);
+  }, [processedTokens.display, selected, chainId, addToken, walletAddress]);
 
   // Reset
   const handleReset = useCallback(() => {
