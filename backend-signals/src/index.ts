@@ -11,6 +11,7 @@ import {
   isDryRunMode,
 } from "./telegram/index.js";
 import { triggerSignalNotification } from "./telegram/trigger.js";
+import { getWalletTokens, isChainSupported, SUPPORTED_CHAINS } from "./walletScan/index.js";
 
 // Configuration
 const PORT = Number(process.env.PORT) || 4001;
@@ -242,6 +243,53 @@ app.post("/api/v1/telegram/test", async (req, reply) => {
     chainName: "Ethereum",
     reason: "This is a test notification from Swaperex Radar.",
   });
+
+  return result;
+});
+
+// ============================================
+// Wallet Scan Endpoints
+// ============================================
+
+// Get wallet token holdings
+app.get("/api/v1/wallet-tokens", async (req, reply) => {
+  const { chainId, wallet } = req.query as any;
+
+  if (!chainId) {
+    return reply.code(400).send({ error: "Missing chainId parameter" });
+  }
+
+  if (!wallet) {
+    return reply.code(400).send({ error: "Missing wallet parameter" });
+  }
+
+  const chainIdNum = Number(chainId);
+
+  if (isNaN(chainIdNum)) {
+    return reply.code(400).send({ error: "chainId must be a number" });
+  }
+
+  if (!isChainSupported(chainIdNum)) {
+    return reply.code(400).send({
+      error: `Chain ${chainIdNum} not supported`,
+      supportedChains: Object.keys(SUPPORTED_CHAINS).map(Number),
+    });
+  }
+
+  // Validate wallet address format
+  if (!/^0x[a-fA-F0-9]{40}$/.test(wallet)) {
+    return reply.code(400).send({ error: "Invalid wallet address format" });
+  }
+
+  const result = await getWalletTokens(chainIdNum, wallet);
+
+  // Check if error
+  if ("code" in result) {
+    return reply.code(500).send({
+      error: result.message,
+      code: result.code,
+    });
+  }
 
   return result;
 });
