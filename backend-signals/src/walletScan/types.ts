@@ -1,8 +1,8 @@
 /**
- * Wallet Scan Types
+ * Wallet Scan Types V2
  *
- * Type definitions for wallet token scanning.
- * Radar: Wallet Scan MVP
+ * Type definitions for wallet token scanning with enhanced explainability.
+ * Radar: Wallet Scan V2
  */
 
 export interface WalletToken {
@@ -10,20 +10,39 @@ export interface WalletToken {
   symbol: string;
   name: string;
   decimals: number;
-  balance: string; // Raw balance as string (wei)
-  balanceFormatted: string; // Human-readable balance
+  balance: string; // Human-readable balance
   priceUsd: number | null; // Price per token in USD
   valueUsd: number | null; // Total value in USD
-  logo: string | null; // Token logo URL
-  source: string; // Data provider source
+  logoUrl: string | null; // Token logo URL
+  verified: boolean; // Whether token is verified/whitelisted
+  isNative: boolean; // Whether this is the native chain token
 }
+
+export interface ScanStats {
+  providerTokens: number; // Raw tokens from provider
+  afterChainFilter: number; // After chain validation
+  afterSpamFilter: number; // After spam removal
+  belowMinValue: number; // Excluded by min value
+  finalTokens: number; // Final returned count
+}
+
+export type ScanWarning =
+  | "ANKR_KEY_MISSING"
+  | "FALLBACK_PROVIDER_LIMITED"
+  | "CACHE_HIT"
+  | "RATE_LIMITED"
+  | "PARTIAL_DATA";
 
 export interface WalletScanResult {
   chainId: number;
   wallet: string;
+  provider: string; // 'ankr' | 'fallback'
+  fetchedAt: number; // Timestamp
+  minValueUsd: number; // Applied min value filter
   tokens: WalletToken[];
+  stats: ScanStats;
+  warnings: ScanWarning[];
   cached: boolean;
-  timestamp: number;
 }
 
 export interface WalletScanError {
@@ -36,7 +55,10 @@ export interface WalletScanError {
 export interface WalletTokenProvider {
   name: string;
   supportedChains: number[];
-  getTokens(chainId: number, wallet: string): Promise<WalletToken[]>;
+  getTokens(
+    chainId: number,
+    wallet: string
+  ): Promise<{ tokens: WalletToken[]; warnings: ScanWarning[] }>;
 }
 
 // Chain configuration
@@ -49,10 +71,44 @@ export const SUPPORTED_CHAINS: Record<number, { name: string; symbol: string }> 
   43114: { name: "Avalanche", symbol: "AVAX" },
 };
 
-// Configuration
+// Configuration (from env or defaults)
 export const WALLET_SCAN_CONFIG = {
-  minUsdValue: Number(process.env.WALLET_SCAN_MIN_USD) || 2,
-  cacheTtlSeconds: Number(process.env.WALLET_SCAN_CACHE_SEC) || 60,
-  maxTokens: 100,
+  minUsdValue: Number(process.env.WALLET_SCAN_MIN_VALUE_USD) || 2,
+  maxTokens: Number(process.env.WALLET_SCAN_MAX_TOKENS) || 50,
+  cacheTtlSeconds: Number(process.env.WALLET_SCAN_CACHE_TTL_SEC) || 120,
   requestTimeoutMs: 15000,
+};
+
+// Known spam token patterns
+export const SPAM_PATTERNS = {
+  // Suspicious symbol patterns
+  symbolPatterns: [
+    /^.{0,1}$/, // Too short (0-1 chars)
+    /^.{20,}$/, // Too long (20+ chars)
+    /airdrop/i,
+    /claim/i,
+    /\.com$/i,
+    /\.io$/i,
+    /\.org$/i,
+    /free/i,
+    /bonus/i,
+    /reward/i,
+    /visit/i,
+    /http/i,
+  ],
+  // Suspicious name patterns
+  namePatterns: [
+    /airdrop/i,
+    /claim.*reward/i,
+    /visit.*to.*claim/i,
+    /\.com/i,
+    /\.io/i,
+    /http/i,
+    /t\.me/i,
+    /telegram/i,
+  ],
+  // Known spam addresses (lowercase)
+  blacklistedAddresses: new Set<string>([
+    // Add known spam token addresses here
+  ]),
 };

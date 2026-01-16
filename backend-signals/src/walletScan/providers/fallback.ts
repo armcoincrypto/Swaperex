@@ -1,14 +1,13 @@
 /**
- * Fallback Provider
+ * Fallback Provider V2
  *
- * Basic on-chain balance check using RPC.
- * Used when main providers fail.
- * Returns native token balance only (no ERC20 enumeration without indexer).
+ * Basic RPC provider for when Ankr is unavailable.
+ * Only returns native token balance.
  *
- * Radar: Wallet Scan MVP
+ * Radar: Wallet Scan V2
  */
 
-import { WalletToken, WalletTokenProvider, SUPPORTED_CHAINS } from "../types.js";
+import { WalletToken, WalletTokenProvider, ScanWarning, SUPPORTED_CHAINS } from "../types.js";
 
 // Public RPC endpoints
 const RPC_ENDPOINTS: Record<number, string> = {
@@ -24,20 +23,24 @@ export class FallbackProvider implements WalletTokenProvider {
   name = "fallback";
   supportedChains = [1, 56, 137, 42161, 10, 43114];
 
-  async getTokens(chainId: number, wallet: string): Promise<WalletToken[]> {
+  async getTokens(
+    chainId: number,
+    wallet: string
+  ): Promise<{ tokens: WalletToken[]; warnings: ScanWarning[] }> {
+    const warnings: ScanWarning[] = ["FALLBACK_PROVIDER_LIMITED"];
     const rpcUrl = RPC_ENDPOINTS[chainId];
 
     if (!rpcUrl) {
-      throw new Error(`Chain ${chainId} not supported`);
+      throw new Error(`No RPC endpoint for chain ${chainId}`);
     }
 
     const chainInfo = SUPPORTED_CHAINS[chainId];
     if (!chainInfo) {
-      throw new Error(`Chain ${chainId} not configured`);
+      throw new Error(`Chain ${chainId} not supported`);
     }
 
     try {
-      // Get native token balance
+      // Get native balance via eth_getBalance
       const response = await fetch(rpcUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -53,37 +56,40 @@ export class FallbackProvider implements WalletTokenProvider {
         throw new Error(`RPC error: ${response.status}`);
       }
 
-      const data = (await response.json()) as any;
+      const data = (await response.json()) as {
+        result?: string;
+        error?: { message: string };
+      };
 
       if (data.error) {
         throw new Error(`RPC error: ${data.error.message}`);
       }
 
       const balanceWei = BigInt(data.result || "0x0");
-      const balanceFormatted = Number(balanceWei) / 1e18;
+      const balanceEth = Number(balanceWei) / 1e18;
 
-      // Only return native token if balance > 0
+      // Only return if balance > 0
       if (balanceWei === 0n) {
-        return [];
+        return { tokens: [], warnings };
       }
 
-      return [
-        {
-          address: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-          symbol: chainInfo.symbol,
-          name: `${chainInfo.name} Native Token`,
-          decimals: 18,
-          balance: balanceWei.toString(),
-          balanceFormatted: balanceFormatted.toFixed(6),
-          priceUsd: null, // Fallback doesn't have price data
-          valueUsd: null,
-          logo: null,
-          source: "fallback",
-        },
-      ];
-    } catch (err) {
-      console.error(`[FallbackProvider] Error for chain ${chainId}:`, err);
-      return [];
+      const token: WalletToken = {
+        address: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+        symbol: chainInfo.symbol,
+        name: `${chainInfo.name} Native Token`,
+        decimals: 18,
+        balance: balanceEth.toFixed(6),
+        priceUsd: null, // Fallback doesn't have price data
+        valueUsd: null,
+        logoUrl: null,
+        verified: true, // Native tokens are always verified
+        isNative: true,
+      };
+
+      return { tokens: [token], warnings };
+    } catch (err: any) {
+      console.error(`[FallbackProvider] Error:`, err.message);
+      throw err;
     }
   }
 }

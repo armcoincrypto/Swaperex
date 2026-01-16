@@ -1,13 +1,13 @@
 /**
- * Ankr Provider
+ * Ankr Provider V2
  *
  * Uses Ankr Advanced API for wallet token balances.
  * Free tier available, API key optional for higher limits.
  *
- * Radar: Wallet Scan MVP
+ * Radar: Wallet Scan V2
  */
 
-import { WalletToken, WalletTokenProvider, WALLET_SCAN_CONFIG } from "../types.js";
+import { WalletToken, WalletTokenProvider, ScanWarning, WALLET_SCAN_CONFIG } from "../types.js";
 
 const ANKR_API_BASE = "https://rpc.ankr.com/multichain";
 const ANKR_API_KEY = process.env.ANKR_API_KEY || "";
@@ -54,11 +54,20 @@ export class AnkrProvider implements WalletTokenProvider {
   name = "ankr";
   supportedChains = [1, 56, 137, 42161, 10, 43114];
 
-  async getTokens(chainId: number, wallet: string): Promise<WalletToken[]> {
+  async getTokens(
+    chainId: number,
+    wallet: string
+  ): Promise<{ tokens: WalletToken[]; warnings: ScanWarning[] }> {
+    const warnings: ScanWarning[] = [];
     const chainName = ANKR_CHAIN_NAMES[chainId];
 
     if (!chainName) {
       throw new Error(`Chain ${chainId} not supported by Ankr`);
+    }
+
+    // Check if API key is configured
+    if (!ANKR_API_KEY) {
+      warnings.push("ANKR_KEY_MISSING");
     }
 
     const endpoint = ANKR_API_KEY
@@ -88,6 +97,9 @@ export class AnkrProvider implements WalletTokenProvider {
       clearTimeout(timeout);
 
       if (!response.ok) {
+        if (response.status === 429) {
+          warnings.push("RATE_LIMITED");
+        }
         throw new Error(`Ankr API error: ${response.status}`);
       }
 
@@ -98,10 +110,12 @@ export class AnkrProvider implements WalletTokenProvider {
       }
 
       if (!data.result?.assets) {
-        return [];
+        return { tokens: [], warnings };
       }
 
-      return data.result.assets.map((asset) => this.normalizeToken(asset, chainId));
+      const tokens = data.result.assets.map((asset) => this.normalizeToken(asset, chainId));
+
+      return { tokens, warnings };
     } catch (err: any) {
       clearTimeout(timeout);
 
@@ -113,27 +127,38 @@ export class AnkrProvider implements WalletTokenProvider {
   }
 
   private normalizeToken(asset: AnkrTokenBalance, chainId: number): WalletToken {
-    const balanceFormatted = parseFloat(asset.balance) || 0;
+    const balance = parseFloat(asset.balance) || 0;
     const priceUsd = parseFloat(asset.tokenPrice) || null;
     const valueUsd = parseFloat(asset.balanceUsd) || null;
 
-    // For native tokens (ETH, BNB, etc), address is the zero address
+    // Determine if native token
     const isNative = !asset.contractAddress || asset.tokenType === "NATIVE";
+
+    // For native tokens (ETH, BNB, etc), use the zero address convention
     const address = isNative
-      ? "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" // Common convention for native token
+      ? "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
       : asset.contractAddress!;
+
+    // Consider tokens with thumbnails and proper metadata as "verified"
+    const verified = Boolean(
+      asset.thumbnail &&
+        asset.tokenName &&
+        asset.tokenSymbol &&
+        asset.tokenSymbol.length >= 2 &&
+        asset.tokenSymbol.length <= 12
+    );
 
     return {
       address,
       symbol: asset.tokenSymbol || "???",
       name: asset.tokenName || asset.tokenSymbol || "Unknown Token",
       decimals: asset.tokenDecimals || 18,
-      balance: asset.balanceRawInteger || "0",
-      balanceFormatted: balanceFormatted.toFixed(6),
+      balance: balance.toFixed(6),
       priceUsd,
       valueUsd,
-      logo: asset.thumbnail || null,
-      source: "ankr",
+      logoUrl: asset.thumbnail || null,
+      verified,
+      isNative,
     };
   }
 }
