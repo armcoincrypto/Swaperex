@@ -4,7 +4,7 @@
  * Main export for Telegram notifications.
  * Initializes bot and provides notification trigger.
  *
- * Priority 12.3 - Telegram Alerts
+ * Sprint: Telegram Alert Intelligence
  */
 
 export { sendTelegramMessage, formatSignalMessage, isTelegramConfigured, isDryRunMode } from "./notifier.js";
@@ -18,6 +18,12 @@ export {
   type TelegramSubscription,
 } from "./storage.js";
 export { startBot, stopBot } from "./bot.js";
+export { getCooldownRemaining } from "./trigger.js";
+export {
+  getLastAlertState,
+  checkEscalation,
+  type EscalationReason,
+} from "./alertState.js";
 
 import { startBot } from "./bot.js";
 import { isTelegramConfigured, isDryRunMode } from "./notifier.js";

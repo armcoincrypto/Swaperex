@@ -282,6 +282,14 @@ export function TelegramSettings({ className = '' }: TelegramSettingsProps) {
             </div>
           </div>
 
+          {/* Cooldown Info - Transparency */}
+          <div className="bg-dark-800/50 rounded px-2 py-1.5 text-[9px] text-dark-500">
+            <p className="font-medium text-dark-400 mb-1">ℹ️ Smart Alerts</p>
+            <p>• 5 min cooldown per token after each notification</p>
+            <p>• Alerts sent only when conditions escalate</p>
+            <p>• Stable repeats won't trigger new alerts</p>
+          </div>
+
           {/* Test Button */}
           <button
             onClick={sendTestNotification}

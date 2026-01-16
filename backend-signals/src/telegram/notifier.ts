@@ -4,7 +4,7 @@
  * Sends notifications to Telegram with retry logic.
  * Supports DRY_RUN mode for testing.
  *
- * Priority 12.3 - Telegram Alerts
+ * Sprint: Telegram Alert Intelligence
  */
 
 const TELEGRAM_API_BASE = "https://api.telegram.org/bot";
@@ -56,7 +56,7 @@ export async function sendTelegramMessage(message: TelegramMessage): Promise<Sen
         }),
       });
 
-      const data = await response.json() as any;
+      const data = (await response.json()) as any;
 
       if (data.ok) {
         console.log(`[Telegram] Message sent to ${message.chatId}, messageId: ${data.result?.message_id}`);
@@ -88,6 +88,15 @@ export async function sendTelegramMessage(message: TelegramMessage): Promise<Sen
 
 /**
  * Format a signal notification message
+ *
+ * Uses exact template from Sprint: Telegram Alert Intelligence
+ * Template:
+ *   🔴 Risk Alert — High Impact
+ *   Token: {TOKEN_NAME} ({SYMBOL}) — {CHAIN}
+ *   What changed: {short factual description}
+ *   Why now: {one allowed reason}
+ *   Suggested next step: Review token details and monitor closely.
+ *   Links: DexScreener | Explorer | Open Radar
  */
 export function formatSignalMessage(params: {
   type: "risk" | "liquidity";
@@ -96,16 +105,18 @@ export function formatSignalMessage(params: {
   tokenSymbol: string;
   chainName: string;
   reason: string;
-  guidance: string;
+  whyNow: string;
   tokenAddress: string;
   chainId: number;
 }): string {
-  const { type, impactLevel, tokenName, tokenSymbol, chainName, reason, guidance, tokenAddress, chainId } = params;
+  const { type, impactLevel, tokenName, tokenSymbol, chainName, reason, whyNow, tokenAddress, chainId } = params;
 
-  // Impact emoji and label
+  // Impact emoji
   const impactEmoji = impactLevel === "high" ? "🔴" : impactLevel === "medium" ? "🟡" : "ℹ️";
   const impactLabel = impactLevel.charAt(0).toUpperCase() + impactLevel.slice(1);
-  const typeEmoji = type === "risk" ? "⚠️" : "💧";
+
+  // Alert type
+  const alertType = type === "risk" ? "Risk Alert" : "Liquidity Alert";
 
   // DexScreener chain mapping
   const dexChainMap: Record<number, string> = {
@@ -129,17 +140,24 @@ export function formatSignalMessage(params: {
   };
   const explorerBase = explorerMap[chainId] || "https://etherscan.io/token/";
 
-  return `${impactEmoji} <b>${impactLabel} Impact ${typeEmoji} ${type === "risk" ? "Risk" : "Liquidity"} Alert</b>
+  // Suggested next step (calm, informational)
+  const suggestedStep = "Review token details and monitor closely.";
 
-<b>${tokenName}</b> (${tokenSymbol}) on ${chainName}
+  // Build message with exact template format
+  return `${impactEmoji} <b>${alertType} — ${impactLabel} Impact</b>
 
-<b>What changed:</b> ${reason}
+<b>Token:</b> ${tokenName} (${tokenSymbol}) — ${chainName}
 
-<b>Suggested:</b> ${guidance}
+<b>What changed:</b>
+${reason}
 
-🔗 <a href="https://dexscreener.com/${dexChain}/${tokenAddress}">DexScreener</a> | <a href="${explorerBase}${tokenAddress}">Explorer</a> | <a href="http://207.180.212.142:3000/?tab=radar">Open Radar</a>
+<b>${whyNow}</b>
 
-<i>This is informational only, not financial advice.</i>`;
+<b>Suggested next step:</b>
+${suggestedStep}
+
+<b>Links:</b>
+<a href="https://dexscreener.com/${dexChain}/${tokenAddress}">DexScreener</a> | <a href="${explorerBase}${tokenAddress}">Explorer</a> | <a href="http://207.180.212.142:3000/?tab=radar">Open Radar</a>`;
 }
 
 function sleep(ms: number): Promise<void> {
