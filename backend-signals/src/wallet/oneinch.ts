@@ -143,6 +143,9 @@ async function fetchWithFallback(
         signal: controller.signal,
         headers: {
           'Accept': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Origin': 'https://app.1inch.io',
+          'Referer': 'https://app.1inch.io/',
         },
       });
 
@@ -152,9 +155,9 @@ async function fetchWithFallback(
         return response;
       }
 
-      // If rate limited, try next endpoint
-      if (response.status === 429) {
-        console.warn(`[1inch] Rate limited on ${baseUrl}, trying next...`);
+      // If rate limited or forbidden, try next endpoint
+      if (response.status === 429 || response.status === 403) {
+        console.warn(`[1inch] ${response.status} on ${baseUrl}, trying next...`);
         continue;
       }
 
