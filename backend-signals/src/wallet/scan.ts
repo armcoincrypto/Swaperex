@@ -2,15 +2,17 @@
  * Wallet Token Scanner
  *
  * Discovers tokens in a wallet using:
- * - Primary: Covalent API (reliable, includes USD prices)
+ * - Primary: 1inch API (free, no key required)
+ * - Fallback: Covalent API (if configured)
  * - Fallback: Block explorer APIs (BscScan, Etherscan)
  *
  * Environment variables:
- * - COVALENT_API_KEY: API key for Covalent (primary provider)
- * - WALLET_SCAN_PROVIDER: Force provider (covalent|explorer), default auto
+ * - COVALENT_API_KEY: API key for Covalent (optional fallback)
+ * - WALLET_SCAN_PROVIDER: Force provider (1inch|covalent|explorer), default auto
  * - WALLET_SCAN_CACHE_TTL_SEC: Cache TTL in seconds (default 300)
  */
 
+import { scanWithOneInch, isOneInchAvailable } from './oneinch.js';
 import { scanWithCovalent, isCovalentConfigured } from './covalent.js';
 
 // Chain configurations
@@ -100,7 +102,7 @@ export interface WalletScanResult {
     tokensPriced: number;
     tokensMissingPrice: number;
   };
-  provider: 'covalent' | 'explorer';
+  provider: '1inch' | 'covalent' | 'explorer';
   warnings: string[];
   cached: boolean;
   cacheAge?: number;
@@ -378,7 +380,65 @@ export async function scanWalletTokens(
   // Determine provider to use
   const forceProvider = process.env.WALLET_SCAN_PROVIDER?.toLowerCase();
 
-  // Try Covalent first (unless forced to use explorer)
+  // Try 1inch first (free, no API key needed)
+  if (forceProvider !== 'covalent' && forceProvider !== 'explorer' && isOneInchAvailable()) {
+    const oneInchResult = await scanWithOneInch(address, chainId, minUsdValue);
+
+    if (oneInchResult.success && oneInchResult.result) {
+      const result = {
+        ...oneInchResult.result,
+        provider: '1inch' as const,
+        fetchedAt: Date.now(),
+        minValueUsd: minUsdValue,
+      };
+
+      // Cache the result
+      scanCache.set(cacheKey, { result, timestamp: Date.now() });
+      return result;
+    }
+
+    // If 1inch failed and forced, return error
+    if (forceProvider === '1inch') {
+      const errorResult: WalletScanResult = {
+        address: address.toLowerCase(),
+        chainId,
+        chainName: config.name,
+        tokens: [],
+        nativeBalance: {
+          address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+          symbol: config.nativeSymbol,
+          name: config.nativeSymbol,
+          decimals: config.nativeDecimals,
+          balance: '0',
+          balanceFormatted: '0',
+          usdValue: null,
+          usdPrice: null,
+        },
+        stats: {
+          totalTokens: 0,
+          tokensWithValue: 0,
+          filteredSpam: 0,
+          scanDurationMs: Date.now() - startTime,
+          providerTransfers: 0,
+          tokensDiscovered: 0,
+          tokensWithBalance: 0,
+          tokensPriced: 0,
+          tokensMissingPrice: 0,
+        },
+        provider: '1inch',
+        warnings: [oneInchResult.warning || oneInchResult.error || 'Provider error'],
+        cached: false,
+        fetchedAt: Date.now(),
+        minValueUsd: minUsdValue,
+      };
+      return errorResult;
+    }
+
+    // Log and try next provider
+    console.log(`[WalletScan] 1inch failed (${oneInchResult.error}), trying Covalent for wallet=${shortWallet(address)}`);
+  }
+
+  // Try Covalent as fallback (if configured)
   if (forceProvider !== 'explorer' && isCovalentConfigured()) {
     const covalentResult = await scanWithCovalent(address, chainId, minUsdValue);
 
@@ -395,9 +455,8 @@ export async function scanWalletTokens(
       return result;
     }
 
-    // If Covalent failed but we're not forced to use it, fall back to explorer
+    // If Covalent failed and forced, return error
     if (forceProvider === 'covalent') {
-      // Return error result with warning
       const errorResult: WalletScanResult = {
         address: address.toLowerCase(),
         chainId,
@@ -437,11 +496,11 @@ export async function scanWalletTokens(
     console.log(`[WalletScan] Covalent failed (${covalentResult.error}), falling back to explorer for wallet=${shortWallet(address)}`);
   }
 
-  // Fallback to explorer-based scanning
+  // Final fallback to explorer-based scanning
   const warnings: string[] = [];
 
-  // Add warning if falling back from Covalent
-  if (isCovalentConfigured()) {
+  // Add warning about fallback
+  if (isOneInchAvailable() || isCovalentConfigured()) {
     warnings.push('fell_back_to_explorer');
   }
 

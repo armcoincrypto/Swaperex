@@ -2,8 +2,8 @@
  * Wallet Module
  *
  * Token discovery and scanning for connected wallets.
- * Primary provider: Covalent (if configured)
- * Fallback: Block explorer APIs
+ * Primary provider: 1inch (free, no key needed)
+ * Fallback: Covalent (if configured), then block explorer APIs
  */
 
 export {
@@ -13,6 +13,11 @@ export {
   type WalletToken,
   type WalletScanResult,
 } from './scan.js';
+
+export {
+  isOneInchAvailable,
+  getOneInchSupportedChains,
+} from './oneinch.js';
 
 export {
   isCovalentConfigured,

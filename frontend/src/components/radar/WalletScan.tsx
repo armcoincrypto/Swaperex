@@ -62,14 +62,14 @@ interface ScanResult {
     tokensPriced: number;
     tokensMissingPrice: number;
   };
-  provider?: 'covalent' | 'explorer';
+  provider?: '1inch' | 'covalent' | 'explorer';
   warnings: string[];
   cached: boolean;
   cacheAge?: number;
 }
 
 // Provider error detection helpers
-const PROVIDER_ERRORS = ['provider_not_configured', 'provider_denied', 'provider_timeout', 'provider_error'];
+const PROVIDER_ERRORS = ['provider_not_configured', 'provider_denied', 'provider_timeout', 'provider_error', 'unavailable'];
 
 function hasProviderError(warnings: string[]): boolean {
   return warnings.some(w => PROVIDER_ERRORS.some(e => w.toLowerCase().includes(e.replace('_', ' ')) || w.toLowerCase().includes(e)));
@@ -79,10 +79,15 @@ function getProviderErrorMessage(warnings: string[]): string | null {
   const providerWarning = warnings.find(w =>
     w.toLowerCase().includes('provider') ||
     w.toLowerCase().includes('covalent') ||
+    w.toLowerCase().includes('1inch') ||
+    w.toLowerCase().includes('unavailable') ||
     w.toLowerCase().includes('configured')
   );
   if (!providerWarning) return null;
 
+  if (providerWarning.toLowerCase().includes('unavailable')) {
+    return 'Scan service temporarily unavailable. Please try again in a moment.';
+  }
   if (providerWarning.toLowerCase().includes('not configured')) {
     return 'Wallet scan provider is not configured. Try again later or add tokens manually.';
   }
