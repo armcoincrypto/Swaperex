@@ -10,10 +10,27 @@
  * - COVALENT_API_KEY: API key for Covalent (optional fallback)
  * - WALLET_SCAN_PROVIDER: Force provider (1inch|covalent|explorer), default auto
  * - WALLET_SCAN_CACHE_TTL_SEC: Cache TTL in seconds (default 300)
+ * - BSCSCAN_API_KEY: Free API key from bscscan.com
+ * - ETHERSCAN_API_KEY: Free API key from etherscan.io
+ * - POLYGONSCAN_API_KEY: Free API key from polygonscan.com
+ * - ARBISCAN_API_KEY: Free API key from arbiscan.io
+ * - BASESCAN_API_KEY: Free API key from basescan.org
  */
 
 import { scanWithOneInch, isOneInchAvailable } from './oneinch.js';
 import { scanWithCovalent, isCovalentConfigured } from './covalent.js';
+
+// Get API key for chain
+function getExplorerApiKey(chainId: number): string {
+  const keys: Record<number, string | undefined> = {
+    1: process.env.ETHERSCAN_API_KEY,
+    56: process.env.BSCSCAN_API_KEY,
+    137: process.env.POLYGONSCAN_API_KEY,
+    42161: process.env.ARBISCAN_API_KEY,
+    8453: process.env.BASESCAN_API_KEY,
+  };
+  return keys[chainId] || '';
+}
 
 // Chain configurations
 const CHAIN_CONFIGS: Record<number, {
@@ -173,12 +190,13 @@ async function getNativeBalance(
   if (!config) return null;
 
   try {
-    const url = `${config.apiUrl}?module=account&action=balance&address=${address}&tag=latest`;
+    const apiKey = getExplorerApiKey(chainId);
+    const url = `${config.apiUrl}?module=account&action=balance&address=${address}&tag=latest${apiKey ? `&apikey=${apiKey}` : ''}`;
     const response = await fetchWithTimeout(url);
     const data = await response.json();
 
     if (data.status !== '1') {
-      console.warn(`[WalletScan] Native balance error:`, data.message);
+      console.warn(`[WalletScan] Native balance error:`, data.message, apiKey ? '(with key)' : '(no key)');
       return null;
     }
 
@@ -226,7 +244,8 @@ async function getTokenTransfers(
 
   try {
     // Get token transfers (both incoming and outgoing)
-    const url = `${config.apiUrl}?module=account&action=tokentx&address=${address}&page=1&offset=100&sort=desc`;
+    const apiKey = getExplorerApiKey(chainId);
+    const url = `${config.apiUrl}?module=account&action=tokentx&address=${address}&page=1&offset=100&sort=desc${apiKey ? `&apikey=${apiKey}` : ''}`;
     const response = await fetchWithTimeout(url);
     const data = await response.json();
 
@@ -273,7 +292,8 @@ async function getTokenBalance(
   if (!config) return '0';
 
   try {
-    const url = `${config.apiUrl}?module=account&action=tokenbalance&contractaddress=${tokenAddress}&address=${walletAddress}&tag=latest`;
+    const apiKey = getExplorerApiKey(chainId);
+    const url = `${config.apiUrl}?module=account&action=tokenbalance&contractaddress=${tokenAddress}&address=${walletAddress}&tag=latest${apiKey ? `&apikey=${apiKey}` : ''}`;
     const response = await fetchWithTimeout(url);
     const data = await response.json();
 
