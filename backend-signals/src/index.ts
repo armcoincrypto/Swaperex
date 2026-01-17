@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import { getSignals } from "./api.js";
 import { logEvent, isShortWallet, calculateSummary, type MetricEvent } from "./metrics/index.js";
+import { scanWalletTokens, isChainSupported, getSupportedChains } from "./wallet/index.js";
 
 // Configuration
 const PORT = Number(process.env.PORT) || 4001;
@@ -209,6 +210,44 @@ app.get("/api/v1/metrics/summary", async (req) => {
   const hoursNum = Math.min(Math.max(1, Number(hours) || 24), 168); // 1-168 hours (1 week max)
 
   return calculateSummary(hoursNum);
+});
+
+// ============================================================
+// WALLET SCAN ENDPOINTS
+// ============================================================
+
+// GET /api/v1/wallet/tokens - Scan wallet for tokens
+app.get("/api/v1/wallet/tokens", async (req, reply) => {
+  const { address, chainId, minUsd = "0.01" } = req.query as any;
+
+  // Validate address
+  if (!address || !/^0x[a-fA-F0-9]{40}$/.test(address)) {
+    return reply.code(400).send({ error: "Invalid address format" });
+  }
+
+  // Validate chainId
+  const chainIdNum = Number(chainId);
+  if (!chainIdNum || !isChainSupported(chainIdNum)) {
+    return reply.code(400).send({
+      error: `Unsupported chainId. Supported: ${getSupportedChains().join(", ")}`,
+    });
+  }
+
+  // Validate minUsd
+  const minUsdNum = Math.max(0, Number(minUsd) || 0.01);
+
+  try {
+    const result = await scanWalletTokens(address, chainIdNum, minUsdNum);
+    return result;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Scan failed";
+    return reply.code(500).send({ error: message });
+  }
+});
+
+// GET /api/v1/wallet/chains - Get supported chains for wallet scan
+app.get("/api/v1/wallet/chains", async () => {
+  return { chains: getSupportedChains() };
 });
 
 // Start server
