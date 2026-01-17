@@ -59,6 +59,7 @@ Thumbs.db
 
 # Project specific
 data/
+backend-signals/data/
 
 # Node/Frontend
 node_modules/

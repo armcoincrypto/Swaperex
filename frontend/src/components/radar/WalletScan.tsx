@@ -7,9 +7,14 @@
  * Step 5 - Wallet Scan Entry Point
  */
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useWalletStore } from '@/stores/walletStore';
 import { useWatchlistStore } from '@/stores/watchlistStore';
+import {
+  trackWalletScanStarted,
+  trackWalletScanCompleted,
+  // trackWalletScanAddSelected - use when scan selection UI is implemented
+} from '@/services/metrics';
 
 interface WalletScanProps {
   className?: string;
@@ -18,15 +23,21 @@ interface WalletScanProps {
 export function WalletScan({ className = '' }: WalletScanProps) {
   const isConnected = useWalletStore((s) => s.isConnected);
   const walletAddress = useWalletStore((s) => s.address);
+  const chainId = useWalletStore((s) => s.chainId);
   const tokensCount = useWatchlistStore((s) => s.tokens.length);
 
   const [scanning, setScanning] = useState(false);
   const [scanComplete, setScanComplete] = useState(false);
   const [foundTokens, setFoundTokens] = useState(0);
+  const scanStartTime = useRef<number>(0);
 
   // Stub scan function - placeholder for actual implementation
   const handleScan = async () => {
     if (!isConnected || !walletAddress) return;
+
+    // Track scan started
+    scanStartTime.current = Date.now();
+    trackWalletScanStarted(walletAddress, chainId);
 
     setScanning(true);
     setScanComplete(false);
@@ -39,9 +50,24 @@ export function WalletScan({ className = '' }: WalletScanProps) {
     // 3. Add them to the watchlist
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
-    // Placeholder result
-    const mockFoundCount = 0;
-    setFoundTokens(mockFoundCount);
+    // Placeholder result - when real implementation is added,
+    // these values will come from the actual scan results
+    const mockProviderTokens = 0;
+    const mockFinalTokens = 0;
+    const mockBelowMin = 0;
+    const mockAlreadyWatched = 0;
+    const durationMs = Date.now() - scanStartTime.current;
+
+    // Track scan completed
+    trackWalletScanCompleted(walletAddress, chainId, {
+      providerTokens: mockProviderTokens,
+      finalTokens: mockFinalTokens,
+      belowMin: mockBelowMin,
+      alreadyWatched: mockAlreadyWatched,
+      durationMs,
+    });
+
+    setFoundTokens(mockFinalTokens);
     setScanning(false);
     setScanComplete(true);
 
@@ -50,6 +76,9 @@ export function WalletScan({ className = '' }: WalletScanProps) {
       setScanComplete(false);
     }, 5000);
   };
+
+  // When real scan selection UI is implemented, call:
+  // trackWalletScanAddSelected(walletAddress, chainId, { selectedCount, addedCount })
 
   return (
     <div className={`bg-dark-800 rounded-xl p-4 ${className}`}>

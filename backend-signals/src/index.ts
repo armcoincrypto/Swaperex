@@ -2,6 +2,7 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import { getSignals } from "./api.js";
+import { logEvent, isShortWallet, calculateSummary, type MetricEvent } from "./metrics/index.js";
 
 // Configuration
 const PORT = Number(process.env.PORT) || 4001;
@@ -22,7 +23,7 @@ const app = Fastify({ logger: true });
 // CORS - allow frontend origins
 await app.register(cors, {
   origin: ALLOWED_ORIGINS,
-  methods: ["GET"],
+  methods: ["GET", "POST"],
 });
 
 // Rate limiting - 100 requests per minute per IP
@@ -124,6 +125,90 @@ app.get("/api/v1/signals", async (req, reply) => {
 app.get("/api/signals", async (req, reply) => {
   const { chainId, token } = req.query as any;
   return reply.redirect(301, `/api/v1/signals?chainId=${chainId}&token=${token}`);
+});
+
+// ============================================================
+// METRICS ENDPOINTS
+// ============================================================
+
+// Rate limit map for events endpoint (10 events/minute per IP)
+const eventRateLimits = new Map<string, { count: number; resetAt: number }>();
+
+// POST /api/v1/events - Receive events from frontend
+app.post("/api/v1/events", async (req, reply) => {
+  const ip = req.ip || "unknown";
+  const now = Date.now();
+
+  // Rate limiting: 10 events/minute per IP
+  const limit = eventRateLimits.get(ip);
+  if (limit) {
+    if (now < limit.resetAt) {
+      if (limit.count >= 10) {
+        return reply.code(429).send({ error: "Rate limit exceeded. Max 10 events/minute." });
+      }
+      limit.count++;
+    } else {
+      eventRateLimits.set(ip, { count: 1, resetAt: now + 60000 });
+    }
+  } else {
+    eventRateLimits.set(ip, { count: 1, resetAt: now + 60000 });
+  }
+
+  // Clean up old entries periodically
+  if (eventRateLimits.size > 1000) {
+    for (const [key, value] of eventRateLimits) {
+      if (now > value.resetAt) {
+        eventRateLimits.delete(key);
+      }
+    }
+  }
+
+  const body = req.body as any;
+
+  // Validation
+  if (!body || typeof body.event !== "string") {
+    return reply.code(400).send({ error: "Missing required field: event" });
+  }
+
+  if (body.event.length > 50) {
+    return reply.code(400).send({ error: "Event name too long (max 50 chars)" });
+  }
+
+  if (body.wallet && !isShortWallet(body.wallet)) {
+    return reply.code(400).send({ error: "Wallet must be in short format (0x1234...abcd)" });
+  }
+
+  if (body.chainId !== undefined && typeof body.chainId !== "number") {
+    return reply.code(400).send({ error: "chainId must be a number" });
+  }
+
+  if (body.meta) {
+    const metaStr = JSON.stringify(body.meta);
+    if (metaStr.length > 1024) {
+      return reply.code(400).send({ error: "meta too large (max 1KB)" });
+    }
+  }
+
+  // Log the event
+  const event: MetricEvent = {
+    ts: now,
+    event: body.event,
+    ...(body.wallet && { wallet: body.wallet }),
+    ...(body.chainId !== undefined && { chainId: body.chainId }),
+    ...(body.meta && { meta: body.meta }),
+  };
+
+  logEvent(event);
+
+  return { ok: true };
+});
+
+// GET /api/v1/metrics/summary - Get aggregated metrics
+app.get("/api/v1/metrics/summary", async (req) => {
+  const { hours = "24" } = req.query as any;
+  const hoursNum = Math.min(Math.max(1, Number(hours) || 24), 168); // 1-168 hours (1 week max)
+
+  return calculateSummary(hoursNum);
 });
 
 // Start server

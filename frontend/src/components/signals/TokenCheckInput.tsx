@@ -20,6 +20,7 @@ import { getTokenMeta } from '@/services/tokenMeta';
 import { type TokenMeta } from '@/stores/tokenMetaStore';
 import { QuickActions } from '@/components/signals/QuickActions';
 import { RiskScoreBreakdown } from '@/components/signals/RiskScoreBreakdown';
+import { trackWatchlistAddManual } from '@/services/metrics';
 
 // Supported chains
 const CHAINS = [
@@ -111,7 +112,15 @@ export function TokenCheckInput({ className = '' }: TokenCheckInputProps) {
         chainId: selectedChainId,
         address: tokenAddress,
       });
-      if (!success) {
+      if (success) {
+        // Track manual watchlist add
+        const walletAddress = useWalletStore.getState().address;
+        trackWatchlistAddManual(
+          walletAddress || undefined,
+          selectedChainId,
+          tokenMeta?.symbol
+        );
+      } else {
         setWatchlistError('Watchlist full (max 20 tokens)');
       }
     }
