@@ -247,6 +247,7 @@ export function TokenCheckInput({ className = '' }: TokenCheckInputProps) {
         {/* Token Address Input */}
         <input
           type="text"
+          data-token-input
           value={tokenAddress}
           onChange={(e) => setTokenAddress(e.target.value)}
           onKeyDown={handleKeyDown}

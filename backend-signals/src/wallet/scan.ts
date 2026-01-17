@@ -85,7 +85,14 @@ export interface WalletScanResult {
     tokensWithValue: number;
     filteredSpam: number;
     scanDurationMs: number;
+    // Expanded stats for Task 3
+    providerTransfers: number;
+    tokensDiscovered: number;
+    tokensWithBalance: number;
+    tokensPriced: number;
+    tokensMissingPrice: number;
   };
+  warnings: string[];
   cached: boolean;
   cacheAge?: number;
 }
@@ -181,17 +188,28 @@ async function getNativeBalance(
   }
 }
 
+interface TokenTransferResult {
+  tokens: Map<string, { symbol: string; name: string; decimals: number }>;
+  transferCount: number;
+  spamFiltered: number;
+  limitReached: boolean;
+}
+
 /**
  * Get token transfers to discover tokens
  */
 async function getTokenTransfers(
   chainId: number,
   address: string
-): Promise<Map<string, { symbol: string; name: string; decimals: number }>> {
+): Promise<TokenTransferResult> {
   const config = CHAIN_CONFIGS[chainId];
-  if (!config) return new Map();
+  if (!config) {
+    return { tokens: new Map(), transferCount: 0, spamFiltered: 0, limitReached: false };
+  }
 
   const tokens = new Map<string, { symbol: string; name: string; decimals: number }>();
+  let transferCount = 0;
+  let spamFiltered = 0;
 
   try {
     // Get token transfers (both incoming and outgoing)
@@ -200,15 +218,21 @@ async function getTokenTransfers(
     const data = await response.json();
 
     if (data.status !== '1' || !Array.isArray(data.result)) {
-      return tokens;
+      return { tokens, transferCount: 0, spamFiltered: 0, limitReached: false };
     }
+
+    transferCount = data.result.length;
+    const limitReached = transferCount >= 100;
 
     for (const tx of data.result) {
       const contractAddress = tx.contractAddress?.toLowerCase();
       if (!contractAddress || tokens.has(contractAddress)) continue;
 
       // Skip spam tokens
-      if (isSpamToken(tx.tokenName || '', tx.tokenSymbol || '')) continue;
+      if (isSpamToken(tx.tokenName || '', tx.tokenSymbol || '')) {
+        spamFiltered++;
+        continue;
+      }
 
       tokens.set(contractAddress, {
         symbol: tx.tokenSymbol || 'UNKNOWN',
@@ -216,11 +240,12 @@ async function getTokenTransfers(
         decimals: parseInt(tx.tokenDecimal || '18', 10),
       });
     }
+
+    return { tokens, transferCount, spamFiltered, limitReached };
   } catch (error) {
     console.error(`[WalletScan] Failed to get token transfers:`, error);
+    return { tokens, transferCount: 0, spamFiltered: 0, limitReached: false };
   }
-
-  return tokens;
 }
 
 /**
@@ -328,12 +353,25 @@ export async function scanWalletTokens(
     throw new Error(`Unsupported chain: ${chainId}`);
   }
 
+  const warnings: string[] = [];
+
   // 1. Get native balance
   const nativeBalance = await getNativeBalance(chainId, address);
 
   // 2. Discover tokens from transfer history
-  const discoveredTokens = await getTokenTransfers(chainId, address);
-  const spamFiltered = discoveredTokens.size;
+  const transferResult = await getTokenTransfers(chainId, address);
+  const { tokens: discoveredTokens, transferCount, spamFiltered, limitReached } = transferResult;
+
+  // Build warnings based on scan results
+  if (limitReached) {
+    warnings.push('Limited to last 100 transfers');
+  }
+  if (transferCount === 0) {
+    warnings.push('No ERC-20 transfers found');
+  }
+  if (spamFiltered > 0) {
+    warnings.push(`${spamFiltered} spam token${spamFiltered > 1 ? 's' : ''} filtered`);
+  }
 
   // 3. Get balances for discovered tokens (parallel, limited concurrency)
   const tokens: WalletToken[] = [];
@@ -402,6 +440,15 @@ export async function scanWalletTokens(
     return parseFloat(b.balanceFormatted) - parseFloat(a.balanceFormatted);
   });
 
+  // Calculate price stats
+  const tokensPriced = tokensWithValue.filter(t => t.usdPrice !== null).length;
+  const tokensMissingPrice = tokensWithValue.filter(t => t.usdPrice === null).length;
+
+  // Add warning if many prices missing
+  if (tokensMissingPrice > 0 && tokens.length > 0) {
+    warnings.push(`Price unavailable for ${tokensMissingPrice} token${tokensMissingPrice > 1 ? 's' : ''}`);
+  }
+
   const result: WalletScanResult = {
     address: address.toLowerCase(),
     chainId,
@@ -420,9 +467,16 @@ export async function scanWalletTokens(
     stats: {
       totalTokens: discoveredTokens.size,
       tokensWithValue: tokensWithValue.length,
-      filteredSpam: spamFiltered - discoveredTokens.size,
+      filteredSpam: spamFiltered,
       scanDurationMs: Date.now() - startTime,
+      // Expanded stats
+      providerTransfers: transferCount,
+      tokensDiscovered: discoveredTokens.size,
+      tokensWithBalance: tokens.length,
+      tokensPriced,
+      tokensMissingPrice,
     },
+    warnings,
     cached: false,
   };
 

@@ -16,6 +16,15 @@ import {
 
 const API_BASE = import.meta.env.VITE_SIGNALS_API_URL || 'http://207.180.212.142:4001';
 
+// Chain name mapping for display
+const CHAIN_NAMES: Record<number, string> = {
+  1: 'Ethereum',
+  56: 'BNB Chain',
+  137: 'Polygon',
+  42161: 'Arbitrum',
+  8453: 'Base',
+};
+
 // Minimum USD value filter options
 const MIN_USD_OPTIONS = [
   { value: 0.01, label: '$0.01' },
@@ -46,7 +55,14 @@ interface ScanResult {
     tokensWithValue: number;
     filteredSpam: number;
     scanDurationMs: number;
+    // Expanded stats from backend
+    providerTransfers: number;
+    tokensDiscovered: number;
+    tokensWithBalance: number;
+    tokensPriced: number;
+    tokensMissingPrice: number;
   };
+  warnings: string[];
   cached: boolean;
   cacheAge?: number;
 }
@@ -67,7 +83,9 @@ export function WalletScan({ className = '' }: WalletScanProps) {
   const [error, setError] = useState<string | null>(null);
   const [selectedTokens, setSelectedTokens] = useState<Set<string>>(new Set());
   const [minUsdFilter, setMinUsdFilter] = useState(1);
+  const [showDetails, setShowDetails] = useState(false);
   const scanStartTime = useRef<number>(0);
+  const scanInProgress = useRef<boolean>(false);
 
   // Filter tokens based on minUsd and not already in watchlist
   const availableTokens = useMemo(() => {
@@ -102,6 +120,10 @@ export function WalletScan({ className = '' }: WalletScanProps) {
   const handleScan = async () => {
     if (!isConnected || !walletAddress) return;
 
+    // Prevent double-scan
+    if (scanInProgress.current) return;
+    scanInProgress.current = true;
+
     // Track scan started
     scanStartTime.current = Date.now();
     trackWalletScanStarted(walletAddress, chainId);
@@ -134,12 +156,13 @@ export function WalletScan({ className = '' }: WalletScanProps) {
       }).length;
       const finalTokens = result.tokens.length - alreadyWatched - belowMin;
 
-      // Track scan completed
+      // Track scan completed with expanded stats
       trackWalletScanCompleted(walletAddress, chainId, {
-        providerTokens: result.stats.totalTokens,
+        providerTokens: result.stats.providerTransfers || result.stats.totalTokens,
         finalTokens,
         belowMin,
         alreadyWatched,
+        filteredSpam: result.stats.filteredSpam,
         durationMs,
       });
     } catch (err) {
@@ -156,6 +179,7 @@ export function WalletScan({ className = '' }: WalletScanProps) {
       });
     } finally {
       setScanning(false);
+      scanInProgress.current = false;
     }
   };
 
@@ -219,13 +243,6 @@ export function WalletScan({ className = '' }: WalletScanProps) {
     handleScan();
   };
 
-  const handleLowerMinFilter = () => {
-    const currentIndex = MIN_USD_OPTIONS.findIndex((o) => o.value === minUsdFilter);
-    if (currentIndex > 0) {
-      setMinUsdFilter(MIN_USD_OPTIONS[currentIndex - 1].value);
-    }
-  };
-
   const slotsAvailable = 20 - tokensCount;
   const canAddMore = slotsAvailable > 0;
 
@@ -267,23 +284,87 @@ export function WalletScan({ className = '' }: WalletScanProps) {
           <span>Connect your wallet to scan</span>
         </div>
       ) : scanning ? (
-        /* Scanning */
-        <div className="flex flex-col items-center justify-center gap-2 py-6">
-          <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
-          <span className="text-dark-300 text-xs">Scanning wallet...</span>
-          <span className="text-dark-500 text-[10px]">This may take a few seconds</span>
+        /* Scanning - Skeleton Loading */
+        <div className="space-y-3 py-2">
+          <div className="flex items-center justify-between mb-2">
+            <div className="h-3 w-24 bg-dark-700 rounded animate-pulse" />
+            <div className="h-3 w-12 bg-dark-700 rounded animate-pulse" />
+          </div>
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="flex items-center gap-3 p-2 bg-dark-700/50 rounded-lg">
+              <div className="w-4 h-4 bg-dark-600 rounded animate-pulse" />
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="h-4 w-16 bg-dark-600 rounded animate-pulse" />
+                  <div className="h-3 w-24 bg-dark-700 rounded animate-pulse" />
+                </div>
+                <div className="h-3 w-20 bg-dark-700 rounded animate-pulse" />
+              </div>
+            </div>
+          ))}
+          <div className="text-center pt-2">
+            <span className="text-dark-400 text-xs">Scanning {CHAIN_NAMES[chainId] || 'chain'}...</span>
+          </div>
         </div>
       ) : scanResult ? (
         /* Scan Results */
         <div>
           {/* Stats Bar */}
-          <div className="flex items-center justify-between mb-3 text-[10px] text-dark-500">
+          <div className="flex items-center justify-between mb-2 text-[10px] text-dark-500">
             <span>
               Found {scanResult.tokens.length} tokens
               {scanResult.cached && ` (cached ${scanResult.cacheAge}s ago)`}
             </span>
-            <span>{scanResult.stats.scanDurationMs}ms</span>
+            <button
+              onClick={() => setShowDetails(!showDetails)}
+              className="text-dark-500 hover:text-dark-400 transition-colors"
+            >
+              {showDetails ? '▼' : '▶'} Details
+            </button>
           </div>
+
+          {/* Scan Details (collapsed by default) */}
+          {showDetails && (
+            <div className="mb-3 p-2 bg-dark-700/30 rounded-lg text-[10px] space-y-1">
+              <div className="flex justify-between text-dark-400">
+                <span>Transfers scanned:</span>
+                <span className="text-dark-300">{scanResult.stats.providerTransfers || 0}</span>
+              </div>
+              <div className="flex justify-between text-dark-400">
+                <span>Tokens discovered:</span>
+                <span className="text-dark-300">{scanResult.stats.tokensDiscovered || 0}</span>
+              </div>
+              <div className="flex justify-between text-dark-400">
+                <span>With balance:</span>
+                <span className="text-dark-300">{scanResult.stats.tokensWithBalance || 0}</span>
+              </div>
+              <div className="flex justify-between text-dark-400">
+                <span>Priced:</span>
+                <span className="text-dark-300">{scanResult.stats.tokensPriced || 0}</span>
+              </div>
+              {scanResult.stats.filteredSpam > 0 && (
+                <div className="flex justify-between text-dark-400">
+                  <span>Spam filtered:</span>
+                  <span className="text-yellow-500">{scanResult.stats.filteredSpam}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-dark-400">
+                <span>Scan time:</span>
+                <span className="text-dark-300">{scanResult.stats.scanDurationMs}ms</span>
+              </div>
+              {/* Warnings */}
+              {scanResult.warnings && scanResult.warnings.length > 0 && (
+                <div className="pt-1 mt-1 border-t border-dark-600/50">
+                  {scanResult.warnings.map((warning, i) => (
+                    <div key={i} className="text-yellow-500/80 flex items-center gap-1">
+                      <span>⚠</span>
+                      <span>{warning}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Filter Bar */}
           <div className="flex items-center gap-2 mb-3">
@@ -354,29 +435,69 @@ export function WalletScan({ className = '' }: WalletScanProps) {
               ))}
             </div>
           ) : (
-            /* Empty State */
-            <div className="py-4 text-center">
-              <div className="text-dark-500 text-sm mb-2">No tokens to add</div>
-              <div className="text-[10px] text-dark-600 space-y-1">
-                {alreadyWatchedCount > 0 && (
-                  <div>
-                    {alreadyWatchedCount} already in watchlist
+            /* Empty State - Enhanced UX */
+            <div className="py-4">
+              <div className="text-center mb-4">
+                <div className="text-dark-400 text-sm mb-1">No tokens to add</div>
+                {scanResult.tokens.length > 0 && (
+                  <div className="text-[10px] text-dark-500">
+                    {alreadyWatchedCount > 0 && `${alreadyWatchedCount} already watched`}
+                    {alreadyWatchedCount > 0 && belowMinCount > 0 && ' · '}
+                    {belowMinCount > 0 && `${belowMinCount} below $${minUsdFilter}`}
                   </div>
                 )}
+              </div>
+
+              {/* Smart Actions */}
+              <div className="space-y-2">
+                {/* Lower min value quick buttons */}
                 {belowMinCount > 0 && (
-                  <div className="flex items-center justify-center gap-2">
-                    <span>{belowMinCount} below ${minUsdFilter} filter</span>
-                    <button
-                      onClick={handleLowerMinFilter}
-                      className="text-primary-400 hover:text-primary-300"
-                    >
-                      Lower filter ↓
-                    </button>
+                  <div className="p-3 bg-dark-700/30 rounded-lg">
+                    <div className="text-[10px] text-dark-400 mb-2">Show smaller holdings:</div>
+                    <div className="flex gap-1.5">
+                      {MIN_USD_OPTIONS.filter(o => o.value < minUsdFilter).map((opt) => (
+                        <button
+                          key={opt.value}
+                          onClick={() => setMinUsdFilter(opt.value)}
+                          className="flex-1 px-2 py-1.5 bg-dark-600 hover:bg-dark-500 text-dark-300 text-[10px] rounded transition-colors"
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => setMinUsdFilter(0.01)}
+                        className="flex-1 px-2 py-1.5 bg-primary-600/20 hover:bg-primary-600/30 text-primary-400 text-[10px] rounded border border-primary-600/30 transition-colors"
+                      >
+                        All
+                      </button>
+                    </div>
                   </div>
                 )}
+
+                {/* No transfers hint */}
                 {scanResult.tokens.length === 0 && (
-                  <div>No token transfers found in recent history</div>
+                  <div className="p-3 bg-dark-700/30 rounded-lg text-center">
+                    <div className="text-dark-400 text-xs mb-1">No token history on {CHAIN_NAMES[chainId] || 'this chain'}</div>
+                    <div className="text-[10px] text-dark-500">
+                      Try a different chain or add tokens manually
+                    </div>
+                  </div>
                 )}
+
+                {/* Add manually CTA */}
+                <button
+                  onClick={() => {
+                    // Scroll to token check input
+                    const tokenInput = document.querySelector('[data-token-input]');
+                    if (tokenInput) {
+                      tokenInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      (tokenInput as HTMLInputElement).focus();
+                    }
+                  }}
+                  className="w-full py-2 bg-dark-700/50 hover:bg-dark-700 text-dark-300 text-xs rounded-lg border border-dark-600/50 transition-colors"
+                >
+                  + Add token manually
+                </button>
               </div>
             </div>
           )}
