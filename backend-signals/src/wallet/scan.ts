@@ -1,9 +1,17 @@
 /**
  * Wallet Token Scanner
  *
- * Discovers tokens in a wallet using block explorer APIs (BscScan, Etherscan).
- * Returns list of tokens with balances and USD values.
+ * Discovers tokens in a wallet using:
+ * - Primary: Covalent API (reliable, includes USD prices)
+ * - Fallback: Block explorer APIs (BscScan, Etherscan)
+ *
+ * Environment variables:
+ * - COVALENT_API_KEY: API key for Covalent (primary provider)
+ * - WALLET_SCAN_PROVIDER: Force provider (covalent|explorer), default auto
+ * - WALLET_SCAN_CACHE_TTL_SEC: Cache TTL in seconds (default 300)
  */
+
+import { scanWithCovalent, isCovalentConfigured } from './covalent.js';
 
 // Chain configurations
 const CHAIN_CONFIGS: Record<number, {
@@ -85,16 +93,19 @@ export interface WalletScanResult {
     tokensWithValue: number;
     filteredSpam: number;
     scanDurationMs: number;
-    // Expanded stats for Task 3
+    // Expanded stats
     providerTransfers: number;
     tokensDiscovered: number;
     tokensWithBalance: number;
     tokensPriced: number;
     tokensMissingPrice: number;
   };
+  provider: 'covalent' | 'explorer';
   warnings: string[];
   cached: boolean;
   cacheAge?: number;
+  fetchedAt?: number;
+  minValueUsd?: number;
 }
 
 // Simple in-memory cache (5 minute TTL)
@@ -328,7 +339,17 @@ async function getTokenPrices(
 }
 
 /**
+ * Shorten wallet address for logging (privacy)
+ */
+function shortWallet(address: string): string {
+  if (!address || address.length < 10) return address;
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+/**
  * Scan wallet for all tokens
+ *
+ * Uses Covalent as primary provider, falls back to explorer APIs.
  */
 export async function scanWalletTokens(
   address: string,
@@ -336,11 +357,12 @@ export async function scanWalletTokens(
   minUsdValue = 0.01
 ): Promise<WalletScanResult> {
   const startTime = Date.now();
-  const cacheKey = `${chainId}:${address.toLowerCase()}`;
+  const cacheKey = `${chainId}:${address.toLowerCase()}:${minUsdValue}`;
 
   // Check cache
   const cached = scanCache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+  const cacheTtl = parseInt(process.env.WALLET_SCAN_CACHE_TTL_SEC || '300', 10) * 1000;
+  if (cached && Date.now() - cached.timestamp < cacheTtl) {
     return {
       ...cached.result,
       cached: true,
@@ -353,7 +375,75 @@ export async function scanWalletTokens(
     throw new Error(`Unsupported chain: ${chainId}`);
   }
 
+  // Determine provider to use
+  const forceProvider = process.env.WALLET_SCAN_PROVIDER?.toLowerCase();
+
+  // Try Covalent first (unless forced to use explorer)
+  if (forceProvider !== 'explorer' && isCovalentConfigured()) {
+    const covalentResult = await scanWithCovalent(address, chainId, minUsdValue);
+
+    if (covalentResult.success && covalentResult.result) {
+      const result = {
+        ...covalentResult.result,
+        provider: 'covalent' as const,
+        fetchedAt: Date.now(),
+        minValueUsd: minUsdValue,
+      };
+
+      // Cache the result
+      scanCache.set(cacheKey, { result, timestamp: Date.now() });
+      return result;
+    }
+
+    // If Covalent failed but we're not forced to use it, fall back to explorer
+    if (forceProvider === 'covalent') {
+      // Return error result with warning
+      const errorResult: WalletScanResult = {
+        address: address.toLowerCase(),
+        chainId,
+        chainName: config.name,
+        tokens: [],
+        nativeBalance: {
+          address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+          symbol: config.nativeSymbol,
+          name: config.nativeSymbol,
+          decimals: config.nativeDecimals,
+          balance: '0',
+          balanceFormatted: '0',
+          usdValue: null,
+          usdPrice: null,
+        },
+        stats: {
+          totalTokens: 0,
+          tokensWithValue: 0,
+          filteredSpam: 0,
+          scanDurationMs: Date.now() - startTime,
+          providerTransfers: 0,
+          tokensDiscovered: 0,
+          tokensWithBalance: 0,
+          tokensPriced: 0,
+          tokensMissingPrice: 0,
+        },
+        provider: 'covalent',
+        warnings: [covalentResult.warning || covalentResult.error || 'Provider error'],
+        cached: false,
+        fetchedAt: Date.now(),
+        minValueUsd: minUsdValue,
+      };
+      return errorResult;
+    }
+
+    // Log fallback
+    console.log(`[WalletScan] Covalent failed (${covalentResult.error}), falling back to explorer for wallet=${shortWallet(address)}`);
+  }
+
+  // Fallback to explorer-based scanning
   const warnings: string[] = [];
+
+  // Add warning if falling back from Covalent
+  if (isCovalentConfigured()) {
+    warnings.push('fell_back_to_explorer');
+  }
 
   // 1. Get native balance
   const nativeBalance = await getNativeBalance(chainId, address);
@@ -449,6 +539,15 @@ export async function scanWalletTokens(
     warnings.push(`Price unavailable for ${tokensMissingPrice} token${tokensMissingPrice > 1 ? 's' : ''}`);
   }
 
+  const durationMs = Date.now() - startTime;
+
+  // Log completion (structured, single line, privacy-safe)
+  console.log(
+    `[WalletScan] COMPLETE chain=${chainId} wallet=${shortWallet(address)} ` +
+    `provider=explorer raw=${transferCount} spam=${spamFiltered} ` +
+    `final=${tokensWithValue.length} priced=${tokensPriced} missingPrice=${tokensMissingPrice} ms=${durationMs}`
+  );
+
   const result: WalletScanResult = {
     address: address.toLowerCase(),
     chainId,
@@ -468,7 +567,7 @@ export async function scanWalletTokens(
       totalTokens: discoveredTokens.size,
       tokensWithValue: tokensWithValue.length,
       filteredSpam: spamFiltered,
-      scanDurationMs: Date.now() - startTime,
+      scanDurationMs: durationMs,
       // Expanded stats
       providerTransfers: transferCount,
       tokensDiscovered: discoveredTokens.size,
@@ -476,8 +575,11 @@ export async function scanWalletTokens(
       tokensPriced,
       tokensMissingPrice,
     },
+    provider: 'explorer',
     warnings,
     cached: false,
+    fetchedAt: Date.now(),
+    minValueUsd: minUsdValue,
   };
 
   // Cache the result

@@ -62,9 +62,37 @@ interface ScanResult {
     tokensPriced: number;
     tokensMissingPrice: number;
   };
+  provider?: 'covalent' | 'explorer';
   warnings: string[];
   cached: boolean;
   cacheAge?: number;
+}
+
+// Provider error detection helpers
+const PROVIDER_ERRORS = ['provider_not_configured', 'provider_denied', 'provider_timeout', 'provider_error'];
+
+function hasProviderError(warnings: string[]): boolean {
+  return warnings.some(w => PROVIDER_ERRORS.some(e => w.toLowerCase().includes(e.replace('_', ' ')) || w.toLowerCase().includes(e)));
+}
+
+function getProviderErrorMessage(warnings: string[]): string | null {
+  const providerWarning = warnings.find(w =>
+    w.toLowerCase().includes('provider') ||
+    w.toLowerCase().includes('covalent') ||
+    w.toLowerCase().includes('configured')
+  );
+  if (!providerWarning) return null;
+
+  if (providerWarning.toLowerCase().includes('not configured')) {
+    return 'Wallet scan provider is not configured. Try again later or add tokens manually.';
+  }
+  if (providerWarning.toLowerCase().includes('denied') || providerWarning.toLowerCase().includes('rate limit')) {
+    return 'Scan temporarily unavailable. Your wallet is safe; no transactions were made.';
+  }
+  if (providerWarning.toLowerCase().includes('timeout')) {
+    return 'Scan timed out. Please try again in a moment.';
+  }
+  return 'Scan temporarily unavailable. Try again later or add tokens manually.';
 }
 
 interface WalletScanProps {
@@ -309,10 +337,23 @@ export function WalletScan({ className = '' }: WalletScanProps) {
       ) : scanResult ? (
         /* Scan Results */
         <div>
+          {/* Provider Error Banner */}
+          {hasProviderError(scanResult.warnings) && (
+            <div className="mb-3 px-3 py-2 bg-yellow-900/20 border border-yellow-700/30 rounded-lg">
+              <div className="text-xs text-yellow-400 mb-1">
+                {getProviderErrorMessage(scanResult.warnings)}
+              </div>
+              <div className="text-[10px] text-dark-500">
+                Your wallet is safe - no transactions were made.
+              </div>
+            </div>
+          )}
+
           {/* Stats Bar */}
           <div className="flex items-center justify-between mb-2 text-[10px] text-dark-500">
             <span>
               Found {scanResult.tokens.length} tokens
+              {scanResult.provider && ` via ${scanResult.provider}`}
               {scanResult.cached && ` (cached ${scanResult.cacheAge}s ago)`}
             </span>
             <button
@@ -327,7 +368,11 @@ export function WalletScan({ className = '' }: WalletScanProps) {
           {showDetails && (
             <div className="mb-3 p-2 bg-dark-700/30 rounded-lg text-[10px] space-y-1">
               <div className="flex justify-between text-dark-400">
-                <span>Transfers scanned:</span>
+                <span>Provider:</span>
+                <span className="text-dark-300">{scanResult.provider || 'explorer'}</span>
+              </div>
+              <div className="flex justify-between text-dark-400">
+                <span>Tokens scanned:</span>
                 <span className="text-dark-300">{scanResult.stats.providerTransfers || 0}</span>
               </div>
               <div className="flex justify-between text-dark-400">
