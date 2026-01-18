@@ -28,3 +28,22 @@ export {
   type UnsignedSwapTx,
   type ApprovalTx,
 } from './uniswapTxBuilder';
+
+// Wallet Scan Service (READ-ONLY)
+export {
+  scanWallet,
+  trackAddSelected,
+  getSupportedChains,
+  formatUsd,
+  formatPercent,
+  getPercentColor,
+  shortAddress,
+  CHAIN_INFO,
+  type DiscoveredToken,
+  type NativeBalance,
+  type ScanStats,
+  type ScanInsights,
+  type WalletScanResponse,
+  type ScanOptions,
+  type ChainsResponse,
+} from './walletScanService';
