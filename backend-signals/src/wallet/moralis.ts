@@ -150,6 +150,8 @@ export async function scanWithMoralis(
     // 1. Get ERC20 token balances with prices
     const tokenUrl = `https://deep-index.moralis.io/api/v2.2/${address}/erc20?chain=${moralisChain}`;
 
+    console.log(`[Moralis] Fetching tokens for wallet=${shortWallet(address)} chain=${chainId} keyLen=${apiKey.length}`);
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
 
@@ -165,6 +167,8 @@ export async function scanWithMoralis(
     } finally {
       clearTimeout(timeoutId);
     }
+
+    console.log(`[Moralis] Response status=${tokenResponse.status} for wallet=${shortWallet(address)}`);
 
     // Handle API errors
     if (tokenResponse.status === 401) {
