@@ -32,65 +32,64 @@ function getExplorerApiKey(chainId: number): string {
   return keys[chainId] || '';
 }
 
-// Chain configurations - Using Etherscan V2 API
+// Chain configurations - Using chain-specific APIs
 const CHAIN_CONFIGS: Record<number, {
   name: string;
-  chainId: number;
+  apiUrl: string;
   nativeSymbol: string;
   nativeDecimals: number;
   explorerUrl: string;
 }> = {
   1: {
     name: 'Ethereum',
-    chainId: 1,
+    apiUrl: 'https://api.etherscan.io/api',
     nativeSymbol: 'ETH',
     nativeDecimals: 18,
     explorerUrl: 'https://etherscan.io',
   },
   56: {
     name: 'BNB Chain',
-    chainId: 56,
+    apiUrl: 'https://api.bscscan.com/api',
     nativeSymbol: 'BNB',
     nativeDecimals: 18,
     explorerUrl: 'https://bscscan.com',
   },
   137: {
     name: 'Polygon',
-    chainId: 137,
+    apiUrl: 'https://api.polygonscan.com/api',
     nativeSymbol: 'MATIC',
     nativeDecimals: 18,
     explorerUrl: 'https://polygonscan.com',
   },
   42161: {
     name: 'Arbitrum',
-    chainId: 42161,
+    apiUrl: 'https://api.arbiscan.io/api',
     nativeSymbol: 'ETH',
     nativeDecimals: 18,
     explorerUrl: 'https://arbiscan.io',
   },
   8453: {
     name: 'Base',
-    chainId: 8453,
+    apiUrl: 'https://api.basescan.org/api',
     nativeSymbol: 'ETH',
     nativeDecimals: 18,
     explorerUrl: 'https://basescan.org',
   },
 };
 
-// Etherscan V2 API base URL (works for all chains)
-const ETHERSCAN_V2_API = 'https://api.etherscan.io/v2/api';
-
 /**
- * Build Etherscan V2 API URL
+ * Build explorer API URL with optional API key
  */
 function buildExplorerUrl(chainId: number, params: Record<string, string>): string {
+  const config = CHAIN_CONFIGS[chainId];
+  if (!config) return '';
+
   const apiKey = getExplorerApiKey(chainId);
   const queryParams = new URLSearchParams({
-    chainid: chainId.toString(),
     ...params,
     ...(apiKey ? { apikey: apiKey } : {}),
   });
-  return `${ETHERSCAN_V2_API}?${queryParams.toString()}`;
+  return `${config.apiUrl}?${queryParams.toString()}`;
 }
 
 // Known spam/scam token patterns
