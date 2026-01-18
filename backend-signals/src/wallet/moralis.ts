@@ -182,6 +182,16 @@ export async function scanWithMoralis(
     if (tokenResponse.status === 400) {
       const errorBody = await tokenResponse.text();
       console.error(`[Moralis] Bad request: ${errorBody}`);
+
+      // Check for 10k token limit (wallet has too much spam)
+      if (errorBody.includes('over 10000 tokens')) {
+        return {
+          success: false,
+          error: 'wallet_too_large',
+          warning: 'Wallet has over 10,000 tokens (likely spam). Using fallback.',
+        };
+      }
+
       return {
         success: false,
         error: 'provider_error',
