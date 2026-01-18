@@ -2,21 +2,19 @@
  * Wallet Token Scanner
  *
  * Discovers tokens in a wallet using:
- * - Primary: 1inch API (free, no key required)
+ * - Primary: Moralis API (reliable, 40k free requests/month)
+ * - Fallback: 1inch API (free, no key required)
  * - Fallback: Covalent API (if configured)
- * - Fallback: Block explorer APIs (BscScan, Etherscan)
+ * - Fallback: Block explorer APIs (deprecated, may not work)
  *
  * Environment variables:
+ * - MORALIS_API_KEY: API key for Moralis (primary provider)
  * - COVALENT_API_KEY: API key for Covalent (optional fallback)
- * - WALLET_SCAN_PROVIDER: Force provider (1inch|covalent|explorer), default auto
+ * - WALLET_SCAN_PROVIDER: Force provider (moralis|1inch|covalent|explorer), default auto
  * - WALLET_SCAN_CACHE_TTL_SEC: Cache TTL in seconds (default 300)
- * - BSCSCAN_API_KEY: Free API key from bscscan.com
- * - ETHERSCAN_API_KEY: Free API key from etherscan.io
- * - POLYGONSCAN_API_KEY: Free API key from polygonscan.com
- * - ARBISCAN_API_KEY: Free API key from arbiscan.io
- * - BASESCAN_API_KEY: Free API key from basescan.org
  */
 
+import { scanWithMoralis, isMoralisConfigured } from './moralis.js';
 import { scanWithOneInch, isOneInchAvailable } from './oneinch.js';
 import { scanWithCovalent, isCovalentConfigured } from './covalent.js';
 
@@ -134,7 +132,7 @@ export interface WalletScanResult {
     tokensPriced: number;
     tokensMissingPrice: number;
   };
-  provider: '1inch' | 'covalent' | 'explorer';
+  provider: 'moralis' | '1inch' | 'covalent' | 'explorer';
   warnings: string[];
   cached: boolean;
   cacheAge?: number;
@@ -430,8 +428,66 @@ export async function scanWalletTokens(
   // Determine provider to use
   const forceProvider = process.env.WALLET_SCAN_PROVIDER?.toLowerCase();
 
-  // Try 1inch first (free, no API key needed)
-  if (forceProvider !== 'covalent' && forceProvider !== 'explorer' && isOneInchAvailable()) {
+  // Try Moralis first (reliable, has API key)
+  if (forceProvider !== '1inch' && forceProvider !== 'covalent' && forceProvider !== 'explorer' && isMoralisConfigured()) {
+    const moralisResult = await scanWithMoralis(address, chainId, minUsdValue);
+
+    if (moralisResult.success && moralisResult.result) {
+      const result = {
+        ...moralisResult.result,
+        provider: 'moralis' as const,
+        fetchedAt: Date.now(),
+        minValueUsd: minUsdValue,
+      };
+
+      // Cache the result
+      scanCache.set(cacheKey, { result, timestamp: Date.now() });
+      return result;
+    }
+
+    // If Moralis failed and forced, return error
+    if (forceProvider === 'moralis') {
+      const errorResult: WalletScanResult = {
+        address: address.toLowerCase(),
+        chainId,
+        chainName: config.name,
+        tokens: [],
+        nativeBalance: {
+          address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+          symbol: config.nativeSymbol,
+          name: config.nativeSymbol,
+          decimals: config.nativeDecimals,
+          balance: '0',
+          balanceFormatted: '0',
+          usdValue: null,
+          usdPrice: null,
+        },
+        stats: {
+          totalTokens: 0,
+          tokensWithValue: 0,
+          filteredSpam: 0,
+          scanDurationMs: Date.now() - startTime,
+          providerTransfers: 0,
+          tokensDiscovered: 0,
+          tokensWithBalance: 0,
+          tokensPriced: 0,
+          tokensMissingPrice: 0,
+        },
+        provider: 'moralis',
+        warnings: [moralisResult.warning || moralisResult.error || 'Provider error'],
+        cached: false,
+        fetchedAt: Date.now(),
+        minValueUsd: minUsdValue,
+      };
+      return errorResult;
+    }
+
+    // Log and try next provider
+    console.log(`[WalletScan] Moralis failed (${moralisResult.error}), trying 1inch for wallet=${shortWallet(address)}`);
+  }
+
+  // Try 1inch next (free, no API key needed)
+  if (forceProvider !== 'moralis' && forceProvider !== 'covalent' && forceProvider !== 'explorer' && isOneInchAvailable()) {
     const oneInchResult = await scanWithOneInch(address, chainId, minUsdValue);
 
     if (oneInchResult.success && oneInchResult.result) {

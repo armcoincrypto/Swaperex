@@ -2,8 +2,8 @@
  * Wallet Module
  *
  * Token discovery and scanning for connected wallets.
- * Primary provider: 1inch (free, no key needed)
- * Fallback: Covalent (if configured), then block explorer APIs
+ * Primary provider: Moralis (reliable, 40k free/month)
+ * Fallback: 1inch, Covalent, then block explorer APIs
  */
 
 export {
@@ -13,6 +13,11 @@ export {
   type WalletToken,
   type WalletScanResult,
 } from './scan.js';
+
+export {
+  isMoralisConfigured,
+  getMoralisSupportedChains,
+} from './moralis.js';
 
 export {
   isOneInchAvailable,

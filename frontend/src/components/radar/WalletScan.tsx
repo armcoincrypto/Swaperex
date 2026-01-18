@@ -62,7 +62,7 @@ interface ScanResult {
     tokensPriced: number;
     tokensMissingPrice: number;
   };
-  provider?: '1inch' | 'covalent' | 'explorer';
+  provider?: 'moralis' | '1inch' | 'covalent' | 'explorer';
   warnings: string[];
   cached: boolean;
   cacheAge?: number;
