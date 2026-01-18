@@ -1,9 +1,15 @@
+import { config } from "dotenv";
+import { resolve } from "path";
+
+// Load environment variables from project root .env
+config({ path: resolve(process.cwd(), "../.env") });
+
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import { getSignals } from "./api.js";
 import { logEvent, isShortWallet, calculateSummary, type MetricEvent } from "./metrics/index.js";
-import { scanWalletTokens, isChainSupported, getSupportedChains } from "./wallet/index.js";
+import { scanWalletTokens, isChainSupported, getSupportedChains, isMoralisConfigured } from "./wallet/index.js";
 
 // Configuration
 const PORT = Number(process.env.PORT) || 4001;
@@ -253,12 +259,14 @@ app.get("/api/v1/wallet/chains", async () => {
 // Start server
 try {
   await app.listen({ port: PORT, host: "0.0.0.0" });
+  const moralisStatus = isMoralisConfigured() ? "CONFIGURED" : "NOT SET";
   console.log(`
 ╔════════════════════════════════════════════╗
 ║  Signals Backend v${VERSION}                   ║
 ║  Port: ${PORT}                                ║
 ║  Signals: ${SIGNALS_ENABLED ? "ENABLED" : "DISABLED"}                        ║
 ║  CORS: ${ALLOWED_ORIGINS.length} origins                       ║
+║  Moralis: ${moralisStatus.padEnd(11)}                     ║
 ╚════════════════════════════════════════════╝
   `);
 } catch (err) {

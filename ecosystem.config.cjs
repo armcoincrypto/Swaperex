@@ -30,7 +30,10 @@ module.exports = {
       cwd: "/root/Swaperex/backend-signals",
       script: "dist/index.js",
       env: {
-        NODE_ENV: "production"
+        NODE_ENV: "production",
+        // Wallet scan providers (add your API keys here)
+        MORALIS_API_KEY: process.env.MORALIS_API_KEY || "",
+        BSCSCAN_API_KEY: "NPWEJZE25Y1BZXD6S9S1P3EIGE6131I9BS",
       },
       // Restart policy
       max_restarts: 10,
