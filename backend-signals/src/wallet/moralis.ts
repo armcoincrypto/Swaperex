@@ -179,6 +179,16 @@ export async function scanWithMoralis(
       };
     }
 
+    if (tokenResponse.status === 400) {
+      const errorBody = await tokenResponse.text();
+      console.error(`[Moralis] Bad request: ${errorBody}`);
+      return {
+        success: false,
+        error: 'provider_error',
+        warning: `Moralis bad request: ${errorBody.slice(0, 100)}`,
+      };
+    }
+
     if (tokenResponse.status === 429) {
       return {
         success: false,
