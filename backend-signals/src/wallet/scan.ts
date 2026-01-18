@@ -32,50 +32,66 @@ function getExplorerApiKey(chainId: number): string {
   return keys[chainId] || '';
 }
 
-// Chain configurations
+// Chain configurations - Using Etherscan V2 API
 const CHAIN_CONFIGS: Record<number, {
   name: string;
-  apiUrl: string;
+  chainId: number;
   nativeSymbol: string;
   nativeDecimals: number;
   explorerUrl: string;
 }> = {
   1: {
     name: 'Ethereum',
-    apiUrl: 'https://api.etherscan.io/api',
+    chainId: 1,
     nativeSymbol: 'ETH',
     nativeDecimals: 18,
     explorerUrl: 'https://etherscan.io',
   },
   56: {
     name: 'BNB Chain',
-    apiUrl: 'https://api.bscscan.com/api',
+    chainId: 56,
     nativeSymbol: 'BNB',
     nativeDecimals: 18,
     explorerUrl: 'https://bscscan.com',
   },
   137: {
     name: 'Polygon',
-    apiUrl: 'https://api.polygonscan.com/api',
+    chainId: 137,
     nativeSymbol: 'MATIC',
     nativeDecimals: 18,
     explorerUrl: 'https://polygonscan.com',
   },
   42161: {
     name: 'Arbitrum',
-    apiUrl: 'https://api.arbiscan.io/api',
+    chainId: 42161,
     nativeSymbol: 'ETH',
     nativeDecimals: 18,
     explorerUrl: 'https://arbiscan.io',
   },
   8453: {
     name: 'Base',
-    apiUrl: 'https://api.basescan.org/api',
+    chainId: 8453,
     nativeSymbol: 'ETH',
     nativeDecimals: 18,
     explorerUrl: 'https://basescan.org',
   },
 };
+
+// Etherscan V2 API base URL (works for all chains)
+const ETHERSCAN_V2_API = 'https://api.etherscan.io/v2/api';
+
+/**
+ * Build Etherscan V2 API URL
+ */
+function buildExplorerUrl(chainId: number, params: Record<string, string>): string {
+  const apiKey = getExplorerApiKey(chainId);
+  const queryParams = new URLSearchParams({
+    chainid: chainId.toString(),
+    ...params,
+    ...(apiKey ? { apikey: apiKey } : {}),
+  });
+  return `${ETHERSCAN_V2_API}?${queryParams.toString()}`;
+}
 
 // Known spam/scam token patterns
 const SPAM_PATTERNS = [
@@ -190,13 +206,17 @@ async function getNativeBalance(
   if (!config) return null;
 
   try {
-    const apiKey = getExplorerApiKey(chainId);
-    const url = `${config.apiUrl}?module=account&action=balance&address=${address}&tag=latest${apiKey ? `&apikey=${apiKey}` : ''}`;
+    const url = buildExplorerUrl(chainId, {
+      module: 'account',
+      action: 'balance',
+      address: address,
+      tag: 'latest',
+    });
     const response = await fetchWithTimeout(url);
     const data = await response.json();
 
     if (data.status !== '1') {
-      console.warn(`[WalletScan] Native balance error:`, data.message, apiKey ? '(with key)' : '(no key)');
+      console.warn(`[WalletScan] Native balance error:`, data.message);
       return null;
     }
 
@@ -244,8 +264,14 @@ async function getTokenTransfers(
 
   try {
     // Get token transfers (both incoming and outgoing)
-    const apiKey = getExplorerApiKey(chainId);
-    const url = `${config.apiUrl}?module=account&action=tokentx&address=${address}&page=1&offset=100&sort=desc${apiKey ? `&apikey=${apiKey}` : ''}`;
+    const url = buildExplorerUrl(chainId, {
+      module: 'account',
+      action: 'tokentx',
+      address: address,
+      page: '1',
+      offset: '100',
+      sort: 'desc',
+    });
     const response = await fetchWithTimeout(url);
     const data = await response.json();
 
@@ -292,8 +318,13 @@ async function getTokenBalance(
   if (!config) return '0';
 
   try {
-    const apiKey = getExplorerApiKey(chainId);
-    const url = `${config.apiUrl}?module=account&action=tokenbalance&contractaddress=${tokenAddress}&address=${walletAddress}&tag=latest${apiKey ? `&apikey=${apiKey}` : ''}`;
+    const url = buildExplorerUrl(chainId, {
+      module: 'account',
+      action: 'tokenbalance',
+      contractaddress: tokenAddress,
+      address: walletAddress,
+      tag: 'latest',
+    });
     const response = await fetchWithTimeout(url);
     const data = await response.json();
 
