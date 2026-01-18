@@ -2,10 +2,11 @@
  * Wallet Scan Service
  *
  * Main orchestrator for wallet scanning:
- * - Provider selection (auto/strict mode)
- * - Token fetching
+ * - Provider selection with fallback chain (Moralis → Covalent)
+ * - Token fetching with non-fatal native balance errors
  * - Spam filtering
  * - Insights generation
+ * - UX warnings for better user feedback
  * - Observability logging
  */
 
@@ -17,11 +18,12 @@ import type {
   DiscoveredToken,
   FilterStep,
   WalletScanProviderInterface,
-  CHAIN_CONFIG,
+  NativeBalance,
 } from './types.js';
-import { shortWallet, SUPPORTED_CHAIN_IDS } from './types.js';
+import { shortWallet, SUPPORTED_CHAIN_IDS, CHAIN_CONFIG } from './types.js';
 import { classifyTokens, getNonSpamTokens } from './spamFilter.js';
 import { createMoralisProvider } from './moralisProvider.js';
+import { createCovalentProvider } from './covalentProvider.js';
 
 // In-memory cache for scan results (5 minute TTL)
 const scanCache = new Map<string, { result: WalletScanResponse; timestamp: number }>();
@@ -29,6 +31,10 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 
 // Provider instances
 let moralisProvider: WalletScanProviderInterface | null = null;
+let covalentProvider: WalletScanProviderInterface | null = null;
+
+// Provider fallback order
+const PROVIDER_ORDER = ['moralis', 'covalent'] as const;
 
 /**
  * Initialize providers on startup
@@ -45,12 +51,35 @@ export function initializeProviders(): string[] {
     console.error('[WalletScan] Failed to initialize Moralis:', err);
   }
 
+  try {
+    covalentProvider = createCovalentProvider();
+    if (covalentProvider) {
+      available.push('covalent');
+    }
+  } catch (err) {
+    console.error('[WalletScan] Failed to initialize Covalent:', err);
+  }
+
   console.log(`[WalletScan] Available providers: ${available.join(', ') || 'none'}`);
   return available;
 }
 
 /**
- * Select provider based on config
+ * Get provider by name
+ */
+function getProviderByName(name: string): WalletScanProviderInterface | null {
+  switch (name) {
+    case 'moralis':
+      return moralisProvider;
+    case 'covalent':
+      return covalentProvider;
+    default:
+      return null;
+  }
+}
+
+/**
+ * Select provider based on config (returns single provider, no fallback logic here)
  */
 function selectProvider(
   config: ScanConfig,
@@ -59,27 +88,42 @@ function selectProvider(
 
   // Explicit provider requested
   if (config.provider !== 'auto') {
-    if (config.provider === 'moralis') {
-      if (!moralisProvider) {
-        if (config.strict) {
-          throw new Error('Moralis provider not available (API key not configured)');
-        }
-        warnings.push('Moralis not available, no fallback in strict mode');
-        throw new Error('Moralis provider not available');
+    const provider = getProviderByName(config.provider);
+    if (!provider) {
+      if (config.strict) {
+        throw new Error(`${config.provider} provider not available (API key not configured)`);
       }
-      return { provider: moralisProvider, warnings };
+      warnings.push(`${config.provider}_not_available`);
+      throw new Error(`${config.provider} provider not available`);
     }
-
-    // Covalent/explorer not yet implemented
-    throw new Error(`Provider '${config.provider}' not implemented`);
+    return { provider, warnings };
   }
 
-  // Auto mode - try providers in order
-  if (moralisProvider) {
-    return { provider: moralisProvider, warnings };
+  // Auto mode - return first available provider
+  for (const providerName of PROVIDER_ORDER) {
+    const provider = getProviderByName(providerName);
+    if (provider) {
+      return { provider, warnings };
+    }
   }
 
   throw new Error('No wallet scan providers available');
+}
+
+/**
+ * Get next fallback provider after the given one
+ */
+function getNextFallbackProvider(currentProviderName: string): WalletScanProviderInterface | null {
+  const currentIndex = PROVIDER_ORDER.indexOf(currentProviderName as typeof PROVIDER_ORDER[number]);
+  if (currentIndex === -1) return null;
+
+  for (let i = currentIndex + 1; i < PROVIDER_ORDER.length; i++) {
+    const provider = getProviderByName(PROVIDER_ORDER[i]);
+    if (provider) {
+      return provider;
+    }
+  }
+  return null;
 }
 
 /**
@@ -173,9 +217,87 @@ function generateInsights(
 }
 
 /**
+ * Get default native balance for chain (used when native balance fetch fails)
+ */
+function getDefaultNativeBalance(chainId: number): NativeBalance {
+  const config = CHAIN_CONFIG[chainId];
+  return {
+    symbol: config?.nativeSymbol || 'ETH',
+    balance: '0',
+    balanceFormatted: '0',
+    decimals: config?.nativeDecimals || 18,
+  };
+}
+
+/**
+ * Fetch balances with provider fallback support
+ */
+async function fetchBalancesWithFallback(
+  config: ScanConfig,
+  initialProvider: WalletScanProviderInterface,
+  warnings: string[],
+): Promise<{
+  tokens: DiscoveredToken[];
+  native: NativeBalance;
+  rawCount: number;
+  providerLatencyMs: number;
+  usedProvider: string;
+}> {
+  let currentProvider = initialProvider;
+  let lastError: Error | null = null;
+
+  while (currentProvider) {
+    try {
+      const result = await currentProvider.getTokenBalances(config.chainId, config.wallet);
+      return {
+        tokens: result.tokens,
+        native: result.native,
+        rawCount: result.rawCount,
+        providerLatencyMs: result.latencyMs,
+        usedProvider: currentProvider.name,
+      };
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      console.warn(`[WalletScan] PROVIDER_ERROR provider=${currentProvider.name} error=${errorMsg.slice(0, 200)}`);
+      warnings.push(`provider_error_${currentProvider.name}`);
+
+      // Check if we should try fallback
+      if (config.strict) {
+        throw new Error(`Provider ${currentProvider.name} failed: ${errorMsg.slice(0, 200)}`);
+      }
+
+      lastError = err instanceof Error ? err : new Error(String(err));
+
+      // Try next provider in fallback chain
+      const nextProvider = getNextFallbackProvider(currentProvider.name);
+      if (nextProvider) {
+        console.log(`[WalletScan] Falling back from ${currentProvider.name} to ${nextProvider.name}`);
+        warnings.push(`fallback_${currentProvider.name}_to_${nextProvider.name}`);
+        currentProvider = nextProvider;
+      } else {
+        break;
+      }
+    }
+  }
+
+  // All providers failed - return empty with warning
+  warnings.push('all_providers_failed');
+  return {
+    tokens: [],
+    native: getDefaultNativeBalance(config.chainId),
+    rawCount: 0,
+    providerLatencyMs: 0,
+    usedProvider: 'none',
+  };
+}
+
+/**
  * Main scan function
  */
-export async function scanWallet(config: ScanConfig): Promise<WalletScanResponse> {
+export async function scanWallet(
+  config: ScanConfig,
+  watchedTokens?: Set<string>, // Optional: set of "chainId:address" for already watched tokens
+): Promise<WalletScanResponse> {
   const startTime = Date.now();
   const warnings: string[] = [];
   const filterSteps: FilterStep[] = [];
@@ -197,42 +319,18 @@ export async function scanWallet(config: ScanConfig): Promise<WalletScanResponse
     };
   }
 
-  // Select provider
-  const { provider, warnings: providerWarnings } = selectProvider(config);
+  // Select initial provider
+  const { provider: initialProvider, warnings: providerWarnings } = selectProvider(config);
   warnings.push(...providerWarnings);
 
-  // Fetch balances
-  let tokens: DiscoveredToken[];
-  let native;
-  let rawCount: number;
-  let providerLatencyMs: number;
-
-  try {
-    const result = await provider.getTokenBalances(config.chainId, config.wallet);
-    tokens = result.tokens;
-    native = result.native;
-    rawCount = result.rawCount;
-    providerLatencyMs = result.latencyMs;
-  } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    console.error(`[WalletScan] PROVIDER_ERROR provider=${provider.name} error=${errorMsg.slice(0, 200)}`);
-
-    if (config.strict) {
-      throw new Error(`Provider ${provider.name} failed: ${errorMsg.slice(0, 200)}`);
-    }
-
-    // In non-strict mode, return empty with warning
-    warnings.push(`Provider ${provider.name} failed: ${errorMsg.slice(0, 100)}`);
-    tokens = [];
-    native = {
-      symbol: 'ETH',
-      balance: '0',
-      balanceFormatted: '0',
-      decimals: 18,
-    };
-    rawCount = 0;
-    providerLatencyMs = Date.now() - startTime;
-  }
+  // Fetch balances with fallback support
+  const {
+    tokens,
+    native,
+    rawCount,
+    providerLatencyMs,
+    usedProvider,
+  } = await fetchBalancesWithFallback(config, initialProvider, warnings);
 
   filterSteps.push({
     name: 'raw_fetch',
@@ -250,6 +348,9 @@ export async function scanWallet(config: ScanConfig): Promise<WalletScanResponse
     removed: classified.filter((t) => t.isSpam).map((t) => t.symbol).slice(0, 10),
   });
 
+  // Track tokens filtered by minUsd
+  let minUsdFilteredCount = 0;
+
   // Filter by minUsd (only if price available)
   let filtered = classified;
   if (config.minUsd > 0) {
@@ -257,6 +358,7 @@ export async function scanWallet(config: ScanConfig): Promise<WalletScanResponse
     filtered = filtered.map((t) => {
       // Keep spam classification, but also mark tokens below minUsd
       if (!t.isSpam && t.hasPricing && t.valueUsd !== undefined && t.valueUsd < config.minUsd) {
+        minUsdFilteredCount++;
         return {
           ...t,
           isSpam: true,
@@ -272,6 +374,25 @@ export async function scanWallet(config: ScanConfig): Promise<WalletScanResponse
       after: afterCount,
       removed: [],
     });
+
+    // Add UX warning if tokens were filtered by minUsd
+    if (minUsdFilteredCount > 0) {
+      warnings.push(`filtered_by_minUsd:${minUsdFilteredCount}`);
+    }
+  }
+
+  // Track already watched tokens
+  let alreadyWatchedCount = 0;
+  if (watchedTokens && watchedTokens.size > 0) {
+    for (const token of filtered) {
+      const key = `${token.chainId}:${token.address.toLowerCase()}`;
+      if (watchedTokens.has(key) && !token.isSpam) {
+        alreadyWatchedCount++;
+      }
+    }
+    if (alreadyWatchedCount > 0) {
+      warnings.push(`already_watched_tokens_hidden:${alreadyWatchedCount}`);
+    }
   }
 
   // Generate insights
@@ -290,7 +411,7 @@ export async function scanWallet(config: ScanConfig): Promise<WalletScanResponse
 
   // Final response
   const response: WalletScanResponse = {
-    provider: provider.name,
+    provider: usedProvider,
     cached: false,
     warnings,
     stats,
@@ -310,9 +431,9 @@ export async function scanWallet(config: ScanConfig): Promise<WalletScanResponse
   // Log completion (structured, no sensitive data)
   console.log(
     `[WalletScan] COMPLETE chain=${config.chainId} wallet=${shortWallet(config.wallet)} ` +
-    `provider=${provider.name} raw=${rawCount} spam=${spamCount} final=${stats.tokensFiltered} ` +
+    `provider=${usedProvider} raw=${rawCount} spam=${spamCount} final=${stats.tokensFiltered} ` +
     `priced=${stats.tokensPriced} missingPrice=${stats.tokensMissingPrice} ms=${stats.durationMs} ` +
-    `strict=${config.strict}`
+    `strict=${config.strict} minUsdFiltered=${minUsdFilteredCount} alreadyWatched=${alreadyWatchedCount}`
   );
 
   return response;
@@ -333,6 +454,10 @@ export async function getProviderHealth(): Promise<Record<string, boolean>> {
 
   if (moralisProvider) {
     health.moralis = await moralisProvider.isHealthy();
+  }
+
+  if (covalentProvider) {
+    health.covalent = await covalentProvider.isHealthy();
   }
 
   return health;

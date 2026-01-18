@@ -6,3 +6,4 @@ export * from './types.js';
 export * from './walletScan.js';
 export * from './spamFilter.js';
 export { createMoralisProvider, MoralisProvider } from './moralisProvider.js';
+export { createCovalentProvider, CovalentProvider } from './covalentProvider.js';

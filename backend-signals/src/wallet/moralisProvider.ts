@@ -100,33 +100,38 @@ export class MoralisProvider implements WalletScanProviderInterface {
     const tokenUrl = `${this.baseUrl}/${wallet}/erc20?chain=${chain}`;
     const nativeUrl = `${this.baseUrl}/${wallet}/balance?chain=${chain}`;
 
-    const [tokenRes, nativeRes] = await Promise.all([
-      fetch(tokenUrl, {
-        headers: {
-          'X-API-Key': this.apiKey,
-          'Accept': 'application/json',
-        },
-      }),
-      fetch(nativeUrl, {
-        headers: {
-          'X-API-Key': this.apiKey,
-          'Accept': 'application/json',
-        },
-      }),
-    ]);
+    // Fetch tokens (required) and native balance (optional, non-fatal)
+    const tokenRes = await fetch(tokenUrl, {
+      headers: {
+        'X-API-Key': this.apiKey,
+        'Accept': 'application/json',
+      },
+    });
 
     if (!tokenRes.ok) {
       const errorText = await tokenRes.text().catch(() => 'Unknown error');
       throw new Error(`Moralis token API error: ${tokenRes.status} - ${errorText.slice(0, 200)}`);
     }
 
-    if (!nativeRes.ok) {
-      const errorText = await nativeRes.text().catch(() => 'Unknown error');
-      throw new Error(`Moralis native API error: ${nativeRes.status} - ${errorText.slice(0, 200)}`);
-    }
-
     const tokenData: MoralisTokenBalance[] = await tokenRes.json();
-    const nativeData: MoralisNativeBalance = await nativeRes.json();
+
+    // Native balance fetch is non-fatal - if it fails, use default
+    let nativeData: MoralisNativeBalance = { balance: '0' };
+    try {
+      const nativeRes = await fetch(nativeUrl, {
+        headers: {
+          'X-API-Key': this.apiKey,
+          'Accept': 'application/json',
+        },
+      });
+      if (nativeRes.ok) {
+        nativeData = await nativeRes.json();
+      } else {
+        console.warn(`[WalletScan] Moralis native balance warning: ${nativeRes.status} - native_balance_unavailable`);
+      }
+    } catch (err) {
+      console.warn('[WalletScan] Moralis native balance warning: native_balance_unavailable');
+    }
 
     const latencyMs = Date.now() - startTime;
 
