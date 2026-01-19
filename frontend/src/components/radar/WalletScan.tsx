@@ -10,7 +10,7 @@
  * - External wallet scanning (whale watching, research)
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useWalletStore } from '@/stores/walletStore';
 import { useWatchlistStore } from '@/stores/watchlistStore';
 import {
@@ -60,6 +60,20 @@ const PRESET_WALLETS: { name: string; address: string; description: string }[] =
 function isValidAddress(address: string): boolean {
   return /^0x[a-fA-F0-9]{40}$/.test(address);
 }
+
+// Validate logo URL (must be http/https and valid URL structure)
+function hasValidLogo(logo: string | undefined): boolean {
+  if (!logo || typeof logo !== 'string') return false;
+  try {
+    const url = new URL(logo);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+// LocalStorage key for filter preferences
+const FILTER_STORAGE_KEY = 'walletScan.hideNoLogo';
 
 interface WalletScanProps {
   className?: string;
@@ -146,7 +160,7 @@ function TokenRow({
           onClick={(e) => e.stopPropagation()}
         />
       )}
-      {token.logo ? (
+      {hasValidLogo(token.logo) ? (
         <img src={token.logo} alt={token.symbol} className="w-7 h-7 rounded-full" />
       ) : (
         <div className="w-7 h-7 rounded-full bg-dark-600 flex items-center justify-center text-xs font-medium">
@@ -208,7 +222,7 @@ function InsightsPanel({ insights }: { insights: ScanInsights }) {
       {insights.biggestPosition && (
         <InsightCard title="Biggest Position" icon="👑">
           <div className="flex items-center gap-2">
-            {insights.biggestPosition.token.logo ? (
+            {hasValidLogo(insights.biggestPosition.token.logo) ? (
               <img
                 src={insights.biggestPosition.token.logo}
                 alt={insights.biggestPosition.token.symbol}
@@ -235,7 +249,7 @@ function InsightsPanel({ insights }: { insights: ScanInsights }) {
       {insights.mostVolatile && (
         <InsightCard title="Most Active" icon="📈">
           <div className="flex items-center gap-2">
-            {insights.mostVolatile.token.logo ? (
+            {hasValidLogo(insights.mostVolatile.token.logo) ? (
               <img
                 src={insights.mostVolatile.token.logo}
                 alt={insights.mostVolatile.token.symbol}
@@ -343,11 +357,26 @@ function DiffChangeRow({
 }
 
 // Diff panel component
-function DiffPanel({ diff }: { diff: ScanDiff }) {
+function DiffPanel({ diff, hideNoLogo }: { diff: ScanDiff; hideNoLogo: boolean }) {
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // Filter diff items by logo when hideNoLogo is enabled
+  const filteredDiff = useMemo(() => {
+    if (!hideNoLogo) return diff;
+    return {
+      added: diff.added.filter((t) => hasValidLogo(t.logo)),
+      removed: diff.removed.filter((t) => hasValidLogo(t.logo)),
+      increased: diff.increased.filter((t) => hasValidLogo(t.logo)),
+      decreased: diff.decreased.filter((t) => hasValidLogo(t.logo)),
+      previousScanTime: diff.previousScanTime,
+    };
+  }, [diff, hideNoLogo]);
 
   const totalChanges =
     diff.added.length + diff.removed.length + diff.increased.length + diff.decreased.length;
+  const visibleChanges =
+    filteredDiff.added.length + filteredDiff.removed.length + filteredDiff.increased.length + filteredDiff.decreased.length;
+  const hiddenChanges = totalChanges - visibleChanges;
 
   if (totalChanges === 0) {
     return (
@@ -372,7 +401,9 @@ function DiffPanel({ diff }: { diff: ScanDiff }) {
         <div className="flex items-center gap-2 text-xs">
           <span>📊</span>
           <span className="text-dark-300">Changes since last scan</span>
-          <span className="text-primary-400">({totalChanges})</span>
+          <span className="text-primary-400">
+            ({visibleChanges}{hiddenChanges > 0 ? ` of ${totalChanges}` : ''})
+          </span>
         </div>
         <div className="flex items-center gap-2 text-[10px] text-dark-500">
           {diff.previousScanTime && <span>{formatTimeAgo(diff.previousScanTime)}</span>}
@@ -382,57 +413,64 @@ function DiffPanel({ diff }: { diff: ScanDiff }) {
 
       {isExpanded && (
         <div className="px-2 pb-2 border-t border-dark-600/50">
+          {/* Show message if all changes are filtered */}
+          {visibleChanges === 0 && hiddenChanges > 0 && (
+            <div className="mt-2 text-[10px] text-dark-500 text-center py-2">
+              {hiddenChanges} change{hiddenChanges > 1 ? 's' : ''} hidden (no verified logo)
+            </div>
+          )}
+
           {/* Added tokens */}
-          {diff.added.length > 0 && (
+          {filteredDiff.added.length > 0 && (
             <div className="mt-2">
-              {diff.added.slice(0, 5).map((token) => (
+              {filteredDiff.added.slice(0, 5).map((token) => (
                 <DiffChangeRow key={`added-${token.address}`} type="added" token={token} />
               ))}
-              {diff.added.length > 5 && (
+              {filteredDiff.added.length > 5 && (
                 <div className="text-[10px] text-dark-500 pl-6">
-                  +{diff.added.length - 5} more added
+                  +{filteredDiff.added.length - 5} more added
                 </div>
               )}
             </div>
           )}
 
           {/* Removed tokens */}
-          {diff.removed.length > 0 && (
+          {filteredDiff.removed.length > 0 && (
             <div className="mt-2">
-              {diff.removed.slice(0, 5).map((token) => (
+              {filteredDiff.removed.slice(0, 5).map((token) => (
                 <DiffChangeRow key={`removed-${token.address}`} type="removed" token={token} />
               ))}
-              {diff.removed.length > 5 && (
+              {filteredDiff.removed.length > 5 && (
                 <div className="text-[10px] text-dark-500 pl-6">
-                  +{diff.removed.length - 5} more removed
+                  +{filteredDiff.removed.length - 5} more removed
                 </div>
               )}
             </div>
           )}
 
           {/* Increased tokens */}
-          {diff.increased.length > 0 && (
+          {filteredDiff.increased.length > 0 && (
             <div className="mt-2">
-              {diff.increased.slice(0, 5).map((token) => (
+              {filteredDiff.increased.slice(0, 5).map((token) => (
                 <DiffChangeRow key={`increased-${token.address}`} type="increased" token={token} />
               ))}
-              {diff.increased.length > 5 && (
+              {filteredDiff.increased.length > 5 && (
                 <div className="text-[10px] text-dark-500 pl-6">
-                  +{diff.increased.length - 5} more increased
+                  +{filteredDiff.increased.length - 5} more increased
                 </div>
               )}
             </div>
           )}
 
           {/* Decreased tokens */}
-          {diff.decreased.length > 0 && (
+          {filteredDiff.decreased.length > 0 && (
             <div className="mt-2">
-              {diff.decreased.slice(0, 5).map((token) => (
+              {filteredDiff.decreased.slice(0, 5).map((token) => (
                 <DiffChangeRow key={`decreased-${token.address}`} type="decreased" token={token} />
               ))}
-              {diff.decreased.length > 5 && (
+              {filteredDiff.decreased.length > 5 && (
                 <div className="text-[10px] text-dark-500 pl-6">
-                  +{diff.decreased.length - 5} more decreased
+                  +{filteredDiff.decreased.length - 5} more decreased
                 </div>
               )}
             </div>
@@ -465,9 +503,26 @@ export function WalletScan({ className = '' }: WalletScanProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // UI state - filtering and pagination
-  const [hideNoLogo, setHideNoLogo] = useState(true);
+  // Initialize hideNoLogo from localStorage (default true)
+  const [hideNoLogo, setHideNoLogo] = useState(() => {
+    try {
+      const stored = localStorage.getItem(FILTER_STORAGE_KEY);
+      return stored === null ? true : stored === 'true';
+    } catch {
+      return true;
+    }
+  });
   const [visibleCount, setVisibleCount] = useState(20);
   const PAGE_SIZE = 20;
+
+  // Persist hideNoLogo to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(FILTER_STORAGE_KEY, String(hideNoLogo));
+    } catch {
+      // Ignore localStorage errors (e.g., private browsing)
+    }
+  }, [hideNoLogo]);
 
   // Chain info
   const chainInfo = CHAIN_INFO[currentChainId] || { name: `Chain ${currentChainId}`, symbol: 'ETH', color: '#888' };
@@ -643,7 +698,7 @@ export function WalletScan({ className = '' }: WalletScanProps) {
     // Apply filters for display
     let filtered = priced;
     if (hideNoLogo) {
-      filtered = filtered.filter((t) => !!t.logo);
+      filtered = filtered.filter((t) => hasValidLogo(t.logo));
     }
 
     return {
@@ -659,7 +714,7 @@ export function WalletScan({ className = '' }: WalletScanProps) {
     if (!scanResult) return 0;
     const notInWatchlist = getFilteredTokens(scanResult.tokens);
     const priced = notInWatchlist.filter((t) => t.hasPricing && t.valueUsd && t.valueUsd > 0);
-    return priced.filter((t) => !t.logo).length;
+    return priced.filter((t) => !hasValidLogo(t.logo)).length;
   }, [scanResult, getFilteredTokens]);
 
   // Get empty state reason
@@ -888,7 +943,7 @@ export function WalletScan({ className = '' }: WalletScanProps) {
 
           {/* Changes since last scan (V4 Diff) */}
           {scanResult?.diff && (
-            <DiffPanel diff={scanResult.diff} />
+            <DiffPanel diff={scanResult.diff} hideNoLogo={hideNoLogo} />
           )}
 
           {/* Filter controls */}
