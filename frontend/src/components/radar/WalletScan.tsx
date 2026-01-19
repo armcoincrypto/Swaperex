@@ -348,12 +348,12 @@ export function WalletScan({ className = '' }: WalletScanProps) {
     setScanResult(null);
     setSelectedTokens(new Set());
 
-    try {
-      // Simulate progress stages for UX
-      setTimeout(() => setStage('fetching'), 300);
-      setTimeout(() => setStage('pricing'), 800);
-      setTimeout(() => setStage('filtering'), 1500);
+    // Set up progress timers (will be overridden when scan completes)
+    const timer1 = setTimeout(() => setStage((s) => s === 'connecting' ? 'fetching' : s), 300);
+    const timer2 = setTimeout(() => setStage((s) => s === 'fetching' ? 'pricing' : s), 800);
+    const timer3 = setTimeout(() => setStage((s) => s === 'pricing' ? 'filtering' : s), 1500);
 
+    try {
       const result = await scanWallet({
         chainId: currentChainId,
         wallet: targetWallet,
@@ -361,6 +361,11 @@ export function WalletScan({ className = '' }: WalletScanProps) {
         strict: false,
         provider: 'auto',
       });
+
+      // Clear fake progress timers
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
 
       setScanResult(result);
       setLastScanTime(Date.now());
@@ -382,6 +387,11 @@ export function WalletScan({ className = '' }: WalletScanProps) {
         setSelectedTokens(new Set(topFive.map((t) => t.address)));
       }
     } catch (err) {
+      // Clear fake progress timers
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
+
       setStage('error');
       setErrorMessage(err instanceof Error ? err.message : 'Unknown error occurred');
     }

@@ -120,22 +120,61 @@ export async function scanWallet(options: ScanOptions): Promise<WalletScanRespon
     includeSpam: (options.includeSpam ?? false).toString(),
   });
 
-  const response = await fetch(`${API_BASE}/api/v1/wallet/scan?${params}`, {
-    method: 'GET',
-    headers: {
-      'Accept': 'application/json',
-    },
-  });
+  // Add timeout to prevent hanging requests (30 seconds)
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-  const data = await response.json();
+  try {
+    const response = await fetch(`${API_BASE}/api/v1/wallet/scan?${params}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+      signal: controller.signal,
+    });
 
-  if (!response.ok) {
-    // Return error response with consistent shape
+    clearTimeout(timeoutId);
+    const data = await response.json();
+
+    if (!response.ok) {
+      // Return error response with consistent shape
+      return {
+        provider: data.provider || 'unknown',
+        cached: false,
+        warnings: data.warnings || [data.error || 'Unknown error'],
+        stats: data.stats || {
+          durationMs: 0,
+          transfersScanned: 0,
+          tokensDiscovered: 0,
+          tokensPriced: 0,
+          tokensMissingPrice: 0,
+          tokensFiltered: 0,
+          spamFiltered: 0,
+        },
+        tokens: [],
+        nativeBalance: data.nativeBalance || {
+          symbol: 'ETH',
+          balance: '0',
+          balanceFormatted: '0',
+          decimals: 18,
+        },
+        error: data.error,
+      };
+    }
+
+    return data;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    // Handle timeout or network errors
+    const errorMsg = err instanceof Error && err.name === 'AbortError'
+      ? 'Request timed out (30s). Try again or use a different wallet.'
+      : err instanceof Error ? err.message : 'Network error';
+
     return {
-      provider: data.provider || 'unknown',
+      provider: 'unknown',
       cached: false,
-      warnings: data.warnings || [data.error || 'Unknown error'],
-      stats: data.stats || {
+      warnings: [errorMsg],
+      stats: {
         durationMs: 0,
         transfersScanned: 0,
         tokensDiscovered: 0,
@@ -145,17 +184,15 @@ export async function scanWallet(options: ScanOptions): Promise<WalletScanRespon
         spamFiltered: 0,
       },
       tokens: [],
-      nativeBalance: data.nativeBalance || {
+      nativeBalance: {
         symbol: 'ETH',
         balance: '0',
         balanceFormatted: '0',
         decimals: 18,
       },
-      error: data.error,
+      error: errorMsg,
     };
   }
-
-  return data;
 }
 
 /**
