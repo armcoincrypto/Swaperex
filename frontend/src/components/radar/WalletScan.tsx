@@ -464,8 +464,10 @@ export function WalletScan({ className = '' }: WalletScanProps) {
   const [lastScanTime, setLastScanTime] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // UI state
-  const [showAllTokens, setShowAllTokens] = useState(false);
+  // UI state - filtering and pagination
+  const [hideNoLogo, setHideNoLogo] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(20);
+  const PAGE_SIZE = 20;
 
   // Chain info
   const chainInfo = CHAIN_INFO[currentChainId] || { name: `Chain ${currentChainId}`, symbol: 'ETH', color: '#888' };
@@ -507,6 +509,7 @@ export function WalletScan({ className = '' }: WalletScanProps) {
     setErrorMessage(null);
     setScanResult(null);
     setSelectedTokens(new Set());
+    setVisibleCount(PAGE_SIZE); // Reset pagination on new scan
 
     // Set up progress timers (will be overridden when scan completes)
     const timer1 = setTimeout(() => setStage((s) => s === 'connecting' ? 'fetching' : s), 300);
@@ -621,10 +624,43 @@ export function WalletScan({ className = '' }: WalletScanProps) {
     }
   }, [scanResult, selectedTokens, getFilteredTokens, availableSlots]);
 
-  // Get display tokens
-  const displayTokens = scanResult ? getFilteredTokens(scanResult.tokens) : [];
-  const visibleTokens = showAllTokens ? displayTokens : displayTokens.slice(0, 5);
-  const hasMoreTokens = displayTokens.length > 5;
+  // Get filtered and categorized tokens
+  const { displayTokens, unpricedCount } = useMemo(() => {
+    if (!scanResult) {
+      return { displayTokens: [], unpricedCount: 0 };
+    }
+
+    // Start with tokens not already in watchlist
+    const notInWatchlist = getFilteredTokens(scanResult.tokens);
+
+    // Separate priced vs unpriced
+    const priced = notInWatchlist.filter((t) => t.hasPricing && t.valueUsd && t.valueUsd > 0);
+    const unpriced = notInWatchlist.filter((t) => !t.hasPricing || !t.valueUsd || t.valueUsd === 0);
+
+    // Sort priced by value (highest first)
+    priced.sort((a, b) => (b.valueUsd || 0) - (a.valueUsd || 0));
+
+    // Apply filters for display
+    let filtered = priced;
+    if (hideNoLogo) {
+      filtered = filtered.filter((t) => !!t.logo);
+    }
+
+    return {
+      displayTokens: filtered,
+      unpricedCount: unpriced.length,
+    };
+  }, [scanResult, getFilteredTokens, hideNoLogo]);
+
+  // Paginated tokens for display
+  const visibleTokens = displayTokens.slice(0, visibleCount);
+  const hasMoreTokens = displayTokens.length > visibleCount;
+  const hiddenByLogoFilter = useMemo(() => {
+    if (!scanResult) return 0;
+    const notInWatchlist = getFilteredTokens(scanResult.tokens);
+    const priced = notInWatchlist.filter((t) => t.hasPricing && t.valueUsd && t.valueUsd > 0);
+    return priced.filter((t) => !t.logo).length;
+  }, [scanResult, getFilteredTokens]);
 
   // Get empty state reason
   const getEmptyReason = (): string => {
@@ -855,14 +891,34 @@ export function WalletScan({ className = '' }: WalletScanProps) {
             <DiffPanel diff={scanResult.diff} />
           )}
 
+          {/* Filter controls */}
+          <div className="flex items-center gap-3 mb-3 p-2 bg-dark-700/30 rounded-lg">
+            <span className="text-[10px] text-dark-500">Filters:</span>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={hideNoLogo}
+                onChange={(e) => setHideNoLogo(e.target.checked)}
+                className="w-3 h-3 rounded border-dark-500 bg-dark-700 text-primary-500"
+              />
+              <span className="text-[10px] text-dark-400">Hide no logo</span>
+            </label>
+            {hiddenByLogoFilter > 0 && hideNoLogo && (
+              <span className="text-[10px] text-dark-600">({hiddenByLogoFilter} hidden)</span>
+            )}
+          </div>
+
           {/* Token list header */}
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <span className="text-xs text-dark-400">
-                {displayTokens.length} token{displayTokens.length !== 1 ? 's' : ''} found
+              <span className="text-xs text-dark-300 font-medium">
+                Top Holdings
+              </span>
+              <span className="text-[10px] text-dark-500">
+                {displayTokens.length} tokens
               </span>
               {selectedTokens.size > 0 && (
-                <span className="text-xs text-primary-400">
+                <span className="text-[10px] text-primary-400">
                   ({selectedTokens.size} selected)
                 </span>
               )}
@@ -871,7 +927,7 @@ export function WalletScan({ className = '' }: WalletScanProps) {
               onClick={toggleSelectAll}
               className="text-[10px] text-dark-500 hover:text-dark-300"
             >
-              {displayTokens.every((t) => selectedTokens.has(t.address))
+              {displayTokens.length > 0 && displayTokens.every((t) => selectedTokens.has(t.address))
                 ? 'Deselect all'
                 : 'Select all'}
             </button>
@@ -889,16 +945,24 @@ export function WalletScan({ className = '' }: WalletScanProps) {
             ))}
           </div>
 
-          {/* Show more button */}
+          {/* Show more / pagination button */}
           {hasMoreTokens && (
             <button
-              onClick={() => setShowAllTokens(!showAllTokens)}
-              className="w-full py-2 text-xs text-dark-400 hover:text-dark-300 transition-colors"
+              onClick={() => setVisibleCount((v) => v + PAGE_SIZE)}
+              className="w-full py-2 text-xs text-dark-400 hover:text-dark-300 bg-dark-700/30 hover:bg-dark-700/50 rounded-lg transition-colors"
             >
-              {showAllTokens
-                ? 'Show less'
-                : `Show ${displayTokens.length - 5} more tokens`}
+              Show {Math.min(PAGE_SIZE, displayTokens.length - visibleCount)} more ({displayTokens.length - visibleCount} remaining)
             </button>
+          )}
+
+          {/* Unpriced tokens summary (collapsed) */}
+          {unpricedCount > 0 && (
+            <div className="mt-3 p-2 bg-dark-700/20 rounded-lg">
+              <div className="flex items-center gap-2 text-[10px] text-dark-500">
+                <span>❓</span>
+                <span>{unpricedCount} tokens have no price data and are hidden</span>
+              </div>
+            </div>
           )}
 
           {/* Action buttons */}
