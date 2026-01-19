@@ -199,29 +199,33 @@ app.get("/api/v1/wallet/scan", async (req, reply) => {
     });
   }
 
-  const { chainId, wallet, minUsd, strict, provider, includeSpam } = req.query as {
+  const { chainId, wallet, address, minUsd, strict, provider, includeSpam } = req.query as {
     chainId?: string;
     wallet?: string;
+    address?: string; // Alias for wallet
     minUsd?: string;
     strict?: string;
     provider?: string;
     includeSpam?: string;
   };
 
+  // Accept both wallet= and address= parameters
+  const walletAddr = wallet || address;
+
   // Validate required params
-  if (!chainId || !wallet) {
-    return reply.code(400).send({ error: "Missing params: chainId, wallet" });
+  if (!chainId || !walletAddr) {
+    return reply.code(400).send({ error: "Missing params: chainId, wallet (or address)" });
   }
 
   // Validate wallet address format
-  if (!/^0x[a-fA-F0-9]{40}$/.test(wallet)) {
-    return reply.code(400).send({ error: "Invalid wallet address format" });
+  if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddr)) {
+    return reply.code(400).send({ error: "Invalid wallet address format (must be 42 chars: 0x + 40 hex)" });
   }
 
   // Parse config
   const config: ScanConfig = {
     chainId: Number(chainId),
-    wallet: wallet.toLowerCase(),
+    wallet: walletAddr.toLowerCase(),
     minUsd: minUsd ? parseFloat(minUsd) : 1, // Default $1 minimum
     strict: strict === "true" || WALLET_SCAN_STRICT,
     provider: (provider as WalletScanProvider) || WALLET_SCAN_PROVIDER,
@@ -260,7 +264,7 @@ app.get("/api/v1/wallet/scan", async (req, reply) => {
     // Track error (redact wallet)
     await trackScanError(config.chainId, config.provider, errorMsg.slice(0, 50));
 
-    console.error(`[WalletScan] ERROR chain=${config.chainId} wallet=${shortWallet(wallet)} error=${errorMsg.slice(0, 200)}`);
+    console.error(`[WalletScan] ERROR chain=${config.chainId} wallet=${shortWallet(walletAddr)} error=${errorMsg.slice(0, 200)}`);
 
     return reply.code(500).send({
       error: errorMsg.slice(0, 200),
@@ -318,6 +322,26 @@ app.get("/api/v1/wallet/chains", async () => {
     chains: SUPPORTED_CHAIN_IDS,
     providers: availableProviders,
   };
+});
+
+/**
+ * Alias: /api/v1/wallet/tokens → same as /api/v1/wallet/scan
+ * For backwards compatibility with existing frontends
+ */
+app.get("/api/v1/wallet/tokens", async (req, reply) => {
+  // Redirect internally to /scan handler by forwarding the request
+  const query = req.query as Record<string, string>;
+  const params = new URLSearchParams();
+
+  // Map address → wallet if needed
+  if (query.address && !query.wallet) {
+    params.set('wallet', query.address);
+  }
+  for (const [key, value] of Object.entries(query)) {
+    if (key !== 'address') params.set(key, value);
+  }
+
+  return reply.redirect(307, `/api/v1/wallet/scan?${params.toString()}`);
 });
 
 // ============================================================
