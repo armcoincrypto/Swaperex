@@ -1,16 +1,19 @@
 /**
- * Wallet Scan V3 Component
+ * Wallet Scan V5 Component
  *
- * Scans connected wallet OR any public wallet for tokens and provides insights.
  * Features:
+ * - Search by symbol/name
+ * - Quick filters: Top 20, $1k+, $10k+, Stablecoins only
+ * - Trust tags per token row
+ * - Lazy risk score fetching for visible tokens only (cached)
  * - Real-time progress states
  * - Instant payoff insights cards
  * - One-click "Add Top 5" to watchlist
- * - Clear explanations for empty states
  * - External wallet scanning (whale watching, research)
+ * - Change detection (V4 diff)
  */
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useWalletStore } from '@/stores/walletStore';
 import { useWatchlistStore } from '@/stores/watchlistStore';
 import {
@@ -29,8 +32,17 @@ import {
   shortAddress,
 } from '@/services/walletScanService';
 
+// Backend API base URL for risk fetching
+const API_BASE = import.meta.env.VITE_SIGNALS_API_URL || 'http://localhost:4001';
+
 // Wallet scan mode
 type WalletMode = 'connected' | 'external';
+
+// Quick filter type
+type QuickFilter = 'none' | 'top20' | 'usd1k' | 'usd10k';
+
+// Risk label type
+type RiskLabel = 'Low' | 'Medium' | 'High' | 'Unknown' | 'Loading';
 
 // Preset wallets for quick selection
 const PRESET_WALLETS: { name: string; address: string; description: string }[] = [
@@ -72,8 +84,34 @@ function hasValidLogo(logo: string | undefined): boolean {
   }
 }
 
-// LocalStorage key for filter preferences
+// Check if token is a stablecoin
+function isStablecoin(symbol?: string, name?: string): boolean {
+  const s = (symbol || '').toUpperCase();
+  const n = (name || '').toUpperCase();
+
+  const KNOWN_STABLES = new Set([
+    'USDT', 'USDC', 'DAI', 'FDUSD', 'TUSD', 'USDP', 'USDD', 'USDE',
+    'FRAX', 'LUSD', 'BUSD', 'GUSD', 'USDJ', 'UST', 'CUSD', 'SUSD'
+  ]);
+
+  if (KNOWN_STABLES.has(s)) return true;
+  if (s.includes('USD') && !s.includes('DUSK')) return true;
+  if (n.includes('USD') || n.includes('DOLLAR') || n.includes('STABLECOIN')) return true;
+
+  return false;
+}
+
+// LocalStorage keys
 const FILTER_STORAGE_KEY = 'walletScan.hideNoLogo';
+
+// Risk cache for lazy loading
+interface RiskCacheEntry {
+  label: RiskLabel;
+  fetchedAt: number;
+}
+
+const RISK_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const MAX_RISK_CONCURRENCY = 3;
 
 interface WalletScanProps {
   className?: string;
@@ -132,54 +170,96 @@ function InsightCard({
   );
 }
 
-// Token row component
+// Trust tag component
+function TrustTag({ children, variant = 'default' }: { children: React.ReactNode; variant?: 'default' | 'success' | 'warning' | 'danger' }) {
+  const colors = {
+    default: 'bg-dark-600/50 text-dark-300',
+    success: 'bg-green-900/30 text-green-400',
+    warning: 'bg-yellow-900/30 text-yellow-400',
+    danger: 'bg-red-900/30 text-red-400',
+  };
+
+  return (
+    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] ${colors[variant]}`}>
+      {children}
+    </span>
+  );
+}
+
+// Token row component with trust tags
 function TokenRow({
   token,
   selected,
   onToggle,
   showCheckbox = true,
+  provider,
+  riskLabel,
 }: {
   token: DiscoveredToken;
   selected: boolean;
   onToggle: () => void;
   showCheckbox?: boolean;
+  provider: string;
+  riskLabel: RiskLabel;
 }) {
+  const verifiedLogo = hasValidLogo(token.logo);
+  const stable = isStablecoin(token.symbol, token.name);
+
+  const riskVariant = riskLabel === 'High' ? 'danger'
+    : riskLabel === 'Medium' ? 'warning'
+    : riskLabel === 'Low' ? 'success'
+    : 'default';
+
   return (
     <div
-      className={`flex items-center gap-3 p-2.5 rounded-lg transition-colors cursor-pointer ${
+      className={`flex flex-col gap-2 p-2.5 rounded-lg transition-colors cursor-pointer ${
         selected ? 'bg-primary-600/20 border border-primary-600/30' : 'bg-dark-700/30 hover:bg-dark-700/50'
       }`}
       onClick={onToggle}
     >
-      {showCheckbox && (
-        <input
-          type="checkbox"
-          checked={selected}
-          onChange={onToggle}
-          className="w-4 h-4 rounded border-dark-500 bg-dark-700 text-primary-500 focus:ring-primary-500 focus:ring-offset-0"
-          onClick={(e) => e.stopPropagation()}
-        />
-      )}
-      {hasValidLogo(token.logo) ? (
-        <img src={token.logo} alt={token.symbol} className="w-7 h-7 rounded-full" />
-      ) : (
-        <div className="w-7 h-7 rounded-full bg-dark-600 flex items-center justify-center text-xs font-medium">
-          {token.symbol.slice(0, 2)}
-        </div>
-      )}
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium text-dark-100 truncate">{token.symbol}</div>
-        <div className="text-[10px] text-dark-500 truncate">{token.name}</div>
-      </div>
-      <div className="text-right">
-        <div className="text-sm font-medium text-dark-200">
-          {token.valueUsd ? formatUsd(token.valueUsd) : '-'}
-        </div>
-        {token.percentChange24h !== undefined && (
-          <div className={`text-[10px] ${getPercentColor(token.percentChange24h)}`}>
-            {formatPercent(token.percentChange24h)}
+      <div className="flex items-center gap-3">
+        {showCheckbox && (
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggle}
+            className="w-4 h-4 rounded border-dark-500 bg-dark-700 text-primary-500 focus:ring-primary-500 focus:ring-offset-0"
+            onClick={(e) => e.stopPropagation()}
+          />
+        )}
+        {hasValidLogo(token.logo) ? (
+          <img src={token.logo} alt={token.symbol} className="w-7 h-7 rounded-full" />
+        ) : (
+          <div className="w-7 h-7 rounded-full bg-dark-600 flex items-center justify-center text-xs font-medium">
+            {token.symbol.slice(0, 2)}
           </div>
         )}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-dark-100 truncate">{token.symbol}</span>
+            <span className="text-[10px] text-dark-500 truncate">{token.name}</span>
+          </div>
+          {/* Trust tags row */}
+          <div className="flex flex-wrap gap-1 mt-1">
+            <TrustTag>Wallet scan</TrustTag>
+            <TrustTag>Priced: {provider}</TrustTag>
+            {verifiedLogo && <TrustTag variant="success">Verified logo</TrustTag>}
+            {stable && <TrustTag>Stablecoin</TrustTag>}
+            <TrustTag variant={riskVariant}>
+              Risk: {riskLabel === 'Loading' ? '...' : riskLabel}
+            </TrustTag>
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-sm font-medium text-dark-200">
+            {token.valueUsd ? formatUsd(token.valueUsd) : '-'}
+          </div>
+          {token.percentChange24h !== undefined && (
+            <div className={`text-[10px] ${getPercentColor(token.percentChange24h)}`}>
+              {formatPercent(token.percentChange24h)}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -503,7 +583,6 @@ export function WalletScan({ className = '' }: WalletScanProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // UI state - filtering and pagination
-  // Initialize hideNoLogo from localStorage (default true)
   const [hideNoLogo, setHideNoLogo] = useState(() => {
     try {
       const stored = localStorage.getItem(FILTER_STORAGE_KEY);
@@ -515,14 +594,29 @@ export function WalletScan({ className = '' }: WalletScanProps) {
   const [visibleCount, setVisibleCount] = useState(20);
   const PAGE_SIZE = 20;
 
+  // V5: Search and quick filters
+  const [searchQuery, setSearchQuery] = useState('');
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>('none');
+  const [stableOnly, setStableOnly] = useState(false);
+
+  // Risk cache for lazy loading
+  const riskCacheRef = useRef<Map<string, RiskCacheEntry>>(new Map());
+  const riskInflightRef = useRef<Set<string>>(new Set());
+  const [riskVersion, setRiskVersion] = useState(0); // Force re-render when risks load
+
   // Persist hideNoLogo to localStorage
   useEffect(() => {
     try {
       localStorage.setItem(FILTER_STORAGE_KEY, String(hideNoLogo));
     } catch {
-      // Ignore localStorage errors (e.g., private browsing)
+      // Ignore localStorage errors
     }
   }, [hideNoLogo]);
+
+  // Reset pagination when filters change
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [searchQuery, quickFilter, stableOnly, hideNoLogo]);
 
   // Chain info
   const chainInfo = CHAIN_INFO[currentChainId] || { name: `Chain ${currentChainId}`, symbol: 'ETH', color: '#888' };
@@ -564,9 +658,12 @@ export function WalletScan({ className = '' }: WalletScanProps) {
     setErrorMessage(null);
     setScanResult(null);
     setSelectedTokens(new Set());
-    setVisibleCount(PAGE_SIZE); // Reset pagination on new scan
+    setVisibleCount(PAGE_SIZE);
+    setSearchQuery('');
+    setQuickFilter('none');
+    setStableOnly(false);
 
-    // Set up progress timers (will be overridden when scan completes)
+    // Set up progress timers
     const timer1 = setTimeout(() => setStage((s) => s === 'connecting' ? 'fetching' : s), 300);
     const timer2 = setTimeout(() => setStage((s) => s === 'fetching' ? 'pricing' : s), 800);
     const timer3 = setTimeout(() => setStage((s) => s === 'pricing' ? 'filtering' : s), 1500);
@@ -580,7 +677,6 @@ export function WalletScan({ className = '' }: WalletScanProps) {
         provider: 'auto',
       });
 
-      // Clear fake progress timers
       clearTimeout(timer1);
       clearTimeout(timer2);
       clearTimeout(timer3);
@@ -588,7 +684,6 @@ export function WalletScan({ className = '' }: WalletScanProps) {
       setScanResult(result);
       setLastScanTime(Date.now());
 
-      // Track external wallet scan for metrics
       if (isExternalScan) {
         await trackExternalWalletScanned(currentChainId, targetWallet);
       }
@@ -605,7 +700,6 @@ export function WalletScan({ className = '' }: WalletScanProps) {
         setSelectedTokens(new Set(topFive.map((t) => t.address)));
       }
     } catch (err) {
-      // Clear fake progress timers
       clearTimeout(timer1);
       clearTimeout(timer2);
       clearTimeout(timer3);
@@ -631,7 +725,6 @@ export function WalletScan({ className = '' }: WalletScanProps) {
       if (success) addedCount++;
     }
 
-    // Track the addition for metrics (including source: connected vs external)
     await trackAddSelected(selectedTokens.size, addedCount, {
       minUsd: 1,
       provider: scanResult.provider,
@@ -641,12 +734,9 @@ export function WalletScan({ className = '' }: WalletScanProps) {
       source: isExternalScan ? 'external' : 'connected',
     });
 
-    // Clear selection and update state
     setSelectedTokens(new Set());
 
-    // Show success feedback
     if (addedCount > 0) {
-      // Force re-render to update "already watching" state
       setScanResult({ ...scanResult });
     }
   }, [scanResult, selectedTokens, addToken, currentChainId, isExternalScan]);
@@ -664,7 +754,7 @@ export function WalletScan({ className = '' }: WalletScanProps) {
     });
   }, [availableSlots]);
 
-  // Select/deselect all
+  // Select/deselect all visible
   const toggleSelectAll = useCallback(() => {
     if (!scanResult) return;
 
@@ -679,43 +769,162 @@ export function WalletScan({ className = '' }: WalletScanProps) {
     }
   }, [scanResult, selectedTokens, getFilteredTokens, availableSlots]);
 
-  // Get filtered and categorized tokens
-  const { displayTokens, unpricedCount } = useMemo(() => {
+  // Get filtered and categorized tokens with search + quick filters
+  const { displayTokens, unpricedCount, totalAfterFilters } = useMemo(() => {
     if (!scanResult) {
-      return { displayTokens: [], unpricedCount: 0 };
+      return { displayTokens: [], unpricedCount: 0, totalAfterFilters: 0 };
     }
 
-    // Start with tokens not already in watchlist
     const notInWatchlist = getFilteredTokens(scanResult.tokens);
-
-    // Separate priced vs unpriced
     const priced = notInWatchlist.filter((t) => t.hasPricing && t.valueUsd && t.valueUsd > 0);
     const unpriced = notInWatchlist.filter((t) => !t.hasPricing || !t.valueUsd || t.valueUsd === 0);
 
     // Sort priced by value (highest first)
     priced.sort((a, b) => (b.valueUsd || 0) - (a.valueUsd || 0));
 
-    // Apply filters for display
     let filtered = priced;
+
+    // Apply logo filter
     if (hideNoLogo) {
       filtered = filtered.filter((t) => hasValidLogo(t.logo));
+    }
+
+    // Apply stablecoin filter
+    if (stableOnly) {
+      filtered = filtered.filter((t) => isStablecoin(t.symbol, t.name));
+    }
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      filtered = filtered.filter((t) => {
+        const sym = (t.symbol || '').toLowerCase();
+        const nm = (t.name || '').toLowerCase();
+        return sym.includes(q) || nm.includes(q);
+      });
+    }
+
+    // Apply quick filter
+    if (quickFilter === 'top20') {
+      filtered = filtered.slice(0, 20);
+    } else if (quickFilter === 'usd1k') {
+      filtered = filtered.filter((t) => (t.valueUsd || 0) >= 1000);
+    } else if (quickFilter === 'usd10k') {
+      filtered = filtered.filter((t) => (t.valueUsd || 0) >= 10000);
     }
 
     return {
       displayTokens: filtered,
       unpricedCount: unpriced.length,
+      totalAfterFilters: filtered.length,
     };
-  }, [scanResult, getFilteredTokens, hideNoLogo]);
+  }, [scanResult, getFilteredTokens, hideNoLogo, stableOnly, searchQuery, quickFilter]);
 
   // Paginated tokens for display
   const visibleTokens = displayTokens.slice(0, visibleCount);
   const hasMoreTokens = displayTokens.length > visibleCount;
+
   const hiddenByLogoFilter = useMemo(() => {
     if (!scanResult) return 0;
     const notInWatchlist = getFilteredTokens(scanResult.tokens);
     const priced = notInWatchlist.filter((t) => t.hasPricing && t.valueUsd && t.valueUsd > 0);
     return priced.filter((t) => !hasValidLogo(t.logo)).length;
   }, [scanResult, getFilteredTokens]);
+
+  // Lazy risk loading for visible tokens only
+  useEffect(() => {
+    if (!visibleTokens.length) return;
+
+    let cancelled = false;
+    const cache = riskCacheRef.current;
+    const now = Date.now();
+
+    // Find tokens that need risk fetching
+    const needFetch = visibleTokens.filter((t) => {
+      const key = `${currentChainId}:${t.address.toLowerCase()}`;
+      const entry = cache.get(key);
+      if (!entry) return true;
+      return now - entry.fetchedAt > RISK_CACHE_TTL_MS;
+    });
+
+    if (needFetch.length === 0) return;
+
+    const queue = [...needFetch];
+
+    const fetchRisk = async (token: DiscoveredToken) => {
+      const key = `${currentChainId}:${token.address.toLowerCase()}`;
+      if (riskInflightRef.current.has(key)) return;
+
+      riskInflightRef.current.add(key);
+
+      try {
+        const url = `${API_BASE}/api/v1/signals?chainId=${currentChainId}&token=${token.address}`;
+        const res = await fetch(url, { method: 'GET' });
+
+        let label: RiskLabel = 'Unknown';
+
+        if (res.ok) {
+          const data = await res.json();
+          const riskSignal = data?.risk?.signal;
+
+          if (riskSignal) {
+            const status = riskSignal.status || '';
+            if (status === 'critical' || status === 'danger') {
+              label = 'High';
+            } else if (status === 'warning') {
+              label = 'Medium';
+            } else if (status === 'safe') {
+              label = 'Low';
+            }
+          } else {
+            // No risk signal means likely safe
+            label = 'Low';
+          }
+        }
+
+        if (!cancelled) {
+          cache.set(key, { label, fetchedAt: Date.now() });
+          setRiskVersion((v) => v + 1);
+        }
+      } catch {
+        if (!cancelled) {
+          cache.set(key, { label: 'Unknown', fetchedAt: Date.now() });
+        }
+      } finally {
+        riskInflightRef.current.delete(key);
+      }
+    };
+
+    // Process queue with limited concurrency
+    const processQueue = async () => {
+      const workers = [];
+      for (let i = 0; i < MAX_RISK_CONCURRENCY && queue.length > 0; i++) {
+        workers.push(
+          (async () => {
+            while (queue.length > 0 && !cancelled) {
+              const token = queue.shift();
+              if (token) await fetchRisk(token);
+            }
+          })()
+        );
+      }
+      await Promise.all(workers);
+    };
+
+    processQueue();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [visibleTokens, currentChainId, riskVersion]);
+
+  // Get risk label for a token
+  const getRiskLabel = useCallback((token: DiscoveredToken): RiskLabel => {
+    const key = `${currentChainId}:${token.address.toLowerCase()}`;
+    const entry = riskCacheRef.current.get(key);
+    if (!entry) return 'Loading';
+    return entry.label;
+  }, [currentChainId, riskVersion]); // riskVersion dependency triggers re-render
 
   // Get empty state reason
   const getEmptyReason = (): string => {
@@ -736,6 +945,9 @@ export function WalletScan({ className = '' }: WalletScanProps) {
     }
 
     if (displayTokens.length === 0 && scanResult.tokens.length > 0) {
+      if (searchQuery) return `No tokens match "${searchQuery}". Try clearing search.`;
+      if (stableOnly) return 'No stablecoins found. Try disabling stablecoin filter.';
+      if (quickFilter !== 'none') return 'No tokens match the value filter. Try a different filter.';
       return 'All discovered tokens are already in your watchlist.';
     }
 
@@ -751,6 +963,9 @@ export function WalletScan({ className = '' }: WalletScanProps) {
     setExternalAddress(address);
     setShowPresets(false);
   }, []);
+
+  // Provider name for trust tags
+  const providerName = scanResult?.provider || 'unknown';
 
   return (
     <div className={`bg-dark-800 rounded-xl p-4 ${className}`}>
@@ -792,7 +1007,7 @@ export function WalletScan({ className = '' }: WalletScanProps) {
         </button>
       </div>
 
-      {/* External wallet input (only show in external mode) */}
+      {/* External wallet input */}
       {walletMode === 'external' && (
         <div className="mb-3">
           <div className="relative">
@@ -822,7 +1037,6 @@ export function WalletScan({ className = '' }: WalletScanProps) {
             </div>
           )}
 
-          {/* Preset wallets toggle */}
           <button
             onClick={() => setShowPresets(!showPresets)}
             className="mt-2 text-[10px] text-dark-500 hover:text-dark-300 flex items-center gap-1"
@@ -831,7 +1045,6 @@ export function WalletScan({ className = '' }: WalletScanProps) {
             <span>{showPresets ? 'Hide presets' : 'Quick picks (whale wallets)'}</span>
           </button>
 
-          {/* Preset wallet list */}
           {showPresets && (
             <div className="mt-2 space-y-1">
               {PRESET_WALLETS.map((preset) => (
@@ -852,7 +1065,6 @@ export function WalletScan({ className = '' }: WalletScanProps) {
             </div>
           )}
 
-          {/* Read-only notice */}
           <div className="mt-2 text-[10px] text-dark-600 flex items-center gap-1">
             <span>🔒</span>
             <span>Read-only. No private key access.</span>
@@ -884,7 +1096,6 @@ export function WalletScan({ className = '' }: WalletScanProps) {
           </span>
         </div>
       ) : stage === 'idle' || stage === 'error' ? (
-        /* Idle / Error state - show scan button */
         <>
           {errorMessage && (
             <div className="mb-3 p-2 bg-red-900/20 border border-red-900/30 rounded-lg text-xs text-red-400">
@@ -913,28 +1124,24 @@ export function WalletScan({ className = '' }: WalletScanProps) {
           </button>
         </>
       ) : stage !== 'complete' ? (
-        /* Scanning state - show progress */
         <div className="py-6">
           <div className="flex items-center justify-center gap-3 mb-4">
             <div className="w-5 h-5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
             <span className="text-dark-300 text-sm">{STAGE_LABELS[stage]}</span>
           </div>
-          {/* Skeleton loaders */}
           <div className="space-y-2">
             <TokenSkeleton />
             <TokenSkeleton />
             <TokenSkeleton />
           </div>
         </div>
-      ) : displayTokens.length === 0 ? (
-        /* Empty state */
+      ) : displayTokens.length === 0 && !searchQuery && quickFilter === 'none' && !stableOnly ? (
         <EmptyState
           reason={getEmptyReason()}
           chainSuggestion={scanResult?.insights?.chainSuggestion}
           onSwitchChain={() => setStage('idle')}
         />
       ) : (
-        /* Results state */
         <>
           {/* Insights */}
           {scanResult?.insights && (
@@ -946,10 +1153,59 @@ export function WalletScan({ className = '' }: WalletScanProps) {
             <DiffPanel diff={scanResult.diff} hideNoLogo={hideNoLogo} />
           )}
 
-          {/* Filter controls */}
-          <div className="flex items-center gap-3 mb-3 p-2 bg-dark-700/30 rounded-lg">
-            <span className="text-[10px] text-dark-500">Filters:</span>
-            <label className="flex items-center gap-1.5 cursor-pointer">
+          {/* V5: Search input */}
+          <div className="mb-3">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by symbol or name (e.g., USDT, BTCB...)"
+              className="w-full px-3 py-2 bg-dark-700/50 border border-dark-600 rounded-lg text-sm text-dark-200 placeholder-dark-500 focus:outline-none focus:ring-1 focus:ring-primary-500/50"
+            />
+          </div>
+
+          {/* V5: Quick filters */}
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <button
+              onClick={() => setQuickFilter(quickFilter === 'top20' ? 'none' : 'top20')}
+              className={`px-2.5 py-1.5 rounded-lg text-[10px] font-medium transition-all ${
+                quickFilter === 'top20'
+                  ? 'bg-primary-600/20 text-primary-400 border border-primary-600/30'
+                  : 'bg-dark-700/50 text-dark-400 hover:bg-dark-700'
+              }`}
+            >
+              Top 20
+            </button>
+            <button
+              onClick={() => setQuickFilter(quickFilter === 'usd1k' ? 'none' : 'usd1k')}
+              className={`px-2.5 py-1.5 rounded-lg text-[10px] font-medium transition-all ${
+                quickFilter === 'usd1k'
+                  ? 'bg-primary-600/20 text-primary-400 border border-primary-600/30'
+                  : 'bg-dark-700/50 text-dark-400 hover:bg-dark-700'
+              }`}
+            >
+              $1k+
+            </button>
+            <button
+              onClick={() => setQuickFilter(quickFilter === 'usd10k' ? 'none' : 'usd10k')}
+              className={`px-2.5 py-1.5 rounded-lg text-[10px] font-medium transition-all ${
+                quickFilter === 'usd10k'
+                  ? 'bg-primary-600/20 text-primary-400 border border-primary-600/30'
+                  : 'bg-dark-700/50 text-dark-400 hover:bg-dark-700'
+              }`}
+            >
+              $10k+
+            </button>
+            <label className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-dark-700/50 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={stableOnly}
+                onChange={(e) => setStableOnly(e.target.checked)}
+                className="w-3 h-3 rounded border-dark-500 bg-dark-700 text-primary-500"
+              />
+              <span className="text-[10px] text-dark-400">Stablecoins only</span>
+            </label>
+            <label className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-dark-700/50 cursor-pointer">
               <input
                 type="checkbox"
                 checked={hideNoLogo}
@@ -970,7 +1226,7 @@ export function WalletScan({ className = '' }: WalletScanProps) {
                 Top Holdings
               </span>
               <span className="text-[10px] text-dark-500">
-                {displayTokens.length} tokens
+                {totalAfterFilters} tokens
               </span>
               {selectedTokens.size > 0 && (
                 <span className="text-[10px] text-primary-400">
@@ -988,6 +1244,19 @@ export function WalletScan({ className = '' }: WalletScanProps) {
             </button>
           </div>
 
+          {/* Empty filter result */}
+          {displayTokens.length === 0 && (searchQuery || quickFilter !== 'none' || stableOnly) && (
+            <div className="text-center py-6 text-dark-500 text-sm">
+              <div>No tokens match your filters.</div>
+              <div className="text-xs mt-2">
+                Try: {searchQuery && 'clearing search, '}
+                {stableOnly && 'disabling stablecoins filter, '}
+                {quickFilter !== 'none' && 'removing value filter, '}
+                {hideNoLogo && 'showing tokens without logos'}
+              </div>
+            </div>
+          )}
+
           {/* Token list */}
           <div className="space-y-1.5 mb-3">
             {visibleTokens.map((token) => (
@@ -996,6 +1265,8 @@ export function WalletScan({ className = '' }: WalletScanProps) {
                 token={token}
                 selected={selectedTokens.has(token.address)}
                 onToggle={() => toggleToken(token.address)}
+                provider={providerName}
+                riskLabel={getRiskLabel(token)}
               />
             ))}
           </div>
@@ -1010,7 +1281,7 @@ export function WalletScan({ className = '' }: WalletScanProps) {
             </button>
           )}
 
-          {/* Unpriced tokens summary (collapsed) */}
+          {/* Unpriced tokens summary */}
           {unpricedCount > 0 && (
             <div className="mt-3 p-2 bg-dark-700/20 rounded-lg">
               <div className="flex items-center gap-2 text-[10px] text-dark-500">
@@ -1053,11 +1324,18 @@ export function WalletScan({ className = '' }: WalletScanProps) {
         </div>
       )}
 
-      {/* Stats footer (only show after scan) */}
+      {/* Stats footer */}
       {scanResult && stage === 'complete' && (
         <div className="mt-2 flex items-center justify-between text-[10px] text-dark-600">
           <span>Provider: {scanResult.provider}</span>
           <span>{scanResult.stats.durationMs}ms</span>
+        </div>
+      )}
+
+      {/* Risk loading note */}
+      {stage === 'complete' && visibleTokens.length > 0 && (
+        <div className="mt-2 text-[9px] text-dark-600 text-center">
+          Risk labels load for visible tokens only
         </div>
       )}
     </div>
