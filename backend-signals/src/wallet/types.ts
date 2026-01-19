@@ -73,6 +73,8 @@ export interface WalletScanResponse {
   nativeBalance: NativeBalance;
   // Insights for UI
   insights?: ScanInsights;
+  // Diff from previous scan (V4)
+  diff?: ScanDiff | null;
   // Debug info
   debug?: {
     rawTokenCount: number;
@@ -178,4 +180,51 @@ export const SUPPORTED_CHAIN_IDS = Object.keys(CHAIN_CONFIG).map(Number);
 export function shortWallet(address: string): string {
   if (!address || address.length < 10) return address;
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+// ============================================================
+// Wallet Scan Diff Types (V4)
+// ============================================================
+
+// Minimal token snapshot for storage (only what's needed for diffs)
+export interface TokenSnapshot {
+  address: string;
+  symbol: string;
+  balance: string;
+  valueUsd?: number;
+}
+
+// Wallet scan snapshot (stored per wallet+chain)
+export interface WalletSnapshot {
+  wallet: string;
+  chainId: number;
+  timestamp: number;
+  tokens: TokenSnapshot[];
+}
+
+// Token with delta info for diff display
+export interface TokenDelta {
+  address: string;
+  symbol: string;
+  name: string;
+  logo?: string;
+  chainId: number;
+  // Current values
+  balance: string;
+  balanceFormatted: string;
+  valueUsd?: number;
+  // Delta info
+  prevBalance?: string;
+  prevValueUsd?: number;
+  balanceChange?: string;  // human readable like "+1,234" or "-567"
+  valueChange?: number;    // USD change
+}
+
+// Scan diff result
+export interface ScanDiff {
+  added: TokenDelta[];      // New tokens that weren't in previous scan
+  removed: TokenDelta[];    // Tokens that were in previous but not in current
+  increased: TokenDelta[];  // Tokens with higher balance
+  decreased: TokenDelta[];  // Tokens with lower balance
+  previousScanTime?: number; // When the previous scan was done
 }

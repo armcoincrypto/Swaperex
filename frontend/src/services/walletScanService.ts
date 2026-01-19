@@ -71,6 +71,31 @@ export interface ScanInsights {
   chainSuggestion?: string;
 }
 
+// Token delta for diff display
+export interface TokenDelta {
+  address: string;
+  symbol: string;
+  name: string;
+  logo?: string;
+  chainId: number;
+  balance: string;
+  balanceFormatted: string;
+  valueUsd?: number;
+  prevBalance?: string;
+  prevValueUsd?: number;
+  balanceChange?: string;
+  valueChange?: number;
+}
+
+// Scan diff result
+export interface ScanDiff {
+  added: TokenDelta[];
+  removed: TokenDelta[];
+  increased: TokenDelta[];
+  decreased: TokenDelta[];
+  previousScanTime?: number;
+}
+
 // Full scan response
 export interface WalletScanResponse {
   provider: string;
@@ -80,6 +105,7 @@ export interface WalletScanResponse {
   tokens: DiscoveredToken[];
   nativeBalance: NativeBalance;
   insights?: ScanInsights;
+  diff?: ScanDiff | null;
   error?: string;
 }
 

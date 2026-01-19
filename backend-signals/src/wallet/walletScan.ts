@@ -19,11 +19,14 @@ import type {
   FilterStep,
   WalletScanProviderInterface,
   NativeBalance,
+  ScanDiff,
 } from './types.js';
 import { shortWallet, SUPPORTED_CHAIN_IDS, CHAIN_CONFIG } from './types.js';
 import { classifyTokens, getNonSpamTokens } from './spamFilter.js';
 import { createMoralisProvider } from './moralisProvider.js';
 import { createCovalentProvider } from './covalentProvider.js';
+import { getPreviousSnapshot, saveSnapshot } from './snapshotStore.js';
+import { calculateDiff } from './diffEngine.js';
 
 // In-memory cache for scan results (5 minute TTL)
 const scanCache = new Map<string, { result: WalletScanResponse; timestamp: number }>();
@@ -398,6 +401,17 @@ export async function scanWallet(
   // Generate insights
   const insights = generateInsights(filtered, config.chainId);
 
+  // Calculate diff from previous scan (V4)
+  let diff: ScanDiff | null = null;
+  try {
+    const previousSnapshot = await getPreviousSnapshot(config.wallet, config.chainId);
+    const nonSpamTokens = filtered.filter((t) => !t.isSpam);
+    diff = calculateDiff(nonSpamTokens, previousSnapshot, config.minUsd);
+  } catch (err) {
+    console.warn('[WalletScan] Failed to calculate diff:', err);
+    // Don't fail the scan if diff calculation fails
+  }
+
   // Build stats
   const stats: ScanStats = {
     durationMs: Date.now() - startTime,
@@ -418,12 +432,21 @@ export async function scanWallet(
     tokens: config.includeSpam ? filtered : filtered.filter((t) => !t.isSpam),
     nativeBalance: native,
     insights,
+    diff,
     debug: {
       rawTokenCount: rawCount,
       filterSteps,
       providerLatencyMs,
     },
   };
+
+  // Save snapshot for future diff calculations (V4)
+  try {
+    await saveSnapshot(config.wallet, config.chainId, filtered);
+  } catch (err) {
+    console.warn('[WalletScan] Failed to save snapshot:', err);
+    // Don't fail the scan if snapshot save fails
+  }
 
   // Cache result
   scanCache.set(cacheKey, { result: response, timestamp: Date.now() });

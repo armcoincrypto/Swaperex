@@ -20,6 +20,8 @@ import {
   type WalletScanResponse,
   type DiscoveredToken,
   type ScanInsights,
+  type ScanDiff,
+  type TokenDelta,
   CHAIN_INFO,
   formatUsd,
   formatPercent,
@@ -278,6 +280,164 @@ function InsightsPanel({ insights }: { insights: ScanInsights }) {
             {insights.unpricedTokens.reason}
           </div>
         </InsightCard>
+      )}
+    </div>
+  );
+}
+
+// Format time ago string
+function formatTimeAgo(timestamp: number): string {
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+// Diff change row component
+function DiffChangeRow({
+  type,
+  token,
+}: {
+  type: 'added' | 'removed' | 'increased' | 'decreased';
+  token: TokenDelta;
+}) {
+  const icons: Record<string, string> = {
+    added: '🟢',
+    removed: '🔴',
+    increased: '🔼',
+    decreased: '🔽',
+  };
+
+  const labels: Record<string, string> = {
+    added: 'New',
+    removed: 'Gone',
+    increased: 'More',
+    decreased: 'Less',
+  };
+
+  const valueDisplay = type === 'removed'
+    ? token.prevValueUsd ? formatUsd(token.prevValueUsd) : '-'
+    : token.valueUsd ? formatUsd(token.valueUsd) : '-';
+
+  const changeDisplay = token.valueChange
+    ? `${token.valueChange > 0 ? '+' : ''}${formatUsd(Math.abs(token.valueChange))}`
+    : null;
+
+  return (
+    <div className="flex items-center gap-2 py-1.5 text-xs">
+      <span className="w-4 text-center">{icons[type]}</span>
+      <span className="text-dark-400 w-10">{labels[type]}</span>
+      <span className="flex-1 text-dark-200 font-medium truncate">{token.symbol}</span>
+      <span className="text-dark-400">{valueDisplay}</span>
+      {changeDisplay && type !== 'added' && type !== 'removed' && (
+        <span className={`text-[10px] ${token.valueChange && token.valueChange > 0 ? 'text-green-400' : 'text-red-400'}`}>
+          ({changeDisplay})
+        </span>
+      )}
+    </div>
+  );
+}
+
+// Diff panel component
+function DiffPanel({ diff }: { diff: ScanDiff }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const totalChanges =
+    diff.added.length + diff.removed.length + diff.increased.length + diff.decreased.length;
+
+  if (totalChanges === 0) {
+    return (
+      <div className="mb-3 p-2 bg-dark-700/30 rounded-lg">
+        <div className="flex items-center gap-2 text-xs text-dark-500">
+          <span>📊</span>
+          <span>No changes since last scan</span>
+          {diff.previousScanTime && (
+            <span className="ml-auto">{formatTimeAgo(diff.previousScanTime)}</span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-3 bg-dark-700/30 rounded-lg overflow-hidden">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full flex items-center justify-between p-2 hover:bg-dark-700/50 transition-colors"
+      >
+        <div className="flex items-center gap-2 text-xs">
+          <span>📊</span>
+          <span className="text-dark-300">Changes since last scan</span>
+          <span className="text-primary-400">({totalChanges})</span>
+        </div>
+        <div className="flex items-center gap-2 text-[10px] text-dark-500">
+          {diff.previousScanTime && <span>{formatTimeAgo(diff.previousScanTime)}</span>}
+          <span>{isExpanded ? '▲' : '▼'}</span>
+        </div>
+      </button>
+
+      {isExpanded && (
+        <div className="px-2 pb-2 border-t border-dark-600/50">
+          {/* Added tokens */}
+          {diff.added.length > 0 && (
+            <div className="mt-2">
+              {diff.added.slice(0, 5).map((token) => (
+                <DiffChangeRow key={`added-${token.address}`} type="added" token={token} />
+              ))}
+              {diff.added.length > 5 && (
+                <div className="text-[10px] text-dark-500 pl-6">
+                  +{diff.added.length - 5} more added
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Removed tokens */}
+          {diff.removed.length > 0 && (
+            <div className="mt-2">
+              {diff.removed.slice(0, 5).map((token) => (
+                <DiffChangeRow key={`removed-${token.address}`} type="removed" token={token} />
+              ))}
+              {diff.removed.length > 5 && (
+                <div className="text-[10px] text-dark-500 pl-6">
+                  +{diff.removed.length - 5} more removed
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Increased tokens */}
+          {diff.increased.length > 0 && (
+            <div className="mt-2">
+              {diff.increased.slice(0, 5).map((token) => (
+                <DiffChangeRow key={`increased-${token.address}`} type="increased" token={token} />
+              ))}
+              {diff.increased.length > 5 && (
+                <div className="text-[10px] text-dark-500 pl-6">
+                  +{diff.increased.length - 5} more increased
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Decreased tokens */}
+          {diff.decreased.length > 0 && (
+            <div className="mt-2">
+              {diff.decreased.slice(0, 5).map((token) => (
+                <DiffChangeRow key={`decreased-${token.address}`} type="decreased" token={token} />
+              ))}
+              {diff.decreased.length > 5 && (
+                <div className="text-[10px] text-dark-500 pl-6">
+                  +{diff.decreased.length - 5} more decreased
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
@@ -688,6 +848,11 @@ export function WalletScan({ className = '' }: WalletScanProps) {
           {/* Insights */}
           {scanResult?.insights && (
             <InsightsPanel insights={scanResult.insights} />
+          )}
+
+          {/* Changes since last scan (V4 Diff) */}
+          {scanResult?.diff && (
+            <DiffPanel diff={scanResult.diff} />
           )}
 
           {/* Token list header */}
