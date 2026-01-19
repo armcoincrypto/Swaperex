@@ -19,6 +19,7 @@ export type MetricEventType =
   | 'wallet_scan_completed'
   | 'wallet_scan_error'
   | 'wallet_scan_add_selected'
+  | 'external_wallet_scanned'
   | 'watchlist_token_added'
   | 'watchlist_token_removed'
   | 'radar_signal_generated'
@@ -208,6 +209,20 @@ export async function trackScanError(
     type: 'wallet_scan_error',
     timestamp: Date.now(),
     data: { chainId, provider, errorType },
+  });
+}
+
+/**
+ * Track external wallet scan (research mode)
+ */
+export async function trackExternalWalletScanned(
+  chainId: number,
+  walletShort: string,
+): Promise<void> {
+  await trackEvent({
+    type: 'external_wallet_scanned',
+    timestamp: Date.now(),
+    data: { chainId, walletShort },
   });
 }
 

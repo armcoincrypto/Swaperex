@@ -1,20 +1,22 @@
 /**
  * Wallet Scan V3 Component
  *
- * Scans connected wallet for tokens and provides insights.
+ * Scans connected wallet OR any public wallet for tokens and provides insights.
  * Features:
  * - Real-time progress states
  * - Instant payoff insights cards
  * - One-click "Add Top 5" to watchlist
  * - Clear explanations for empty states
+ * - External wallet scanning (whale watching, research)
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useWalletStore } from '@/stores/walletStore';
 import { useWatchlistStore } from '@/stores/watchlistStore';
 import {
   scanWallet,
   trackAddSelected,
+  trackExternalWalletScanned,
   type WalletScanResponse,
   type DiscoveredToken,
   type ScanInsights,
@@ -24,6 +26,38 @@ import {
   getPercentColor,
   shortAddress,
 } from '@/services/walletScanService';
+
+// Wallet scan mode
+type WalletMode = 'connected' | 'external';
+
+// Preset wallets for quick selection
+const PRESET_WALLETS: { name: string; address: string; description: string }[] = [
+  {
+    name: 'Binance Hot Wallet',
+    address: '0x8894E0a0c962CB723c1976a4421c95949bE2D4E3',
+    description: 'Major CEX wallet',
+  },
+  {
+    name: 'Wintermute',
+    address: '0x0000000000007F150Bd6f54c40A34d7C3d5e9f56',
+    description: 'Market maker',
+  },
+  {
+    name: 'Jump Trading',
+    address: '0xf584F8728B874a6a5c7A8d4d387C9aae9172D621',
+    description: 'Trading firm',
+  },
+  {
+    name: 'BSC Whale',
+    address: '0xe2fc31F816A9b94326492132018C3aEcC4a93aE1',
+    description: 'Known BNB holder',
+  },
+];
+
+// Validate Ethereum address format
+function isValidAddress(address: string): boolean {
+  return /^0x[a-fA-F0-9]{40}$/.test(address);
+}
 
 interface WalletScanProps {
   className?: string;
@@ -258,6 +292,11 @@ export function WalletScan({ className = '' }: WalletScanProps) {
   const addToken = useWatchlistStore((s) => s.addToken);
   const hasToken = useWatchlistStore((s) => s.hasToken);
 
+  // Wallet mode state
+  const [walletMode, setWalletMode] = useState<WalletMode>('connected');
+  const [externalAddress, setExternalAddress] = useState('');
+  const [showPresets, setShowPresets] = useState(false);
+
   // Scan state
   const [stage, setStage] = useState<ScanStage>('idle');
   const [scanResult, setScanResult] = useState<WalletScanResponse | null>(null);
@@ -273,6 +312,25 @@ export function WalletScan({ className = '' }: WalletScanProps) {
   const watchlistFull = watchlistTokens.length >= 20;
   const availableSlots = 20 - watchlistTokens.length;
 
+  // Determine which wallet to scan
+  const targetWallet = useMemo(() => {
+    if (walletMode === 'connected') {
+      return walletAddress || '';
+    }
+    return externalAddress.trim();
+  }, [walletMode, walletAddress, externalAddress]);
+
+  // Check if scan is ready
+  const canScan = useMemo(() => {
+    if (walletMode === 'connected') {
+      return isConnected && !!walletAddress;
+    }
+    return isValidAddress(externalAddress.trim());
+  }, [walletMode, isConnected, walletAddress, externalAddress]);
+
+  // Is this an external wallet scan?
+  const isExternalScan = walletMode === 'external';
+
   // Filter tokens that are already in watchlist
   const getFilteredTokens = useCallback(
     (tokens: DiscoveredToken[]): DiscoveredToken[] => {
@@ -283,7 +341,7 @@ export function WalletScan({ className = '' }: WalletScanProps) {
 
   // Handle scan
   const handleScan = useCallback(async () => {
-    if (!isConnected || !walletAddress) return;
+    if (!canScan || !targetWallet) return;
 
     setStage('connecting');
     setErrorMessage(null);
@@ -298,7 +356,7 @@ export function WalletScan({ className = '' }: WalletScanProps) {
 
       const result = await scanWallet({
         chainId: currentChainId,
-        wallet: walletAddress,
+        wallet: targetWallet,
         minUsd: 1,
         strict: false,
         provider: 'auto',
@@ -306,6 +364,11 @@ export function WalletScan({ className = '' }: WalletScanProps) {
 
       setScanResult(result);
       setLastScanTime(Date.now());
+
+      // Track external wallet scan for metrics
+      if (isExternalScan) {
+        await trackExternalWalletScanned(currentChainId, targetWallet);
+      }
 
       if (result.error) {
         setStage('error');
@@ -322,7 +385,7 @@ export function WalletScan({ className = '' }: WalletScanProps) {
       setStage('error');
       setErrorMessage(err instanceof Error ? err.message : 'Unknown error occurred');
     }
-  }, [isConnected, walletAddress, currentChainId, getFilteredTokens, availableSlots]);
+  }, [canScan, targetWallet, currentChainId, isExternalScan, getFilteredTokens, availableSlots]);
 
   // Handle add selected tokens
   const handleAddSelected = useCallback(async () => {
@@ -340,13 +403,14 @@ export function WalletScan({ className = '' }: WalletScanProps) {
       if (success) addedCount++;
     }
 
-    // Track the addition for metrics
+    // Track the addition for metrics (including source: connected vs external)
     await trackAddSelected(selectedTokens.size, addedCount, {
       minUsd: 1,
       provider: scanResult.provider,
       strict: false,
       chainId: currentChainId,
       filteredSpam: scanResult.stats.spamFiltered,
+      source: isExternalScan ? 'external' : 'connected',
     });
 
     // Clear selection and update state
@@ -357,7 +421,7 @@ export function WalletScan({ className = '' }: WalletScanProps) {
       // Force re-render to update "already watching" state
       setScanResult({ ...scanResult });
     }
-  }, [scanResult, selectedTokens, addToken, currentChainId]);
+  }, [scanResult, selectedTokens, addToken, currentChainId, isExternalScan]);
 
   // Toggle token selection
   const toggleToken = useCallback((address: string) => {
@@ -421,6 +485,12 @@ export function WalletScan({ className = '' }: WalletScanProps) {
     return 'No tokens found.';
   };
 
+  // Handle preset wallet selection
+  const handlePresetSelect = useCallback((address: string) => {
+    setExternalAddress(address);
+    setShowPresets(false);
+  }, []);
+
   return (
     <div className={`bg-dark-800 rounded-xl p-4 ${className}`}>
       {/* Header */}
@@ -437,6 +507,98 @@ export function WalletScan({ className = '' }: WalletScanProps) {
         )}
       </div>
 
+      {/* Wallet Mode Selector */}
+      <div className="flex gap-2 mb-3">
+        <button
+          onClick={() => { setWalletMode('connected'); setStage('idle'); setScanResult(null); }}
+          className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-all ${
+            walletMode === 'connected'
+              ? 'bg-primary-600/20 text-primary-400 border border-primary-600/30'
+              : 'bg-dark-700/50 text-dark-400 hover:bg-dark-700'
+          }`}
+        >
+          My Wallet
+        </button>
+        <button
+          onClick={() => { setWalletMode('external'); setStage('idle'); setScanResult(null); }}
+          className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-all ${
+            walletMode === 'external'
+              ? 'bg-primary-600/20 text-primary-400 border border-primary-600/30'
+              : 'bg-dark-700/50 text-dark-400 hover:bg-dark-700'
+          }`}
+        >
+          Any Wallet
+        </button>
+      </div>
+
+      {/* External wallet input (only show in external mode) */}
+      {walletMode === 'external' && (
+        <div className="mb-3">
+          <div className="relative">
+            <input
+              type="text"
+              value={externalAddress}
+              onChange={(e) => setExternalAddress(e.target.value)}
+              placeholder="0x... (paste any wallet address)"
+              className={`w-full px-3 py-2.5 bg-dark-700/50 border rounded-lg text-sm text-dark-200 placeholder-dark-500 focus:outline-none focus:ring-1 ${
+                externalAddress && !isValidAddress(externalAddress)
+                  ? 'border-red-500/50 focus:ring-red-500/50'
+                  : 'border-dark-600 focus:ring-primary-500/50'
+              }`}
+            />
+            {externalAddress && (
+              <button
+                onClick={() => setExternalAddress('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-dark-500 hover:text-dark-300 p-1"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          {externalAddress && !isValidAddress(externalAddress) && (
+            <div className="text-[10px] text-red-400 mt-1">
+              Invalid address (must be 42 chars: 0x + 40 hex)
+            </div>
+          )}
+
+          {/* Preset wallets toggle */}
+          <button
+            onClick={() => setShowPresets(!showPresets)}
+            className="mt-2 text-[10px] text-dark-500 hover:text-dark-300 flex items-center gap-1"
+          >
+            <span>📋</span>
+            <span>{showPresets ? 'Hide presets' : 'Quick picks (whale wallets)'}</span>
+          </button>
+
+          {/* Preset wallet list */}
+          {showPresets && (
+            <div className="mt-2 space-y-1">
+              {PRESET_WALLETS.map((preset) => (
+                <button
+                  key={preset.address}
+                  onClick={() => handlePresetSelect(preset.address)}
+                  className="w-full flex items-center justify-between p-2 bg-dark-700/30 hover:bg-dark-700/50 rounded-lg transition-colors text-left"
+                >
+                  <div>
+                    <div className="text-xs text-dark-200">{preset.name}</div>
+                    <div className="text-[10px] text-dark-500">{preset.description}</div>
+                  </div>
+                  <div className="text-[10px] text-dark-600 font-mono">
+                    {shortAddress(preset.address)}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Read-only notice */}
+          <div className="mt-2 text-[10px] text-dark-600 flex items-center gap-1">
+            <span>🔒</span>
+            <span>Read-only. No private key access.</span>
+          </div>
+        </div>
+      )}
+
       {/* Chain indicator */}
       <div className="flex items-center gap-2 mb-4 p-2 bg-dark-700/50 rounded-lg">
         <div
@@ -451,10 +613,14 @@ export function WalletScan({ className = '' }: WalletScanProps) {
         )}
       </div>
 
-      {/* Not connected state */}
-      {!isConnected ? (
+      {/* Not ready to scan state */}
+      {!canScan ? (
         <div className="flex items-center justify-center py-8 text-dark-500 text-xs">
-          <span>Connect your wallet to scan for tokens</span>
+          <span>
+            {walletMode === 'connected'
+              ? 'Connect your wallet to scan for tokens'
+              : 'Enter a valid wallet address to scan'}
+          </span>
         </div>
       ) : stage === 'idle' || stage === 'error' ? (
         /* Idle / Error state - show scan button */
@@ -477,7 +643,7 @@ export function WalletScan({ className = '' }: WalletScanProps) {
               'Watchlist full (20/20)'
             ) : (
               <>
-                <span>Scan My Wallet</span>
+                <span>{isExternalScan ? 'Scan Wallet' : 'Scan My Wallet'}</span>
                 <span className="ml-2 text-dark-500 text-xs">
                   ({availableSlots} slots available)
                 </span>
@@ -583,11 +749,13 @@ export function WalletScan({ className = '' }: WalletScanProps) {
         </>
       )}
 
-      {/* Connected wallet info */}
-      {isConnected && walletAddress && (
+      {/* Scanned wallet info */}
+      {targetWallet && (
         <div className="mt-3 pt-3 border-t border-dark-700/50 flex items-center justify-between text-[10px]">
-          <span className="text-dark-500">Connected:</span>
-          <span className="text-dark-400 font-mono">{shortAddress(walletAddress)}</span>
+          <span className="text-dark-500">
+            {isExternalScan ? 'Viewing:' : 'Connected:'}
+          </span>
+          <span className="text-dark-400 font-mono">{shortAddress(targetWallet)}</span>
         </div>
       )}
 

@@ -18,6 +18,7 @@ import {
   trackScanCompleted,
   trackScanError,
   trackAddSelected,
+  trackExternalWalletScanned,
 } from "./metrics/index.js";
 
 // Configuration
@@ -308,6 +309,27 @@ app.post("/api/v1/wallet/scan/add", async (req, reply) => {
     body.chainId || 0,
     body.filteredSpam || 0,
   );
+
+  return { success: true };
+});
+
+/**
+ * Track external wallet scan (research mode)
+ *
+ * POST /api/v1/wallet/scan/external
+ * Body: { chainId, walletShort }
+ */
+app.post("/api/v1/wallet/scan/external", async (req, reply) => {
+  const body = req.body as {
+    chainId?: number;
+    walletShort?: string;
+  };
+
+  if (typeof body.chainId !== "number" || typeof body.walletShort !== "string") {
+    return reply.code(400).send({ error: "Missing params: chainId, walletShort" });
+  }
+
+  await trackExternalWalletScanned(body.chainId, body.walletShort);
 
   return { success: true };
 });

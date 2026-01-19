@@ -170,6 +170,7 @@ export async function trackAddSelected(
     strict?: boolean;
     chainId?: number;
     filteredSpam?: number;
+    source?: 'connected' | 'external';
   },
 ): Promise<void> {
   try {
@@ -187,6 +188,31 @@ export async function trackAddSelected(
   } catch (err) {
     // Don't throw - metrics should never break the app
     console.warn('[WalletScan] Failed to track add event:', err);
+  }
+}
+
+/**
+ * Track external wallet scan (for metrics)
+ */
+export async function trackExternalWalletScanned(
+  chainId: number,
+  wallet: string,
+): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/api/v1/wallet/scan/external`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        chainId,
+        // Only send shortened wallet for privacy
+        walletShort: wallet.length > 10 ? `${wallet.slice(0, 6)}...${wallet.slice(-4)}` : wallet,
+      }),
+    });
+  } catch (err) {
+    // Don't throw - metrics should never break the app
+    console.warn('[WalletScan] Failed to track external scan event:', err);
   }
 }
 
