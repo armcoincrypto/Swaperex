@@ -42,6 +42,7 @@ import {
 
 // Backend API base URL for risk fetching - use centralized config
 import { getSignalsApiUrl } from '@/utils/apiConfig';
+import { isStablecoin, isStablecoinPriceUnreliable } from '@/utils/stablecoin';
 const API_BASE = getSignalsApiUrl();
 
 // Wallet scan mode
@@ -91,32 +92,6 @@ function hasValidLogo(logo: string | undefined): boolean {
   } catch {
     return false;
   }
-}
-
-// Check if token is a stablecoin
-function isStablecoin(symbol?: string, name?: string): boolean {
-  const s = (symbol || '').toUpperCase();
-  const n = (name || '').toUpperCase();
-
-  const KNOWN_STABLES = new Set([
-    'USDT', 'USDC', 'DAI', 'FDUSD', 'TUSD', 'USDP', 'USDD', 'USDE',
-    'FRAX', 'LUSD', 'BUSD', 'GUSD', 'USDJ', 'UST', 'CUSD', 'SUSD'
-  ]);
-
-  if (KNOWN_STABLES.has(s)) return true;
-  if (s.includes('USD') && !s.includes('DUSK')) return true;
-  if (n.includes('USD') || n.includes('DOLLAR') || n.includes('STABLECOIN')) return true;
-
-  return false;
-}
-
-// P0: Check if stablecoin price is unreliable (outside 0.90-1.10 range)
-// Returns true if price should be considered unreliable for display
-function isStablecoinPriceUnreliable(pricePerToken: number | undefined, symbol?: string, name?: string): boolean {
-  if (!isStablecoin(symbol, name)) return false;
-  if (pricePerToken === undefined || pricePerToken === 0) return false;
-  // Stablecoin should be within 10% of $1.00
-  return pricePerToken < 0.90 || pricePerToken > 1.10;
 }
 
 // Get display price for a token (applies stablecoin sanity guard)

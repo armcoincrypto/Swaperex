@@ -19,6 +19,7 @@ import {
   getChainShortName,
 } from '@/services/tokenMeta';
 import { type TokenMeta } from '@/stores/tokenMetaStore';
+import { isStablecoinPriceUnreliable } from '@/utils/stablecoin';
 
 // Telemetry rate-limit: 10 minutes per token+chain
 const METRIC_RATE_LIMIT_MS = 10 * 60 * 1000;
@@ -83,30 +84,6 @@ function emitStablecoinGuardMetric(data: {
   } catch {
     // Silently fail - telemetry should never break the app
   }
-}
-
-// P0: Stablecoin detection (shared logic with WalletScan)
-function isStablecoin(symbol?: string, name?: string): boolean {
-  const s = (symbol || '').toUpperCase();
-  const n = (name || '').toUpperCase();
-
-  const KNOWN_STABLES = new Set([
-    'USDT', 'USDC', 'DAI', 'FDUSD', 'TUSD', 'USDP', 'USDD', 'USDE',
-    'FRAX', 'LUSD', 'BUSD', 'GUSD', 'USDJ', 'UST', 'CUSD', 'SUSD', 'XUSD'
-  ]);
-
-  if (KNOWN_STABLES.has(s)) return true;
-  if (s.includes('USD') && !s.includes('DUSK')) return true;
-  if (n.includes('USD') || n.includes('DOLLAR') || n.includes('STABLECOIN')) return true;
-
-  return false;
-}
-
-// P0: Check if stablecoin price is unreliable (outside 0.90-1.10 range)
-function isStablecoinPriceUnreliable(priceUsd: number | null | undefined, symbol?: string, name?: string): boolean {
-  if (!isStablecoin(symbol, name)) return false;
-  if (priceUsd === null || priceUsd === undefined || priceUsd === 0) return false;
-  return priceUsd < 0.90 || priceUsd > 1.10;
 }
 
 // P0: Price display with stablecoin sanity guard + telemetry
