@@ -7,7 +7,8 @@
  * SECURITY: Read-only operations, no signing.
  */
 
-import { Contract, JsonRpcProvider, getAddress, isAddress } from 'ethers';
+import { Contract, JsonRpcProvider } from 'ethers';
+import { normalizeAddressChecksum } from '@/utils/address';
 import {
   type PortfolioChain,
   type TokenBalance,
@@ -106,21 +107,6 @@ async function fetchNativeBalance(
 }
 
 /**
- * Normalize address to checksum format
- * Returns null if address is invalid
- */
-function normalizeAddress(address: string): string | null {
-  try {
-    if (!isAddress(address)) {
-      return null;
-    }
-    return getAddress(address);
-  } catch {
-    return null;
-  }
-}
-
-/**
  * Fetch single ERC20 token balance
  * Normalizes addresses to checksum format before calling contract
  */
@@ -137,8 +123,8 @@ async function fetchTokenBalance(
     }
 
     // Normalize addresses to checksum format
-    const normalizedTokenAddress = normalizeAddress(token.address);
-    const normalizedWalletAddress = normalizeAddress(address);
+    const normalizedTokenAddress = normalizeAddressChecksum(token.address);
+    const normalizedWalletAddress = normalizeAddressChecksum(address);
 
     if (!normalizedTokenAddress) {
       if (localStorage.getItem('debug') === 'true') {

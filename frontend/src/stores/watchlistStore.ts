@@ -9,6 +9,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { normalizeAddressLower } from '@/utils/address';
 
 // Maximum tokens in watchlist
 const MAX_WATCHLIST_SIZE = 20;
@@ -33,11 +34,6 @@ interface WatchlistState {
   updateSymbol: (chainId: number, address: string, symbol: string) => void;
 }
 
-// Normalize address to lowercase
-function normalizeAddress(address: string): string {
-  return address.toLowerCase();
-}
-
 export const useWatchlistStore = create<WatchlistState>()(
   persist(
     (set, get) => ({
@@ -45,7 +41,7 @@ export const useWatchlistStore = create<WatchlistState>()(
 
       addToken: (entry) => {
         const state = get();
-        const normalizedAddress = normalizeAddress(entry.address);
+        const normalizedAddress = normalizeAddressLower(entry.address);
 
         // Check if already at max
         if (state.tokens.length >= MAX_WATCHLIST_SIZE) {
@@ -79,7 +75,7 @@ export const useWatchlistStore = create<WatchlistState>()(
       },
 
       removeToken: (chainId, address) => {
-        const normalizedAddress = normalizeAddress(address);
+        const normalizedAddress = normalizeAddressLower(address);
         set((s) => ({
           tokens: s.tokens.filter(
             (t) => !(t.chainId === chainId && t.address === normalizedAddress)
@@ -90,7 +86,7 @@ export const useWatchlistStore = create<WatchlistState>()(
 
       hasToken: (chainId, address) => {
         const state = get();
-        const normalizedAddress = normalizeAddress(address);
+        const normalizedAddress = normalizeAddressLower(address);
         return state.tokens.some(
           (t) => t.chainId === chainId && t.address === normalizedAddress
         );
@@ -108,7 +104,7 @@ export const useWatchlistStore = create<WatchlistState>()(
       },
 
       updateSymbol: (chainId, address, symbol) => {
-        const normalizedAddress = normalizeAddress(address);
+        const normalizedAddress = normalizeAddressLower(address);
         set((s) => ({
           tokens: s.tokens.map((t) =>
             t.chainId === chainId && t.address === normalizedAddress

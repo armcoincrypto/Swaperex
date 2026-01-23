@@ -7,8 +7,9 @@
  */
 
 import { create } from 'zustand';
-import { JsonRpcProvider, Contract, formatUnits, formatEther, getAddress, isAddress } from 'ethers';
+import { JsonRpcProvider, Contract, formatUnits, formatEther } from 'ethers';
 import { useCustomTokenStore } from './customTokenStore';
+import { normalizeAddressChecksum } from '@/utils/address';
 
 // Chain RPC endpoints
 const RPC_URLS: Record<string, string> = {
@@ -115,21 +116,6 @@ interface BalanceState {
 }
 
 /**
- * Normalize address to checksum format
- * Returns null if address is invalid
- */
-function normalizeAddress(address: string): string | null {
-  try {
-    if (!isAddress(address)) {
-      return null;
-    }
-    return getAddress(address);
-  } catch {
-    return null;
-  }
-}
-
-/**
  * Fetch ERC20 token balance
  * Normalizes addresses to checksum format before calling contract
  */
@@ -140,8 +126,8 @@ async function fetchERC20Balance(
   decimals: number
 ): Promise<string> {
   // Normalize both addresses to checksum format
-  const normalizedToken = normalizeAddress(tokenAddress);
-  const normalizedWallet = normalizeAddress(walletAddress);
+  const normalizedToken = normalizeAddressChecksum(tokenAddress);
+  const normalizedWallet = normalizeAddressChecksum(walletAddress);
 
   if (!normalizedToken) {
     // Only log in debug mode to reduce noise
