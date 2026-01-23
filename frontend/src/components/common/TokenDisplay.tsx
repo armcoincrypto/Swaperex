@@ -6,9 +6,10 @@
  *
  * Step 1 - Token Metadata Layer
  * P0: Stablecoin price sanity guard (same as WalletScan)
+ * P0: Telemetry for stablecoin guard triggers (rate-limited)
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   getTokenMeta,
   getTokenMetaSync,
@@ -18,6 +19,71 @@ import {
   getChainShortName,
 } from '@/services/tokenMeta';
 import { type TokenMeta } from '@/stores/tokenMetaStore';
+
+// Telemetry rate-limit: 10 minutes per token+chain
+const METRIC_RATE_LIMIT_MS = 10 * 60 * 1000;
+const metricsRateLimitCache = new Map<string, number>();
+
+// Emit metric for stablecoin price guard trigger (rate-limited)
+function emitStablecoinGuardMetric(data: {
+  chainId: number;
+  address: string;
+  symbol: string;
+  rawPriceUsd: number;
+  source?: string;
+}): void {
+  try {
+    const key = `${data.chainId}:${data.address.toLowerCase()}`;
+    const now = Date.now();
+    const lastEmit = metricsRateLimitCache.get(key);
+
+    // Rate limit: once per 10 minutes per token+chain
+    if (lastEmit && now - lastEmit < METRIC_RATE_LIMIT_MS) {
+      return;
+    }
+
+    metricsRateLimitCache.set(key, now);
+
+    const metric = {
+      event: 'stablecoin_price_guard_triggered',
+      chainId: data.chainId,
+      address: data.address.toLowerCase(),
+      symbol: data.symbol,
+      rawPriceUsd: data.rawPriceUsd,
+      displayedPriceUsd: 1.0,
+      source: data.source || 'unknown',
+      timestamp: now,
+    };
+
+    // Debug console log (only when localStorage.debug=true)
+    try {
+      if (localStorage.getItem('debug') === 'true') {
+        console.log('[StablecoinGuard]', metric);
+      }
+    } catch {
+      // Ignore localStorage errors
+    }
+
+    // Append to localStorage metrics
+    try {
+      const metricsKey = 'metrics.stablecoin_guard';
+      const existing = localStorage.getItem(metricsKey);
+      const entries = existing ? JSON.parse(existing) : [];
+
+      // Keep last 100 entries to avoid localStorage bloat
+      if (entries.length >= 100) {
+        entries.shift();
+      }
+      entries.push(metric);
+
+      localStorage.setItem(metricsKey, JSON.stringify(entries));
+    } catch {
+      // Ignore localStorage errors
+    }
+  } catch {
+    // Silently fail - telemetry should never break the app
+  }
+}
 
 // P0: Stablecoin detection (shared logic with WalletScan)
 function isStablecoin(symbol?: string, name?: string): boolean {
@@ -43,12 +109,34 @@ function isStablecoinPriceUnreliable(priceUsd: number | null | undefined, symbol
   return priceUsd < 0.90 || priceUsd > 1.10;
 }
 
-// P0: Price display with stablecoin sanity guard
-function PriceDisplay({ meta, smallTextSize }: { meta: TokenMeta; smallTextSize: string }) {
+// P0: Price display with stablecoin sanity guard + telemetry
+function PriceDisplay({ meta, smallTextSize, chainId, address }: {
+  meta: TokenMeta;
+  smallTextSize: string;
+  chainId: number;
+  address: string;
+}) {
   const priceUnreliable = useMemo(() =>
     isStablecoinPriceUnreliable(meta.priceUsd, meta.symbol, meta.name),
     [meta.priceUsd, meta.symbol, meta.name]
   );
+
+  // Track if we've emitted metric for this render
+  const emittedRef = useRef(false);
+
+  // Emit telemetry when guard triggers (rate-limited)
+  useEffect(() => {
+    if (priceUnreliable && meta.priceUsd !== null && !emittedRef.current) {
+      emittedRef.current = true;
+      emitStablecoinGuardMetric({
+        chainId,
+        address,
+        symbol: meta.symbol || 'UNKNOWN',
+        rawPriceUsd: meta.priceUsd,
+        source: 'dexscreener', // TokenDisplay uses DexScreener via tokenMeta
+      });
+    }
+  }, [priceUnreliable, meta.priceUsd, meta.symbol, chainId, address]);
 
   // If stablecoin with unreliable price, show ~$1.00
   const displayPrice = priceUnreliable ? 1.0 : meta.priceUsd;
@@ -243,11 +331,13 @@ export function TokenDisplay({
             </button>
           )}
 
-          {/* Price with P0 stablecoin sanity guard */}
+          {/* Price with P0 stablecoin sanity guard + telemetry */}
           {showPrice && meta && (
             <PriceDisplay
               meta={meta}
               smallTextSize={smallTextSize}
+              chainId={chainId}
+              address={address}
             />
           )}
         </div>
