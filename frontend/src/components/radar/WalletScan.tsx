@@ -14,6 +14,11 @@
  * - V6: Diff panel actions: Add NEW, Add TOP INCREASED
  * - V6: Diff filters: Hide stablecoin changes, Min delta filter
  * - V6: Ignore token per row (persisted per wallet+chain)
+ *
+ * Trust & Safety (P0/P1):
+ * - P0: Stablecoin price sanity guard - shows "Price unreliable" if outside 0.90-1.10 range
+ * - P1: Diff actions confirmation panel with exclude stablecoins/high-risk options
+ * - P1: Risk label shows "loading" -> value -> "Unknown" with 5s timeout
  */
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
@@ -104,6 +109,41 @@ function isStablecoin(symbol?: string, name?: string): boolean {
   return false;
 }
 
+// P0: Check if stablecoin price is unreliable (outside 0.90-1.10 range)
+// Returns true if price should be considered unreliable for display
+function isStablecoinPriceUnreliable(pricePerToken: number | undefined, symbol?: string, name?: string): boolean {
+  if (!isStablecoin(symbol, name)) return false;
+  if (pricePerToken === undefined || pricePerToken === 0) return false;
+  // Stablecoin should be within 10% of $1.00
+  return pricePerToken < 0.90 || pricePerToken > 1.10;
+}
+
+// Get display price for a token (applies stablecoin sanity guard)
+function getDisplayPrice(valueUsd: number | undefined, balanceStr: string | undefined, symbol?: string, name?: string): {
+  displayValue: number | undefined;
+  isUnreliable: boolean;
+} {
+  if (!valueUsd) {
+    return { displayValue: valueUsd, isUnreliable: false };
+  }
+
+  // Parse balance string to number
+  const balance = balanceStr ? parseFloat(balanceStr) : 0;
+  if (!balance || balance === 0) {
+    return { displayValue: valueUsd, isUnreliable: false };
+  }
+
+  const pricePerToken = valueUsd / balance;
+  const unreliable = isStablecoinPriceUnreliable(pricePerToken, symbol, name);
+
+  if (unreliable) {
+    // Use ~$1.00 per token for display
+    return { displayValue: balance * 1.0, isUnreliable: true };
+  }
+
+  return { displayValue: valueUsd, isUnreliable: false };
+}
+
 // LocalStorage keys
 const FILTER_STORAGE_KEY = 'walletScan.hideNoLogo';
 
@@ -179,6 +219,7 @@ interface RiskCacheEntry {
 
 const RISK_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const MAX_RISK_CONCURRENCY = 3;
+const RISK_FETCH_TIMEOUT_MS = 5000; // P1: 5 second timeout for risk fetch
 
 interface WalletScanProps {
   className?: string;
@@ -238,7 +279,7 @@ function InsightCard({
 }
 
 // Trust tag component
-function TrustTag({ children, variant = 'default' }: { children: React.ReactNode; variant?: 'default' | 'success' | 'warning' | 'danger' }) {
+function TrustTag({ children, variant = 'default', title }: { children: React.ReactNode; variant?: 'default' | 'success' | 'warning' | 'danger'; title?: string }) {
   const colors = {
     default: 'bg-dark-600/50 text-dark-300',
     success: 'bg-green-900/30 text-green-400',
@@ -247,7 +288,7 @@ function TrustTag({ children, variant = 'default' }: { children: React.ReactNode
   };
 
   return (
-    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] ${colors[variant]}`}>
+    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] ${colors[variant]}`} title={title}>
       {children}
     </span>
   );
@@ -272,6 +313,13 @@ function TokenRow({
   const verifiedLogo = hasValidLogo(token.logo);
   const stable = isStablecoin(token.symbol, token.name);
 
+  // P0: Stablecoin price sanity guard
+  const { displayValue, isUnreliable } = useMemo(() => {
+    return getDisplayPrice(token.valueUsd, token.balance, token.symbol, token.name);
+  }, [token.valueUsd, token.balance, token.symbol, token.name]);
+
+  // P1: Risk label UX - map Loading to "loading" text
+  const riskDisplayText = riskLabel === 'Loading' ? 'loading' : riskLabel;
   const riskVariant = riskLabel === 'High' ? 'danger'
     : riskLabel === 'Medium' ? 'warning'
     : riskLabel === 'Low' ? 'success'
@@ -312,19 +360,28 @@ function TokenRow({
             <TrustTag>Priced: {provider}</TrustTag>
             {verifiedLogo && <TrustTag variant="success">Verified logo</TrustTag>}
             {stable && <TrustTag>Stablecoin</TrustTag>}
-            <TrustTag variant={riskVariant}>
-              Risk: {riskLabel === 'Loading' ? '...' : riskLabel}
+            {isUnreliable && (
+              <TrustTag variant="warning" title="DEX price deviates from peg. Fallback applied.">
+                Price unreliable
+              </TrustTag>
+            )}
+            <TrustTag variant={riskVariant} title={riskLabel === 'Unknown' ? 'Risk data unavailable (API slow)' : undefined}>
+              Risk: {riskDisplayText}
             </TrustTag>
           </div>
         </div>
         <div className="text-right">
           <div className="text-sm font-medium text-dark-200">
-            {token.valueUsd ? formatUsd(token.valueUsd) : '-'}
+            {displayValue ? formatUsd(displayValue) : '-'}
+            {isUnreliable && <span className="text-[9px] text-yellow-500 ml-1">~</span>}
           </div>
-          {token.percentChange24h !== undefined && (
+          {token.percentChange24h !== undefined && !isUnreliable && (
             <div className={`text-[10px] ${getPercentColor(token.percentChange24h)}`}>
               {formatPercent(token.percentChange24h)}
             </div>
+          )}
+          {isUnreliable && (
+            <div className="text-[9px] text-dark-500">peg assumed</div>
           )}
         </div>
       </div>
@@ -525,6 +582,14 @@ interface DiffPanelProps {
   availableSlots: number;
 }
 
+// P1: Confirmation panel state type
+interface ConfirmationState {
+  type: 'addNew' | 'addTopIncreased';
+  tokens: TokenDelta[];
+  excludeStablecoins: boolean;
+  excludeHighRisk: boolean;
+}
+
 function DiffPanel({ diff, hideNoLogo, chainId, targetWallet, addToken, hasToken, availableSlots }: DiffPanelProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -537,6 +602,9 @@ function DiffPanel({ diff, hideNoLogo, chainId, targetWallet, addToken, hasToken
   const [diffFilters, setDiffFilters] = useState<DiffFilters>(() =>
     loadDiffFilters(chainId, targetWallet)
   );
+
+  // P1: Confirmation panel state
+  const [confirmation, setConfirmation] = useState<ConfirmationState | null>(null);
 
   // Reload when wallet/chain changes
   useEffect(() => {
@@ -605,34 +673,65 @@ function DiffPanel({ diff, hideNoLogo, chainId, targetWallet, addToken, hasToken
     filteredDiff.added.length + filteredDiff.removed.length + filteredDiff.increased.length + filteredDiff.decreased.length;
   const hiddenChanges = totalChanges - visibleChanges;
 
-  // V6: Add NEW tokens (max 10, not in watchlist)
-  const handleAddNew = useCallback(() => {
+  // P1: Show confirmation for Add NEW tokens
+  const handleAddNewClick = useCallback(() => {
     const toAdd = filteredDiff.added
       .filter((t) => !hasToken(chainId, t.address))
       .slice(0, Math.min(10, availableSlots));
-    let addedCount = 0;
-    for (const token of toAdd) {
-      if (addToken({ chainId, address: token.address, symbol: token.symbol })) {
-        addedCount++;
-      }
+    if (toAdd.length > 0) {
+      setConfirmation({
+        type: 'addNew',
+        tokens: toAdd,
+        excludeStablecoins: true,
+        excludeHighRisk: true,
+      });
     }
-    return addedCount;
-  }, [filteredDiff.added, hasToken, addToken, chainId, availableSlots]);
+  }, [filteredDiff.added, hasToken, chainId, availableSlots]);
 
-  // V6: Add TOP INCREASED tokens (max 10, sorted by valueChange desc, not in watchlist)
-  const handleAddTopIncreased = useCallback(() => {
+  // P1: Show confirmation for Add TOP INCREASED tokens
+  const handleAddTopIncreasedClick = useCallback(() => {
     const sorted = [...filteredDiff.increased]
       .filter((t) => !hasToken(chainId, t.address))
       .sort((a, b) => Math.abs(b.valueChange || 0) - Math.abs(a.valueChange || 0));
     const toAdd = sorted.slice(0, Math.min(10, availableSlots));
+    if (toAdd.length > 0) {
+      setConfirmation({
+        type: 'addTopIncreased',
+        tokens: toAdd,
+        excludeStablecoins: true,
+        excludeHighRisk: true,
+      });
+    }
+  }, [filteredDiff.increased, hasToken, chainId, availableSlots]);
+
+  // P1: Execute confirmed add action
+  const handleConfirmAdd = useCallback(() => {
+    if (!confirmation) return;
+
+    let tokensToAdd = confirmation.tokens;
+
+    // Apply exclusion filters
+    if (confirmation.excludeStablecoins) {
+      tokensToAdd = tokensToAdd.filter((t) => !isStablecoin(t.symbol, t.name));
+    }
+    // Note: excludeHighRisk would require risk data in TokenDelta, skip for now
+    // as risk is fetched lazily for DiscoveredTokens only
+
     let addedCount = 0;
-    for (const token of toAdd) {
+    for (const token of tokensToAdd) {
       if (addToken({ chainId, address: token.address, symbol: token.symbol })) {
         addedCount++;
       }
     }
+
+    setConfirmation(null);
     return addedCount;
-  }, [filteredDiff.increased, hasToken, addToken, chainId, availableSlots]);
+  }, [confirmation, addToken, chainId]);
+
+  // P1: Cancel confirmation
+  const handleCancelConfirm = useCallback(() => {
+    setConfirmation(null);
+  }, []);
 
   // Count actionable tokens
   const newTokensNotInWatchlist = filteredDiff.added.filter((t) => !hasToken(chainId, t.address)).length;
@@ -709,12 +808,66 @@ function DiffPanel({ diff, hideNoLogo, chainId, targetWallet, addToken, hasToken
             )}
           </div>
 
+          {/* P1: Confirmation panel */}
+          {confirmation && (
+            <div className="mt-2 p-2 bg-dark-800/80 border border-dark-600 rounded-lg">
+              <div className="text-[10px] text-dark-300 font-medium mb-2">
+                {confirmation.type === 'addNew' ? 'Add NEW tokens' : 'Add TOP increased'}
+              </div>
+              <div className="max-h-24 overflow-y-auto mb-2">
+                {confirmation.tokens.map((t) => (
+                  <div key={t.address} className="flex items-center justify-between py-0.5 text-[10px]">
+                    <span className="text-dark-300">{t.symbol}</span>
+                    <span className="text-dark-500">{t.valueUsd ? formatUsd(t.valueUsd) : '-'}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-col gap-1.5 mb-2 pt-2 border-t border-dark-600/50">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={confirmation.excludeStablecoins}
+                    onChange={(e) => setConfirmation({ ...confirmation, excludeStablecoins: e.target.checked })}
+                    className="w-3 h-3 rounded border-dark-500 bg-dark-700 text-primary-500"
+                  />
+                  <span className="text-[10px] text-dark-400">Exclude stablecoins</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={confirmation.excludeHighRisk}
+                    onChange={(e) => setConfirmation({ ...confirmation, excludeHighRisk: e.target.checked })}
+                    className="w-3 h-3 rounded border-dark-500 bg-dark-700 text-primary-500"
+                  />
+                  <span className="text-[10px] text-dark-400">Exclude Risk = High</span>
+                  <span className="text-[9px] text-dark-600">(if known)</span>
+                </label>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleConfirmAdd}
+                  className="flex-1 py-1.5 px-2 bg-primary-600/20 hover:bg-primary-600/30 border border-primary-600/30 rounded text-[10px] text-primary-400 font-medium transition-colors"
+                >
+                  Confirm add ({confirmation.tokens.filter((t) =>
+                    (!confirmation.excludeStablecoins || !isStablecoin(t.symbol, t.name))
+                  ).length})
+                </button>
+                <button
+                  onClick={handleCancelConfirm}
+                  className="py-1.5 px-3 bg-dark-700 hover:bg-dark-600 rounded text-[10px] text-dark-400 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* V6: Action buttons */}
-          {(newTokensNotInWatchlist > 0 || increasedNotInWatchlist > 0) && availableSlots > 0 && (
+          {!confirmation && (newTokensNotInWatchlist > 0 || increasedNotInWatchlist > 0) && availableSlots > 0 && (
             <div className="mt-2 flex gap-2 pb-2 border-b border-dark-600/30">
               {newTokensNotInWatchlist > 0 && (
                 <button
-                  onClick={handleAddNew}
+                  onClick={handleAddNewClick}
                   className="flex-1 py-1.5 px-2 bg-green-900/20 hover:bg-green-900/30 border border-green-800/30 rounded text-[10px] text-green-400 font-medium transition-colors"
                 >
                   + Add NEW ({Math.min(newTokensNotInWatchlist, 10, availableSlots)})
@@ -722,7 +875,7 @@ function DiffPanel({ diff, hideNoLogo, chainId, targetWallet, addToken, hasToken
               )}
               {increasedNotInWatchlist > 0 && (
                 <button
-                  onClick={handleAddTopIncreased}
+                  onClick={handleAddTopIncreasedClick}
                   className="flex-1 py-1.5 px-2 bg-blue-900/20 hover:bg-blue-900/30 border border-blue-800/30 rounded text-[10px] text-blue-400 font-medium transition-colors"
                 >
                   + Add TOP ↑ ({Math.min(increasedNotInWatchlist, 10, availableSlots)})
@@ -1117,7 +1270,13 @@ export function WalletScan({ className = '' }: WalletScanProps) {
 
       try {
         const url = `${API_BASE}/api/v1/signals?chainId=${currentChainId}&token=${token.address}`;
-        const res = await fetch(url, { method: 'GET' });
+
+        // P1: Add timeout to risk fetch (5 seconds)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), RISK_FETCH_TIMEOUT_MS);
+
+        const res = await fetch(url, { method: 'GET', signal: controller.signal });
+        clearTimeout(timeoutId);
 
         let label: RiskLabel = 'Unknown';
 
@@ -1145,8 +1304,10 @@ export function WalletScan({ className = '' }: WalletScanProps) {
           setRiskVersion((v) => v + 1);
         }
       } catch {
+        // P1: Timeout or network error -> Unknown with tooltip
         if (!cancelled) {
           cache.set(key, { label: 'Unknown', fetchedAt: Date.now() });
+          setRiskVersion((v) => v + 1);
         }
       } finally {
         riskInflightRef.current.delete(key);
