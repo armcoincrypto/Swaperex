@@ -9,6 +9,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { debugLog } from '@/utils/debug';
 
 // Maximum entries to store
 const MAX_ENTRIES = 50;
@@ -140,7 +141,7 @@ export const useSignalHistoryStore = create<SignalHistoryState>()(
           );
 
           if (isDuplicate || isFallbackDuplicate) {
-            console.log('[SignalHistory] Duplicate entry ignored (hash:', stateHash, ')');
+            debugLog('[SignalHistory] Duplicate entry ignored (hash:', stateHash, ')');
             return state;
           }
 

@@ -12,6 +12,7 @@ import { useWatchlistStore } from '@/stores/watchlistStore';
 import { useSystemStatusStore } from '@/stores/systemStatusStore';
 import { useSignalHistoryStore } from '@/stores/signalHistoryStore';
 import { fetchSignals } from '@/services/signalsHealth';
+import { debugLog } from '@/utils/debug';
 
 // Polling interval (60 seconds)
 const POLL_INTERVAL_MS = 60 * 1000;
@@ -128,7 +129,7 @@ async function pollWatchlist(): Promise<void> {
             recurrence: response.liquidity.recurrence,
             timestamp: Date.now(),
           });
-          console.log('[WatchlistMonitor] New liquidity signal recorded for', token.address);
+          debugLog('[WatchlistMonitor] New liquidity signal recorded for', token.address);
         }
       }
 
@@ -157,7 +158,7 @@ async function pollWatchlist(): Promise<void> {
             recurrence: response.risk.recurrence,
             timestamp: Date.now(),
           });
-          console.log('[WatchlistMonitor] New risk signal recorded for', token.address);
+          debugLog('[WatchlistMonitor] New risk signal recorded for', token.address);
         }
       }
 
