@@ -1,5 +1,5 @@
 /**
- * Wallet Scan V5 Component
+ * Wallet Scan V6 Component
  *
  * Features:
  * - Search by symbol/name
@@ -11,6 +11,9 @@
  * - One-click "Add Top 5" to watchlist
  * - External wallet scanning (whale watching, research)
  * - Change detection (V4 diff)
+ * - V6: Diff panel actions: Add NEW, Add TOP INCREASED
+ * - V6: Diff filters: Hide stablecoin changes, Min delta filter
+ * - V6: Ignore token per row (persisted per wallet+chain)
  */
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
@@ -103,6 +106,70 @@ function isStablecoin(symbol?: string, name?: string): boolean {
 
 // LocalStorage keys
 const FILTER_STORAGE_KEY = 'walletScan.hideNoLogo';
+
+// V6: Diff panel persistence helpers
+function getDiffIgnoreKey(chainId: number, wallet: string): string {
+  return `walletScan.diff.ignore::${chainId}::${wallet.toLowerCase()}`;
+}
+
+function getDiffFiltersKey(chainId: number, wallet: string): string {
+  return `walletScan.diff.filters::${chainId}::${wallet.toLowerCase()}`;
+}
+
+interface DiffFilters {
+  hideStablecoin: boolean;
+  minDeltaUsd: number;
+}
+
+const DEFAULT_DIFF_FILTERS: DiffFilters = {
+  hideStablecoin: false,
+  minDeltaUsd: 1000,
+};
+
+function loadIgnoredTokens(chainId: number, wallet: string): Set<string> {
+  try {
+    const key = getDiffIgnoreKey(chainId, wallet);
+    const stored = localStorage.getItem(key);
+    if (!stored) return new Set();
+    const arr = JSON.parse(stored);
+    return new Set(Array.isArray(arr) ? arr.map((a: string) => a.toLowerCase()) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveIgnoredTokens(chainId: number, wallet: string, ignored: Set<string>): void {
+  try {
+    const key = getDiffIgnoreKey(chainId, wallet);
+    localStorage.setItem(key, JSON.stringify([...ignored]));
+  } catch {
+    // Ignore localStorage errors
+  }
+}
+
+function loadDiffFilters(chainId: number, wallet: string): DiffFilters {
+  try {
+    const key = getDiffFiltersKey(chainId, wallet);
+    const stored = localStorage.getItem(key);
+    if (!stored) return DEFAULT_DIFF_FILTERS;
+    const parsed = JSON.parse(stored);
+    return {
+      hideStablecoin: typeof parsed.hideStablecoin === 'boolean' ? parsed.hideStablecoin : DEFAULT_DIFF_FILTERS.hideStablecoin,
+      minDeltaUsd: typeof parsed.minDeltaUsd === 'number' ? parsed.minDeltaUsd : DEFAULT_DIFF_FILTERS.minDeltaUsd,
+    };
+  } catch {
+    return DEFAULT_DIFF_FILTERS;
+  }
+}
+
+function saveDiffFilters(chainId: number, wallet: string, filters: DiffFilters): void {
+  try {
+    const key = getDiffFiltersKey(chainId, wallet);
+    localStorage.setItem(key, JSON.stringify(filters));
+  } catch {
+    // Ignore localStorage errors
+  }
+}
 
 // Risk cache for lazy loading
 interface RiskCacheEntry {
@@ -395,9 +462,11 @@ function formatTimeAgo(timestamp: number): string {
 function DiffChangeRow({
   type,
   token,
+  onIgnore,
 }: {
   type: 'added' | 'removed' | 'increased' | 'decreased';
   token: TokenDelta;
+  onIgnore?: () => void;
 }) {
   const icons: Record<string, string> = {
     added: '🟢',
@@ -422,7 +491,7 @@ function DiffChangeRow({
     : null;
 
   return (
-    <div className="flex items-center gap-2 py-1.5 text-xs">
+    <div className="flex items-center gap-2 py-1.5 text-xs group">
       <span className="w-4 text-center">{icons[type]}</span>
       <span className="text-dark-400 w-10">{labels[type]}</span>
       <span className="flex-1 text-dark-200 font-medium truncate">{token.symbol}</span>
@@ -432,31 +501,142 @@ function DiffChangeRow({
           ({changeDisplay})
         </span>
       )}
+      {onIgnore && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onIgnore(); }}
+          className="opacity-0 group-hover:opacity-100 text-[10px] text-dark-500 hover:text-dark-300 transition-opacity px-1"
+          title="Ignore this token"
+        >
+          ✕
+        </button>
+      )}
     </div>
   );
 }
 
-// Diff panel component
-function DiffPanel({ diff, hideNoLogo }: { diff: ScanDiff; hideNoLogo: boolean }) {
+// V6: Diff panel component with filters and actions
+interface DiffPanelProps {
+  diff: ScanDiff;
+  hideNoLogo: boolean;
+  chainId: number;
+  targetWallet: string;
+  addToken: (token: { chainId: number; address: string; symbol: string }) => boolean;
+  hasToken: (chainId: number, address: string) => boolean;
+  availableSlots: number;
+}
+
+function DiffPanel({ diff, hideNoLogo, chainId, targetWallet, addToken, hasToken, availableSlots }: DiffPanelProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // Filter diff items by logo when hideNoLogo is enabled
+  // V6: Ignored tokens state (persisted per wallet+chain)
+  const [ignoredTokens, setIgnoredTokens] = useState<Set<string>>(() =>
+    loadIgnoredTokens(chainId, targetWallet)
+  );
+
+  // V6: Diff filter state (persisted per wallet+chain)
+  const [diffFilters, setDiffFilters] = useState<DiffFilters>(() =>
+    loadDiffFilters(chainId, targetWallet)
+  );
+
+  // Reload when wallet/chain changes
+  useEffect(() => {
+    setIgnoredTokens(loadIgnoredTokens(chainId, targetWallet));
+    setDiffFilters(loadDiffFilters(chainId, targetWallet));
+  }, [chainId, targetWallet]);
+
+  // Helper to ignore a token
+  const handleIgnore = useCallback((address: string) => {
+    setIgnoredTokens((prev) => {
+      const next = new Set(prev);
+      next.add(address.toLowerCase());
+      saveIgnoredTokens(chainId, targetWallet, next);
+      return next;
+    });
+  }, [chainId, targetWallet]);
+
+  // Helper to clear all ignored tokens
+  const handleClearIgnored = useCallback(() => {
+    setIgnoredTokens(new Set());
+    saveIgnoredTokens(chainId, targetWallet, new Set());
+  }, [chainId, targetWallet]);
+
+  // Helper to update filters
+  const updateFilter = useCallback((updates: Partial<DiffFilters>) => {
+    setDiffFilters((prev) => {
+      const next = { ...prev, ...updates };
+      saveDiffFilters(chainId, targetWallet, next);
+      return next;
+    });
+  }, [chainId, targetWallet]);
+
+  // Filter diff items by all criteria
   const filteredDiff = useMemo(() => {
-    if (!hideNoLogo) return diff;
+    const filterToken = (t: TokenDelta): boolean => {
+      // Logo filter
+      if (hideNoLogo && !hasValidLogo(t.logo)) return false;
+      // Ignored filter
+      if (ignoredTokens.has(t.address.toLowerCase())) return false;
+      // Stablecoin filter
+      if (diffFilters.hideStablecoin && isStablecoin(t.symbol, t.name)) return false;
+      // Min delta filter (only for increased/decreased)
+      return true;
+    };
+
+    const filterWithDelta = (t: TokenDelta): boolean => {
+      if (!filterToken(t)) return false;
+      // Apply minDelta filter for value changes
+      const change = Math.abs(t.valueChange || 0);
+      if (diffFilters.minDeltaUsd > 0 && change < diffFilters.minDeltaUsd) return false;
+      return true;
+    };
+
     return {
-      added: diff.added.filter((t) => hasValidLogo(t.logo)),
-      removed: diff.removed.filter((t) => hasValidLogo(t.logo)),
-      increased: diff.increased.filter((t) => hasValidLogo(t.logo)),
-      decreased: diff.decreased.filter((t) => hasValidLogo(t.logo)),
+      added: diff.added.filter(filterToken),
+      removed: diff.removed.filter(filterToken),
+      increased: diff.increased.filter(filterWithDelta),
+      decreased: diff.decreased.filter(filterWithDelta),
       previousScanTime: diff.previousScanTime,
     };
-  }, [diff, hideNoLogo]);
+  }, [diff, hideNoLogo, ignoredTokens, diffFilters]);
 
   const totalChanges =
     diff.added.length + diff.removed.length + diff.increased.length + diff.decreased.length;
   const visibleChanges =
     filteredDiff.added.length + filteredDiff.removed.length + filteredDiff.increased.length + filteredDiff.decreased.length;
   const hiddenChanges = totalChanges - visibleChanges;
+
+  // V6: Add NEW tokens (max 10, not in watchlist)
+  const handleAddNew = useCallback(() => {
+    const toAdd = filteredDiff.added
+      .filter((t) => !hasToken(chainId, t.address))
+      .slice(0, Math.min(10, availableSlots));
+    let addedCount = 0;
+    for (const token of toAdd) {
+      if (addToken({ chainId, address: token.address, symbol: token.symbol })) {
+        addedCount++;
+      }
+    }
+    return addedCount;
+  }, [filteredDiff.added, hasToken, addToken, chainId, availableSlots]);
+
+  // V6: Add TOP INCREASED tokens (max 10, sorted by valueChange desc, not in watchlist)
+  const handleAddTopIncreased = useCallback(() => {
+    const sorted = [...filteredDiff.increased]
+      .filter((t) => !hasToken(chainId, t.address))
+      .sort((a, b) => Math.abs(b.valueChange || 0) - Math.abs(a.valueChange || 0));
+    const toAdd = sorted.slice(0, Math.min(10, availableSlots));
+    let addedCount = 0;
+    for (const token of toAdd) {
+      if (addToken({ chainId, address: token.address, symbol: token.symbol })) {
+        addedCount++;
+      }
+    }
+    return addedCount;
+  }, [filteredDiff.increased, hasToken, addToken, chainId, availableSlots]);
+
+  // Count actionable tokens
+  const newTokensNotInWatchlist = filteredDiff.added.filter((t) => !hasToken(chainId, t.address)).length;
+  const increasedNotInWatchlist = filteredDiff.increased.filter((t) => !hasToken(chainId, t.address)).length;
 
   if (totalChanges === 0) {
     return (
@@ -493,10 +673,68 @@ function DiffPanel({ diff, hideNoLogo }: { diff: ScanDiff; hideNoLogo: boolean }
 
       {isExpanded && (
         <div className="px-2 pb-2 border-t border-dark-600/50">
+          {/* V6: Diff filters row */}
+          <div className="mt-2 flex flex-wrap items-center gap-2 pb-2 border-b border-dark-600/30">
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={diffFilters.hideStablecoin}
+                onChange={(e) => updateFilter({ hideStablecoin: e.target.checked })}
+                className="w-3 h-3 rounded border-dark-500 bg-dark-700 text-primary-500"
+              />
+              <span className="text-[10px] text-dark-400">Hide stables</span>
+            </label>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-dark-500">Min Δ:</span>
+              <select
+                value={diffFilters.minDeltaUsd}
+                onChange={(e) => updateFilter({ minDeltaUsd: Number(e.target.value) })}
+                className="text-[10px] bg-dark-700 border border-dark-600 rounded px-1.5 py-0.5 text-dark-300"
+              >
+                <option value={0}>$0</option>
+                <option value={100}>$100</option>
+                <option value={500}>$500</option>
+                <option value={1000}>$1k</option>
+                <option value={5000}>$5k</option>
+                <option value={10000}>$10k</option>
+              </select>
+            </div>
+            {ignoredTokens.size > 0 && (
+              <button
+                onClick={handleClearIgnored}
+                className="text-[10px] text-dark-500 hover:text-dark-300 ml-auto"
+              >
+                Clear ignored ({ignoredTokens.size})
+              </button>
+            )}
+          </div>
+
+          {/* V6: Action buttons */}
+          {(newTokensNotInWatchlist > 0 || increasedNotInWatchlist > 0) && availableSlots > 0 && (
+            <div className="mt-2 flex gap-2 pb-2 border-b border-dark-600/30">
+              {newTokensNotInWatchlist > 0 && (
+                <button
+                  onClick={handleAddNew}
+                  className="flex-1 py-1.5 px-2 bg-green-900/20 hover:bg-green-900/30 border border-green-800/30 rounded text-[10px] text-green-400 font-medium transition-colors"
+                >
+                  + Add NEW ({Math.min(newTokensNotInWatchlist, 10, availableSlots)})
+                </button>
+              )}
+              {increasedNotInWatchlist > 0 && (
+                <button
+                  onClick={handleAddTopIncreased}
+                  className="flex-1 py-1.5 px-2 bg-blue-900/20 hover:bg-blue-900/30 border border-blue-800/30 rounded text-[10px] text-blue-400 font-medium transition-colors"
+                >
+                  + Add TOP ↑ ({Math.min(increasedNotInWatchlist, 10, availableSlots)})
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Show message if all changes are filtered */}
           {visibleChanges === 0 && hiddenChanges > 0 && (
             <div className="mt-2 text-[10px] text-dark-500 text-center py-2">
-              {hiddenChanges} change{hiddenChanges > 1 ? 's' : ''} hidden (no verified logo)
+              {hiddenChanges} change{hiddenChanges > 1 ? 's' : ''} hidden by filters
             </div>
           )}
 
@@ -504,7 +742,12 @@ function DiffPanel({ diff, hideNoLogo }: { diff: ScanDiff; hideNoLogo: boolean }
           {filteredDiff.added.length > 0 && (
             <div className="mt-2">
               {filteredDiff.added.slice(0, 5).map((token) => (
-                <DiffChangeRow key={`added-${token.address}`} type="added" token={token} />
+                <DiffChangeRow
+                  key={`added-${token.address}`}
+                  type="added"
+                  token={token}
+                  onIgnore={() => handleIgnore(token.address)}
+                />
               ))}
               {filteredDiff.added.length > 5 && (
                 <div className="text-[10px] text-dark-500 pl-6">
@@ -518,7 +761,12 @@ function DiffPanel({ diff, hideNoLogo }: { diff: ScanDiff; hideNoLogo: boolean }
           {filteredDiff.removed.length > 0 && (
             <div className="mt-2">
               {filteredDiff.removed.slice(0, 5).map((token) => (
-                <DiffChangeRow key={`removed-${token.address}`} type="removed" token={token} />
+                <DiffChangeRow
+                  key={`removed-${token.address}`}
+                  type="removed"
+                  token={token}
+                  onIgnore={() => handleIgnore(token.address)}
+                />
               ))}
               {filteredDiff.removed.length > 5 && (
                 <div className="text-[10px] text-dark-500 pl-6">
@@ -532,7 +780,12 @@ function DiffPanel({ diff, hideNoLogo }: { diff: ScanDiff; hideNoLogo: boolean }
           {filteredDiff.increased.length > 0 && (
             <div className="mt-2">
               {filteredDiff.increased.slice(0, 5).map((token) => (
-                <DiffChangeRow key={`increased-${token.address}`} type="increased" token={token} />
+                <DiffChangeRow
+                  key={`increased-${token.address}`}
+                  type="increased"
+                  token={token}
+                  onIgnore={() => handleIgnore(token.address)}
+                />
               ))}
               {filteredDiff.increased.length > 5 && (
                 <div className="text-[10px] text-dark-500 pl-6">
@@ -546,7 +799,12 @@ function DiffPanel({ diff, hideNoLogo }: { diff: ScanDiff; hideNoLogo: boolean }
           {filteredDiff.decreased.length > 0 && (
             <div className="mt-2">
               {filteredDiff.decreased.slice(0, 5).map((token) => (
-                <DiffChangeRow key={`decreased-${token.address}`} type="decreased" token={token} />
+                <DiffChangeRow
+                  key={`decreased-${token.address}`}
+                  type="decreased"
+                  token={token}
+                  onIgnore={() => handleIgnore(token.address)}
+                />
               ))}
               {filteredDiff.decreased.length > 5 && (
                 <div className="text-[10px] text-dark-500 pl-6">
@@ -1148,9 +1406,17 @@ export function WalletScan({ className = '' }: WalletScanProps) {
             <InsightsPanel insights={scanResult.insights} />
           )}
 
-          {/* Changes since last scan (V4 Diff) */}
+          {/* Changes since last scan (V4 Diff + V6 Actions) */}
           {scanResult?.diff && (
-            <DiffPanel diff={scanResult.diff} hideNoLogo={hideNoLogo} />
+            <DiffPanel
+              diff={scanResult.diff}
+              hideNoLogo={hideNoLogo}
+              chainId={currentChainId}
+              targetWallet={targetWallet}
+              addToken={addToken}
+              hasToken={hasToken}
+              availableSlots={availableSlots}
+            />
           )}
 
           {/* V5: Search input */}
