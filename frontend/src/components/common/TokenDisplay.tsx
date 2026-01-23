@@ -5,9 +5,10 @@
  * Fetches metadata from DexScreener with caching.
  *
  * Step 1 - Token Metadata Layer
+ * P0: Stablecoin price sanity guard (same as WalletScan)
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   getTokenMeta,
   getTokenMetaSync,
@@ -17,6 +18,69 @@ import {
   getChainShortName,
 } from '@/services/tokenMeta';
 import { type TokenMeta } from '@/stores/tokenMetaStore';
+
+// P0: Stablecoin detection (shared logic with WalletScan)
+function isStablecoin(symbol?: string, name?: string): boolean {
+  const s = (symbol || '').toUpperCase();
+  const n = (name || '').toUpperCase();
+
+  const KNOWN_STABLES = new Set([
+    'USDT', 'USDC', 'DAI', 'FDUSD', 'TUSD', 'USDP', 'USDD', 'USDE',
+    'FRAX', 'LUSD', 'BUSD', 'GUSD', 'USDJ', 'UST', 'CUSD', 'SUSD', 'XUSD'
+  ]);
+
+  if (KNOWN_STABLES.has(s)) return true;
+  if (s.includes('USD') && !s.includes('DUSK')) return true;
+  if (n.includes('USD') || n.includes('DOLLAR') || n.includes('STABLECOIN')) return true;
+
+  return false;
+}
+
+// P0: Check if stablecoin price is unreliable (outside 0.90-1.10 range)
+function isStablecoinPriceUnreliable(priceUsd: number | null | undefined, symbol?: string, name?: string): boolean {
+  if (!isStablecoin(symbol, name)) return false;
+  if (priceUsd === null || priceUsd === undefined || priceUsd === 0) return false;
+  return priceUsd < 0.90 || priceUsd > 1.10;
+}
+
+// P0: Price display with stablecoin sanity guard
+function PriceDisplay({ meta, smallTextSize }: { meta: TokenMeta; smallTextSize: string }) {
+  const priceUnreliable = useMemo(() =>
+    isStablecoinPriceUnreliable(meta.priceUsd, meta.symbol, meta.name),
+    [meta.priceUsd, meta.symbol, meta.name]
+  );
+
+  // If stablecoin with unreliable price, show ~$1.00
+  const displayPrice = priceUnreliable ? 1.0 : meta.priceUsd;
+
+  return (
+    <div className="flex items-center gap-1 ml-auto">
+      <span className={`${smallTextSize} text-dark-300`}>
+        {formatPrice(displayPrice)}
+        {priceUnreliable && <span className="text-yellow-500 ml-0.5">~</span>}
+      </span>
+      {/* Hide % change for unreliable stablecoin prices */}
+      {!priceUnreliable && meta.priceChange24h !== null && (
+        <span
+          className={`${smallTextSize} ${
+            meta.priceChange24h >= 0 ? 'text-green-500' : 'text-red-500'
+          }`}
+        >
+          {formatPriceChange(meta.priceChange24h)}
+        </span>
+      )}
+      {/* Show warning for unreliable price */}
+      {priceUnreliable && (
+        <span
+          className="text-[8px] text-yellow-500 px-1 py-0.5 bg-yellow-900/20 rounded"
+          title="Source deviates from peg. Fallback applied."
+        >
+          !
+        </span>
+      )}
+    </div>
+  );
+}
 
 interface TokenDisplayProps {
   chainId: number;
@@ -179,22 +243,12 @@ export function TokenDisplay({
             </button>
           )}
 
-          {/* Price */}
+          {/* Price with P0 stablecoin sanity guard */}
           {showPrice && meta && (
-            <div className="flex items-center gap-1 ml-auto">
-              <span className={`${smallTextSize} text-dark-300`}>
-                {formatPrice(meta.priceUsd)}
-              </span>
-              {meta.priceChange24h !== null && (
-                <span
-                  className={`${smallTextSize} ${
-                    meta.priceChange24h >= 0 ? 'text-green-500' : 'text-red-500'
-                  }`}
-                >
-                  {formatPriceChange(meta.priceChange24h)}
-                </span>
-              )}
-            </div>
+            <PriceDisplay
+              meta={meta}
+              smallTextSize={smallTextSize}
+            />
           )}
         </div>
       </div>
