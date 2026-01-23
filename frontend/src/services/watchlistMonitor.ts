@@ -86,11 +86,11 @@ async function pollWatchlist(): Promise<void> {
 
   // Skip if backend unavailable
   if (systemStatus === 'unavailable') {
-    console.log('[WatchlistMonitor] Backend unavailable, skipping poll');
+    debugLog('[WatchlistMonitor] Backend unavailable, skipping poll');
     return;
   }
 
-  console.log(`[WatchlistMonitor] Polling ${tokens.length} tokens...`);
+  debugLog(`[WatchlistMonitor] Polling ${tokens.length} tokens...`);
   lastPollTime = Date.now();
 
   for (const token of tokens) {
