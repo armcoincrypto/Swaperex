@@ -196,20 +196,8 @@ export const useSignalHistoryStore = create<SignalHistoryState>()(
   )
 );
 
-// Helper to format relative time
-export function formatRelativeTime(timestamp: number): string {
-  const now = Date.now();
-  const diff = now - timestamp;
-
-  const seconds = Math.floor(diff / 1000);
-  const minutes = Math.floor(diff / (1000 * 60));
-  const hours = Math.floor(diff / (1000 * 60 * 60));
-
-  if (seconds < 60) return 'Just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
-}
+// Re-export from shared utility for backward compatibility
+export { formatRelativeTime } from '@/utils/time';
 
 // Helper to get severity color
 export function getSeverityColor(severity: string): string {
