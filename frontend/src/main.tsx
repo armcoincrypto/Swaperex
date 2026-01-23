@@ -1,5 +1,11 @@
 /**
  * Application Entry Point
+ *
+ * Note on CSP "eval" warning:
+ * The "Content Security Policy blocks eval" warning in console is expected.
+ * Our codebase does NOT use eval(), new Function(), or string-based setTimeout/setInterval.
+ * This warning comes from browser extensions (e.g., wallet injected scripts, TronLink).
+ * Do NOT add 'unsafe-eval' to CSP - it would weaken security with no benefit.
  */
 
 import { StrictMode } from 'react';

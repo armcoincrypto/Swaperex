@@ -338,10 +338,13 @@ function TokenRow({
         {showCheckbox && (
           <input
             type="checkbox"
+            id={`token-select-${token.address}`}
+            name={`token-select-${token.address}`}
             checked={selected}
             onChange={onToggle}
             className="w-4 h-4 rounded border-dark-500 bg-dark-700 text-primary-500 focus:ring-primary-500 focus:ring-offset-0"
             onClick={(e) => e.stopPropagation()}
+            aria-label={`Select ${token.symbol}`}
           />
         )}
         {hasValidLogo(token.logo) ? (
@@ -779,6 +782,8 @@ function DiffPanel({ diff, hideNoLogo, chainId, targetWallet, addToken, hasToken
             <label className="flex items-center gap-1.5 cursor-pointer">
               <input
                 type="checkbox"
+                id="diff-filter-hide-stables"
+                name="diff-filter-hide-stables"
                 checked={diffFilters.hideStablecoin}
                 onChange={(e) => updateFilter({ hideStablecoin: e.target.checked })}
                 className="w-3 h-3 rounded border-dark-500 bg-dark-700 text-primary-500"
@@ -828,6 +833,8 @@ function DiffPanel({ diff, hideNoLogo, chainId, targetWallet, addToken, hasToken
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input
                     type="checkbox"
+                    id="confirm-exclude-stablecoins"
+                    name="confirm-exclude-stablecoins"
                     checked={confirmation.excludeStablecoins}
                     onChange={(e) => setConfirmation({ ...confirmation, excludeStablecoins: e.target.checked })}
                     className="w-3 h-3 rounded border-dark-500 bg-dark-700 text-primary-500"
@@ -837,6 +844,8 @@ function DiffPanel({ diff, hideNoLogo, chainId, targetWallet, addToken, hasToken
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input
                     type="checkbox"
+                    id="confirm-exclude-high-risk"
+                    name="confirm-exclude-high-risk"
                     checked={confirmation.excludeHighRisk}
                     onChange={(e) => setConfirmation({ ...confirmation, excludeHighRisk: e.target.checked })}
                     className="w-3 h-3 rounded border-dark-500 bg-dark-700 text-primary-500"
@@ -1434,6 +1443,9 @@ export function WalletScan({ className = '' }: WalletScanProps) {
           <div className="relative">
             <input
               type="text"
+              id="external-wallet-address"
+              name="external-wallet-address"
+              autoComplete="off"
               value={externalAddress}
               onChange={(e) => setExternalAddress(e.target.value)}
               placeholder="0x... (paste any wallet address)"
@@ -1586,6 +1598,9 @@ export function WalletScan({ className = '' }: WalletScanProps) {
           <div className="mb-3">
             <input
               type="text"
+              id="wallet-scan-search"
+              name="wallet-scan-search"
+              autoComplete="off"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by symbol or name (e.g., USDT, BTCB...)"
@@ -1628,6 +1643,8 @@ export function WalletScan({ className = '' }: WalletScanProps) {
             <label className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-dark-700/50 cursor-pointer">
               <input
                 type="checkbox"
+                id="filter-stablecoins-only"
+                name="filter-stablecoins-only"
                 checked={stableOnly}
                 onChange={(e) => setStableOnly(e.target.checked)}
                 className="w-3 h-3 rounded border-dark-500 bg-dark-700 text-primary-500"
@@ -1637,6 +1654,8 @@ export function WalletScan({ className = '' }: WalletScanProps) {
             <label className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-dark-700/50 cursor-pointer">
               <input
                 type="checkbox"
+                id="filter-hide-no-logo"
+                name="filter-hide-no-logo"
                 checked={hideNoLogo}
                 onChange={(e) => setHideNoLogo(e.target.checked)}
                 className="w-3 h-3 rounded border-dark-500 bg-dark-700 text-primary-500"
