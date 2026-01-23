@@ -28,6 +28,9 @@ import { SUPPORTED_CHAIN_IDS } from '@/utils/constants';
 
 type WalletOption = 'metamask' | 'walletconnect' | 'readonly';
 
+// Gate debug logs - only show when localStorage.debug=true
+const DEBUG = typeof localStorage !== 'undefined' && localStorage.getItem('debug') === 'true';
+
 export function WalletConnect() {
   const {
     isConnected,
@@ -95,24 +98,24 @@ export function WalletConnect() {
 
   // Handle read-only mode submission
   const handleReadOnlySubmit = () => {
-    console.log('[DEBUG] handleReadOnlySubmit called, address:', readOnlyAddress);
+    if (DEBUG) console.log('[DEBUG] handleReadOnlySubmit called, address:', readOnlyAddress);
     setAddressError('');
 
     // Validate before attempting
     if (!readOnlyAddress) {
-      console.log('[DEBUG] Empty address - showing inline error');
+      if (DEBUG) console.log('[DEBUG] Empty address - showing inline error');
       setAddressError('Please enter an address');
       return;
     }
 
     if (!readOnlyAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
-      console.log('[DEBUG] Invalid address format - showing inline error');
+      if (DEBUG) console.log('[DEBUG] Invalid address format - showing inline error');
       setAddressError('Invalid address format (must be 0x followed by 40 hex characters)');
       return;
     }
 
     const success = enterReadOnlyMode(readOnlyAddress);
-    console.log('[DEBUG] enterReadOnlyMode result:', success);
+    if (DEBUG) console.log('[DEBUG] enterReadOnlyMode result:', success);
     if (success) {
       setShowReadOnlyInput(false);
       setReadOnlyAddress('');
@@ -135,14 +138,14 @@ export function WalletConnect() {
 
   // Cancel and reset state - HARD RESET everything
   const handleCancel = () => {
-    console.log('[DEBUG] handleCancel called - resetting ALL state');
+    if (DEBUG) console.log('[DEBUG] handleCancel called - resetting ALL state');
     clearError();
     setSelectedWallet(null);
     setShowWalletOptions(false);
     setShowReadOnlyInput(false);
     setReadOnlyAddress('');
     setAddressError('');
-    console.log('[DEBUG] handleCancel complete - all state cleared');
+    if (DEBUG) console.log('[DEBUG] handleCancel complete - all state cleared');
   };
 
   // Handle chain switch from connected state
