@@ -6,6 +6,10 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import './index.css';
+import { warnIfLocalhostInProduction } from './utils/apiConfig';
+
+// Check for localhost API URLs in production (developer warning)
+warnIfLocalhostInProduction();
 
 const container = document.getElementById('root');
 if (!container) {

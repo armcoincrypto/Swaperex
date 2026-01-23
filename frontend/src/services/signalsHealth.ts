@@ -5,8 +5,9 @@
  * Silent failure by design - never throws, never retries.
  */
 
-// Use environment variable or default to production URL
-const SIGNALS_API_URL = import.meta.env.VITE_SIGNALS_API_URL || 'http://207.180.212.142:4001';
+// Use centralized API config
+import { getSignalsApiUrl } from '@/utils/apiConfig';
+const SIGNALS_API_URL = getSignalsApiUrl();
 
 export interface SignalsHealthResponse {
   status: string;

@@ -6,8 +6,9 @@
  */
 
 import axios, { AxiosInstance, AxiosError } from 'axios';
+import { getApiBaseUrl } from '@/utils/apiConfig';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_URL = getApiBaseUrl();
 
 /**
  * Error types for better handling

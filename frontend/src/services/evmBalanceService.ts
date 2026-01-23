@@ -7,7 +7,7 @@
  * SECURITY: Read-only operations, no signing.
  */
 
-import { Contract, JsonRpcProvider } from 'ethers';
+import { Contract, JsonRpcProvider, getAddress, isAddress } from 'ethers';
 import {
   type PortfolioChain,
   type TokenBalance,
@@ -106,7 +106,23 @@ async function fetchNativeBalance(
 }
 
 /**
+ * Normalize address to checksum format
+ * Returns null if address is invalid
+ */
+function normalizeAddress(address: string): string | null {
+  try {
+    if (!isAddress(address)) {
+      return null;
+    }
+    return getAddress(address);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Fetch single ERC20 token balance
+ * Normalizes addresses to checksum format before calling contract
  */
 async function fetchTokenBalance(
   provider: JsonRpcProvider,
@@ -120,8 +136,26 @@ async function fetchTokenBalance(
       return null;
     }
 
-    const contract = new Contract(token.address, ERC20_BALANCE_ABI, provider);
-    const balance = await contract.balanceOf(address);
+    // Normalize addresses to checksum format
+    const normalizedTokenAddress = normalizeAddress(token.address);
+    const normalizedWalletAddress = normalizeAddress(address);
+
+    if (!normalizedTokenAddress) {
+      if (localStorage.getItem('debug') === 'true') {
+        console.debug(`[EVMBalance] Skipping invalid token address: ${token.address}`);
+      }
+      return null;
+    }
+
+    if (!normalizedWalletAddress) {
+      if (localStorage.getItem('debug') === 'true') {
+        console.debug(`[EVMBalance] Skipping invalid wallet address: ${address}`);
+      }
+      return null;
+    }
+
+    const contract = new Contract(normalizedTokenAddress, ERC20_BALANCE_ABI, provider);
+    const balance = await contract.balanceOf(normalizedWalletAddress);
 
     // Skip zero balances
     if (balance === 0n) {
@@ -131,7 +165,7 @@ async function fetchTokenBalance(
     return {
       symbol: token.symbol,
       name: token.name,
-      address: token.address,
+      address: normalizedTokenAddress,
       decimals: token.decimals,
       balance: balance.toString(),
       balanceFormatted: formatBalance(balance, token.decimals),
@@ -142,8 +176,15 @@ async function fetchTokenBalance(
       chain: chain as PortfolioChain,
     };
   } catch (error) {
-    // Token may not exist or contract call failed
-    console.warn(`[EVMBalance] Failed to fetch ${token.symbol}:`, error);
+    // Only log CALL_EXCEPTION errors in debug mode to reduce noise
+    const isCallException = error instanceof Error && error.message.includes('CALL_EXCEPTION');
+    if (isCallException) {
+      if (localStorage.getItem('debug') === 'true') {
+        console.debug(`[EVMBalance] CALL_EXCEPTION for ${token.symbol} on ${chain} (token may not exist on this chain)`);
+      }
+    } else {
+      console.warn(`[EVMBalance] Failed to fetch ${token.symbol}:`, error);
+    }
     return null;
   }
 }

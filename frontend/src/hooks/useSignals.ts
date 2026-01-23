@@ -48,8 +48,9 @@ export interface UseSignalsResult {
   lastUpdated: number | null;
 }
 
-// Backend API URL - configurable via env
-const SIGNALS_API_URL = import.meta.env.VITE_SIGNALS_API_URL || 'http://localhost:3001';
+// Backend API URL - use centralized config
+import { getSignalsApiUrl } from '@/utils/apiConfig';
+const SIGNALS_API_URL = getSignalsApiUrl();
 
 /**
  * Hook to fetch token signals from the backend

@@ -40,8 +40,9 @@ import {
   shortAddress,
 } from '@/services/walletScanService';
 
-// Backend API base URL for risk fetching
-const API_BASE = import.meta.env.VITE_SIGNALS_API_URL || 'http://localhost:4001';
+// Backend API base URL for risk fetching - use centralized config
+import { getSignalsApiUrl } from '@/utils/apiConfig';
+const API_BASE = getSignalsApiUrl();
 
 // Wallet scan mode
 type WalletMode = 'connected' | 'external';

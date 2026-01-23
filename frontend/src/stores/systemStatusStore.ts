@@ -8,9 +8,10 @@
  */
 
 import { create } from 'zustand';
+import { getSignalsApiUrl } from '@/utils/apiConfig';
 
-// Use environment variable or default to production URL
-const SIGNALS_API_URL = import.meta.env.VITE_SIGNALS_API_URL || 'http://207.180.212.142:4001';
+// Use centralized API config
+const SIGNALS_API_URL = getSignalsApiUrl();
 
 export type SystemStatus = 'stable' | 'degraded' | 'unavailable';
 

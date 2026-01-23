@@ -4,8 +4,9 @@
  * Frontend service for wallet token scanning via backend API.
  */
 
-// Backend API base URL
-const API_BASE = import.meta.env.VITE_SIGNALS_API_URL || 'http://localhost:4001';
+// Backend API base URL - use centralized config
+import { getSignalsApiUrl } from '@/utils/apiConfig';
+const API_BASE = getSignalsApiUrl();
 
 // Token discovered from wallet scan
 export interface DiscoveredToken {

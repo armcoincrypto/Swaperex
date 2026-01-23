@@ -7,7 +7,7 @@
  */
 
 import { create } from 'zustand';
-import { JsonRpcProvider, Contract, formatUnits, formatEther } from 'ethers';
+import { JsonRpcProvider, Contract, formatUnits, formatEther, getAddress, isAddress } from 'ethers';
 import { useCustomTokenStore } from './customTokenStore';
 
 // Chain RPC endpoints
@@ -115,7 +115,23 @@ interface BalanceState {
 }
 
 /**
+ * Normalize address to checksum format
+ * Returns null if address is invalid
+ */
+function normalizeAddress(address: string): string | null {
+  try {
+    if (!isAddress(address)) {
+      return null;
+    }
+    return getAddress(address);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Fetch ERC20 token balance
+ * Normalizes addresses to checksum format before calling contract
  */
 async function fetchERC20Balance(
   provider: JsonRpcProvider,
@@ -123,12 +139,39 @@ async function fetchERC20Balance(
   walletAddress: string,
   decimals: number
 ): Promise<string> {
+  // Normalize both addresses to checksum format
+  const normalizedToken = normalizeAddress(tokenAddress);
+  const normalizedWallet = normalizeAddress(walletAddress);
+
+  if (!normalizedToken) {
+    // Only log in debug mode to reduce noise
+    if (localStorage.getItem('debug') === 'true') {
+      console.debug(`[Balance] Skipping invalid token address: ${tokenAddress}`);
+    }
+    return '0';
+  }
+
+  if (!normalizedWallet) {
+    if (localStorage.getItem('debug') === 'true') {
+      console.debug(`[Balance] Skipping invalid wallet address: ${walletAddress}`);
+    }
+    return '0';
+  }
+
   try {
-    const contract = new Contract(tokenAddress, ERC20_ABI, provider);
-    const balanceRaw = await contract.balanceOf(walletAddress);
+    const contract = new Contract(normalizedToken, ERC20_ABI, provider);
+    const balanceRaw = await contract.balanceOf(normalizedWallet);
     return formatUnits(balanceRaw, decimals);
   } catch (err) {
-    console.warn(`[Balance] Failed to fetch ERC20 balance for ${tokenAddress}:`, err);
+    // Only log CALL_EXCEPTION errors in debug mode
+    const isCallException = err instanceof Error && err.message.includes('CALL_EXCEPTION');
+    if (isCallException) {
+      if (localStorage.getItem('debug') === 'true') {
+        console.debug(`[Balance] CALL_EXCEPTION for ${normalizedToken} (token may not exist on this chain)`);
+      }
+    } else {
+      console.warn(`[Balance] Failed to fetch ERC20 balance for ${normalizedToken}:`, err);
+    }
     return '0';
   }
 }

@@ -67,8 +67,9 @@ export const DEFAULT_DEADLINE = 20;
 export const BALANCE_REFRESH_INTERVAL = 30000;
 export const QUOTE_REFRESH_INTERVAL = 15000;
 
-// API configuration
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// API configuration - use centralized config
+import { getApiBaseUrl } from './apiConfig';
+export const API_BASE_URL = getApiBaseUrl();
 
 // WalletConnect project ID
 export const WALLETCONNECT_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '';
