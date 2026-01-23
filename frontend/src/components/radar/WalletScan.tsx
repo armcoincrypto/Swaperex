@@ -119,7 +119,8 @@ function isStablecoinPriceUnreliable(pricePerToken: number | undefined, symbol?:
 }
 
 // Get display price for a token (applies stablecoin sanity guard)
-function getDisplayPrice(valueUsd: number | undefined, balanceStr: string | undefined, symbol?: string, name?: string): {
+// Uses balanceFormatted (human-readable) for correct calculation
+function getDisplayPrice(valueUsd: number | undefined, balanceFormatted: string | undefined, symbol?: string, name?: string): {
   displayValue: number | undefined;
   isUnreliable: boolean;
 } {
@@ -127,8 +128,8 @@ function getDisplayPrice(valueUsd: number | undefined, balanceStr: string | unde
     return { displayValue: valueUsd, isUnreliable: false };
   }
 
-  // Parse balance string to number
-  const balance = balanceStr ? parseFloat(balanceStr) : 0;
+  // Parse formatted balance (human-readable number of tokens)
+  const balance = balanceFormatted ? parseFloat(balanceFormatted.replace(/,/g, '')) : 0;
   if (!balance || balance === 0) {
     return { displayValue: valueUsd, isUnreliable: false };
   }
@@ -137,7 +138,7 @@ function getDisplayPrice(valueUsd: number | undefined, balanceStr: string | unde
   const unreliable = isStablecoinPriceUnreliable(pricePerToken, symbol, name);
 
   if (unreliable) {
-    // Use ~$1.00 per token for display
+    // Use ~$1.00 per token for display (balance is already in human-readable format)
     return { displayValue: balance * 1.0, isUnreliable: true };
   }
 
@@ -313,10 +314,10 @@ function TokenRow({
   const verifiedLogo = hasValidLogo(token.logo);
   const stable = isStablecoin(token.symbol, token.name);
 
-  // P0: Stablecoin price sanity guard
+  // P0: Stablecoin price sanity guard - use balanceFormatted (human-readable)
   const { displayValue, isUnreliable } = useMemo(() => {
-    return getDisplayPrice(token.valueUsd, token.balance, token.symbol, token.name);
-  }, [token.valueUsd, token.balance, token.symbol, token.name]);
+    return getDisplayPrice(token.valueUsd, token.balanceFormatted, token.symbol, token.name);
+  }, [token.valueUsd, token.balanceFormatted, token.symbol, token.name]);
 
   // P1: Risk label UX - map Loading to "loading" text
   const riskDisplayText = riskLabel === 'Loading' ? 'loading' : riskLabel;
