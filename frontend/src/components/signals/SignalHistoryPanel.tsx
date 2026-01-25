@@ -22,7 +22,7 @@ import {
   formatRecurrenceText,
 } from '@/stores/signalHistoryStore';
 import { useSignalFilterStore, shouldShowSignal } from '@/stores/signalFilterStore';
-import { useDebugMode } from '@/stores/debugStore';
+import { useDebugMode, isTestSignal } from '@/stores/debugStore';
 import { getImpactIcon } from '@/components/signals/ImpactBadge';
 import { SignalAge } from '@/components/signals/SignalAge';
 import { RecurrenceBadge } from '@/components/signals/RecurrenceBadge';
@@ -61,9 +61,18 @@ export function SignalHistoryPanel({ maxEntries = 10, compact = false, bypassFil
 
   // Apply filters to entries
   const filteredEntries = useMemo(() => {
-    if (bypassFilters) return entries;
+    let filtered = entries;
 
-    return entries.filter((entry) =>
+    // Filter out TEST signals in normal mode
+    if (!debugEnabled) {
+      filtered = filtered.filter(
+        (entry) => !isTestSignal(entry.tokenSymbol, entry.token)
+      );
+    }
+
+    if (bypassFilters) return filtered;
+
+    return filtered.filter((entry) =>
       shouldShowSignal(
         {
           type: entry.type,
@@ -73,7 +82,7 @@ export function SignalHistoryPanel({ maxEntries = 10, compact = false, bypassFil
         filters
       )
     );
-  }, [entries, filters, bypassFilters]);
+  }, [entries, filters, bypassFilters, debugEnabled]);
 
   const displayEntries = filteredEntries.slice(0, maxEntries);
   const hiddenByFilters = entries.length - filteredEntries.length;

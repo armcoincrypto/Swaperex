@@ -99,6 +99,17 @@ export function SignalFilters({ compact = false, className = '' }: SignalFilters
           activeColor="bg-primary-600"
         />
 
+        {/* Reset button - visible when filters are not default */}
+        {!isDefault && (
+          <button
+            onClick={resetFilters}
+            className="px-2 py-1 rounded text-xs font-medium text-dark-400 hover:text-white hover:bg-dark-700 transition-colors"
+            title="Reset all filters to defaults"
+          >
+            Reset
+          </button>
+        )}
+
         {/* Advanced toggle */}
         <button
           onClick={() => setShowAdvanced(!showAdvanced)}

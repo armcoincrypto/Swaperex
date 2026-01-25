@@ -188,7 +188,7 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
         <p className="text-sm text-dark-300">
           <span className="font-medium text-dark-200">Radar monitors token safety</span>
           {' '}— risk signals and liquidity warnings, not price predictions.
-          <span className="text-dark-500 ml-1">No alert = no known issues.</span>
+          <span className="text-dark-500 ml-1">No alert = no high-impact signals detected yet.</span>
         </p>
       </div>
 

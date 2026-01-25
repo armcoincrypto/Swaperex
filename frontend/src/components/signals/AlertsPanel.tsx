@@ -9,10 +9,11 @@
  * Step 2 - Quick Actions
  */
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAlertStore, type AlertItem } from '@/stores/alertStore';
 import { useSignalHistoryStore } from '@/stores/signalHistoryStore';
 import { useMuteStore } from '@/stores/muteStore';
+import { useDebugMode, isTestSignal } from '@/stores/debugStore';
 import { SignalAge } from '@/components/signals/SignalAge';
 import { AlertSettings } from '@/components/signals/AlertSettings';
 import { getActionGuidance } from '@/utils/alerts';
@@ -28,11 +29,27 @@ interface AlertsPanelProps {
 
 export function AlertsPanel({ className = '', onAlertClick }: AlertsPanelProps) {
   const { alerts, markAllRead, clearAlerts, getUnreadCount } = useAlertStore();
+  const { getMutedTokens } = useMuteStore();
+  const debugEnabled = useDebugMode();
   const [showSettings, setShowSettings] = useState(false);
   const [expanded, setExpanded] = useState(true);
 
+  // Filter alerts: hide TEST alerts in normal mode
+  const displayAlerts = useMemo(() => {
+    let filtered = alerts;
+
+    // Filter out TEST alerts in normal mode
+    if (!debugEnabled) {
+      filtered = filtered.filter(
+        (a) => !isTestSignal(a.tokenSymbol, a.token)
+      );
+    }
+
+    return filtered.slice(0, 10);
+  }, [alerts, debugEnabled]);
+
   const unreadCount = getUnreadCount();
-  const displayAlerts = alerts.slice(0, 10);
+  const mutedTokensCount = getMutedTokens().length;
 
   return (
     <div className={`bg-dark-800 rounded-xl ${className}`}>
@@ -46,6 +63,14 @@ export function AlertsPanel({ className = '', onAlertClick }: AlertsPanelProps) 
           {unreadCount > 0 && (
             <span className="px-1.5 py-0.5 bg-red-600 text-white text-xs font-medium rounded-full min-w-[20px] text-center">
               {unreadCount}
+            </span>
+          )}
+          {mutedTokensCount > 0 && (
+            <span
+              className="px-1.5 py-0.5 bg-dark-700 text-dark-400 text-[10px] font-medium rounded"
+              title={`${mutedTokensCount} token${mutedTokensCount > 1 ? 's' : ''} muted`}
+            >
+              🔇 {mutedTokensCount}
             </span>
           )}
         </div>
