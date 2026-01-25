@@ -22,6 +22,7 @@ import { WatchlistPanel } from '@/components/signals/WatchlistPanel';
 import { RadarIntroCard } from '@/components/radar/RadarIntroCard';
 import { RadarUsageGuide } from '@/components/radar/RadarUsageGuide';
 import { WhyRadar } from '@/components/radar/WhyRadar';
+import { HowRadarWorks } from '@/components/radar/HowRadarWorks';
 import { WalletScan } from '@/components/radar/WalletScan';
 import { MonitoringStatus } from '@/components/radar/MonitoringStatus';
 import { RadarStatusSummary } from '@/components/radar/RadarStatusSummary';
@@ -203,6 +204,9 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
 
       {/* Usage Guide (always visible) */}
       <RadarUsageGuide className="mb-4" />
+
+      {/* How Radar Works (collapsible) */}
+      <HowRadarWorks className="mb-4" />
 
       {/* Token Check Input */}
       <TokenCheckInput className="mb-4" />
@@ -426,12 +430,21 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
 
         {/* Debug Toggle - only visible when already in debug mode */}
         {debugEnabled && (
-          <button
-            onClick={toggleDebug}
-            className="mt-3 text-[10px] font-mono text-yellow-500 transition-colors"
-          >
-            [ DEBUG MODE ON ]
-          </button>
+          <div className="mt-3 flex items-center justify-center gap-3">
+            <span className="text-[10px] font-mono text-yellow-500">
+              [ DEBUG MODE ON ]
+            </span>
+            <button
+              onClick={() => {
+                toggleDebug();
+                window.location.reload();
+              }}
+              className="text-[10px] font-mono text-dark-500 hover:text-red-400 transition-colors"
+              title="Exit debug mode and reload"
+            >
+              [ exit debug ]
+            </button>
+          </div>
         )}
 
         {/* Reset Onboarding (only visible in debug mode) */}

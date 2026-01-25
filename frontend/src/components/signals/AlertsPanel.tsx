@@ -11,7 +11,7 @@
 
 import { useState, useMemo } from 'react';
 import { useAlertStore, type AlertItem } from '@/stores/alertStore';
-import { useSignalHistoryStore } from '@/stores/signalHistoryStore';
+import { useSignalHistoryStore, type SignalHistoryEntry } from '@/stores/signalHistoryStore';
 import { useMuteStore } from '@/stores/muteStore';
 import { useDebugMode, isTestSignal } from '@/stores/debugStore';
 import { SignalAge } from '@/components/signals/SignalAge';
@@ -160,6 +160,38 @@ interface AlertItemRowProps {
   onClick?: () => void;
 }
 
+/** Extract "why this fired" facts from linked history entry */
+function getWhyFacts(entry?: SignalHistoryEntry): string[] {
+  if (!entry?.debugSnapshot) return [];
+
+  const facts: string[] = [];
+
+  // Liquidity facts
+  if (entry.debugSnapshot.liquidity) {
+    const liq = entry.debugSnapshot.liquidity;
+    if (liq.dropPct && liq.dropPct > 0) {
+      facts.push(`Liquidity dropped ${liq.dropPct.toFixed(1)}%`);
+    }
+    if (liq.currentLiquidity !== null && liq.currentLiquidity !== undefined) {
+      facts.push(`Current: $${liq.currentLiquidity.toLocaleString()}`);
+    }
+  }
+
+  // Risk facts
+  if (entry.debugSnapshot.risk) {
+    const risk = entry.debugSnapshot.risk;
+    if (risk.isHoneypot) {
+      facts.push('Honeypot detected');
+    }
+    if (risk.riskFactors && risk.riskFactors.length > 0) {
+      const topFactors = risk.riskFactors.slice(0, 2).map(f => f.replace(/_/g, ' '));
+      facts.push(...topFactors);
+    }
+  }
+
+  return facts.slice(0, 3); // Max 3 facts
+}
+
 /** Get severity styles based on impact level */
 function getSeverityStyles(impactLevel: 'high' | 'medium' | 'low') {
   switch (impactLevel) {
@@ -194,11 +226,15 @@ function AlertItemRow({ alert, onClick }: AlertItemRowProps) {
   const { muteToken, isTokenMuted } = useMuteStore();
   const [showActions, setShowActions] = useState(false);
 
-  // Check if the history entry still exists
-  const entryExists = historyEntries.some((e) => e.id === alert.entryHash);
+  // Find the linked history entry for more details
+  const linkedEntry = historyEntries.find((e) => e.id === alert.entryHash);
+  const entryExists = !!linkedEntry;
   const isMuted = isTokenMuted(alert.chainId, alert.token);
   const severity = getSeverityStyles(alert.impactLevel);
   const guidance = getActionGuidance(alert.impactLevel);
+
+  // Extract "why this fired" facts from linked entry
+  const whyFacts = getWhyFacts(linkedEntry);
 
   const handleClick = () => {
     markRead(alert.id);
@@ -275,6 +311,20 @@ function AlertItemRow({ alert, onClick }: AlertItemRowProps) {
         <div className="text-[11px] text-dark-400 mt-1.5 line-clamp-2">
           {alert.reason}
         </div>
+
+        {/* Why this fired - specific facts */}
+        {whyFacts.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-1.5">
+            {whyFacts.map((fact, i) => (
+              <span
+                key={i}
+                className="px-1.5 py-0.5 bg-dark-700/50 text-dark-400 rounded text-[9px]"
+              >
+                {fact}
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* Action Guidance Bar */}
         <div className={`flex items-center gap-2 mt-2 pt-2 border-t border-dark-700/30 text-[10px] ${guidance.className}`}>
