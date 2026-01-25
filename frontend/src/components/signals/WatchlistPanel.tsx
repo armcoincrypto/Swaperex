@@ -7,13 +7,26 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useWatchlistStore } from '@/stores/watchlistStore';
+import { useWatchlistStore, type WatchlistSource } from '@/stores/watchlistStore';
 import { pollSingleToken } from '@/services/watchlistMonitor';
 import { TokenDisplay } from '@/components/common/TokenDisplay';
 import { prefetchTokenMeta } from '@/services/tokenMeta';
 
 interface WatchlistPanelProps {
   className?: string;
+}
+
+/** Get display label for watchlist source */
+function getSourceLabel(source?: WatchlistSource): { text: string; title: string } {
+  switch (source) {
+    case 'wallet_scan':
+      return { text: 'wallet', title: 'Added from wallet scan' };
+    case 'token_check':
+      return { text: 'checked', title: 'Added after token check' };
+    case 'manual':
+    default:
+      return { text: 'manual', title: 'Manually added' };
+  }
 }
 
 export function WatchlistPanel({ className = '' }: WatchlistPanelProps) {
@@ -79,49 +92,60 @@ export function WatchlistPanel({ className = '' }: WatchlistPanelProps) {
 
       {/* Token List */}
       <div className="space-y-2 max-h-48 overflow-y-auto">
-        {tokens.map((token) => (
-          <div
-            key={`${token.chainId}-${token.address}`}
-            className="flex items-center gap-2 px-2 py-1.5 bg-dark-700/50 rounded-lg group"
-          >
-            {/* Token Display with Logo/Name/Price */}
-            <TokenDisplay
-              chainId={token.chainId}
-              address={token.address}
-              symbol={token.symbol}
-              showPrice
-              showChain
-              compact
-              className="flex-1 min-w-0"
-            />
+        {tokens.map((token) => {
+          const sourceInfo = getSourceLabel(token.source);
+          return (
+            <div
+              key={`${token.chainId}-${token.address}`}
+              className="flex items-center gap-2 px-2 py-1.5 bg-dark-700/50 rounded-lg group"
+            >
+              {/* Token Display with Logo/Name/Price */}
+              <TokenDisplay
+                chainId={token.chainId}
+                address={token.address}
+                symbol={token.symbol}
+                showPrice
+                showChain
+                compact
+                className="flex-1 min-w-0"
+              />
 
-            {/* Actions */}
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              {/* Check Now */}
-              <button
-                onClick={() => handleCheckNow(token.chainId, token.address)}
-                disabled={checkingToken === token.address}
-                className={`px-2 py-1 rounded text-[10px] transition-colors ${
-                  checkingToken === token.address
-                    ? 'bg-primary-900/50 text-primary-400'
-                    : 'bg-dark-600 text-dark-300 hover:bg-dark-500'
-                }`}
-                title="Check signals now"
+              {/* Source Badge - shows why token is monitored */}
+              <span
+                className="text-[9px] text-dark-500 bg-dark-600/50 px-1.5 py-0.5 rounded hidden sm:inline-block"
+                title={sourceInfo.title}
               >
-                {checkingToken === token.address ? '...' : '↻'}
-              </button>
+                {sourceInfo.text}
+              </span>
 
-              {/* Remove */}
-              <button
-                onClick={() => removeToken(token.chainId, token.address)}
-                className="px-2 py-1 bg-dark-600 text-dark-400 rounded text-[10px] hover:bg-red-900/30 hover:text-red-400 transition-colors"
-                title="Remove from watchlist"
-              >
-                ×
-              </button>
+              {/* Actions */}
+              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                {/* Check Now */}
+                <button
+                  onClick={() => handleCheckNow(token.chainId, token.address)}
+                  disabled={checkingToken === token.address}
+                  className={`px-2 py-1 rounded text-[10px] transition-colors ${
+                    checkingToken === token.address
+                      ? 'bg-primary-900/50 text-primary-400'
+                      : 'bg-dark-600 text-dark-300 hover:bg-dark-500'
+                  }`}
+                  title="Check signals now"
+                >
+                  {checkingToken === token.address ? '...' : '↻'}
+                </button>
+
+                {/* Remove */}
+                <button
+                  onClick={() => removeToken(token.chainId, token.address)}
+                  className="px-2 py-1 bg-dark-600 text-dark-400 rounded text-[10px] hover:bg-red-900/30 hover:text-red-400 transition-colors"
+                  title="Remove from watchlist"
+                >
+                  ×
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Monitor Status */}

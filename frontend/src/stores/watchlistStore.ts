@@ -14,19 +14,24 @@ import { normalizeAddressLower } from '@/utils/address';
 // Maximum tokens in watchlist
 const MAX_WATCHLIST_SIZE = 20;
 
+/** Source indicating how token was added to watchlist */
+export type WatchlistSource = 'manual' | 'wallet_scan' | 'token_check';
+
 export interface WatchlistEntry {
   chainId: number;
   address: string;
   symbol?: string;
   label?: string;
   addedAt: number;
+  /** How the token was added to watchlist */
+  source?: WatchlistSource;
 }
 
 interface WatchlistState {
   tokens: WatchlistEntry[];
 
   // Actions
-  addToken: (entry: Omit<WatchlistEntry, 'addedAt'>) => boolean;
+  addToken: (entry: Omit<WatchlistEntry, 'addedAt'>, source?: WatchlistSource) => boolean;
   removeToken: (chainId: number, address: string) => void;
   hasToken: (chainId: number, address: string) => boolean;
   listTokens: () => WatchlistEntry[];
@@ -39,7 +44,7 @@ export const useWatchlistStore = create<WatchlistState>()(
     (set, get) => ({
       tokens: [],
 
-      addToken: (entry) => {
+      addToken: (entry, source = 'manual') => {
         const state = get();
         const normalizedAddress = normalizeAddressLower(entry.address);
 
@@ -59,18 +64,19 @@ export const useWatchlistStore = create<WatchlistState>()(
           return false;
         }
 
-        // Add new entry
+        // Add new entry with source tracking
         const newEntry: WatchlistEntry = {
           ...entry,
           address: normalizedAddress,
           addedAt: Date.now(),
+          source,
         };
 
         set((s) => ({
           tokens: [newEntry, ...s.tokens],
         }));
 
-        console.log('[Watchlist] Token added:', normalizedAddress);
+        console.log('[Watchlist] Token added:', normalizedAddress, `(source: ${source})`);
         return true;
       },
 

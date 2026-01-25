@@ -161,16 +161,9 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
   return (
     <div className="max-w-2xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-3">
           <h2 className="text-2xl font-bold">Radar</h2>
-          {/* Info tooltip */}
-          <span
-            className="text-dark-500 hover:text-dark-300 cursor-help transition-colors"
-            title="Radar monitors token safety. It alerts you to risk and liquidity issues — not price movements."
-          >
-            ℹ️
-          </span>
           <TierBadge tier="early-access" />
           {unreadCount > 0 && (
             <span className="px-2 py-0.5 bg-primary-600 text-white text-sm font-medium rounded-full">
@@ -188,6 +181,15 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
             </button>
           )}
         </div>
+      </div>
+
+      {/* Explanation Banner - Clear statement about what Radar does */}
+      <div className="mb-4 px-3 py-2 bg-dark-800/60 border border-dark-700/50 rounded-lg">
+        <p className="text-sm text-dark-300">
+          <span className="font-medium text-dark-200">Radar monitors token safety</span>
+          {' '}— risk signals and liquidity warnings, not price predictions.
+          <span className="text-dark-500 ml-1">No alert = no known issues.</span>
+        </p>
       </div>
 
       {/* Status Summary - "Am I safe right now?" */}
@@ -422,17 +424,15 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
           Radar is informational only, not financial advice. Always DYOR.
         </p>
 
-        {/* Debug Toggle */}
-        <button
-          onClick={toggleDebug}
-          className={`mt-3 text-[10px] font-mono transition-colors ${
-            debugEnabled
-              ? 'text-yellow-500'
-              : 'text-dark-500 hover:text-dark-300'
-          }`}
-        >
-          {debugEnabled ? '[ DEBUG MODE ON ]' : '[ debug ]'}
-        </button>
+        {/* Debug Toggle - only visible when already in debug mode */}
+        {debugEnabled && (
+          <button
+            onClick={toggleDebug}
+            className="mt-3 text-[10px] font-mono text-yellow-500 transition-colors"
+          >
+            [ DEBUG MODE ON ]
+          </button>
+        )}
 
         {/* Reset Onboarding (only visible in debug mode) */}
         {debugEnabled && (

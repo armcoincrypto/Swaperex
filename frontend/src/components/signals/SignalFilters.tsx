@@ -21,7 +21,7 @@ interface SignalFiltersProps {
 }
 
 export function SignalFilters({ compact = false, className = '' }: SignalFiltersProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const {
     impactFilter,
@@ -34,17 +34,15 @@ export function SignalFilters({ compact = false, className = '' }: SignalFilters
     setShowRisk,
     resetFilters,
     isDefaultFilters,
-    getActiveFilterCount,
   } = useSignalFilterStore();
 
-  const activeCount = getActiveFilterCount();
   const isDefault = isDefaultFilters();
 
   // Compact mode - just show filter button with badge
   if (compact) {
     return (
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => setShowAdvanced(!showAdvanced)}
         className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium transition-colors ${
           isDefault
             ? 'text-dark-400 hover:text-dark-200 hover:bg-dark-800'
@@ -64,59 +62,58 @@ export function SignalFilters({ compact = false, className = '' }: SignalFilters
 
   return (
     <div className={`${className}`}>
-      {/* Filter Toggle Button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-          isOpen
-            ? 'bg-dark-700 text-white'
-            : 'bg-dark-800 text-dark-300 hover:bg-dark-700'
-        }`}
-      >
-        <div className="flex items-center gap-2">
+      {/* Always-visible pill toggles */}
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        {/* Signal Type Pills */}
+        <PillToggle
+          active={showLiquidity}
+          onClick={() => setShowLiquidity(!showLiquidity)}
+          icon="💧"
+          label="Liquidity"
+          activeColor="bg-blue-600"
+        />
+        <PillToggle
+          active={showRisk}
+          onClick={() => setShowRisk(!showRisk)}
+          icon="⚠️"
+          label="Risk"
+          activeColor="bg-orange-600"
+        />
+
+        {/* Divider */}
+        <span className="w-px h-5 bg-dark-700 mx-1" />
+
+        {/* Impact Level Pills */}
+        <PillToggle
+          active={impactFilter === 'high'}
+          onClick={() => setImpactFilter(impactFilter === 'high' ? 'all' : 'high')}
+          icon="🔥"
+          label="High Only"
+          activeColor="bg-red-600"
+        />
+        <PillToggle
+          active={impactFilter === 'high+medium'}
+          onClick={() => setImpactFilter(impactFilter === 'high+medium' ? 'all' : 'high+medium')}
+          icon="📊"
+          label="High+Med"
+          activeColor="bg-primary-600"
+        />
+
+        {/* Advanced toggle */}
+        <button
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          className={`ml-auto flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+            showAdvanced ? 'text-dark-300' : 'text-dark-500 hover:text-dark-300'
+          }`}
+        >
           <FilterIcon />
-          <span>Filters</span>
-          {activeCount > 0 && (
-            <span className="px-1.5 py-0.5 bg-primary-600 text-white text-[10px] rounded-full">
-              {activeCount}
-            </span>
-          )}
-        </div>
-        <span className="text-dark-500 text-xs">
-          {isOpen ? '▼' : '▶'}
-        </span>
-      </button>
+          <span>{showAdvanced ? 'Less' : 'More'}</span>
+        </button>
+      </div>
 
-      {/* Filter Panel */}
-      {isOpen && (
-        <div className="mt-2 p-4 bg-dark-800 rounded-lg border border-dark-700 space-y-4">
-          {/* Impact Filter */}
-          <div>
-            <label className="block text-xs font-medium text-dark-400 uppercase tracking-wider mb-2">
-              Impact Level
-            </label>
-            <div className="flex gap-2">
-              <ImpactButton
-                active={impactFilter === 'high'}
-                onClick={() => setImpactFilter('high')}
-                icon="🔥"
-                label="High"
-              />
-              <ImpactButton
-                active={impactFilter === 'high+medium'}
-                onClick={() => setImpactFilter('high+medium')}
-                icon="🔥⚠️"
-                label="High+Med"
-              />
-              <ImpactButton
-                active={impactFilter === 'all'}
-                onClick={() => setImpactFilter('all')}
-                icon="📊"
-                label="All"
-              />
-            </div>
-          </div>
-
+      {/* Advanced Filter Panel */}
+      {showAdvanced && (
+        <div className="p-3 bg-dark-800 rounded-lg border border-dark-700 space-y-3">
           {/* Confidence Threshold */}
           <div>
             <label className="block text-xs font-medium text-dark-400 uppercase tracking-wider mb-2">
@@ -141,42 +138,19 @@ export function SignalFilters({ compact = false, className = '' }: SignalFilters
             </div>
           </div>
 
-          {/* Signal Type Toggles */}
-          <div>
-            <label className="block text-xs font-medium text-dark-400 uppercase tracking-wider mb-2">
-              Signal Types
-            </label>
-            <div className="flex gap-3">
-              <TypeToggle
-                checked={showLiquidity}
-                onChange={setShowLiquidity}
-                label="Liquidity"
-                color="blue"
-              />
-              <TypeToggle
-                checked={showRisk}
-                onChange={setShowRisk}
-                label="Risk"
-                color="orange"
-              />
-            </div>
-          </div>
-
-          {/* Reset Button */}
-          {!isDefault && (
-            <button
-              onClick={resetFilters}
-              className="w-full py-2 text-sm text-dark-400 hover:text-white hover:bg-dark-700 rounded-lg transition-colors"
-            >
-              Reset to defaults
-            </button>
-          )}
-
-          {/* Active Summary */}
-          <div className="pt-2 border-t border-dark-700">
+          {/* Reset + Summary Row */}
+          <div className="flex items-center justify-between pt-2 border-t border-dark-700">
             <div className="text-xs text-dark-500 font-mono">
-              Active: {getFilterSummary(useSignalFilterStore.getState())}
+              {getFilterSummary(useSignalFilterStore.getState())}
             </div>
+            {!isDefault && (
+              <button
+                onClick={resetFilters}
+                className="text-xs text-dark-400 hover:text-white transition-colors"
+              >
+                Reset
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -204,32 +178,6 @@ function FilterIcon() {
   );
 }
 
-function ImpactButton({
-  active,
-  onClick,
-  icon,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: string;
-  label: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-        active
-          ? 'bg-primary-600 text-white'
-          : 'bg-dark-700 text-dark-300 hover:bg-dark-600'
-      }`}
-    >
-      <span>{icon}</span>
-      <span>{label}</span>
-    </button>
-  );
-}
-
 function ConfidenceButton({
   active,
   onClick,
@@ -253,42 +201,31 @@ function ConfidenceButton({
   );
 }
 
-function TypeToggle({
-  checked,
-  onChange,
+function PillToggle({
+  active,
+  onClick,
+  icon,
   label,
-  color,
+  activeColor,
 }: {
-  checked: boolean;
-  onChange: (checked: boolean) => void;
+  active: boolean;
+  onClick: () => void;
+  icon: string;
   label: string;
-  color: 'blue' | 'orange';
+  activeColor: string;
 }) {
-  const colorClasses = {
-    blue: checked ? 'bg-blue-600 border-blue-500' : 'bg-dark-700 border-dark-600',
-    orange: checked ? 'bg-orange-600 border-orange-500' : 'bg-dark-700 border-dark-600',
-  };
-
   return (
-    <label className="flex items-center gap-2 cursor-pointer">
-      <div
-        className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${colorClasses[color]}`}
-        onClick={() => onChange(!checked)}
-      >
-        {checked && (
-          <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-            <path
-              fillRule="evenodd"
-              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-              clipRule="evenodd"
-            />
-          </svg>
-        )}
-      </div>
-      <span className={`text-sm ${checked ? 'text-white' : 'text-dark-400'}`}>
-        {label}
-      </span>
-    </label>
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+        active
+          ? `${activeColor} text-white shadow-sm`
+          : 'bg-dark-800 text-dark-400 hover:bg-dark-700 hover:text-dark-300'
+      }`}
+    >
+      <span className="text-sm">{icon}</span>
+      <span>{label}</span>
+    </button>
   );
 }
 
