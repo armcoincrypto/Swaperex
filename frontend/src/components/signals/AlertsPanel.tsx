@@ -66,12 +66,17 @@ export function AlertsPanel({ className = '', onAlertClick }: AlertsPanelProps) 
             </span>
           )}
           {mutedTokensCount > 0 && (
-            <span
-              className="px-1.5 py-0.5 bg-dark-700 text-dark-400 text-[10px] font-medium rounded"
-              title={`${mutedTokensCount} token${mutedTokensCount > 1 ? 's' : ''} muted`}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowSettings(true);
+                setExpanded(true);
+              }}
+              className="px-1.5 py-0.5 bg-dark-700 text-dark-400 text-[10px] font-medium rounded hover:bg-dark-600 hover:text-dark-300 transition-colors"
+              title={`${mutedTokensCount} token${mutedTokensCount > 1 ? 's' : ''} muted — click to manage`}
             >
               🔇 {mutedTokensCount}
-            </span>
+            </button>
           )}
         </div>
         <div className="flex items-center gap-2">
