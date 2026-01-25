@@ -90,6 +90,11 @@ export function WatchlistPanel({ className = '' }: WatchlistPanelProps) {
         )}
       </div>
 
+      {/* Clarity line */}
+      <p className="text-[10px] text-dark-500 mb-2">
+        Monitored for risk signals. Use Wallet Scan to discover tokens.
+      </p>
+
       {/* Token List */}
       <div className="space-y-2 max-h-48 overflow-y-auto">
         {tokens.map((token) => {
