@@ -42,7 +42,7 @@ export interface SignalFilterState {
 }
 
 const DEFAULT_FILTERS = {
-  impactFilter: 'high+medium' as ImpactFilter,
+  impactFilter: 'high' as ImpactFilter, // Calm default: only high-impact signals
   minConfidence: 60, // Calmer default: ≥60% confidence
   showLiquidity: true,
   showRisk: true,

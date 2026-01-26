@@ -83,19 +83,19 @@ export function SignalFilters({ compact = false, className = '' }: SignalFilters
         {/* Divider */}
         <span className="w-px h-5 bg-dark-700 mx-1" />
 
-        {/* Impact Level Pills */}
+        {/* Impact Level Pills - High Only is default, shown in calmer green */}
         <PillToggle
           active={impactFilter === 'high'}
           onClick={() => setImpactFilter(impactFilter === 'high' ? 'all' : 'high')}
-          icon="🔥"
+          icon="✓"
           label="High Only"
-          activeColor="bg-red-600"
+          activeColor="bg-green-600"
         />
         <PillToggle
           active={impactFilter === 'high+medium'}
           onClick={() => setImpactFilter(impactFilter === 'high+medium' ? 'all' : 'high+medium')}
           icon="📊"
-          label="High+Med"
+          label="Include Med"
           activeColor="bg-primary-600"
         />
 
@@ -110,15 +110,14 @@ export function SignalFilters({ compact = false, className = '' }: SignalFilters
           </button>
         )}
 
-        {/* Advanced toggle */}
+        {/* Advanced toggle - more subtle */}
         <button
           onClick={() => setShowAdvanced(!showAdvanced)}
-          className={`ml-auto flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
-            showAdvanced ? 'text-dark-300' : 'text-dark-500 hover:text-dark-300'
+          className={`ml-auto flex items-center gap-1 px-2 py-1 rounded text-[10px] transition-colors ${
+            showAdvanced ? 'text-dark-400' : 'text-dark-600 hover:text-dark-400'
           }`}
         >
-          <FilterIcon />
-          <span>{showAdvanced ? 'Less' : 'More'}</span>
+          <span>{showAdvanced ? '▼ Advanced' : '▶ Advanced'}</span>
         </button>
       </div>
 

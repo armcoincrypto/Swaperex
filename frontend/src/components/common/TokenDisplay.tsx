@@ -19,7 +19,7 @@ import {
   getChainShortName,
 } from '@/services/tokenMeta';
 import { type TokenMeta } from '@/stores/tokenMetaStore';
-import { isStablecoinPriceUnreliable } from '@/utils/stablecoin';
+import { isStablecoin, isStablecoinPriceUnreliable } from '@/utils/stablecoin';
 
 // Telemetry rate-limit: 10 minutes per token+chain
 const METRIC_RATE_LIMIT_MS = 10 * 60 * 1000;
@@ -93,6 +93,11 @@ function PriceDisplay({ meta, smallTextSize, chainId, address }: {
   chainId: number;
   address: string;
 }) {
+  const tokenIsStablecoin = useMemo(() =>
+    isStablecoin(meta.symbol, meta.name),
+    [meta.symbol, meta.name]
+  );
+
   const priceUnreliable = useMemo(() =>
     isStablecoinPriceUnreliable(meta.priceUsd, meta.symbol, meta.name),
     [meta.priceUsd, meta.symbol, meta.name]
@@ -119,28 +124,30 @@ function PriceDisplay({ meta, smallTextSize, chainId, address }: {
   const displayPrice = priceUnreliable ? 1.0 : meta.priceUsd;
 
   return (
-    <div className="flex items-center gap-1 ml-auto">
-      <span className={`${smallTextSize} text-dark-300`}>
-        {formatPrice(displayPrice)}
-        {priceUnreliable && <span className="text-yellow-500 ml-0.5">~</span>}
-      </span>
-      {/* Hide % change for unreliable stablecoin prices */}
-      {!priceUnreliable && meta.priceChange24h !== null && (
-        <span
-          className={`${smallTextSize} ${
-            meta.priceChange24h >= 0 ? 'text-green-500' : 'text-red-500'
-          }`}
-        >
-          {formatPriceChange(meta.priceChange24h)}
+    <div className="flex flex-col items-end">
+      <div className="flex items-center gap-1">
+        <span className={`${smallTextSize} text-dark-300`}>
+          {formatPrice(displayPrice)}
+          {priceUnreliable && <span className="text-blue-400 ml-0.5">~</span>}
         </span>
-      )}
-      {/* Show warning for unreliable price */}
-      {priceUnreliable && (
+        {/* Hide % change for stablecoins - price changes aren't meaningful */}
+        {!tokenIsStablecoin && meta.priceChange24h !== null && (
+          <span
+            className={`${smallTextSize} ${
+              meta.priceChange24h >= 0 ? 'text-green-500' : 'text-red-500'
+            }`}
+          >
+            {formatPriceChange(meta.priceChange24h)}
+          </span>
+        )}
+      </div>
+      {/* Inline stablecoin indicator - friendly, non-alarming */}
+      {tokenIsStablecoin && (
         <span
-          className="text-[8px] text-yellow-500 px-1 py-0.5 bg-yellow-900/20 rounded"
-          title="Source deviates from peg. Fallback applied."
+          className="text-[8px] text-blue-400/70"
+          title="Stablecoins are designed to maintain ~$1.00"
         >
-          !
+          Stablecoin{priceUnreliable ? ' · normalized' : ''}
         </span>
       )}
     </div>

@@ -124,62 +124,89 @@ export function SmartFilterEmptyState({
     );
   }
 
+  // Check if any high-impact signals exist (for reassuring vs cautious messaging)
+  const hasHighImpactSignals = analysis.hasHighImpact;
+
   // Signals exist but are filtered out - show smart messaging
   const primaryReason = getPrimaryReason(analysis, filters);
   const suggestedConfidence = getSuggestedConfidence(analysis, filters.minConfidence);
 
   return (
     <div className={`text-center py-6 ${className}`}>
-      <div className="text-2xl mb-3">🔍</div>
-      <h3 className="text-base font-semibold mb-2 text-dark-300">
-        No signals matching your filters
-      </h3>
+      {/* Reassuring messaging when no high-impact signals */}
+      {!hasHighImpactSignals ? (
+        <>
+          <div className="text-2xl mb-3">✅</div>
+          <h3 className="text-base font-semibold mb-2 text-green-400">
+            No High-Impact Risks Detected
+          </h3>
+          <p className="text-dark-400 text-sm mb-4 max-w-md mx-auto">
+            Your monitored tokens look stable. Only low-severity activity detected.
+          </p>
 
-      {/* Specific reason */}
-      <div className="text-dark-400 text-sm mb-4 max-w-md mx-auto">
-        {primaryReason}
-      </div>
+          {/* Optional: show lower-impact signals */}
+          {analysis.totalSignals > 0 && (
+            <div className="text-[11px] text-dark-500 mb-4">
+              {analysis.totalSignals} low-impact signal{analysis.totalSignals !== 1 ? 's' : ''} hidden by filters
+              <button
+                onClick={() => setImpactFilter('all')}
+                className="ml-2 text-primary-400 hover:text-primary-300"
+              >
+                Show all
+              </button>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          {/* Standard filtered message when high-impact signals exist */}
+          <div className="text-2xl mb-3">🔍</div>
+          <h3 className="text-base font-semibold mb-2 text-dark-300">
+            Signals filtered out
+          </h3>
 
-      {/* Current filter summary */}
-      <div className="text-[11px] text-dark-600 font-mono mb-4 px-4">
-        Active: {getFilterSummaryText(filters)}
-      </div>
+          {/* Specific reason */}
+          <div className="text-dark-400 text-sm mb-4 max-w-md mx-auto">
+            {primaryReason}
+          </div>
 
-      {/* Quick fix buttons */}
-      <div className="flex flex-wrap items-center justify-center gap-2">
-        {/* Show confidence fix if that's the issue */}
-        {analysis.hiddenByConfidence > 0 && suggestedConfidence !== null && (
-          <button
-            onClick={() => setMinConfidence(suggestedConfidence)}
-            className="px-3 py-1.5 bg-primary-600/20 hover:bg-primary-600/30 text-primary-400 text-xs font-medium rounded-lg transition-colors"
-          >
-            Set to ≥{suggestedConfidence}%
-          </button>
-        )}
+          {/* Current filter summary */}
+          <div className="text-[11px] text-dark-600 font-mono mb-4 px-4">
+            Active: {getFilterSummaryText(filters)}
+          </div>
 
-        {/* Show impact fix if that's the issue */}
-        {analysis.hiddenByImpact > 0 && filters.impactFilter !== 'all' && (
-          <button
-            onClick={() => setImpactFilter('all')}
-            className="px-3 py-1.5 bg-primary-600/20 hover:bg-primary-600/30 text-primary-400 text-xs font-medium rounded-lg transition-colors"
-          >
-            Show All Impacts
-          </button>
-        )}
+          {/* Quick fix buttons */}
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {/* Show confidence fix if that's the issue */}
+            {analysis.hiddenByConfidence > 0 && suggestedConfidence !== null && (
+              <button
+                onClick={() => setMinConfidence(suggestedConfidence)}
+                className="px-3 py-1.5 bg-primary-600/20 hover:bg-primary-600/30 text-primary-400 text-xs font-medium rounded-lg transition-colors"
+              >
+                Set to ≥{suggestedConfidence}%
+              </button>
+            )}
 
-        {/* Reset filters button */}
-        <button
-          onClick={resetFilters}
-          className="px-3 py-1.5 bg-dark-700 hover:bg-dark-600 text-dark-300 text-xs font-medium rounded-lg transition-colors"
-        >
-          Reset Filters
-        </button>
-      </div>
+            {/* Show impact fix if that's the issue */}
+            {analysis.hiddenByImpact > 0 && filters.impactFilter !== 'all' && (
+              <button
+                onClick={() => setImpactFilter('all')}
+                className="px-3 py-1.5 bg-primary-600/20 hover:bg-primary-600/30 text-primary-400 text-xs font-medium rounded-lg transition-colors"
+              >
+                Show All Impacts
+              </button>
+            )}
 
-      {/* Signal count hint */}
-      <p className="text-[10px] text-dark-600 mt-3">
-        {analysis.totalSignals} signal{analysis.totalSignals !== 1 ? 's' : ''} in last 24h
-      </p>
+            {/* Reset filters button */}
+            <button
+              onClick={resetFilters}
+              className="px-3 py-1.5 bg-dark-700 hover:bg-dark-600 text-dark-300 text-xs font-medium rounded-lg transition-colors"
+            >
+              Reset Filters
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

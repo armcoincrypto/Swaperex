@@ -32,23 +32,52 @@ function getSourceLabel(source?: WatchlistSource): { text: string; icon: string;
   }
 }
 
-/** Get severity status for a token based on recent signals */
-function getTokenSeverity(
+/** Token status based on recent signals */
+interface TokenStatus {
+  level: 'stable' | 'monitor' | 'action';
+  label: string;
+  className: string;
+  dotClass: string;
+}
+
+/** Get token status for display based on recent signals */
+function getTokenStatus(
   chainId: number,
   address: string,
   historyEntries: Array<{ chainId: number; token: string; impact?: { level: string } }>
-): 'high' | 'medium' | 'low' | null {
+): TokenStatus {
   // Check for alerts in last 24h for this token
   const tokenAlerts = historyEntries.filter(
     (e) => e.chainId === chainId && e.token.toLowerCase() === address.toLowerCase()
   );
 
-  if (tokenAlerts.length === 0) return null;
+  // No alerts = Stable
+  if (tokenAlerts.length === 0) {
+    return {
+      level: 'stable',
+      label: 'Stable',
+      className: 'bg-green-900/20 text-green-400',
+      dotClass: 'bg-green-500',
+    };
+  }
 
-  // Return highest severity
-  if (tokenAlerts.some((e) => e.impact?.level === 'high')) return 'high';
-  if (tokenAlerts.some((e) => e.impact?.level === 'medium')) return 'medium';
-  return 'low';
+  // High-impact = Action needed
+  if (tokenAlerts.some((e) => e.impact?.level === 'high')) {
+    return {
+      level: 'action',
+      label: 'Action',
+      className: 'bg-red-900/30 text-red-400',
+      dotClass: 'bg-red-500',
+    };
+  }
+
+  // Medium/Low = Monitor
+  return {
+    level: 'monitor',
+    label: 'Monitor',
+    className: 'bg-yellow-900/20 text-yellow-400',
+    dotClass: 'bg-yellow-500',
+  };
 }
 
 export function WatchlistPanel({ className = '' }: WatchlistPanelProps) {
@@ -76,17 +105,14 @@ export function WatchlistPanel({ className = '' }: WatchlistPanelProps) {
     }
   }, [tokens]);
 
-  // Sort tokens by severity (high risk first, then medium, then safe)
+  // Sort tokens by status (action first, then monitor, then stable)
   const sortedTokens = useMemo(() => {
     return [...tokens].sort((a, b) => {
-      const severityA = getTokenSeverity(a.chainId, a.address, historyEntries);
-      const severityB = getTokenSeverity(b.chainId, b.address, historyEntries);
+      const statusA = getTokenStatus(a.chainId, a.address, historyEntries);
+      const statusB = getTokenStatus(b.chainId, b.address, historyEntries);
 
-      const severityOrder = { high: 0, medium: 1, low: 2, null: 3 };
-      const orderA = severityOrder[severityA ?? 'null'];
-      const orderB = severityOrder[severityB ?? 'null'];
-
-      return orderA - orderB;
+      const statusOrder = { action: 0, monitor: 1, stable: 2 };
+      return statusOrder[statusA.level] - statusOrder[statusB.level];
     });
   }, [tokens, historyEntries]);
 
@@ -150,29 +176,27 @@ export function WatchlistPanel({ className = '' }: WatchlistPanelProps) {
       <div className="space-y-2 max-h-48 overflow-y-auto">
         {sortedTokens.map((token) => {
           const sourceInfo = getSourceLabel(token.source);
-          const severity = getTokenSeverity(token.chainId, token.address, historyEntries);
+          const status = getTokenStatus(token.chainId, token.address, historyEntries);
 
           return (
             <div
               key={`${token.chainId}-${token.address}`}
               className={`flex items-center gap-2 px-2 py-1.5 rounded-lg group transition-colors ${
-                severity === 'high'
-                  ? 'bg-red-900/20 border border-red-800/30'
-                  : severity === 'medium'
-                  ? 'bg-yellow-900/20 border border-yellow-800/30'
+                status.level === 'action'
+                  ? 'bg-red-900/10 border border-red-800/20'
+                  : status.level === 'monitor'
+                  ? 'bg-yellow-900/10 border border-yellow-800/20'
                   : 'bg-dark-700/50'
               }`}
             >
-              {/* Severity Indicator */}
-              {severity && (
-                <span
-                  className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                    severity === 'high' ? 'bg-red-500' :
-                    severity === 'medium' ? 'bg-yellow-500' : 'bg-blue-500'
-                  }`}
-                  title={`${severity} risk signal detected`}
-                />
-              )}
+              {/* Status Badge - always visible */}
+              <span
+                className={`text-[9px] px-1.5 py-0.5 rounded font-medium flex-shrink-0 flex items-center gap-1 ${status.className}`}
+                title={status.level === 'stable' ? 'No signals detected' : `${status.level} priority`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${status.dotClass}`} />
+                <span>{status.label}</span>
+              </span>
 
               {/* Token Display with Logo/Name/Price */}
               <TokenDisplay
@@ -185,9 +209,9 @@ export function WatchlistPanel({ className = '' }: WatchlistPanelProps) {
                 className="flex-1 min-w-0"
               />
 
-              {/* Source Badge - friendly text */}
+              {/* Source Badge - friendly text (hidden on mobile) */}
               <span
-                className={`text-[9px] px-1.5 py-0.5 rounded hidden sm:inline-flex items-center gap-1 ${sourceInfo.className}`}
+                className={`text-[9px] px-1.5 py-0.5 rounded hidden lg:inline-flex items-center gap-1 ${sourceInfo.className}`}
                 title={`How this token was added`}
               >
                 <span>{sourceInfo.icon}</span>
