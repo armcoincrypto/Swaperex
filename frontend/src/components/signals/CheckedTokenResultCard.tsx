@@ -5,12 +5,15 @@
  * Extracted from TokenCheckInput for cleaner, reusable display.
  *
  * Phase 2 - Token Check Result Card
+ * Phase 4 - Stablecoin guard explanation
  */
 
+import { useState } from 'react';
 import { TokenDisplay } from '@/components/common/TokenDisplay';
 import { QuickActions } from '@/components/signals/QuickActions';
 import { RiskScoreBreakdown } from '@/components/signals/RiskScoreBreakdown';
 import { type TokenMeta } from '@/stores/tokenMetaStore';
+import { isStablecoin } from '@/utils/stablecoin';
 
 interface TokenCheckResult {
   hasSignals: boolean;
@@ -101,6 +104,10 @@ export function CheckedTokenResultCard({
   className = '',
 }: CheckedTokenResultCardProps) {
   const overallRisk = getOverallRisk(result);
+  const [showStablecoinInfo, setShowStablecoinInfo] = useState(false);
+
+  // Check if this is a stablecoin
+  const tokenIsStablecoin = isStablecoin(tokenMeta?.symbol, tokenMeta?.name);
 
   return (
     <div className={`rounded-xl border overflow-hidden ${overallRisk.className} ${className}`}>
@@ -146,8 +153,36 @@ export function CheckedTokenResultCard({
 
       {/* Body: Signal Details */}
       <div className="px-4 py-3 space-y-4">
+        {/* Stablecoin Info Banner */}
+        {tokenIsStablecoin && !result.hasSignals && (
+          <div className="bg-blue-900/10 border border-blue-800/20 rounded-lg p-3">
+            <div className="flex items-start gap-2">
+              <span className="text-blue-400 text-sm flex-shrink-0">ℹ️</span>
+              <div className="text-[11px] text-blue-300/80">
+                <span className="font-medium text-blue-300">This is a stablecoin.</span>
+                {' '}Stablecoins are designed to maintain a ~$1.00 price and typically have deep liquidity.
+                {' '}
+                <button
+                  onClick={() => setShowStablecoinInfo(!showStablecoinInfo)}
+                  className="text-blue-400 hover:text-blue-300 underline"
+                >
+                  {showStablecoinInfo ? 'Less' : 'Why no alerts?'}
+                </button>
+                {showStablecoinInfo && (
+                  <div className="mt-2 pt-2 border-t border-blue-800/30 text-dark-400">
+                    Our risk signals focus on volatile tokens where sudden liquidity drops or contract
+                    changes indicate danger. Stablecoins like USDC, USDT, and DAI have different risk
+                    profiles (e.g., regulatory, backing reserves) that aren't captured by these checks.
+                    For stablecoin safety, check their audit reports and backing disclosures.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* No Signals - Safe State */}
-        {!result.hasSignals && (
+        {!result.hasSignals && !tokenIsStablecoin && (
           <div className="text-green-400 text-sm flex items-center gap-2">
             <span className="text-lg">✓</span>
             <span>No active risk or liquidity signals detected</span>
