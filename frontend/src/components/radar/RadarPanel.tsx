@@ -6,7 +6,7 @@
  */
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { useRadarStore, type RadarSignalType, type RadarSignal, getSignalTypeInfo } from '@/stores/radarStore';
+import { useRadarStore, type RadarSignal } from '@/stores/radarStore';
 import { useUsageStore } from '@/stores/usageStore';
 import { useDebugStore, useDebugMode } from '@/stores/debugStore';
 import { useSignalHistoryStore } from '@/stores/signalHistoryStore';
@@ -37,15 +37,6 @@ interface RadarPanelProps {
   onSignalClick: (signal: RadarSignal) => void;
 }
 
-type FilterType = 'all' | RadarSignalType;
-
-const FILTER_OPTIONS: { value: FilterType; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'liquidity_added', label: 'Liquidity' },
-  { value: 'risk_changed', label: 'Risk' },
-  { value: 'price_move', label: 'Price' },
-];
-
 export function RadarPanel({ onSignalClick }: RadarPanelProps) {
   const { signals, markAsRead, markAllAsRead, removeSignal, getUnreadCount } = useRadarStore();
   const { trackEvent } = useUsageStore();
@@ -54,7 +45,6 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
   const addHistoryEntry = useSignalHistoryStore((s) => s.addEntry);
   const historyEntries = useSignalHistoryStore((s) => s.entries);
   const signalFilters = useSignalFilterStore();
-  const [filter, setFilter] = useState<FilterType>('all');
   const [showHistory, setShowHistory] = useState(false);
 
   // Calculate filtered history count for header display
@@ -125,13 +115,8 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
     fetchDebugData();
   }, [debugEnabled, captureToHistory]);
 
-  // Filter signals
-  const filteredSignals = useMemo(() => {
-    if (filter === 'all') return signals;
-    return signals.filter((s) => s.type === filter);
-  }, [signals, filter]);
-
   // Group signals by time (Today, Yesterday, Older)
+  // Note: radarStore.signals is legacy and typically empty - real signals go through signalHistoryStore
   const groupedSignals = useMemo(() => {
     const todayStart = new Date().setHours(0, 0, 0, 0);
     const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
@@ -140,7 +125,7 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
     const yesterday: RadarSignal[] = [];
     const older: RadarSignal[] = [];
 
-    filteredSignals.forEach((signal) => {
+    signals.forEach((signal) => {
       if (signal.timestamp >= todayStart) {
         today.push(signal);
       } else if (signal.timestamp >= yesterdayStart) {
@@ -151,7 +136,7 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
     });
 
     return { today, yesterday, older };
-  }, [filteredSignals]);
+  }, [signals]);
 
   const handleSignalClick = (signal: RadarSignal) => {
     markAsRead(signal.id);
@@ -217,44 +202,8 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
       {/* Signals Offline Warning */}
       <SignalsStatusBadge className="mb-4" />
 
-      {/* Filter Pills */}
-      <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-        {FILTER_OPTIONS.map((option) => {
-          const isActive = filter === option.value;
-          const typeInfo = option.value !== 'all' ? getSignalTypeInfo(option.value) : null;
-          const count =
-            option.value === 'all'
-              ? signals.length
-              : signals.filter((s) => s.type === option.value).length;
-
-          return (
-            <button
-              key={option.value}
-              onClick={() => setFilter(option.value)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
-                isActive
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-dark-800 text-dark-300 hover:bg-dark-700'
-              }`}
-            >
-              {typeInfo && <span>{typeInfo.icon}</span>}
-              <span>{option.label}</span>
-              {count > 0 && (
-                <span
-                  className={`ml-1 px-1.5 py-0.5 rounded text-xs ${
-                    isActive ? 'bg-primary-500' : 'bg-dark-700'
-                  }`}
-                >
-                  {count}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
       {/* Empty State - Context-aware messaging */}
-      {filteredSignals.length === 0 && (
+      {signals.length === 0 && (
         <>
           {/* If filters are hiding history signals, show SmartFilterEmptyState */}
           {hiddenByFilters > 0 ? (
@@ -291,7 +240,7 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
       )}
 
       {/* Signal Groups */}
-      {filteredSignals.length > 0 && (
+      {signals.length > 0 && (
         <div className="space-y-6">
           {/* Today */}
           {groupedSignals.today.length > 0 && (
