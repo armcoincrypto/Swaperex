@@ -15,11 +15,9 @@ import { useSignalHistoryStore } from '@/stores/signalHistoryStore';
 import { useWalletStore } from '@/stores/walletStore';
 import { useWatchlistStore } from '@/stores/watchlistStore';
 import { fetchSignalsWithHistory, type SignalHistoryCapture } from '@/services/signalsHealth';
-import { TokenDisplay } from '@/components/common/TokenDisplay';
 import { getTokenMeta } from '@/services/tokenMeta';
 import { type TokenMeta } from '@/stores/tokenMetaStore';
-import { QuickActions } from '@/components/signals/QuickActions';
-import { RiskScoreBreakdown } from '@/components/signals/RiskScoreBreakdown';
+import { CheckedTokenResultCard } from '@/components/signals/CheckedTokenResultCard';
 
 // Supported chains
 const CHAINS = [
@@ -193,14 +191,6 @@ export function TokenCheckInput({ className = '' }: TokenCheckInputProps) {
     }
   };
 
-  const getTrendIcon = (trend: string) => {
-    switch (trend) {
-      case 'increasing': return '⬆';
-      case 'decreasing': return '⬇';
-      case 'stable': return '➖';
-      default: return '🆕';
-    }
-  };
 
   return (
     <div className={`bg-dark-800 rounded-xl p-4 ${className}`}>
@@ -291,82 +281,14 @@ export function TokenCheckInput({ className = '' }: TokenCheckInputProps) {
 
       {/* Results */}
       {result && (
-        <div className="space-y-3">
-          {/* Token Info Header */}
-          <div className="bg-dark-700/50 rounded-lg p-3">
-            <TokenDisplay
-              chainId={selectedChainId}
-              address={tokenAddress}
-              symbol={tokenMeta?.symbol}
-              showPrice
-              showChain
-              showCopy
-            />
-            {/* Quick Actions */}
-            <div className="mt-3 pt-2 border-t border-dark-600/50">
-              <QuickActions
-                chainId={selectedChainId}
-                address={tokenAddress}
-                symbol={tokenMeta?.symbol}
-                showSwap={false}
-              />
-            </div>
-          </div>
-
-          {/* Signal Status */}
-          {!result.hasSignals && (
-            <div className="text-green-400 text-sm flex items-center gap-2">
-              <span>✓</span>
-              <span>No active signals for this token</span>
-            </div>
-          )}
-
-          {/* Risk Signal */}
-          {result.risk && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-yellow-400 text-sm font-medium">
-                <span>⚠️</span>
-                <span>Risk Signal</span>
-                <span className="text-[10px] text-dark-500 font-normal">
-                  Confidence: {Math.round(result.risk.confidence * 100)}%
-                </span>
-              </div>
-              <RiskScoreBreakdown
-                impact={result.risk.impact}
-                type="risk"
-                riskFactors={result.risk.riskFactors}
-              />
-              <div className="text-[10px] text-dark-500">
-                {result.risk.recurrence.isRepeat
-                  ? `↻ ${result.risk.recurrence.occurrences24h}× in 24h ${getTrendIcon(result.risk.recurrence.trend)}`
-                  : '🆕 First occurrence'}
-              </div>
-            </div>
-          )}
-
-          {/* Liquidity Signal */}
-          {result.liquidity && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-blue-400 text-sm font-medium">
-                <span>💧</span>
-                <span>Liquidity Signal</span>
-                <span className="text-[10px] text-dark-500 font-normal">
-                  Confidence: {Math.round(result.liquidity.confidence * 100)}%
-                </span>
-              </div>
-              <RiskScoreBreakdown
-                impact={result.liquidity.impact}
-                type="liquidity"
-                liquidityDropPct={result.liquidity.dropPct}
-              />
-              <div className="text-[10px] text-dark-500">
-                {result.liquidity.recurrence.isRepeat
-                  ? `↻ ${result.liquidity.recurrence.occurrences24h}× in 24h ${getTrendIcon(result.liquidity.recurrence.trend)}`
-                  : '🆕 First occurrence'}
-              </div>
-            </div>
-          )}
-        </div>
+        <CheckedTokenResultCard
+          chainId={selectedChainId}
+          address={tokenAddress}
+          result={result}
+          tokenMeta={tokenMeta}
+          isWatching={isWatching}
+          onToggleWatch={handleToggleWatch}
+        />
       )}
 
       {/* Hint */}
