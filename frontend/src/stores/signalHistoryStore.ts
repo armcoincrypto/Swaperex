@@ -275,3 +275,72 @@ export function formatRecurrenceText(recurrence: SignalRecurrence): string {
 
   return `${count}× in 24h (${trendText})`;
 }
+
+/**
+ * Grouped signal entry for user-friendly display
+ * Combines duplicate signals within a time window
+ */
+export interface GroupedSignalEntry {
+  /** Representative entry (most recent) */
+  entry: SignalHistoryEntry;
+  /** Number of occurrences in the grouping window */
+  count: number;
+  /** All individual entries in this group */
+  entries: SignalHistoryEntry[];
+  /** First occurrence timestamp */
+  firstSeen: number;
+  /** Last occurrence timestamp */
+  lastSeen: number;
+}
+
+/**
+ * Group duplicate signals for user-friendly display
+ * Same token + type + impact level within windowMs are grouped together
+ */
+export function groupSignalEntries(
+  entries: SignalHistoryEntry[],
+  windowMs: number = 60 * 60 * 1000 // 60 min default
+): GroupedSignalEntry[] {
+  const groups = new Map<string, GroupedSignalEntry>();
+
+  for (const entry of entries) {
+    // Create grouping key: token + type + impact level
+    const impactLevel = entry.impact?.level || 'low';
+    const key = `${entry.token.toLowerCase()}:${entry.chainId}:${entry.type}:${impactLevel}`;
+
+    const existing = groups.get(key);
+
+    if (existing) {
+      // Check if within grouping window from the first entry
+      if (existing.firstSeen - entry.timestamp <= windowMs) {
+        existing.count++;
+        existing.entries.push(entry);
+        // Update firstSeen if this entry is older
+        if (entry.timestamp < existing.firstSeen) {
+          existing.firstSeen = entry.timestamp;
+        }
+      } else {
+        // Outside window, create new group with unique key
+        const uniqueKey = `${key}:${entry.timestamp}`;
+        groups.set(uniqueKey, {
+          entry,
+          count: 1,
+          entries: [entry],
+          firstSeen: entry.timestamp,
+          lastSeen: entry.timestamp,
+        });
+      }
+    } else {
+      groups.set(key, {
+        entry,
+        count: 1,
+        entries: [entry],
+        firstSeen: entry.timestamp,
+        lastSeen: entry.timestamp,
+      });
+    }
+  }
+
+  // Convert to array and sort by most recent
+  return Array.from(groups.values()).sort((a, b) => b.lastSeen - a.lastSeen);
+}
