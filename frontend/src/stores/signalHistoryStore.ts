@@ -291,6 +291,109 @@ export interface GroupedSignalEntry {
   firstSeen: number;
   /** Last occurrence timestamp */
   lastSeen: number;
+  /** Category for filtering */
+  category: 'event' | 'informational' | 'debug';
+  /** Short reason tags explaining the group */
+  reasonTags: string[];
+}
+
+/**
+ * Classify a signal group into categories
+ * - "event": meaningful change worth attention
+ * - "informational": routine check, low impact
+ * - "debug": test signals or debug-only entries
+ */
+function classifyGroup(
+  entry: SignalHistoryEntry
+): { category: 'event' | 'informational' | 'debug'; reasonTags: string[] } {
+  const reasonTags: string[] = [];
+
+  // Check for TEST/debug signals
+  const isTest = entry.tokenSymbol === 'TEST' || entry.token?.startsWith('0xTEST');
+  if (isTest) {
+    return { category: 'debug', reasonTags: ['Test signal'] };
+  }
+
+  const impactLevel = entry.impact?.level;
+  const confidence = entry.confidence;
+  const isRepeat = entry.recurrence?.isRepeat;
+  const occurrences = entry.recurrence?.occurrences24h || 1;
+
+  // High impact = always an event
+  if (impactLevel === 'high') {
+    // Add specific reason tags for high impact
+    if (entry.type === 'risk') {
+      const factors = entry.debugSnapshot?.risk?.riskFactors || [];
+      if (factors.includes('honeypot') || entry.debugSnapshot?.risk?.isHoneypot) {
+        reasonTags.push('Honeypot detected');
+      } else if (factors.length > 0) {
+        reasonTags.push('Contract risk');
+      } else {
+        reasonTags.push('High risk');
+      }
+    } else if (entry.type === 'liquidity') {
+      const dropPct = entry.debugSnapshot?.liquidity?.dropPct;
+      if (dropPct && dropPct > 50) {
+        reasonTags.push('Major liquidity drop');
+      } else if (dropPct && dropPct > 20) {
+        reasonTags.push('Significant liquidity change');
+      } else {
+        reasonTags.push('Liquidity alert');
+      }
+    }
+
+    if (isRepeat && occurrences > 3) {
+      reasonTags.push('Repeated');
+    }
+
+    return { category: 'event', reasonTags };
+  }
+
+  // Medium impact - event if confidence is decent
+  if (impactLevel === 'medium') {
+    if (confidence >= 0.6) {
+      if (entry.type === 'risk') {
+        reasonTags.push('Risk flag');
+      } else {
+        reasonTags.push('Liquidity change');
+      }
+      if (isRepeat && occurrences > 2) {
+        reasonTags.push('Recurring');
+      }
+      return { category: 'event', reasonTags };
+    }
+    // Medium but low confidence = informational
+    reasonTags.push('Low confidence');
+    if (entry.type === 'risk') {
+      reasonTags.push('Minor risk');
+    } else {
+      reasonTags.push('Minor liquidity');
+    }
+    return { category: 'informational', reasonTags };
+  }
+
+  // Low impact - informational unless something special
+  if (entry.type === 'risk') {
+    const factors = entry.debugSnapshot?.risk?.riskFactors || [];
+    if (factors.length > 0) {
+      reasonTags.push('Contract check');
+    } else {
+      reasonTags.push('Routine check');
+    }
+  } else {
+    const dropPct = entry.debugSnapshot?.liquidity?.dropPct;
+    if (dropPct && dropPct > 5) {
+      reasonTags.push('Small liquidity change');
+    } else {
+      reasonTags.push('Monitoring');
+    }
+  }
+
+  if (confidence < 0.5) {
+    reasonTags.push('Low confidence');
+  }
+
+  return { category: 'informational', reasonTags };
 }
 
 /**
@@ -301,7 +404,7 @@ export function groupSignalEntries(
   entries: SignalHistoryEntry[],
   windowMs: number = 60 * 60 * 1000 // 60 min default
 ): GroupedSignalEntry[] {
-  const groups = new Map<string, GroupedSignalEntry>();
+  const groups = new Map<string, Omit<GroupedSignalEntry, 'category' | 'reasonTags'>>();
 
   for (const entry of entries) {
     // Create grouping key: token + type + impact level
@@ -341,6 +444,11 @@ export function groupSignalEntries(
     }
   }
 
-  // Convert to array and sort by most recent
-  return Array.from(groups.values()).sort((a, b) => b.lastSeen - a.lastSeen);
+  // Convert to array, add classification, and sort by most recent
+  return Array.from(groups.values())
+    .map((group) => {
+      const { category, reasonTags } = classifyGroup(group.entry);
+      return { ...group, category, reasonTags };
+    })
+    .sort((a, b) => b.lastSeen - a.lastSeen);
 }
