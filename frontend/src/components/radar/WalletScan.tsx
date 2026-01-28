@@ -44,6 +44,7 @@ import {
 import { getSignalsApiUrl } from '@/utils/apiConfig';
 import { isStablecoin, isStablecoinPriceUnreliable } from '@/utils/stablecoin';
 import { formatTimeAgo } from '@/utils/time';
+import { debugLog } from '@/utils/debug';
 const API_BASE = getSignalsApiUrl();
 
 // Wallet scan mode
@@ -55,29 +56,36 @@ type QuickFilter = 'none' | 'top20' | 'usd1k' | 'usd10k';
 // Risk label type
 type RiskLabel = 'Low' | 'Medium' | 'High' | 'Unknown' | 'Loading';
 
-// Preset wallets for quick selection
-const PRESET_WALLETS: { name: string; address: string; description: string }[] = [
+// Preset wallets for quick selection with their primary chain
+const PRESET_WALLETS: { name: string; address: string; description: string; chainId: number }[] = [
   {
     name: 'Binance Hot Wallet',
     address: '0x8894E0a0c962CB723c1976a4421c95949bE2D4E3',
     description: 'Major CEX wallet',
+    chainId: 56, // BNB Chain
   },
   {
     name: 'Wintermute',
     address: '0x0000000000007F150Bd6f54c40A34d7C3d5e9f56',
     description: 'Market maker',
+    chainId: 1, // Ethereum
   },
   {
     name: 'Jump Trading',
     address: '0xf584F8728B874a6a5c7A8d4d387C9aae9172D621',
     description: 'Trading firm',
+    chainId: 1, // Ethereum
   },
   {
     name: 'BSC Whale',
     address: '0xe2fc31F816A9b94326492132018C3aEcC4a93aE1',
     description: 'Known BNB holder',
+    chainId: 56, // BNB Chain
   },
 ];
+
+// Supported chains for dropdown
+const SUPPORTED_CHAINS = [1, 56, 8453, 42161] as const;
 
 // Validate Ethereum address format
 function isValidAddress(address: string): boolean {
@@ -370,15 +378,17 @@ function TokenRow({
   );
 }
 
-// Empty state component
+// Empty state component with mode-appropriate CTAs
 function EmptyState({
   reason,
   chainSuggestion,
-  onSwitchChain,
+  walletMode,
+  onChangeChain,
 }: {
   reason: string;
   chainSuggestion?: string;
-  onSwitchChain?: () => void;
+  walletMode: WalletMode;
+  onChangeChain?: () => void;
 }) {
   return (
     <div className="text-center py-6">
@@ -387,12 +397,12 @@ function EmptyState({
       {chainSuggestion && (
         <div className="text-xs text-dark-500 mb-3">{chainSuggestion}</div>
       )}
-      {onSwitchChain && (
+      {onChangeChain && (
         <button
-          onClick={onSwitchChain}
+          onClick={onChangeChain}
           className="text-xs text-primary-400 hover:text-primary-300"
         >
-          Try another chain
+          {walletMode === 'external' ? 'Change chain' : 'Switch your wallet network to scan another chain'}
         </button>
       )}
     </div>
@@ -961,6 +971,12 @@ export function WalletScan({ className = '' }: WalletScanProps) {
   const [externalAddress, setExternalAddress] = useState('');
   const [showPresets, setShowPresets] = useState(false);
 
+  // Chain selection for Any Wallet mode (default to BNB Chain as most presets are BNB)
+  const [externalChainId, setExternalChainId] = useState<number>(56);
+
+  // Ref for chain dropdown (used for focus on empty state CTA)
+  const chainDropdownRef = useRef<HTMLSelectElement>(null);
+
   // Scan state
   const [stage, setStage] = useState<ScanStage>('idle');
   const [scanResult, setScanResult] = useState<WalletScanResponse | null>(null);
@@ -1004,10 +1020,18 @@ export function WalletScan({ className = '' }: WalletScanProps) {
     setVisibleCount(PAGE_SIZE);
   }, [searchQuery, quickFilter, stableOnly, hideNoLogo]);
 
-  // Chain info
-  const chainInfo = CHAIN_INFO[currentChainId] || { name: `Chain ${currentChainId}`, symbol: 'ETH', color: '#888' };
+  // Effective chain ID depends on mode
+  // My Wallet: use connected wallet's chain
+  // Any Wallet: use selected chain from dropdown
+  const effectiveChainId = walletMode === 'external' ? externalChainId : currentChainId;
+
+  // Chain info for display
+  const chainInfo = CHAIN_INFO[effectiveChainId] || { name: `Chain ${effectiveChainId}`, symbol: 'ETH', color: '#888' };
   const watchlistFull = watchlistTokens.length >= 20;
   const availableSlots = 20 - watchlistTokens.length;
+
+  // Chain label suffix based on mode
+  const chainLabelSuffix = walletMode === 'external' ? '(selected)' : '(your wallet network)';
 
   // Determine which wallet to scan
   const targetWallet = useMemo(() => {
@@ -1049,6 +1073,16 @@ export function WalletScan({ className = '' }: WalletScanProps) {
     setQuickFilter('none');
     setStableOnly(false);
 
+    // Debug logging (only when localStorage.debug=true)
+    const requestUrl = `${API_BASE}/api/v1/wallet/scan?chainId=${effectiveChainId}&wallet=${targetWallet}&provider=auto`;
+    debugLog('[WalletScan] Starting scan', {
+      walletMode,
+      effectiveChainId,
+      targetWallet: `${targetWallet.slice(0, 6)}...${targetWallet.slice(-4)}`,
+      provider: 'auto',
+      requestUrl,
+    });
+
     // Set up progress timers
     const timer1 = setTimeout(() => setStage((s) => s === 'connecting' ? 'fetching' : s), 300);
     const timer2 = setTimeout(() => setStage((s) => s === 'fetching' ? 'pricing' : s), 800);
@@ -1056,7 +1090,7 @@ export function WalletScan({ className = '' }: WalletScanProps) {
 
     try {
       const result = await scanWallet({
-        chainId: currentChainId,
+        chainId: effectiveChainId,
         wallet: targetWallet,
         minUsd: 1,
         strict: false,
@@ -1071,7 +1105,7 @@ export function WalletScan({ className = '' }: WalletScanProps) {
       setLastScanTime(Date.now());
 
       if (isExternalScan) {
-        await trackExternalWalletScanned(currentChainId, targetWallet);
+        await trackExternalWalletScanned(effectiveChainId, targetWallet);
       }
 
       if (result.error) {
@@ -1093,7 +1127,7 @@ export function WalletScan({ className = '' }: WalletScanProps) {
       setStage('error');
       setErrorMessage(err instanceof Error ? err.message : 'Unknown error occurred');
     }
-  }, [canScan, targetWallet, currentChainId, isExternalScan, getFilteredTokens, availableSlots]);
+  }, [canScan, targetWallet, effectiveChainId, walletMode, isExternalScan, getFilteredTokens, availableSlots]);
 
   // Handle add selected tokens
   const handleAddSelected = useCallback(async () => {
@@ -1115,7 +1149,7 @@ export function WalletScan({ className = '' }: WalletScanProps) {
       minUsd: 1,
       provider: scanResult.provider,
       strict: false,
-      chainId: currentChainId,
+      chainId: effectiveChainId,
       filteredSpam: scanResult.stats.spamFiltered,
       source: isExternalScan ? 'external' : 'connected',
     });
@@ -1227,7 +1261,7 @@ export function WalletScan({ className = '' }: WalletScanProps) {
 
     // Find tokens that need risk fetching
     const needFetch = visibleTokens.filter((t) => {
-      const key = `${currentChainId}:${t.address.toLowerCase()}`;
+      const key = `${effectiveChainId}:${t.address.toLowerCase()}`;
       const entry = cache.get(key);
       if (!entry) return true;
       return now - entry.fetchedAt > RISK_CACHE_TTL_MS;
@@ -1238,13 +1272,13 @@ export function WalletScan({ className = '' }: WalletScanProps) {
     const queue = [...needFetch];
 
     const fetchRisk = async (token: DiscoveredToken) => {
-      const key = `${currentChainId}:${token.address.toLowerCase()}`;
+      const key = `${effectiveChainId}:${token.address.toLowerCase()}`;
       if (riskInflightRef.current.has(key)) return;
 
       riskInflightRef.current.add(key);
 
       try {
-        const url = `${API_BASE}/api/v1/signals?chainId=${currentChainId}&token=${token.address}`;
+        const url = `${API_BASE}/api/v1/signals?chainId=${effectiveChainId}&token=${token.address}`;
 
         // P1: Add timeout to risk fetch (5 seconds)
         const controller = new AbortController();
@@ -1310,17 +1344,17 @@ export function WalletScan({ className = '' }: WalletScanProps) {
     return () => {
       cancelled = true;
     };
-  }, [visibleTokens, currentChainId, riskVersion]);
+  }, [visibleTokens, effectiveChainId, riskVersion]);
 
   // Get risk label for a token
   const getRiskLabel = useCallback((token: DiscoveredToken): RiskLabel => {
-    const key = `${currentChainId}:${token.address.toLowerCase()}`;
+    const key = `${effectiveChainId}:${token.address.toLowerCase()}`;
     const entry = riskCacheRef.current.get(key);
     if (!entry) return 'Loading';
     return entry.label;
-  }, [currentChainId, riskVersion]); // riskVersion dependency triggers re-render
+  }, [effectiveChainId, riskVersion]); // riskVersion dependency triggers re-render
 
-  // Get empty state reason
+  // Get empty state reason - uses chainInfo.name for specific messaging
   const getEmptyReason = (): string => {
     if (!scanResult) return '';
 
@@ -1331,7 +1365,7 @@ export function WalletScan({ className = '' }: WalletScanProps) {
     }
 
     if (scanResult.stats.tokensDiscovered === 0) {
-      return 'No token transfers found on this chain.';
+      return `No tokens found on ${chainInfo.name} for this wallet.`;
     }
 
     if (scanResult.stats.spamFiltered === scanResult.stats.tokensDiscovered) {
@@ -1346,16 +1380,30 @@ export function WalletScan({ className = '' }: WalletScanProps) {
     }
 
     if (scanResult.stats.tokensFiltered === 0) {
-      return 'No tokens above minimum value threshold ($1).';
+      return `No tokens above minimum value threshold ($1) on ${chainInfo.name}.`;
     }
 
-    return 'No tokens found.';
+    return `No tokens found on ${chainInfo.name} for this wallet.`;
   };
 
-  // Handle preset wallet selection
-  const handlePresetSelect = useCallback((address: string) => {
+  // Handle empty state chain change CTA
+  const handleEmptyStateChainChange = useCallback(() => {
+    if (walletMode === 'external') {
+      // Focus the chain dropdown for external wallet mode
+      chainDropdownRef.current?.focus();
+    }
+    // For connected wallet mode, just reset to idle (user needs to switch wallet network manually)
+    setStage('idle');
+  }, [walletMode]);
+
+  // Handle preset wallet selection - sets both address and chain
+  const handlePresetSelect = useCallback((address: string, chainId: number) => {
+    setWalletMode('external'); // Ensure we're in external mode
     setExternalAddress(address);
+    setExternalChainId(chainId); // Set the preset's preferred chain
     setShowPresets(false);
+    setStage('idle');
+    setScanResult(null);
   }, []);
 
   // Provider name for trust tags
@@ -1447,15 +1495,20 @@ export function WalletScan({ className = '' }: WalletScanProps) {
               {PRESET_WALLETS.map((preset) => (
                 <button
                   key={preset.address}
-                  onClick={() => handlePresetSelect(preset.address)}
+                  onClick={() => handlePresetSelect(preset.address, preset.chainId)}
                   className="w-full flex items-center justify-between p-2 bg-dark-700/30 hover:bg-dark-700/50 rounded-lg transition-colors text-left"
                 >
                   <div>
                     <div className="text-xs text-dark-200">{preset.name}</div>
                     <div className="text-[10px] text-dark-500">{preset.description}</div>
                   </div>
-                  <div className="text-[10px] text-dark-600 font-mono">
-                    {shortAddress(preset.address)}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-dark-600/50 text-dark-400">
+                      {CHAIN_INFO[preset.chainId]?.name || `Chain ${preset.chainId}`}
+                    </span>
+                    <span className="text-[10px] text-dark-600 font-mono">
+                      {shortAddress(preset.address)}
+                    </span>
                   </div>
                 </button>
               ))}
@@ -1469,15 +1522,46 @@ export function WalletScan({ className = '' }: WalletScanProps) {
         </div>
       )}
 
-      {/* Chain indicator */}
+      {/* Chain indicator - dropdown for Any Wallet mode, static for My Wallet */}
       <div className="flex items-center gap-2 mb-4 p-2 bg-dark-700/50 rounded-lg">
         <div
-          className="w-2 h-2 rounded-full"
+          className="w-2 h-2 rounded-full flex-shrink-0"
           style={{ backgroundColor: chainInfo.color }}
         />
-        <span className="text-xs text-dark-300">Scanning on {chainInfo.name}</span>
+        {walletMode === 'external' ? (
+          // Chain dropdown for Any Wallet mode
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <span className="text-xs text-dark-400">Scan on</span>
+            <select
+              ref={chainDropdownRef}
+              value={externalChainId}
+              onChange={(e) => {
+                setExternalChainId(Number(e.target.value));
+                // Reset scan results when chain changes
+                if (stage === 'complete' || stage === 'error') {
+                  setStage('idle');
+                  setScanResult(null);
+                }
+              }}
+              className="text-xs bg-dark-700 border border-dark-600 rounded px-2 py-1 text-dark-200 focus:outline-none focus:ring-1 focus:ring-primary-500/50"
+            >
+              {SUPPORTED_CHAINS.map((chainId) => (
+                <option key={chainId} value={chainId}>
+                  {CHAIN_INFO[chainId]?.name || `Chain ${chainId}`}
+                </option>
+              ))}
+            </select>
+            <span className="text-[10px] text-dark-500">(selected)</span>
+          </div>
+        ) : (
+          // Static display for My Wallet mode
+          <span className="text-xs text-dark-300">
+            Scanning on {chainInfo.name}{' '}
+            <span className="text-dark-500">{chainLabelSuffix}</span>
+          </span>
+        )}
         {scanResult && scanResult.stats.tokensFiltered > 0 && (
-          <span className="ml-auto text-xs text-dark-500">
+          <span className="ml-auto text-xs text-dark-500 flex-shrink-0">
             {formatUsd(scanResult.insights?.totalValueUsd || 0)} total
           </span>
         )}
@@ -1536,7 +1620,8 @@ export function WalletScan({ className = '' }: WalletScanProps) {
         <EmptyState
           reason={getEmptyReason()}
           chainSuggestion={scanResult?.insights?.chainSuggestion}
-          onSwitchChain={() => setStage('idle')}
+          walletMode={walletMode}
+          onChangeChain={handleEmptyStateChainChange}
         />
       ) : (
         <>
@@ -1550,7 +1635,7 @@ export function WalletScan({ className = '' }: WalletScanProps) {
             <DiffPanel
               diff={scanResult.diff}
               hideNoLogo={hideNoLogo}
-              chainId={currentChainId}
+              chainId={effectiveChainId}
               targetWallet={targetWallet}
               addToken={addToken}
               hasToken={hasToken}
