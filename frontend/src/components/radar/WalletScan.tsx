@@ -424,13 +424,13 @@ function TokenRow({
 function EmptyState({
   reason,
   chainSuggestion,
-  walletMode,
-  onChangeChain,
+  cta,
+  onCtaClick,
 }: {
   reason: string;
   chainSuggestion?: string;
-  walletMode: WalletMode;
-  onChangeChain?: () => void;
+  cta?: string;
+  onCtaClick?: () => void;
 }) {
   return (
     <div className="text-center py-6">
@@ -439,12 +439,12 @@ function EmptyState({
       {chainSuggestion && (
         <div className="text-xs text-dark-500 mb-3">{chainSuggestion}</div>
       )}
-      {onChangeChain && (
+      {cta && onCtaClick && (
         <button
-          onClick={onChangeChain}
+          onClick={onCtaClick}
           className="text-xs text-primary-400 hover:text-primary-300"
         >
-          {walletMode === 'external' ? 'Change chain' : 'Switch your wallet network to scan another chain'}
+          {cta}
         </button>
       )}
     </div>
@@ -1401,68 +1401,313 @@ export function WalletScan({ className = '' }: WalletScanProps) {
     return entry.label;
   }, [effectiveChainId, riskVersion]); // riskVersion dependency triggers re-render
 
-  // Get empty state reason - uses chainInfo.name for specific messaging
-  const getEmptyReason = (): string => {
-    if (!scanResult) return '';
+  // ============================================================
+  // Empty State Analysis
+  // ============================================================
 
-    if (scanResult.error) {
-      if (scanResult.error.includes('rate')) return 'Provider rate-limited. Try again in a moment.';
-      if (scanResult.error.includes('API')) return 'Provider API error. Please try again.';
-      return scanResult.error;
-    }
+  // Detailed analysis of why displayTokens is empty
+  interface EmptyStateAnalysis {
+    key: string;
+    title: string;
+    message: string;
+    cta?: string;
+    ctaAction?: 'changeChain' | 'clearSearch' | 'clearStableOnly' | 'clearQuickFilter' | 'disableHideNoLogo';
+    debugInfo?: Record<string, unknown>;
+  }
 
-    // Check total value - if very low, wallet is essentially empty
+  const getEmptyStateAnalysis = useCallback((): EmptyStateAnalysis | null => {
+    if (!scanResult) return null;
+    if (stage !== 'complete') return null;
+
+    // Gather all the data for analysis
+    const stats = scanResult.stats;
+    const totalTokensFromBackend = scanResult.tokens.length;
     const totalValue = scanResult.insights?.totalValueUsd || 0;
+
+    // Step-by-step filter breakdown
+    const notInWatchlist = scanResult.tokens.filter((t) => !hasToken(t.chainId, t.address));
+    const inWatchlistCount = totalTokensFromBackend - notInWatchlist.length;
+
+    const priced = notInWatchlist.filter((t) => t.hasPricing && t.valueUsd && t.valueUsd > 0);
+    const unpricedCount = notInWatchlist.length - priced.length;
+
+    // After hideNoLogo filter
+    const afterLogoFilter = hideNoLogo
+      ? priced.filter((t) => hasValidLogo(t.logo))
+      : priced;
+    const hiddenByLogoCount = priced.length - afterLogoFilter.length;
+
+    // After stableOnly filter
+    const afterStableFilter = stableOnly
+      ? afterLogoFilter.filter((t) => isStablecoin(t.symbol, t.name))
+      : afterLogoFilter;
+    const hiddenByStableCount = afterLogoFilter.length - afterStableFilter.length;
+
+    // After search filter
+    const afterSearchFilter = searchQuery.trim()
+      ? afterStableFilter.filter((t) => {
+          const q = searchQuery.trim().toLowerCase();
+          return (t.symbol || '').toLowerCase().includes(q) ||
+                 (t.name || '').toLowerCase().includes(q);
+        })
+      : afterStableFilter;
+    const hiddenBySearchCount = afterStableFilter.length - afterSearchFilter.length;
+
+    // After quick filter
+    let afterQuickFilter = afterSearchFilter;
+    if (quickFilter === 'top20') {
+      afterQuickFilter = afterSearchFilter.slice(0, 20);
+    } else if (quickFilter === 'usd1k') {
+      afterQuickFilter = afterSearchFilter.filter((t) => (t.valueUsd || 0) >= 1000);
+    } else if (quickFilter === 'usd10k') {
+      afterQuickFilter = afterSearchFilter.filter((t) => (t.valueUsd || 0) >= 10000);
+    }
+    const hiddenByQuickFilterCount = afterSearchFilter.length - afterQuickFilter.length;
+
+    const debugInfo = {
+      chainId: effectiveChainId,
+      chainName: chainInfo.name,
+      walletMode,
+      totalValue,
+      stats: {
+        tokensDiscovered: stats.tokensDiscovered,
+        spamFiltered: stats.spamFiltered,
+        tokensFiltered: stats.tokensFiltered,
+      },
+      filterBreakdown: {
+        fromBackend: totalTokensFromBackend,
+        inWatchlist: inWatchlistCount,
+        notInWatchlist: notInWatchlist.length,
+        unpriced: unpricedCount,
+        priced: priced.length,
+        hiddenByLogo: hiddenByLogoCount,
+        hiddenByStable: hiddenByStableCount,
+        hiddenBySearch: hiddenBySearchCount,
+        hiddenByQuickFilter: hiddenByQuickFilterCount,
+        finalDisplay: afterQuickFilter.length,
+      },
+      activeFilters: {
+        hideNoLogo,
+        stableOnly,
+        searchQuery: searchQuery || null,
+        quickFilter,
+      },
+    };
+
+    // Debug log (only when localStorage.debug=true)
+    debugLog('[WalletScan] Empty state analysis', debugInfo);
+
+    // If we have displayTokens, not empty
+    if (displayTokens.length > 0) {
+      return null;
+    }
+
+    // ===== Determine the reason =====
+
+    // 1. Backend error
+    if (scanResult.error) {
+      if (scanResult.error.includes('rate')) {
+        return {
+          key: 'rate_limited',
+          title: 'Rate Limited',
+          message: 'Provider rate-limited. Try again in a moment.',
+          debugInfo,
+        };
+      }
+      if (scanResult.error.includes('API')) {
+        return {
+          key: 'api_error',
+          title: 'API Error',
+          message: 'Provider API error. Please try again.',
+          debugInfo,
+        };
+      }
+      return {
+        key: 'error',
+        title: 'Error',
+        message: scanResult.error,
+        debugInfo,
+      };
+    }
+
+    // 2. Backend returned zero tokens (no discoveries at all)
+    if (stats.tokensDiscovered === 0) {
+      return {
+        key: 'no_tokens_discovered',
+        title: 'No Tokens',
+        message: `No tokens found on ${chainInfo.name} for this wallet.`,
+        cta: walletMode === 'external' ? 'Try a different chain' : 'Switch wallet network to scan another chain',
+        ctaAction: 'changeChain',
+        debugInfo,
+      };
+    }
+
+    // 3. All discovered tokens were spam
+    if (stats.spamFiltered === stats.tokensDiscovered) {
+      return {
+        key: 'all_spam',
+        title: 'All Spam',
+        message: `All ${stats.tokensDiscovered} tokens on ${chainInfo.name} were filtered as spam.`,
+        cta: walletMode === 'external' ? 'Try a different chain' : undefined,
+        ctaAction: 'changeChain',
+        debugInfo,
+      };
+    }
+
+    // 4. No tokens above minimum threshold
+    if (stats.tokensFiltered === 0 || totalTokensFromBackend === 0) {
+      return {
+        key: 'below_threshold',
+        title: 'Below Threshold',
+        message: `No tokens above minimum value threshold ($1) on ${chainInfo.name}.`,
+        cta: walletMode === 'external' ? 'Try a different chain' : undefined,
+        ctaAction: 'changeChain',
+        debugInfo,
+      };
+    }
+
+    // 5. Backend returned tokens, but UI filters are hiding them
+    // Determine which filter is the culprit
+
+    // 5a. All tokens are already in watchlist
+    if (notInWatchlist.length === 0 && inWatchlistCount > 0) {
+      return {
+        key: 'all_in_watchlist',
+        title: 'All Monitored',
+        message: `All ${inWatchlistCount} token${inWatchlistCount > 1 ? 's' : ''} on ${chainInfo.name} ${inWatchlistCount > 1 ? 'are' : 'is'} already in your watchlist.`,
+        debugInfo,
+      };
+    }
+
+    // 5b. Tokens exist but all unpriced
+    if (priced.length === 0 && unpricedCount > 0) {
+      return {
+        key: 'all_unpriced',
+        title: 'No Pricing',
+        message: `Found ${unpricedCount} token${unpricedCount > 1 ? 's' : ''} but none have pricing data.`,
+        cta: walletMode === 'external' ? 'Try a different chain' : undefined,
+        ctaAction: 'changeChain',
+        debugInfo,
+      };
+    }
+
+    // 5c. Search filter hiding all
+    if (searchQuery && hiddenBySearchCount > 0 && afterSearchFilter.length === 0) {
+      return {
+        key: 'search_no_match',
+        title: 'No Match',
+        message: `No tokens match "${searchQuery}".`,
+        cta: 'Clear search',
+        ctaAction: 'clearSearch',
+        debugInfo,
+      };
+    }
+
+    // 5d. StableOnly filter hiding all
+    if (stableOnly && hiddenByStableCount > 0 && afterStableFilter.length === 0) {
+      return {
+        key: 'no_stablecoins',
+        title: 'No Stablecoins',
+        message: 'No stablecoins found in this wallet.',
+        cta: 'Show all tokens',
+        ctaAction: 'clearStableOnly',
+        debugInfo,
+      };
+    }
+
+    // 5e. QuickFilter hiding all
+    if (quickFilter !== 'none' && hiddenByQuickFilterCount > 0 && afterQuickFilter.length === 0) {
+      const filterLabel = quickFilter === 'usd1k' ? '$1,000+' : quickFilter === 'usd10k' ? '$10,000+' : 'Top 20';
+      return {
+        key: 'quick_filter_no_match',
+        title: 'Filter Active',
+        message: `No tokens meet the ${filterLabel} filter.`,
+        cta: 'Clear value filter',
+        ctaAction: 'clearQuickFilter',
+        debugInfo,
+      };
+    }
+
+    // 5f. HideNoLogo filter hiding all
+    if (hideNoLogo && hiddenByLogoCount > 0 && afterLogoFilter.length === 0) {
+      return {
+        key: 'no_verified_logos',
+        title: 'Hidden by Filter',
+        message: `${hiddenByLogoCount} token${hiddenByLogoCount > 1 ? 's' : ''} found but hidden (no verified logos).`,
+        cta: 'Show tokens without logos',
+        ctaAction: 'disableHideNoLogo',
+        debugInfo,
+      };
+    }
+
+    // 5g. Low total value (essentially empty wallet)
     if (totalValue < 1) {
-      return `This wallet has no significant token holdings on ${chainInfo.name}.`;
+      return {
+        key: 'low_value',
+        title: 'Low Value',
+        message: `This wallet has no significant holdings on ${chainInfo.name}.`,
+        cta: walletMode === 'external' ? 'Try a different chain' : 'Switch wallet network to scan another chain',
+        ctaAction: 'changeChain',
+        debugInfo,
+      };
     }
 
-    if (scanResult.stats.tokensDiscovered === 0) {
-      return `No tokens found on ${chainInfo.name} for this wallet.`;
+    // 5h. Combination of filters hiding everything
+    const totalHiddenByFilters = hiddenByLogoCount + hiddenByStableCount + hiddenBySearchCount + hiddenByQuickFilterCount;
+    if (totalHiddenByFilters > 0) {
+      return {
+        key: 'hidden_by_filters',
+        title: 'Filtered Out',
+        message: `${priced.length} token${priced.length > 1 ? 's' : ''} found but hidden by your filters.`,
+        cta: 'Reset filters',
+        debugInfo,
+      };
     }
 
-    if (scanResult.stats.spamFiltered === scanResult.stats.tokensDiscovered) {
-      return 'All tokens were filtered as spam.';
-    }
+    // Fallback (shouldn't reach here if logic is correct)
+    return {
+      key: 'unknown',
+      title: 'No Results',
+      message: `No tokens to display on ${chainInfo.name}.`,
+      cta: walletMode === 'external' ? 'Try a different chain' : undefined,
+      ctaAction: 'changeChain',
+      debugInfo,
+    };
+  }, [
+    scanResult, stage, displayTokens, hasToken, hideNoLogo, stableOnly,
+    searchQuery, quickFilter, effectiveChainId, chainInfo.name, walletMode
+  ]);
 
-    if (scanResult.stats.tokensFiltered === 0) {
-      return `No tokens above minimum value threshold ($1) on ${chainInfo.name}.`;
-    }
+  // Get the empty state analysis
+  const emptyState = getEmptyStateAnalysis();
 
-    // Check why displayTokens is empty
-    if (displayTokens.length === 0 && scanResult.tokens.length > 0) {
-      if (searchQuery) return `No tokens match "${searchQuery}". Try clearing search.`;
-      if (stableOnly) return 'No stablecoins found. Try disabling stablecoin filter.';
-      if (quickFilter !== 'none') return 'No tokens match the value filter. Try a different filter.';
-
-      // Check if all tokens are already in watchlist
-      const notInWatchlist = scanResult.tokens.filter((t) => !hasToken(t.chainId, t.address));
-      if (notInWatchlist.length === 0) {
-        return 'All discovered tokens are already in your watchlist.';
-      }
-
-      // Check if hideNoLogo filter is hiding tokens
-      if (hideNoLogo) {
-        const withLogos = notInWatchlist.filter((t) => hasValidLogo(t.logo));
-        if (withLogos.length === 0) {
-          return 'Tokens found but hidden (no verified logos). Try unchecking "Hide no logo" filter.';
+  // Handle empty state CTA actions
+  const handleEmptyStateCta = useCallback((action?: string) => {
+    switch (action) {
+      case 'changeChain':
+        if (walletMode === 'external') {
+          chainDropdownRef.current?.focus();
         }
-      }
-
-      return 'All discovered tokens are already in your watchlist.';
+        setStage('idle');
+        break;
+      case 'clearSearch':
+        setSearchQuery('');
+        break;
+      case 'clearStableOnly':
+        setStableOnly(false);
+        break;
+      case 'clearQuickFilter':
+        setQuickFilter('none');
+        break;
+      case 'disableHideNoLogo':
+        setHideNoLogo(false);
+        break;
+      default:
+        if (walletMode === 'external') {
+          chainDropdownRef.current?.focus();
+        }
+        setStage('idle');
     }
-
-    return `No tokens found on ${chainInfo.name} for this wallet.`;
-  };
-
-  // Handle empty state chain change CTA
-  const handleEmptyStateChainChange = useCallback(() => {
-    if (walletMode === 'external') {
-      // Focus the chain dropdown for external wallet mode
-      chainDropdownRef.current?.focus();
-    }
-    // For connected wallet mode, just reset to idle (user needs to switch wallet network manually)
-    setStage('idle');
   }, [walletMode]);
 
   // Handle preset wallet selection - sets both address and chain
@@ -1685,12 +1930,12 @@ export function WalletScan({ className = '' }: WalletScanProps) {
             <TokenSkeleton />
           </div>
         </div>
-      ) : displayTokens.length === 0 && !searchQuery && quickFilter === 'none' && !stableOnly ? (
+      ) : emptyState ? (
         <EmptyState
-          reason={getEmptyReason()}
+          reason={emptyState.message}
           chainSuggestion={scanResult?.insights?.chainSuggestion}
-          walletMode={walletMode}
-          onChangeChain={handleEmptyStateChainChange}
+          cta={emptyState.cta}
+          onCtaClick={() => handleEmptyStateCta(emptyState.ctaAction)}
         />
       ) : (
         <>
