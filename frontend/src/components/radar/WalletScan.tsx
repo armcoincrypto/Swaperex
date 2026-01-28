@@ -1426,7 +1426,8 @@ export function WalletScan({ className = '' }: WalletScanProps) {
 
     // Step-by-step filter breakdown
     const notInWatchlist = scanResult.tokens.filter((t) => !hasToken(t.chainId, t.address));
-    const inWatchlistCount = totalTokensFromBackend - notInWatchlist.length;
+    const inWatchlistTokens = scanResult.tokens.filter((t) => hasToken(t.chainId, t.address));
+    const inWatchlistCount = inWatchlistTokens.length;
 
     const priced = notInWatchlist.filter((t) => t.hasPricing && t.valueUsd && t.valueUsd > 0);
     const unpricedCount = notInWatchlist.length - priced.length;
@@ -1571,6 +1572,30 @@ export function WalletScan({ className = '' }: WalletScanProps) {
 
     // 5a. All tokens are already in watchlist
     if (notInWatchlist.length === 0 && inWatchlistCount > 0) {
+      // Check if this is a dust balance scenario (totalValue < $1)
+      const isDustBalance = totalValue < 1;
+      const tokenSymbol = inWatchlistCount === 1 && inWatchlistTokens[0]?.symbol
+        ? inWatchlistTokens[0].symbol
+        : null;
+
+      if (isDustBalance) {
+        // Dust balance + already in watchlist - be very clear about why nothing to add
+        const tokenInfo = tokenSymbol ? ` (${tokenSymbol})` : '';
+        const dustAmount = totalValue < 0.01 ? '<$0.01' : `$${totalValue.toFixed(2)}`;
+
+        return {
+          key: 'all_in_watchlist_dust',
+          title: 'Nothing New to Add',
+          message: inWatchlistCount === 1
+            ? `Found 1 token${tokenInfo}, but it's a dust balance (${dustAmount}) and it's already in your Watchlist.`
+            : `Found ${inWatchlistCount} tokens, but they're dust balances (${dustAmount} total) and already in your Watchlist.`,
+          cta: walletMode === 'external' ? 'Try a different chain' : 'Switch wallet network to scan another chain',
+          ctaAction: 'changeChain',
+          debugInfo,
+        };
+      }
+
+      // Non-dust case: tokens are valuable but already tracked
       return {
         key: 'all_in_watchlist',
         title: 'All Monitored',

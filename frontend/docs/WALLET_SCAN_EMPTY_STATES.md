@@ -10,7 +10,8 @@
 | `no_tokens_discovered` | No tokens found by provider | `tokensDiscovered === 0` | "No tokens found on {chain} for this wallet." | "Try a different chain" (Any Wallet) / "Switch wallet network..." (My Wallet) |
 | `all_spam` | All tokens were spam | `spamFiltered === tokensDiscovered` | "All {n} tokens on {chain} were filtered as spam." | "Try a different chain" (Any Wallet only) |
 | `below_threshold` | All tokens below $1 | `tokensFiltered === 0` | "No tokens above minimum value threshold ($1) on {chain}." | "Try a different chain" (Any Wallet only) |
-| `all_in_watchlist` | All tokens already monitored | `notInWatchlist.length === 0` | "All {n} token(s) on {chain} are already in your watchlist." | None |
+| `all_in_watchlist_dust` | All tokens in watchlist + dust balance | `notInWatchlist.length === 0 && totalValue < 1` | "Found 1 token (SYMBOL), but it's a dust balance (<$0.01) and it's already in your Watchlist." | "Try a different chain" / "Switch wallet network..." |
+| `all_in_watchlist` | All tokens already monitored | `notInWatchlist.length === 0 && totalValue >= 1` | "All {n} token(s) on {chain} are already in your watchlist." | None |
 | `all_unpriced` | Tokens exist but no pricing | `priced.length === 0 && unpricedCount > 0` | "Found {n} token(s) but none have pricing data." | "Try a different chain" (Any Wallet only) |
 | `search_no_match` | Search filter hiding all | `searchQuery && afterSearchFilter.length === 0` | "No tokens match "{query}"." | "Clear search" |
 | `no_stablecoins` | Stablecoin filter hiding all | `stableOnly && afterStableFilter.length === 0` | "No stablecoins found in this wallet." | "Show all tokens" |
@@ -93,10 +94,15 @@ When `localStorage.debug === 'true'`, the following info is logged on each scan 
 **Expected**: "All {n} tokens on {chain} were filtered as spam."
 **CTA**: "Try a different chain" (Any Wallet only)
 
-### Test Case 6: Wallet with All Tokens in Watchlist
-**Setup**: Wallet where every token is already in user's watchlist
+### Test Case 6: Wallet with All Tokens in Watchlist (Significant Balance)
+**Setup**: Wallet where every token is already in user's watchlist AND total value >= $1
 **Expected**: "All {n} token(s) on {chain} are already in your watchlist."
 **CTA**: None (informational only)
+
+### Test Case 6b: Wallet with Dust Balance Already in Watchlist
+**Setup**: Wallet with tokens already in watchlist AND total value < $1 (dust)
+**Expected**: "Found 1 token (USDT), but it's a dust balance (<$0.01) and it's already in your Watchlist."
+**CTA**: "Try a different chain" (Any Wallet) / "Switch wallet network to scan another chain" (My Wallet)
 
 ### Test Case 7: Value Filter Active ($10k+) Hiding Tokens
 **Setup**: Wallet with tokens < $10k, quick filter set to "$10k+"
