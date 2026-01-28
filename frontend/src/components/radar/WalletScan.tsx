@@ -132,6 +132,48 @@ function getDisplayPrice(valueUsd: number | undefined, balanceFormatted: string 
 
 // LocalStorage keys
 const FILTER_STORAGE_KEY = 'walletScan.hideNoLogo';
+const EXTERNAL_CHAIN_STORAGE_KEY = 'walletScan.externalChainId';
+
+// Explorer URLs by chain
+const CHAIN_EXPLORERS: Record<number, { name: string; url: string }> = {
+  1: { name: 'Etherscan', url: 'https://etherscan.io' },
+  56: { name: 'BscScan', url: 'https://bscscan.com' },
+  8453: { name: 'BaseScan', url: 'https://basescan.org' },
+  42161: { name: 'Arbiscan', url: 'https://arbiscan.io' },
+};
+
+// Get explorer URL for a wallet address
+function getExplorerUrl(chainId: number, address: string): string | null {
+  const explorer = CHAIN_EXPLORERS[chainId];
+  if (!explorer) return null;
+  return `${explorer.url}/address/${address}`;
+}
+
+// Load persisted external chain ID
+function loadExternalChainId(): number {
+  try {
+    const stored = localStorage.getItem(EXTERNAL_CHAIN_STORAGE_KEY);
+    if (stored) {
+      const parsed = parseInt(stored, 10);
+      // Validate it's a supported chain
+      if ([1, 56, 8453, 42161].includes(parsed)) {
+        return parsed;
+      }
+    }
+  } catch {
+    // Ignore localStorage errors
+  }
+  return 56; // Default to BNB Chain
+}
+
+// Save external chain ID
+function saveExternalChainId(chainId: number): void {
+  try {
+    localStorage.setItem(EXTERNAL_CHAIN_STORAGE_KEY, String(chainId));
+  } catch {
+    // Ignore localStorage errors
+  }
+}
 
 // V6: Diff panel persistence helpers
 function getDiffIgnoreKey(chainId: number, wallet: string): string {
@@ -971,8 +1013,8 @@ export function WalletScan({ className = '' }: WalletScanProps) {
   const [externalAddress, setExternalAddress] = useState('');
   const [showPresets, setShowPresets] = useState(false);
 
-  // Chain selection for Any Wallet mode (default to BNB Chain as most presets are BNB)
-  const [externalChainId, setExternalChainId] = useState<number>(56);
+  // Chain selection for Any Wallet mode (persisted to localStorage)
+  const [externalChainId, setExternalChainId] = useState<number>(loadExternalChainId);
 
   // Ref for chain dropdown (used for focus on empty state CTA)
   const chainDropdownRef = useRef<HTMLSelectElement>(null);
@@ -1014,6 +1056,11 @@ export function WalletScan({ className = '' }: WalletScanProps) {
       // Ignore localStorage errors
     }
   }, [hideNoLogo]);
+
+  // Persist externalChainId to localStorage (remembers last selected chain for Any Wallet mode)
+  useEffect(() => {
+    saveExternalChainId(externalChainId);
+  }, [externalChainId]);
 
   // Reset pagination when filters change
   useEffect(() => {
@@ -1811,13 +1858,26 @@ export function WalletScan({ className = '' }: WalletScanProps) {
         </>
       )}
 
-      {/* Scanned wallet info */}
+      {/* Scanned wallet info with explorer link */}
       {targetWallet && (
         <div className="mt-3 pt-3 border-t border-dark-700/50 flex items-center justify-between text-[10px]">
           <span className="text-dark-500">
             {isExternalScan ? 'Viewing:' : 'Connected:'}
           </span>
-          <span className="text-dark-400 font-mono">{shortAddress(targetWallet)}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-dark-400 font-mono">{shortAddress(targetWallet)}</span>
+            {getExplorerUrl(effectiveChainId, targetWallet) && (
+              <a
+                href={getExplorerUrl(effectiveChainId, targetWallet)!}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-dark-500 hover:text-primary-400 transition-colors"
+                title={`View on ${CHAIN_EXPLORERS[effectiveChainId]?.name}`}
+              >
+                ↗
+              </a>
+            )}
+          </div>
         </div>
       )}
 
