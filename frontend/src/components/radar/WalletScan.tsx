@@ -1411,6 +1411,12 @@ export function WalletScan({ className = '' }: WalletScanProps) {
       return scanResult.error;
     }
 
+    // Check total value - if very low, wallet is essentially empty
+    const totalValue = scanResult.insights?.totalValueUsd || 0;
+    if (totalValue < 1) {
+      return `This wallet has no significant token holdings on ${chainInfo.name}.`;
+    }
+
     if (scanResult.stats.tokensDiscovered === 0) {
       return `No tokens found on ${chainInfo.name} for this wallet.`;
     }
@@ -1419,15 +1425,31 @@ export function WalletScan({ className = '' }: WalletScanProps) {
       return 'All tokens were filtered as spam.';
     }
 
+    if (scanResult.stats.tokensFiltered === 0) {
+      return `No tokens above minimum value threshold ($1) on ${chainInfo.name}.`;
+    }
+
+    // Check why displayTokens is empty
     if (displayTokens.length === 0 && scanResult.tokens.length > 0) {
       if (searchQuery) return `No tokens match "${searchQuery}". Try clearing search.`;
       if (stableOnly) return 'No stablecoins found. Try disabling stablecoin filter.';
       if (quickFilter !== 'none') return 'No tokens match the value filter. Try a different filter.';
-      return 'All discovered tokens are already in your watchlist.';
-    }
 
-    if (scanResult.stats.tokensFiltered === 0) {
-      return `No tokens above minimum value threshold ($1) on ${chainInfo.name}.`;
+      // Check if all tokens are already in watchlist
+      const notInWatchlist = scanResult.tokens.filter((t) => !hasToken(t.chainId, t.address));
+      if (notInWatchlist.length === 0) {
+        return 'All discovered tokens are already in your watchlist.';
+      }
+
+      // Check if hideNoLogo filter is hiding tokens
+      if (hideNoLogo) {
+        const withLogos = notInWatchlist.filter((t) => hasValidLogo(t.logo));
+        if (withLogos.length === 0) {
+          return 'Tokens found but hidden (no verified logos). Try unchecking "Hide no logo" filter.';
+        }
+      }
+
+      return 'All discovered tokens are already in your watchlist.';
     }
 
     return `No tokens found on ${chainInfo.name} for this wallet.`;
