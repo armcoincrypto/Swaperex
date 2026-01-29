@@ -44,7 +44,7 @@ import {
 import { getSignalsApiUrl } from '@/utils/apiConfig';
 import { isStablecoin, isStablecoinPriceUnreliable } from '@/utils/stablecoin';
 import { formatTimeAgo } from '@/utils/time';
-import { debugLog } from '@/utils/debug';
+import { debugLog, isDebugEnabled } from '@/utils/debug';
 const API_BASE = getSignalsApiUrl();
 
 // Wallet scan mode
@@ -426,11 +426,25 @@ function EmptyState({
   chainSuggestion,
   cta,
   onCtaClick,
+  secondaryCta,
+  onSecondaryCtaClick,
+  showUnpricedToggle,
+  unpricedCount,
+  showUnpriced,
+  onToggleUnpriced,
+  debugLine,
 }: {
   reason: string;
   chainSuggestion?: string;
   cta?: string;
   onCtaClick?: () => void;
+  secondaryCta?: string;
+  onSecondaryCtaClick?: () => void;
+  showUnpricedToggle?: boolean;
+  unpricedCount?: number;
+  showUnpriced?: boolean;
+  onToggleUnpriced?: () => void;
+  debugLine?: string;
 }) {
   return (
     <div className="text-center py-6">
@@ -439,13 +453,46 @@ function EmptyState({
       {chainSuggestion && (
         <div className="text-xs text-dark-500 mb-3">{chainSuggestion}</div>
       )}
-      {cta && onCtaClick && (
-        <button
-          onClick={onCtaClick}
-          className="text-xs text-primary-400 hover:text-primary-300"
-        >
-          {cta}
-        </button>
+
+      {/* Action buttons */}
+      <div className="flex flex-col items-center gap-2 mt-3">
+        {cta && onCtaClick && (
+          <button
+            onClick={onCtaClick}
+            className="text-xs text-primary-400 hover:text-primary-300"
+          >
+            {cta}
+          </button>
+        )}
+        {secondaryCta && onSecondaryCtaClick && (
+          <button
+            onClick={onSecondaryCtaClick}
+            className="text-xs text-dark-400 hover:text-dark-300"
+          >
+            {secondaryCta}
+          </button>
+        )}
+
+        {/* Show Unpriced Tokens Toggle */}
+        {showUnpricedToggle && unpricedCount && unpricedCount > 0 && onToggleUnpriced && (
+          <button
+            onClick={onToggleUnpriced}
+            className={`text-xs px-3 py-1.5 rounded border transition-colors ${
+              showUnpriced
+                ? 'bg-primary-500/20 border-primary-500/50 text-primary-400'
+                : 'bg-dark-700/50 border-dark-600 text-dark-400 hover:border-dark-500 hover:text-dark-300'
+            }`}
+          >
+            {showUnpriced ? `✓ Showing ${unpricedCount} unpriced` : `Show ${unpricedCount} unpriced tokens`}
+          </button>
+        )}
+      </div>
+
+      {/* Debug diagnostic line (only visible when localStorage.debug=true) */}
+      {debugLine && (
+        <div className="mt-4 text-[10px] text-dark-600 font-mono break-all">
+          {debugLine}
+        </div>
       )}
     </div>
   );
@@ -1042,6 +1089,7 @@ export function WalletScan({ className = '' }: WalletScanProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('none');
   const [stableOnly, setStableOnly] = useState(false);
+  const [showUnpriced, setShowUnpriced] = useState(false); // Show tokens without pricing data (default OFF)
 
   // Risk cache for lazy loading
   const riskCacheRef = useRef<Map<string, RiskCacheEntry>>(new Map());
@@ -1280,12 +1328,35 @@ export function WalletScan({ className = '' }: WalletScanProps) {
       filtered = filtered.filter((t) => (t.valueUsd || 0) >= 10000);
     }
 
+    // Optionally include unpriced tokens (when showUnpriced toggle is ON)
+    let finalTokens = filtered;
+    if (showUnpriced && unpriced.length > 0) {
+      // Apply search filter to unpriced tokens too
+      let filteredUnpriced = unpriced;
+      if (searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
+        filteredUnpriced = unpriced.filter((t) => {
+          const sym = (t.symbol || '').toLowerCase();
+          const nm = (t.name || '').toLowerCase();
+          return sym.includes(q) || nm.includes(q);
+        });
+      }
+      // Apply logo filter to unpriced if enabled
+      if (hideNoLogo) {
+        filteredUnpriced = filteredUnpriced.filter((t) => hasValidLogo(t.logo));
+      }
+      // Sort unpriced alphabetically by symbol
+      filteredUnpriced.sort((a, b) => (a.symbol || '').localeCompare(b.symbol || ''));
+      // Append unpriced after priced tokens
+      finalTokens = [...filtered, ...filteredUnpriced];
+    }
+
     return {
-      displayTokens: filtered,
+      displayTokens: finalTokens,
       unpricedCount: unpriced.length,
       totalAfterFilters: filtered.length,
     };
-  }, [scanResult, getFilteredTokens, hideNoLogo, stableOnly, searchQuery, quickFilter]);
+  }, [scanResult, getFilteredTokens, hideNoLogo, stableOnly, searchQuery, quickFilter, showUnpriced]);
 
   // Paginated tokens for display
   const visibleTokens = displayTokens.slice(0, visibleCount);
@@ -1406,12 +1477,17 @@ export function WalletScan({ className = '' }: WalletScanProps) {
   // ============================================================
 
   // Detailed analysis of why displayTokens is empty
+  type CtaAction = 'changeChain' | 'clearSearch' | 'clearStableOnly' | 'clearQuickFilter' | 'disableHideNoLogo' | 'showUnpriced';
+
   interface EmptyStateAnalysis {
     key: string;
     title: string;
     message: string;
     cta?: string;
-    ctaAction?: 'changeChain' | 'clearSearch' | 'clearStableOnly' | 'clearQuickFilter' | 'disableHideNoLogo';
+    ctaAction?: CtaAction;
+    secondaryCta?: string;
+    secondaryCtaAction?: CtaAction;
+    showUnpricedToggle?: boolean; // Show a toggle to enable unpriced tokens view
     debugInfo?: Record<string, unknown>;
   }
 
@@ -1606,13 +1682,32 @@ export function WalletScan({ className = '' }: WalletScanProps) {
 
     // 5b. Tokens exist but all unpriced
     if (priced.length === 0 && unpricedCount > 0) {
+      const tokenWord = unpricedCount > 1 ? 'tokens' : 'token';
+      const providerUsed = scanResult.provider || 'unknown';
+
+      // Debug diagnostic for this scenario
+      const unpricedDebugInfo = {
+        ...debugInfo,
+        scenario: 'all_unpriced',
+        tokensDiscovered: stats.tokensDiscovered,
+        pricedCount: priced.length,
+        unpricedCount,
+        spamFiltered: stats.spamFiltered,
+        providerUsed,
+        chainId: effectiveChainId,
+      };
+
+      // Log debug info when debug mode is enabled
+      debugLog('[WalletScan] No pricing scenario', unpricedDebugInfo);
+
       return {
         key: 'all_unpriced',
-        title: 'No Pricing',
-        message: `Found ${unpricedCount} token${unpricedCount > 1 ? 's' : ''} but none have pricing data.`,
-        cta: walletMode === 'external' ? 'Try a different chain' : undefined,
+        title: 'No Priced Tokens Found',
+        message: `Discovered ${unpricedCount} ${tokenWord}, but DEX pricing data is unavailable. This often happens with illiquid, new, or obscure tokens that aren't actively traded on decentralized exchanges.`,
+        cta: walletMode === 'external' ? 'Try a different chain' : 'Switch wallet network to scan another chain',
         ctaAction: 'changeChain',
-        debugInfo,
+        showUnpricedToggle: true, // Allow user to see unpriced tokens
+        debugInfo: unpricedDebugInfo,
       };
     }
 
@@ -1726,6 +1821,9 @@ export function WalletScan({ className = '' }: WalletScanProps) {
         break;
       case 'disableHideNoLogo':
         setHideNoLogo(false);
+        break;
+      case 'showUnpriced':
+        setShowUnpriced(true);
         break;
       default:
         if (walletMode === 'external') {
@@ -1961,6 +2059,24 @@ export function WalletScan({ className = '' }: WalletScanProps) {
           chainSuggestion={scanResult?.insights?.chainSuggestion}
           cta={emptyState.cta}
           onCtaClick={() => handleEmptyStateCta(emptyState.ctaAction)}
+          secondaryCta={emptyState.secondaryCta}
+          onSecondaryCtaClick={emptyState.secondaryCtaAction ? () => handleEmptyStateCta(emptyState.secondaryCtaAction) : undefined}
+          showUnpricedToggle={emptyState.showUnpricedToggle}
+          unpricedCount={unpricedCount}
+          showUnpriced={showUnpriced}
+          onToggleUnpriced={() => setShowUnpriced(!showUnpriced)}
+          debugLine={
+            isDebugEnabled() && emptyState.debugInfo
+              ? `Debug: ${JSON.stringify({
+                  key: emptyState.key,
+                  discovered: emptyState.debugInfo.stats && typeof emptyState.debugInfo.stats === 'object' ? (emptyState.debugInfo.stats as Record<string, unknown>).tokensDiscovered : 'N/A',
+                  priced: emptyState.debugInfo.filterBreakdown && typeof emptyState.debugInfo.filterBreakdown === 'object' ? (emptyState.debugInfo.filterBreakdown as Record<string, unknown>).priced : 'N/A',
+                  unpriced: emptyState.debugInfo.filterBreakdown && typeof emptyState.debugInfo.filterBreakdown === 'object' ? (emptyState.debugInfo.filterBreakdown as Record<string, unknown>).unpriced : 'N/A',
+                  chain: emptyState.debugInfo.chainId,
+                  provider: scanResult?.provider || 'unknown',
+                })}`
+              : undefined
+          }
         />
       ) : (
         <>

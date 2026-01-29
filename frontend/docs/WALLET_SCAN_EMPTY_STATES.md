@@ -12,7 +12,7 @@
 | `below_threshold` | All tokens below $1 | `tokensFiltered === 0` | "No tokens above minimum value threshold ($1) on {chain}." | "Try a different chain" (Any Wallet only) |
 | `all_in_watchlist_dust` | All tokens in watchlist + dust balance | `notInWatchlist.length === 0 && totalValue < 1` | "Found 1 token (SYMBOL), but it's a dust balance (<$0.01) and it's already in your Watchlist." | "Try a different chain" / "Switch wallet network..." |
 | `all_in_watchlist` | All tokens already monitored | `notInWatchlist.length === 0 && totalValue >= 1` | "All {n} token(s) on {chain} are already in your watchlist." | None |
-| `all_unpriced` | Tokens exist but no pricing | `priced.length === 0 && unpricedCount > 0` | "Found {n} token(s) but none have pricing data." | "Try a different chain" (Any Wallet only) |
+| `all_unpriced` | Tokens exist but no pricing | `priced.length === 0 && unpricedCount > 0` | "Discovered {n} token(s), but DEX pricing data is unavailable. This often happens with illiquid, new, or obscure tokens." | "Try a different chain" / "Switch wallet network..." + "Show unpriced tokens" toggle |
 | `search_no_match` | Search filter hiding all | `searchQuery && afterSearchFilter.length === 0` | "No tokens match "{query}"." | "Clear search" |
 | `no_stablecoins` | Stablecoin filter hiding all | `stableOnly && afterStableFilter.length === 0` | "No stablecoins found in this wallet." | "Show all tokens" |
 | `quick_filter_no_match` | Value filter hiding all | `quickFilter !== 'none' && afterQuickFilter.length === 0` | "No tokens meet the {filter} filter." | "Clear value filter" |
@@ -113,6 +113,15 @@ When `localStorage.debug === 'true'`, the following info is logged on each scan 
 **Setup**: Search for "NONEXISTENT"
 **Expected**: "No tokens match "NONEXISTENT"."
 **CTA**: "Clear search"
+
+### Test Case 9: Wallet with Many Tokens but No Pricing Data
+**Setup**: Wallet with thousands of tokens discovered but all lacking DEX pricing (illiquid/obscure tokens)
+**Expected Title**: "No Priced Tokens Found"
+**Expected Message**: "Discovered {n} tokens, but DEX pricing data is unavailable. This often happens with illiquid, new, or obscure tokens that aren't actively traded on decentralized exchanges."
+**CTAs**:
+- "Try a different chain" (Any Wallet) / "Switch wallet network to scan another chain" (My Wallet)
+- "Show {n} unpriced tokens" toggle button
+**Debug Line** (when `localStorage.debug=true`): Shows tokensDiscovered, pricedCount, unpricedCount, spamFiltered, providerUsed, chainId
 
 ## Verification Steps
 
