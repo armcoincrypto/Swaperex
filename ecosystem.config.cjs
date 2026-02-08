@@ -11,7 +11,7 @@ module.exports = {
       name: "frontend",
       cwd: "/root/Swaperex/frontend",
       script: "./node_modules/.bin/serve",
-      args: "-s dist -l 3000",
+      args: "-s dist -l tcp://0.0.0.0:3000",
       env: {
         NODE_ENV: "production"
       },
