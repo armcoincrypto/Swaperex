@@ -18,7 +18,7 @@ const RPC_URLS: Record<string, string> = {
 };
 
 // Chain name to ID mapping (for custom token lookup)
-const CHAIN_NAME_TO_ID: Record<string, number> = {
+export const CHAIN_NAME_TO_ID: Record<string, number> = {
   ethereum: 1,
   bsc: 56,
   polygon: 137,
@@ -32,7 +32,7 @@ const NATIVE_TOKENS: Record<string, { symbol: string; decimals: number }> = {
 };
 
 // Popular ERC20 tokens to fetch per chain (high-liquidity only)
-const ERC20_TOKENS: Record<string, Array<{ symbol: string; address: string; decimals: number; name: string }>> = {
+export const ERC20_TOKENS: Record<string, Array<{ symbol: string; address: string; decimals: number; name: string }>> = {
   ethereum: [
     // Stablecoins
     { symbol: 'USDT', address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6, name: 'Tether USD' },
