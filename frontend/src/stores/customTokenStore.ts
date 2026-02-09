@@ -9,6 +9,9 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Token } from '@/tokens';
 
+// Stable empty array to prevent infinite re-renders when chainId has no custom tokens
+const EMPTY_TOKENS: CustomToken[] = [];
+
 // Custom token extends Token with additional safety metadata
 export interface CustomToken extends Token {
   chainId: number;
@@ -74,7 +77,7 @@ export const useCustomTokenStore = create<CustomTokenState>()(
       },
 
       getTokens: (chainId: number) => {
-        return get().tokens[chainId] || [];
+        return get().tokens[chainId] || EMPTY_TOKENS;
       },
 
       hasToken: (chainId: number, address: string) => {
