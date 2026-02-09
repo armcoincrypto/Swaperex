@@ -2,6 +2,7 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import { getSignals } from "./api.js";
+import { getCache, setCache } from "./cache/memory.js";
 
 // Configuration
 const PORT = Number(process.env.PORT) || 4001;
@@ -22,7 +23,7 @@ const app = Fastify({ logger: true });
 // CORS - allow frontend origins
 await app.register(cors, {
   origin: ALLOWED_ORIGINS,
-  methods: ["GET"],
+  methods: ["GET", "POST"],
 });
 
 // Rate limiting - 100 requests per minute per IP
@@ -124,6 +125,121 @@ app.get("/api/v1/signals", async (req, reply) => {
 app.get("/api/signals", async (req, reply) => {
   const { chainId, token } = req.query as any;
   return reply.redirect(301, `/api/v1/signals?chainId=${chainId}&token=${token}`);
+});
+
+// ── Wallet Scan Summary (Phase 3) ──────────────────────────────────
+
+const SCAN_SUMMARY_CACHE_TTL = 60_000; // 1 minute
+
+interface ScanSummaryBody {
+  wallet: string;
+  chainIds: number[];
+  tokenAddresses?: string[];
+}
+
+interface TokenSummary {
+  address: string;
+  chainId: number;
+  symbol: string;
+  balance: string;
+  riskLevel?: "low" | "medium" | "high" | "unknown";
+}
+
+app.post<{ Body: ScanSummaryBody }>("/api/v1/wallet/scan-summary", async (req, reply) => {
+  const { wallet, chainIds, tokenAddresses } = req.body || {};
+
+  if (!wallet || !chainIds?.length) {
+    return reply.code(400).send({ error: "Missing required fields: wallet, chainIds" });
+  }
+
+  // Validate wallet address format
+  if (!/^0x[a-fA-F0-9]{40}$/.test(wallet)) {
+    return reply.code(400).send({ error: "Invalid wallet address" });
+  }
+
+  // Validate chainIds (only support 1, 56, 137)
+  const supportedChains = [1, 56, 137];
+  const validChainIds = chainIds.filter((id: number) => supportedChains.includes(id));
+  if (validChainIds.length === 0) {
+    return reply.code(400).send({ error: "No supported chainIds. Supported: 1 (ETH), 56 (BSC), 137 (Polygon)" });
+  }
+
+  // Check cache
+  const tokenKey = tokenAddresses?.sort().join(",") || "all";
+  const cacheKey = `scan:${wallet.toLowerCase()}:${validChainIds.sort().join(",")}:${tokenKey}`;
+  const cached = getCache<any>(cacheKey);
+  if (cached) {
+    return { ...cached, cached: true };
+  }
+
+  // Fetch risk data for requested tokens (if any specific tokens provided)
+  const tokens: TokenSummary[] = [];
+  const riskPromises: Promise<void>[] = [];
+
+  if (tokenAddresses?.length) {
+    for (const addr of tokenAddresses.slice(0, 50)) { // Cap at 50 tokens
+      for (const chainId of validChainIds) {
+        riskPromises.push(
+          (async () => {
+            try {
+              const riskController = new AbortController();
+              const riskTimeout = setTimeout(() => riskController.abort(), 5000);
+              const res = await fetch(
+                `https://api.gopluslabs.io/api/v1/token_security/${chainId}?contract_addresses=${addr.toLowerCase()}`,
+                { signal: riskController.signal }
+              );
+              clearTimeout(riskTimeout);
+
+              if (!res.ok) {
+                tokens.push({ address: addr, chainId, symbol: "", balance: "0", riskLevel: "unknown" });
+                return;
+              }
+
+              const data = await res.json() as any;
+              const tokenData = data?.result?.[addr.toLowerCase()];
+              if (!tokenData) {
+                tokens.push({ address: addr, chainId, symbol: "", balance: "0", riskLevel: "unknown" });
+                return;
+              }
+
+              // Determine risk level from GoPlus flags
+              const isHoneypot = tokenData.is_honeypot === "1";
+              const cantSell = tokenData.cannot_sell_all === "1";
+              const highTax = Number(tokenData.sell_tax || 0) > 0.1;
+              const riskLevel = isHoneypot || cantSell ? "high" : highTax ? "medium" : "low";
+
+              tokens.push({
+                address: addr,
+                chainId,
+                symbol: tokenData.token_symbol || "",
+                balance: "0", // Balance fetched client-side
+                riskLevel,
+              });
+            } catch {
+              tokens.push({ address: addr, chainId, symbol: "", balance: "0", riskLevel: "unknown" });
+            }
+          })()
+        );
+      }
+    }
+  }
+
+  // Execute all risk checks concurrently (max 50 * 3 = 150 but capped at 50 tokens)
+  await Promise.all(riskPromises);
+
+  const result = {
+    wallet: wallet.toLowerCase(),
+    chainIds: validChainIds,
+    tokens,
+    totalTokens: tokens.length,
+    timestamp: Date.now(),
+    cached: false,
+  };
+
+  // Cache the result
+  setCache(cacheKey, result, SCAN_SUMMARY_CACHE_TTL);
+
+  return result;
 });
 
 // Start server
