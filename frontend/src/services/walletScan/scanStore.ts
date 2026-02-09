@@ -1,17 +1,19 @@
 /**
- * Wallet Scan Store
+ * Wallet Scan Store (v3)
  *
  * Zustand store managing scan session state machine:
- *   idle → scanning → completed | failed
+ *   idle -> scanning -> completed | failed
  *
- * Supports per-chain progress, cancellation, saved sessions,
- * and structured logging.
+ * Per-chain states: pending -> scanning -> completed | degraded | failed | skipped
+ *
+ * Supports degraded mode timer, skip/switch RPC, dust/spam filters,
+ * cancellation, saved sessions, and structured logging.
  */
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { scanChain } from './scanEngine';
-import { ALL_SCAN_CHAINS } from './rpcConfig';
+import { ALL_SCAN_CHAINS, DEGRADED_AFTER_SEC } from './rpcConfig';
 import { useWatchlistStore } from '@/stores/watchlistStore';
 import { fetchEnrichment, applyEnrichment } from './enrichment';
 import type {
@@ -23,8 +25,9 @@ import type {
   ScanOptions,
   ScanDebugInfo,
   ScannedToken,
+  DustFilterSettings,
 } from './types';
-import { SCAN_CHAIN_IDS } from './types';
+import { SCAN_CHAIN_IDS, DEFAULT_DUST_SETTINGS } from './types';
 
 /** Max concurrent chain scans */
 const MAX_CHAIN_CONCURRENCY = 2;
@@ -37,6 +40,9 @@ interface ScanStoreState {
   session: ScanSession | null;
   status: ScanSessionStatus;
   logs: ScanLogEntry[];
+
+  // Dust/spam filter settings (persisted)
+  dustSettings: DustFilterSettings;
 
   // Saved sessions (persisted)
   savedSessions: Array<{
@@ -51,15 +57,20 @@ interface ScanStoreState {
   // Abort controller ref
   _abortController: AbortController | null;
 
+  // Degraded mode timers (chain -> timer id)
+  _degradedTimers: Map<ScanChainName, ReturnType<typeof setTimeout>>;
+
   // Actions
   startScan: (walletAddress: string, options?: ScanOptions) => Promise<void>;
   cancelScan: () => void;
-  retryChain: (chain: ScanChainName) => Promise<void>;
+  retryChain: (chain: ScanChainName, rpcIndex?: number) => Promise<void>;
+  skipChain: (chain: ScanChainName) => void;
   addTokenToWatchlist: (token: ScannedToken) => boolean;
   addAllToWatchlist: (tokens: ScannedToken[]) => number;
   resetSession: () => void;
   getDebugInfo: () => ScanDebugInfo | null;
   clearSavedSessions: () => void;
+  updateDustSettings: (settings: Partial<DustFilterSettings>) => void;
 }
 
 function generateSessionId(): string {
@@ -84,8 +95,10 @@ export const useScanStore = create<ScanStoreState>()(
       session: null,
       status: 'idle',
       logs: [],
+      dustSettings: DEFAULT_DUST_SETTINGS,
       savedSessions: [],
       _abortController: null,
+      _degradedTimers: new Map(),
 
       startScan: async (walletAddress: string, options?: ScanOptions) => {
         const { status } = get();
@@ -116,15 +129,20 @@ export const useScanStore = create<ScanStoreState>()(
           totalAdded: 0,
         };
 
+        // Clear any old degraded timers
+        const oldTimers = get()._degradedTimers;
+        oldTimers.forEach((t) => clearTimeout(t));
+
         set({
           session,
           status: 'scanning',
           logs: [],
           _abortController: abortController,
+          _degradedTimers: new Map(),
         });
 
         const log = (entry: ScanLogEntry) => {
-          set((s) => ({ logs: [...s.logs.slice(-99), entry] }));
+          set((s) => ({ logs: [...s.logs.slice(-199), entry] }));
         };
 
         log({ timestamp: Date.now(), level: 'info', message: `Scan started for ${walletAddress.slice(0, 8)}...` });
@@ -137,7 +155,43 @@ export const useScanStore = create<ScanStoreState>()(
           const chain = chainQueue.shift();
           if (!chain || signal.aborted) return;
 
+          // Start degraded timer for this chain
+          const degradedTimer = setTimeout(() => {
+            const current = get();
+            if (!current.session) return;
+            const chainProgress = current.session.chains[chain];
+            if (chainProgress.status === 'scanning') {
+              log({
+                timestamp: Date.now(), level: 'warn', chain,
+                message: `${chain} has not responded in ${DEGRADED_AFTER_SEC}s — marking degraded`,
+              });
+              set((s) => {
+                if (!s.session) return {};
+                const updatedChains = {
+                  ...s.session.chains,
+                  [chain]: {
+                    ...s.session.chains[chain],
+                    status: 'degraded' as const,
+                    degradedReason: 'timeout' as const,
+                    error: `No response after ${DEGRADED_AFTER_SEC}s. You can retry, skip, or switch RPC.`,
+                  },
+                };
+                return { session: { ...s.session, chains: updatedChains } };
+              });
+            }
+          }, DEGRADED_AFTER_SEC * 1000);
+
+          set((s) => {
+            const timers = new Map(s._degradedTimers);
+            timers.set(chain, degradedTimer);
+            return { _degradedTimers: timers };
+          });
+
           const onProgress = (progress: ChainScanProgress) => {
+            // If chain has been skipped by user, ignore further progress
+            const current = get();
+            if (current.session?.chains[chain]?.status === 'skipped') return;
+
             set((s) => {
               if (!s.session) return {};
               const updatedChains = { ...s.session.chains, [chain]: progress };
@@ -151,7 +205,20 @@ export const useScanStore = create<ScanStoreState>()(
           };
 
           const result = await scanChain(chain, walletAddress, onProgress, log, signal);
-          onProgress(result);
+
+          // Clear degraded timer since scan finished
+          clearTimeout(degradedTimer);
+          set((s) => {
+            const timers = new Map(s._degradedTimers);
+            timers.delete(chain);
+            return { _degradedTimers: timers };
+          });
+
+          // Only apply result if chain wasn't skipped
+          const current = get();
+          if (current.session?.chains[chain]?.status !== 'skipped') {
+            onProgress(result);
+          }
 
           // Launch next chain if available
           if (chainQueue.length > 0 && !signal.aborted) {
@@ -179,8 +246,9 @@ export const useScanStore = create<ScanStoreState>()(
         if (!finalState.session) return;
 
         const allChains = Object.values(finalState.session.chains);
-        const anyFailed = allChains.some((c) => c.status === 'failed');
-        const allFailed = allChains.filter((c) => chains.includes(c.chainName)).every((c) => c.status === 'failed');
+        const scannedChains = allChains.filter((c) => chains.includes(c.chainName));
+        const allFailed = scannedChains.every((c) => c.status === 'failed');
+        const anyFailed = scannedChains.some((c) => c.status === 'failed' || c.status === 'degraded');
         const finalStatus: ScanSessionStatus = allFailed ? 'failed' : 'completed';
 
         const totalFound = allChains.reduce((sum, c) => sum + c.tokens.length, 0);
@@ -221,7 +289,7 @@ export const useScanStore = create<ScanStoreState>()(
         });
 
         // Optional: enrich with backend risk data (non-blocking)
-        if (finalStatus === 'completed' && totalFound > 0) {
+        if (totalFound > 0) {
           const allTokens = allChains.flatMap((c) => c.tokens);
           fetchEnrichment(walletAddress, allTokens, chains).then((enrichment) => {
             if (!enrichment) return;
@@ -245,18 +313,49 @@ export const useScanStore = create<ScanStoreState>()(
       },
 
       cancelScan: () => {
-        const { _abortController } = get();
+        const { _abortController, _degradedTimers } = get();
         if (_abortController) {
           _abortController.abort();
         }
+        // Clear all degraded timers
+        _degradedTimers.forEach((t) => clearTimeout(t));
+
         set((s) => ({
           status: s.session?.status === 'scanning' ? 'failed' : s.status,
           session: s.session ? { ...s.session, status: 'failed' as ScanSessionStatus } : null,
           _abortController: null,
+          _degradedTimers: new Map(),
         }));
       },
 
-      retryChain: async (chain: ScanChainName) => {
+      skipChain: (chain: ScanChainName) => {
+        const { session, _degradedTimers } = get();
+        if (!session) return;
+
+        // Clear degraded timer for this chain
+        const timer = _degradedTimers.get(chain);
+        if (timer) clearTimeout(timer);
+
+        set((s) => {
+          if (!s.session) return {};
+          const timers = new Map(s._degradedTimers);
+          timers.delete(chain);
+          const updatedChains = {
+            ...s.session.chains,
+            [chain]: {
+              ...s.session.chains[chain],
+              status: 'skipped' as const,
+              error: 'Skipped by user',
+            },
+          };
+          return {
+            session: { ...s.session, chains: updatedChains },
+            _degradedTimers: timers,
+          };
+        });
+      },
+
+      retryChain: async (chain: ScanChainName, rpcIndex?: number) => {
         const { session } = get();
         if (!session) return;
 
@@ -264,8 +363,34 @@ export const useScanStore = create<ScanStoreState>()(
         set({ _abortController: abortController });
 
         const log = (entry: ScanLogEntry) => {
-          set((s) => ({ logs: [...s.logs.slice(-99), entry] }));
+          set((s) => ({ logs: [...s.logs.slice(-199), entry] }));
         };
+
+        // Start degraded timer
+        const degradedTimer = setTimeout(() => {
+          const current = get();
+          if (!current.session) return;
+          const chainProgress = current.session.chains[chain];
+          if (chainProgress.status === 'scanning') {
+            log({
+              timestamp: Date.now(), level: 'warn', chain,
+              message: `${chain} retry has not responded in ${DEGRADED_AFTER_SEC}s — marking degraded`,
+            });
+            set((s) => {
+              if (!s.session) return {};
+              const updatedChains = {
+                ...s.session.chains,
+                [chain]: {
+                  ...s.session.chains[chain],
+                  status: 'degraded' as const,
+                  degradedReason: 'timeout' as const,
+                  error: `No response after ${DEGRADED_AFTER_SEC}s. You can retry, skip, or switch RPC.`,
+                },
+              };
+              return { session: { ...s.session, chains: updatedChains } };
+            });
+          }
+        }, DEGRADED_AFTER_SEC * 1000);
 
         const onProgress = (progress: ChainScanProgress) => {
           set((s) => {
@@ -281,18 +406,20 @@ export const useScanStore = create<ScanStoreState>()(
           });
         };
 
-        log({ timestamp: Date.now(), level: 'info', chain, message: `Retrying ${chain}...` });
+        log({ timestamp: Date.now(), level: 'info', chain, message: `Retrying ${chain}${rpcIndex !== undefined ? ` with RPC #${rpcIndex}` : ''}...` });
 
-        const result = await scanChain(chain, session.walletAddress, onProgress, log, abortController.signal);
+        const result = await scanChain(chain, session.walletAddress, onProgress, log, abortController.signal, rpcIndex);
+        clearTimeout(degradedTimer);
         onProgress(result);
 
         // Update overall status
         set((s) => {
           if (!s.session) return {};
           const allChains = Object.values(s.session.chains);
-          const allDone = allChains.every((c) => c.status === 'completed' || c.status === 'failed');
-          const anyFailed = allChains.some((c) => c.status === 'failed');
-          const newStatus: ScanSessionStatus = allDone ? (anyFailed ? 'completed' : 'completed') : 'scanning';
+          const allDone = allChains.every((c) =>
+            c.status === 'completed' || c.status === 'failed' || c.status === 'skipped' || c.status === 'degraded',
+          );
+          const newStatus: ScanSessionStatus = allDone ? 'completed' : 'scanning';
           return {
             status: newStatus,
             session: { ...s.session, status: newStatus },
@@ -351,13 +478,15 @@ export const useScanStore = create<ScanStoreState>()(
       },
 
       resetSession: () => {
-        const { _abortController } = get();
+        const { _abortController, _degradedTimers } = get();
         if (_abortController) _abortController.abort();
+        _degradedTimers.forEach((t) => clearTimeout(t));
         set({
           session: null,
           status: 'idle',
           logs: [],
           _abortController: null,
+          _degradedTimers: new Map(),
         });
       },
 
@@ -389,12 +518,19 @@ export const useScanStore = create<ScanStoreState>()(
       clearSavedSessions: () => {
         set({ savedSessions: [] });
       },
+
+      updateDustSettings: (settings: Partial<DustFilterSettings>) => {
+        set((s) => ({
+          dustSettings: { ...s.dustSettings, ...settings },
+        }));
+      },
     }),
     {
       name: 'swaperex-wallet-scan',
-      version: 1,
+      version: 2,
       partialize: (state) => ({
         savedSessions: state.savedSessions,
+        dustSettings: state.dustSettings,
       }),
     },
   ),

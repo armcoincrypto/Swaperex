@@ -3,7 +3,7 @@ import { useScanStore } from '../scanStore';
 
 // Mock the scanEngine to avoid real RPC calls
 vi.mock('../scanEngine', () => ({
-  scanChain: vi.fn(async (chain, _wallet, onProgress, onLog) => {
+  scanChain: vi.fn(async (chain: string, _wallet: string, onProgress: Function, onLog: Function) => {
     const progress = {
       chainName: chain,
       chainId: chain === 'ethereum' ? 1 : chain === 'bsc' ? 56 : 137,
@@ -30,6 +30,12 @@ vi.mock('../scanEngine', () => ({
   }),
 }));
 
+// Mock enrichment (non-blocking, returns null)
+vi.mock('../enrichment', () => ({
+  fetchEnrichment: vi.fn(async () => null),
+  applyEnrichment: vi.fn((tokens: unknown[]) => tokens),
+}));
+
 // Mock watchlistStore
 vi.mock('@/stores/watchlistStore', () => ({
   useWatchlistStore: {
@@ -48,6 +54,7 @@ describe('walletScan/scanStore', () => {
       status: 'idle',
       logs: [],
       _abortController: null,
+      _degradedTimers: new Map(),
     });
   });
 
@@ -57,6 +64,13 @@ describe('walletScan/scanStore', () => {
       expect(state.status).toBe('idle');
       expect(state.session).toBeNull();
       expect(state.logs).toEqual([]);
+    });
+
+    it('has default dust settings', () => {
+      const state = useScanStore.getState();
+      expect(state.dustSettings.hideDust).toBe(true);
+      expect(state.dustSettings.hideSpam).toBe(true);
+      expect(state.dustSettings.dustUsdThreshold).toBe(0.01);
     });
   });
 
@@ -102,6 +116,33 @@ describe('walletScan/scanStore', () => {
       const saved = useScanStore.getState().savedSessions;
       expect(saved.length).toBeGreaterThanOrEqual(1);
       expect(saved[0].walletAddress).toBe('0x1234567890abcdef1234567890abcdef12345678');
+    });
+  });
+
+  describe('skipChain', () => {
+    it('marks chain as skipped', async () => {
+      // Start a scan first
+      await useScanStore.getState().startScan('0x1234567890abcdef1234567890abcdef12345678');
+
+      // Skip polygon
+      useScanStore.getState().skipChain('polygon');
+
+      const session = useScanStore.getState().session!;
+      expect(session.chains.polygon.status).toBe('skipped');
+      expect(session.chains.polygon.error).toBe('Skipped by user');
+    });
+  });
+
+  describe('updateDustSettings', () => {
+    it('updates dust filter settings', () => {
+      useScanStore.getState().updateDustSettings({ hideDust: false });
+      expect(useScanStore.getState().dustSettings.hideDust).toBe(false);
+      expect(useScanStore.getState().dustSettings.hideSpam).toBe(true); // unchanged
+    });
+
+    it('updates threshold values', () => {
+      useScanStore.getState().updateDustSettings({ dustUsdThreshold: 1.0 });
+      expect(useScanStore.getState().dustSettings.dustUsdThreshold).toBe(1.0);
     });
   });
 

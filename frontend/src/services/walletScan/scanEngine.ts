@@ -1,5 +1,5 @@
 /**
- * Wallet Scan Engine
+ * Wallet Scan Engine (v3)
  *
  * Core scanning logic: fetches token balances per chain with
  * concurrency control, timeout, fallback RPCs, and abort support.
@@ -122,15 +122,18 @@ async function withConcurrency<T>(
 }
 
 /**
- * Try connecting to RPCs in order until one works
+ * Try connecting to RPCs in order until one works.
+ * Returns the connected provider + RPC info + index.
  */
-async function connectToRpc(
+export async function connectToRpc(
   chain: ScanChainName,
   log: ScanLogCallback,
-): Promise<{ provider: JsonRpcProvider; rpc: RpcEndpoint } | null> {
+  startFromIndex = 0,
+): Promise<{ provider: JsonRpcProvider; rpc: RpcEndpoint; rpcIndex: number } | null> {
   const rpcs = getRpcEndpoints(chain);
 
-  for (const rpc of rpcs) {
+  for (let i = startFromIndex; i < rpcs.length; i++) {
+    const rpc = rpcs[i];
     try {
       log({ timestamp: Date.now(), level: 'info', chain, message: `Trying ${rpc.name}...` });
       const provider = createProvider(rpc);
@@ -140,13 +143,40 @@ async function connectToRpc(
         new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), rpc.timeout)),
       ]);
       log({ timestamp: Date.now(), level: 'info', chain, message: `Connected to ${rpc.name}` });
-      return { provider, rpc };
+      return { provider, rpc, rpcIndex: i };
     } catch {
       log({ timestamp: Date.now(), level: 'warn', chain, message: `${rpc.name} failed, trying next...` });
     }
   }
 
   return null;
+}
+
+/**
+ * Connect to a specific RPC by index.
+ */
+export async function connectToSpecificRpc(
+  chain: ScanChainName,
+  rpcIndex: number,
+  log: ScanLogCallback,
+): Promise<{ provider: JsonRpcProvider; rpc: RpcEndpoint; rpcIndex: number } | null> {
+  const rpcs = getRpcEndpoints(chain);
+  if (rpcIndex < 0 || rpcIndex >= rpcs.length) return null;
+
+  const rpc = rpcs[rpcIndex];
+  try {
+    log({ timestamp: Date.now(), level: 'info', chain, message: `Switching to ${rpc.name}...` });
+    const provider = createProvider(rpc);
+    await Promise.race([
+      provider.getBlockNumber(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), rpc.timeout)),
+    ]);
+    log({ timestamp: Date.now(), level: 'info', chain, message: `Connected to ${rpc.name}` });
+    return { provider, rpc, rpcIndex };
+  } catch {
+    log({ timestamp: Date.now(), level: 'warn', chain, message: `${rpc.name} connection failed` });
+    return null;
+  }
 }
 
 /**
@@ -159,6 +189,7 @@ export async function scanChain(
   onProgress: ProgressCallback,
   onLog: ScanLogCallback,
   signal?: AbortSignal,
+  preferredRpcIndex?: number,
 ): Promise<ChainScanProgress> {
   const chainId = CHAIN_NAME_TO_ID[chain];
   const startTime = Date.now();
@@ -183,8 +214,11 @@ export async function scanChain(
     return progress;
   }
 
-  // Connect to RPC
-  const connection = await connectToRpc(chain, onLog);
+  // Connect to RPC (prefer specific index or try from start)
+  const connection = preferredRpcIndex !== undefined
+    ? await connectToSpecificRpc(chain, preferredRpcIndex, onLog)
+    : await connectToRpc(chain, onLog);
+
   if (!connection) {
     progress.status = 'failed';
     progress.error = 'All RPCs failed. Try again later.';
@@ -194,8 +228,9 @@ export async function scanChain(
     return progress;
   }
 
-  const { provider, rpc } = connection;
+  const { provider, rpc, rpcIndex } = connection;
   progress.rpcUsed = rpc.name;
+  progress.rpcIndex = rpcIndex;
 
   // Build token list: known tokens + custom tokens
   const knownTokens = (ERC20_TOKENS[chain] || []).map((t) => ({
@@ -247,7 +282,7 @@ export async function scanChain(
       });
       onLog({ timestamp: Date.now(), level: 'info', chain, message: `Found ${formatted} ${nativeSymbol}` });
     }
-  } catch (err) {
+  } catch {
     onLog({ timestamp: Date.now(), level: 'warn', chain, message: 'Native balance fetch failed' });
     progress.checked = 1;
   }

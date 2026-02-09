@@ -1,5 +1,5 @@
 /**
- * Wallet Scan Types
+ * Wallet Scan Types (v3)
  *
  * Shared type definitions for the scan service, store, and UI.
  */
@@ -20,13 +20,24 @@ export const CHAIN_ID_TO_SCAN_NAME: Record<number, ScanChainName> = {
 };
 
 /** Status of an individual chain scan */
-export type ChainScanStatus = 'pending' | 'scanning' | 'completed' | 'failed';
+export type ChainScanStatus = 'pending' | 'scanning' | 'completed' | 'degraded' | 'failed' | 'skipped';
 
 /** Overall scan session status */
 export type ScanSessionStatus = 'idle' | 'scanning' | 'completed' | 'failed';
 
 /** Source of a discovered token */
 export type TokenSource = 'known' | 'custom' | 'discovered';
+
+/** Risk level for tokens */
+export type RiskLevel = 'low' | 'medium' | 'high' | 'unknown';
+
+/** Detailed risk factor from GoPlus / signals */
+export interface RiskFactor {
+  key: string;
+  label: string;
+  severity: 'info' | 'warn' | 'danger';
+  value: string;
+}
 
 /** A token found during a wallet scan */
 export interface ScannedToken {
@@ -48,10 +59,17 @@ export interface ScannedToken {
   /** Approximate USD value if known */
   usdValue?: number;
   /** Risk level from signals API (cached) */
-  riskLevel?: 'low' | 'medium' | 'high' | 'unknown';
+  riskLevel?: RiskLevel;
   /** Risk factors from GoPlus */
-  riskFactors?: string[];
+  riskFactors?: RiskFactor[];
+  /** Whether this token looks like dust/spam */
+  isDust?: boolean;
+  /** Whether this token looks like spam */
+  isSpam?: boolean;
 }
+
+/** Degraded mode reason */
+export type DegradedReason = 'timeout' | 'rpc_slow' | 'rate_limit' | 'network_error';
 
 /** Per-chain scan progress */
 export interface ChainScanProgress {
@@ -72,6 +90,10 @@ export interface ChainScanProgress {
   errorCode?: 'rpc_timeout' | 'rate_limited' | 'checksum_error' | 'unknown';
   /** Which RPC was used */
   rpcUsed?: string;
+  /** Index of current RPC in the fallback list */
+  rpcIndex?: number;
+  /** Degraded mode reason */
+  degradedReason?: DegradedReason;
 }
 
 /** A complete scan session */
@@ -127,3 +149,22 @@ export interface ScanDebugInfo {
   timestamp: string;
   userAgent: string;
 }
+
+/** Dust/spam filter settings (persisted) */
+export interface DustFilterSettings {
+  /** Hide tokens with very small balances */
+  hideDust: boolean;
+  /** Minimum USD value to not be considered dust (default: 0.01) */
+  dustUsdThreshold: number;
+  /** Minimum raw balance to not be considered dust when no USD (default: 0.0001) */
+  dustBalanceThreshold: number;
+  /** Hide tokens flagged as spam/suspicious */
+  hideSpam: boolean;
+}
+
+export const DEFAULT_DUST_SETTINGS: DustFilterSettings = {
+  hideDust: true,
+  dustUsdThreshold: 0.01,
+  dustBalanceThreshold: 0.0001,
+  hideSpam: true,
+};
