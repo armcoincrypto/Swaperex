@@ -678,6 +678,8 @@ export function WalletScan({ className = '' }: WalletScanProps) {
   const [showAddAllConfirm, setShowAddAllConfirm] = useState(false);
   const [copiedDebug, setCopiedDebug] = useState(false);
   const [riskDrawerToken, setRiskDrawerToken] = useState<ScannedToken | null>(null);
+  const [customAddress, setCustomAddress] = useState('');
+  const [addressError, setAddressError] = useState('');
 
   // Token refs for scroll-to
   const tokenRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -766,10 +768,18 @@ export function WalletScan({ className = '' }: WalletScanProps) {
   const watchlistFull = watchlistCount >= 20;
   const isScanning = status === 'scanning';
 
+  const isValidAddress = (addr: string) => /^0x[a-fA-F0-9]{40}$/.test(addr);
+
   const handleStartScan = useCallback(() => {
-    if (!walletAddress) return;
-    startScan(walletAddress);
-  }, [walletAddress, startScan]);
+    const targetAddress = customAddress.trim() || walletAddress;
+    if (!targetAddress) return;
+    if (!isValidAddress(targetAddress)) {
+      setAddressError('Invalid address. Must be 0x followed by 40 hex characters.');
+      return;
+    }
+    setAddressError('');
+    startScan(targetAddress);
+  }, [customAddress, walletAddress, startScan]);
 
   const handleAddAll = useCallback(() => {
     addAll(addableTokens);
@@ -842,34 +852,65 @@ export function WalletScan({ className = '' }: WalletScanProps) {
       {showHistory && <SavedScans />}
 
       {/* ─── Idle State ───────────────────────────────────── */}
-      {!isConnected ? (
-        <div className="flex items-center justify-center py-6 text-dark-500 text-xs">
-          Connect your wallet to scan
-        </div>
-      ) : status === 'idle' ? (
+      {status === 'idle' ? (
         <div>
           <p className="text-xs text-dark-400 mb-3">
             Detect tokens across ETH, BSC, and Polygon. Add to watchlist for automatic signal monitoring.
           </p>
+
+          {/* Address input */}
+          <div className="mb-3">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={customAddress}
+                onChange={(e) => { setCustomAddress(e.target.value); setAddressError(''); }}
+                placeholder={walletAddress ? `${shortAddress(walletAddress)} (connected)` : 'Enter wallet address (0x...)'}
+                className="flex-1 bg-dark-900/50 border border-dark-600/50 rounded-lg px-3 py-2 text-xs text-dark-200 placeholder-dark-600 outline-none focus:border-primary-600/50 font-mono"
+                aria-label="Wallet address to scan"
+                spellCheck={false}
+              />
+              {customAddress && (
+                <button
+                  onClick={() => { setCustomAddress(''); setAddressError(''); }}
+                  className="px-2 text-dark-500 hover:text-dark-300 text-xs transition-colors"
+                  aria-label="Clear address"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            {addressError && (
+              <p className="text-[10px] text-red-400 mt-1">{addressError}</p>
+            )}
+            {isConnected && !customAddress && (
+              <p className="text-[10px] text-dark-600 mt-1">Leave empty to scan your connected wallet</p>
+            )}
+          </div>
+
           <button
             onClick={handleStartScan}
-            disabled={watchlistFull}
+            disabled={!customAddress.trim() && !walletAddress}
             className={`w-full py-3 rounded-lg text-sm font-medium transition-colors ${
-              watchlistFull
+              !customAddress.trim() && !walletAddress
                 ? 'bg-dark-700 text-dark-500 cursor-not-allowed'
                 : 'bg-primary-600/20 text-primary-400 hover:bg-primary-600/30 border border-primary-600/30'
             }`}
             aria-label="Start wallet scan"
           >
-            {watchlistFull ? (
-              'Watchlist full (20/20)'
-            ) : (
+            {customAddress.trim() ? (
+              <>
+                Scan {shortAddress(customAddress.trim())}
+              </>
+            ) : walletAddress ? (
               <>
                 Scan My Wallet
                 <span className="ml-2 text-dark-500 text-xs">
                   ({20 - watchlistCount} slots available)
                 </span>
               </>
+            ) : (
+              'Enter an address to scan'
             )}
           </button>
         </div>
