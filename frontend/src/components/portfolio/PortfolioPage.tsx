@@ -19,7 +19,6 @@ import { PortfolioTokenTable } from './PortfolioTokenTable';
 import { ActivityPanel } from './ActivityPanel';
 import { DiagnosticsPanel } from './DiagnosticsPanel';
 import type { SwapRecord } from '@/stores/swapHistoryStore';
-import type { PortfolioChain } from '@/services/portfolioTypes';
 import { isDebugMode } from '@/utils/chainHealth';
 
 interface PortfolioPageProps {
@@ -40,7 +39,6 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
   const setPortfolio = usePortfolioStore((s) => s.setPortfolio);
   const setLoading = usePortfolioStore((s) => s.setLoading);
   const setChainError = usePortfolioStore((s) => s.setChainError);
-  const clearErrors = usePortfolioStore((s) => s.clearErrors);
   const hydrateFromSnapshot = usePortfolioStore((s) => s.hydrateFromSnapshot);
   const clear = usePortfolioStore((s) => s.clear);
 
@@ -66,23 +64,18 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
     refreshingRef.current = isLoading;
   }, [isLoading]);
 
-  // Sync hook state → store
+  // Sync hook state → store (batched: setPortfolio already sets loading=false)
   useEffect(() => {
     if (portfolio) {
       setPortfolio(portfolio);
-      clearErrors();
-
-      // Set per-chain errors if any
-      for (const [chain, balance] of Object.entries(portfolio.chains)) {
-        if (balance?.error) {
-          setChainError(chain as PortfolioChain, balance.error);
-        }
-      }
     }
-  }, [portfolio, setPortfolio, clearErrors, setChainError]);
+  }, [portfolio, setPortfolio]);
 
+  // Only sync loading=true (setPortfolio handles loading=false)
   useEffect(() => {
-    setLoading(isLoading);
+    if (isLoading) {
+      setLoading(true);
+    }
   }, [isLoading, setLoading]);
 
   useEffect(() => {

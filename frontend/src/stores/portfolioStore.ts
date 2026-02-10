@@ -79,6 +79,23 @@ export interface PortfolioStoreState {
   /** Pricing diagnostics */
   setPricingStatus: (status: Partial<PricingStatus>) => void;
 
+  /**
+   * Batch-update chain health, pricing, and refresh timestamps in ONE set() call.
+   * Prevents re-render storms during multi-chain refresh.
+   */
+  batchRecordChainResults: (results: {
+    chainResults: Array<{
+      chain: PortfolioChain;
+      success: boolean;
+      balance: ChainBalance | null;
+      latencyMs: number;
+      error: string | null;
+    }>;
+    pricing: Partial<PricingStatus>;
+    refreshStartedAt?: number;
+    refreshFinishedAt?: number;
+  }) => void;
+
   setSortMode: (mode: SortMode) => void;
   setHideSmallBalances: (hide: boolean) => void;
   setSmallBalanceThreshold: (threshold: number) => void;
@@ -210,6 +227,52 @@ export const usePortfolioStore = create<PortfolioStoreState>()(
         set((s) => ({
           pricingStatus: { ...s.pricingStatus, ...status },
         })),
+
+      // ─── Batch Update (single set() to prevent re-render storm) ──
+
+      batchRecordChainResults: ({ chainResults, pricing, refreshStartedAt, refreshFinishedAt }) =>
+        set((s) => {
+          const newHealth = { ...s.chainHealth };
+          const newErrors = { ...s.errors };
+
+          for (const { chain, success, balance, latencyMs, error } of chainResults) {
+            if (success) {
+              newHealth[chain] = {
+                status: 'ok',
+                failureCount: 0,
+                lastSuccessAt: Date.now(),
+                lastErrorAt: s.chainHealth[chain]?.lastErrorAt || 0,
+                lastError: null,
+                lastLatencyMs: latencyMs,
+                nextRetryAt: 0,
+                staleData: balance,
+              };
+              // Clear legacy error
+              delete newErrors[chain];
+            } else if (error) {
+              const prev = s.chainHealth[chain] || createInitialHealth();
+              const newCount = prev.failureCount + 1;
+              newHealth[chain] = {
+                ...prev,
+                status: getHealthStatus(newCount),
+                failureCount: newCount,
+                lastErrorAt: Date.now(),
+                lastError: error,
+                nextRetryAt: calculateNextRetry(newCount),
+                staleData: isStaleDataValid(prev.lastSuccessAt) ? prev.staleData : null,
+              };
+              newErrors[chain] = error;
+            }
+          }
+
+          return {
+            chainHealth: newHealth,
+            errors: newErrors,
+            pricingStatus: { ...s.pricingStatus, ...pricing },
+            ...(refreshStartedAt ? { refreshStartedAt } : {}),
+            ...(refreshFinishedAt ? { refreshFinishedAt } : {}),
+          };
+        }),
 
       // ─── UI Preferences ───────────────────────────────────────
 

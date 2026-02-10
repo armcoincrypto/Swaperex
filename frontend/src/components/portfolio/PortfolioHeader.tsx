@@ -12,6 +12,7 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import {
   usePortfolioStore,
   getChainTotals,
@@ -41,7 +42,7 @@ export function PortfolioHeader({ onRefresh, className = '' }: PortfolioHeaderPr
   const setPrivacyMode = usePortfolioStore((s) => s.setPrivacyMode);
   const hideSmallBalances = usePortfolioStore((s) => s.hideSmallBalances);
   const setHideSmallBalances = usePortfolioStore((s) => s.setHideSmallBalances);
-  const chainHealth = usePortfolioStore((s) => s.chainHealth);
+  const chainHealth = usePortfolioStore(useShallow((s) => s.chainHealth));
   const [, tick] = useState(0);
 
   // Force re-render for relative time

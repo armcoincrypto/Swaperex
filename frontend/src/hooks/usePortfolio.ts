@@ -122,13 +122,25 @@ export function usePortfolio(
   );
 
   /**
-   * Fetch a single EVM chain with health tracking
+   * Fetch result from a single chain (no store calls — results are batched later)
+   */
+  interface SingleChainResult {
+    chain: PortfolioChain;
+    balance: ChainBalance | null;
+    error: string | null;
+    success: boolean;
+    latencyMs: number;
+    priced: number;
+    totalTokens: number;
+    priceError: string | null;
+    skippedBackoff: boolean;
+  }
+
+  /**
+   * Fetch a single EVM chain (pure — no store side-effects)
    */
   const fetchSingleChain = useCallback(
-    async (
-      addr: string,
-      chain: PortfolioChain
-    ): Promise<{ chain: PortfolioChain; balance: ChainBalance | null; error: string | null }> => {
+    async (addr: string, chain: PortfolioChain): Promise<SingleChainResult> => {
       const store = usePortfolioStore.getState();
       const health = store.chainHealth[chain];
 
@@ -138,7 +150,11 @@ export function usePortfolio(
           chain,
           nextRetryAt: health?.nextRetryAt,
         });
-        return { chain, balance: health?.staleData || null, error: 'In backoff' };
+        return {
+          chain, balance: health?.staleData || null, error: 'In backoff',
+          success: false, latencyMs: 0, priced: 0, totalTokens: 0,
+          priceError: null, skippedBackoff: true,
+        };
       }
 
       const startMs = Date.now();
@@ -151,16 +167,26 @@ export function usePortfolio(
 
         // Check if the service-level fetch had an error
         if (rawBalance.error) {
-          store.recordChainFailure(chain, rawBalance.error);
-          // If we have stale data, merge it
           if (health?.staleData) {
-            return { chain, balance: health.staleData, error: rawBalance.error };
+            return {
+              chain, balance: health.staleData, error: rawBalance.error,
+              success: false, latencyMs: Date.now() - startMs, priced: 0,
+              totalTokens: 0, priceError: null, skippedBackoff: false,
+            };
           }
-          return { chain, balance: rawBalance, error: rawBalance.error };
+          return {
+            chain, balance: rawBalance, error: rawBalance.error,
+            success: false, latencyMs: Date.now() - startMs, priced: 0,
+            totalTokens: 0, priceError: null, skippedBackoff: false,
+          };
         }
 
         // Enrich with prices
         let enriched = rawBalance;
+        let priced = 0;
+        let totalTokens = 0;
+        let priceError: string | null = null;
+
         if (includeUsdPrices) {
           try {
             enriched = await withTimeout(
@@ -169,44 +195,42 @@ export function usePortfolio(
               `${chain}-prices`
             );
 
-            // Track pricing stats
-            const priced = [enriched.nativeBalance, ...enriched.tokenBalances]
+            priced = [enriched.nativeBalance, ...enriched.tokenBalances]
               .filter((t) => t.usdPrice !== null && t.usdPrice !== undefined).length;
-            const total = 1 + enriched.tokenBalances.length;
-            store.setPricingStatus({
-              lastFetchAt: Date.now(),
-              lastError: null,
-              tokensPriced: (store.pricingStatus.tokensPriced || 0) + priced,
-              tokensMissing: (store.pricingStatus.tokensMissing || 0) + (total - priced),
-            });
-          } catch (priceError) {
+            totalTokens = 1 + enriched.tokenBalances.length;
+          } catch (err) {
             logPortfolioLifecycle('Price enrichment failed, using raw balance', { chain });
-            store.setPricingStatus({
-              lastFetchAt: Date.now(),
-              lastError: priceError instanceof Error ? priceError.message : 'Price fetch failed',
-            });
+            priceError = err instanceof Error ? err.message : 'Price fetch failed';
           }
         }
 
-        const latencyMs = Date.now() - startMs;
-        store.recordChainSuccess(chain, enriched, latencyMs);
-        return { chain, balance: enriched, error: null };
+        return {
+          chain, balance: enriched, error: null,
+          success: true, latencyMs: Date.now() - startMs,
+          priced, totalTokens, priceError, skippedBackoff: false,
+        };
       } catch (error) {
         const msg = error instanceof Error ? error.message : 'Unknown error';
-        store.recordChainFailure(chain, msg);
-
-        // Use stale data if available
         if (health?.staleData) {
-          return { chain, balance: health.staleData, error: msg };
+          return {
+            chain, balance: health.staleData, error: msg,
+            success: false, latencyMs: Date.now() - startMs, priced: 0,
+            totalTokens: 0, priceError: null, skippedBackoff: false,
+          };
         }
-        return { chain, balance: null, error: msg };
+        return {
+          chain, balance: null, error: msg,
+          success: false, latencyMs: Date.now() - startMs, priced: 0,
+          totalTokens: 0, priceError: null, skippedBackoff: false,
+        };
       }
     },
     [includeUsdPrices]
   );
 
   /**
-   * Fetch portfolio for EVM address — per-chain with health tracking
+   * Fetch portfolio for EVM address — per-chain with health tracking.
+   * All store updates are batched into ONE set() call after all chains resolve.
    */
   const fetchEvmPortfolio = useCallback(
     async (addr: string): Promise<Portfolio> => {
@@ -223,19 +247,54 @@ export function usePortfolio(
         solana: null,
       };
 
-      // Reset pricing counters for this refresh cycle
-      usePortfolioStore.getState().setPricingStatus({
-        tokensPriced: 0,
-        tokensMissing: 0,
-      });
-
       // Fetch all chains concurrently (3 chains = natural concurrency limit)
       const results = await Promise.all(
         evmChains.map((chain) => fetchSingleChain(addr, chain))
       );
 
-      for (const { chain, balance } of results) {
-        chains[chain] = balance;
+      // Collect batch data from results
+      let totalPriced = 0;
+      let totalMissing = 0;
+      let lastPriceError: string | null = null;
+
+      const chainResults: Array<{
+        chain: PortfolioChain;
+        success: boolean;
+        balance: ChainBalance | null;
+        latencyMs: number;
+        error: string | null;
+      }> = [];
+
+      for (const result of results) {
+        chains[result.chain] = result.balance;
+
+        // Don't record skipped (backoff) chains — their health is unchanged
+        if (!result.skippedBackoff) {
+          chainResults.push({
+            chain: result.chain,
+            success: result.success,
+            balance: result.balance,
+            latencyMs: result.latencyMs,
+            error: result.error,
+          });
+        }
+
+        totalPriced += result.priced;
+        totalMissing += result.totalTokens - result.priced;
+        if (result.priceError) lastPriceError = result.priceError;
+      }
+
+      // ONE batch store update for all chain health + pricing
+      if (chainResults.length > 0) {
+        usePortfolioStore.getState().batchRecordChainResults({
+          chainResults,
+          pricing: {
+            lastFetchAt: Date.now(),
+            lastError: lastPriceError,
+            tokensPriced: totalPriced,
+            tokensMissing: totalMissing,
+          },
+        });
       }
 
       // Calculate total USD value (only from chains that succeeded or have stale data)
@@ -337,8 +396,6 @@ export function usePortfolio(
       return;
     }
 
-    // Record refresh start
-    usePortfolioStore.getState().setRefreshTimestamp('start');
     setState((s) => ({ ...s, status: 'fetching', error: null, errorDetails: null }));
 
     try {
@@ -361,9 +418,6 @@ export function usePortfolio(
           .map(([k]) => k),
       });
 
-      // Record refresh finish
-      usePortfolioStore.getState().setRefreshTimestamp('finish');
-
       setState({
         status: 'success',
         portfolio,
@@ -379,8 +433,6 @@ export function usePortfolio(
         error: portfolioError.message,
         category: portfolioError.category,
       });
-
-      usePortfolioStore.getState().setRefreshTimestamp('finish');
 
       setState((s) => ({
         ...s,
