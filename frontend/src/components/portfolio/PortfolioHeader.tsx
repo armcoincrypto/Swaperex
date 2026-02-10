@@ -226,6 +226,8 @@ export function PortfolioHeader({ onRefresh, className = '' }: PortfolioHeaderPr
 
         <label className="flex items-center gap-1.5 cursor-pointer">
           <input
+            id="hide-small-balances"
+            name="hide-small-balances"
             type="checkbox"
             checked={hideSmallBalances}
             onChange={(e) => setHideSmallBalances(e.target.checked)}

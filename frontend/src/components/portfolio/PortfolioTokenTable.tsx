@@ -94,6 +94,8 @@ export function PortfolioTokenTable({ onSwapToken, className = '' }: PortfolioTo
         <div className="flex items-center gap-2 flex-1 justify-end">
           {/* Search */}
           <input
+            id="portfolio-search"
+            name="portfolio-search"
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
