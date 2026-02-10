@@ -5,13 +5,24 @@
  * Wraps usePortfolio hook data and provides:
  *  - Live state in memory (tokens, totals, errors)
  *  - Snapshot persistence to localStorage (instant load on refresh)
+ *  - Per-chain health tracking (backoff, stale data, latency)
  *  - Sort/filter/search controls
  *  - Privacy mode toggle
+ *  - Refresh timing (for diagnostics)
  */
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Portfolio, PortfolioChain, TokenBalance } from '@/services/portfolioTypes';
+import type { Portfolio, PortfolioChain, ChainBalance, TokenBalance } from '@/services/portfolioTypes';
+import {
+  type ChainHealthState,
+  type PricingStatus,
+  createInitialHealth,
+  getHealthStatus,
+  calculateNextRetry,
+  isStaleDataValid,
+  CHAIN_LABELS,
+} from '@/utils/chainHealth';
 
 export type SortMode = 'value' | 'balance' | 'alpha' | 'chain';
 
@@ -20,7 +31,7 @@ export interface PortfolioStoreState {
   portfolio: Portfolio | null;
   /** Loading state */
   loading: boolean;
-  /** Per-chain errors */
+  /** Per-chain errors (legacy — kept for backward compat, also see chainHealth) */
   errors: Partial<Record<PortfolioChain, string>>;
   /** Last successful fetch time */
   updatedAt: number;
@@ -29,10 +40,20 @@ export interface PortfolioStoreState {
   snapshot: Portfolio | null;
   snapshotAt: number;
 
+  /** Per-chain health tracking */
+  chainHealth: Partial<Record<PortfolioChain, ChainHealthState>>;
+
+  /** Refresh timing (for diagnostics) */
+  refreshStartedAt: number;
+  refreshFinishedAt: number;
+
+  /** Pricing status (for diagnostics) */
+  pricingStatus: PricingStatus;
+
   /** UI preferences (persisted) */
   sortMode: SortMode;
   hideSmallBalances: boolean;
-  smallBalanceThreshold: number; // USD value below which to hide
+  smallBalanceThreshold: number;
   privacyMode: boolean;
   searchQuery: string;
 
@@ -41,8 +62,23 @@ export interface PortfolioStoreState {
   setLoading: (loading: boolean) => void;
   setChainError: (chain: PortfolioChain, error: string | null) => void;
   clearErrors: () => void;
-  /** Hydrate from snapshot without re-stamping snapshotAt */
   hydrateFromSnapshot: () => boolean;
+
+  /** Record a successful chain fetch */
+  recordChainSuccess: (chain: PortfolioChain, balance: ChainBalance, latencyMs: number) => void;
+  /** Record a failed chain fetch */
+  recordChainFailure: (chain: PortfolioChain, error: string) => void;
+  /** Get health for a chain (returns default if none) */
+  getChainHealth: (chain: PortfolioChain) => ChainHealthState;
+  /** Reset all chain health */
+  resetChainHealth: () => void;
+
+  /** Refresh timing */
+  setRefreshTimestamp: (type: 'start' | 'finish') => void;
+
+  /** Pricing diagnostics */
+  setPricingStatus: (status: Partial<PricingStatus>) => void;
+
   setSortMode: (mode: SortMode) => void;
   setHideSmallBalances: (hide: boolean) => void;
   setSmallBalanceThreshold: (threshold: number) => void;
@@ -54,6 +90,14 @@ export interface PortfolioStoreState {
 /** Snapshot TTL: 10 minutes */
 const SNAPSHOT_TTL = 10 * 60 * 1000;
 
+const INITIAL_PRICING: PricingStatus = {
+  lastFetchAt: 0,
+  lastError: null,
+  cacheAgeMs: 0,
+  tokensPriced: 0,
+  tokensMissing: 0,
+};
+
 export const usePortfolioStore = create<PortfolioStoreState>()(
   persist(
     (set) => ({
@@ -63,9 +107,13 @@ export const usePortfolioStore = create<PortfolioStoreState>()(
       updatedAt: 0,
       snapshot: null,
       snapshotAt: 0,
+      chainHealth: {},
+      refreshStartedAt: 0,
+      refreshFinishedAt: 0,
+      pricingStatus: { ...INITIAL_PRICING },
       sortMode: 'value',
       hideSmallBalances: false,
-      smallBalanceThreshold: 1, // $1 default
+      smallBalanceThreshold: 1,
       privacyMode: false,
       searchQuery: '',
 
@@ -74,7 +122,6 @@ export const usePortfolioStore = create<PortfolioStoreState>()(
           portfolio,
           updatedAt: Date.now(),
           loading: false,
-          // Save as snapshot
           snapshot: portfolio,
           snapshotAt: Date.now(),
         }),
@@ -101,6 +148,71 @@ export const usePortfolioStore = create<PortfolioStoreState>()(
 
       clearErrors: () => set({ errors: {} }),
 
+      // ─── Chain Health Actions ─────────────────────────────────
+
+      recordChainSuccess: (chain, balance, latencyMs) =>
+        set((s) => ({
+          chainHealth: {
+            ...s.chainHealth,
+            [chain]: {
+              status: 'ok' as const,
+              failureCount: 0,
+              lastSuccessAt: Date.now(),
+              lastErrorAt: s.chainHealth[chain]?.lastErrorAt || 0,
+              lastError: null,
+              lastLatencyMs: latencyMs,
+              nextRetryAt: 0,
+              staleData: balance,
+            },
+          },
+        })),
+
+      recordChainFailure: (chain, error) =>
+        set((s) => {
+          const prev = s.chainHealth[chain] || createInitialHealth();
+          const newCount = prev.failureCount + 1;
+          return {
+            chainHealth: {
+              ...s.chainHealth,
+              [chain]: {
+                ...prev,
+                status: getHealthStatus(newCount),
+                failureCount: newCount,
+                lastErrorAt: Date.now(),
+                lastError: error,
+                nextRetryAt: calculateNextRetry(newCount),
+                // Keep staleData if still valid
+                staleData: isStaleDataValid(prev.lastSuccessAt) ? prev.staleData : null,
+              },
+            },
+            // Also update legacy errors map
+            errors: { ...s.errors, [chain]: error },
+          };
+        }),
+
+      getChainHealth: (chain): ChainHealthState => {
+        return usePortfolioStore.getState().chainHealth[chain] || createInitialHealth();
+      },
+
+      resetChainHealth: () => set({ chainHealth: {} }),
+
+      // ─── Refresh Timing ───────────────────────────────────────
+
+      setRefreshTimestamp: (type) =>
+        set(type === 'start'
+          ? { refreshStartedAt: Date.now() }
+          : { refreshFinishedAt: Date.now() }
+        ),
+
+      // ─── Pricing ──────────────────────────────────────────────
+
+      setPricingStatus: (status) =>
+        set((s) => ({
+          pricingStatus: { ...s.pricingStatus, ...status },
+        })),
+
+      // ─── UI Preferences ───────────────────────────────────────
+
       setSortMode: (mode) => set({ sortMode: mode }),
       setHideSmallBalances: (hide) => set({ hideSmallBalances: hide }),
       setSmallBalanceThreshold: (threshold) => set({ smallBalanceThreshold: threshold }),
@@ -114,11 +226,15 @@ export const usePortfolioStore = create<PortfolioStoreState>()(
           errors: {},
           updatedAt: 0,
           searchQuery: '',
+          chainHealth: {},
+          refreshStartedAt: 0,
+          refreshFinishedAt: 0,
+          pricingStatus: { ...INITIAL_PRICING },
         }),
     }),
     {
       name: 'swaperex-portfolio',
-      version: 1,
+      version: 2,
       partialize: (state) => ({
         snapshot: state.snapshot,
         snapshotAt: state.snapshotAt,
@@ -209,14 +325,6 @@ export function getChainTotals(
 ): Record<string, { total: number; label: string }> {
   if (!portfolio) return {};
 
-  const CHAIN_LABELS: Record<string, string> = {
-    ethereum: 'ETH',
-    bsc: 'BSC',
-    polygon: 'Polygon',
-    arbitrum: 'Arbitrum',
-    solana: 'Solana',
-  };
-
   const totals: Record<string, { total: number; label: string }> = {};
   for (const [chain, balance] of Object.entries(portfolio.chains)) {
     if (!balance) continue;
@@ -233,6 +341,8 @@ export function formatUsdPrivate(value: string | number, privacyMode: boolean): 
   if (privacyMode) return '****';
   const num = typeof value === 'string' ? parseFloat(value) : value;
   if (isNaN(num)) return '$0.00';
+  if (num === 0) return '$0.00';
+  if (num > 0 && num < 0.01) return '< $0.01';
   if (num >= 1_000_000) return `$${(num / 1_000_000).toFixed(2)}M`;
   if (num >= 1_000) return `$${(num / 1_000).toFixed(2)}K`;
   return `$${num.toFixed(2)}`;
@@ -240,12 +350,5 @@ export function formatUsdPrivate(value: string | number, privacyMode: boolean): 
 
 /** Get chain label from PortfolioChain */
 export function getPortfolioChainLabel(chain: PortfolioChain): string {
-  const labels: Record<PortfolioChain, string> = {
-    ethereum: 'ETH',
-    bsc: 'BSC',
-    polygon: 'Polygon',
-    arbitrum: 'Arbitrum',
-    solana: 'Solana',
-  };
-  return labels[chain] || chain;
+  return CHAIN_LABELS[chain] || chain;
 }

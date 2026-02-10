@@ -1,14 +1,17 @@
 /**
  * Portfolio Header
  *
- * Shows: total portfolio value (USD), per-chain status chips, refresh button,
- * last updated time, privacy toggle, and error states.
+ * Shows: total portfolio value (USD), per-chain status chips with health dots,
+ * partial failure banner, refresh button, last updated time, privacy toggle.
  *
- * AUDIT FIX-4: Tooltips respect privacy mode.
- * AUDIT FIX-7: Per-chain status indicators (OK / Error) with tooltip detail.
+ * Production Hardening:
+ *  - Partial failure banner when chains are degraded/down
+ *  - Chain chips show health status (ok/degraded/down) with detailed tooltips
+ *  - Stale data indicators
+ *  - All values respect privacy mode
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   usePortfolioStore,
   getChainTotals,
@@ -16,6 +19,13 @@ import {
   getPortfolioChainLabel,
 } from '@/stores/portfolioStore';
 import type { PortfolioChain } from '@/services/portfolioTypes';
+import {
+  type ChainHealthStatus,
+  isStaleDataValid,
+  formatMsAgo,
+  redactError,
+  PORTFOLIO_CHAINS,
+} from '@/utils/chainHealth';
 
 interface PortfolioHeaderProps {
   onRefresh: () => void;
@@ -31,6 +41,7 @@ export function PortfolioHeader({ onRefresh, className = '' }: PortfolioHeaderPr
   const setPrivacyMode = usePortfolioStore((s) => s.setPrivacyMode);
   const hideSmallBalances = usePortfolioStore((s) => s.hideSmallBalances);
   const setHideSmallBalances = usePortfolioStore((s) => s.setHideSmallBalances);
+  const chainHealth = usePortfolioStore((s) => s.chainHealth);
   const [, tick] = useState(0);
 
   // Force re-render for relative time
@@ -41,10 +52,53 @@ export function PortfolioHeader({ onRefresh, className = '' }: PortfolioHeaderPr
 
   const totalUsd = portfolio?.totalUsdValue || '0';
   const chainTotals = getChainTotals(portfolio);
-  const errorChains = Object.keys(errors) as PortfolioChain[];
+
+  // Compute degraded/down chains for banner
+  const degradedChains = useMemo(() => {
+    const result: Array<{
+      chain: PortfolioChain;
+      label: string;
+      status: ChainHealthStatus;
+      isStale: boolean;
+      error: string | null;
+    }> = [];
+
+    for (const chain of PORTFOLIO_CHAINS) {
+      const health = chainHealth[chain];
+      if (!health || health.status === 'ok') continue;
+
+      result.push({
+        chain,
+        label: getPortfolioChainLabel(chain),
+        status: health.status,
+        isStale: isStaleDataValid(health.lastSuccessAt),
+        error: health.lastError,
+      });
+    }
+    return result;
+  }, [chainHealth]);
 
   return (
     <div className={`bg-dark-800/50 rounded-xl border border-dark-700/50 p-4 ${className}`}>
+      {/* Partial Failure Banner */}
+      {degradedChains.length > 0 && (
+        <div className="mb-3 p-2.5 bg-yellow-900/15 border border-yellow-700/30 rounded-lg">
+          {degradedChains.map(({ chain, label, isStale }) => (
+            <div key={chain} className="flex items-center gap-2 text-xs text-yellow-400">
+              <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              <span>
+                {label} temporarily unavailable
+                {isStale
+                  ? ' — showing last known data (stale)'
+                  : ` — excluding ${label} from totals`}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Total Portfolio Value */}
       <div className="flex items-start justify-between mb-3">
         <div>
@@ -98,50 +152,65 @@ export function PortfolioHeader({ onRefresh, className = '' }: PortfolioHeaderPr
         </div>
       </div>
 
-      {/* Chain Status Chips (FIX-4: tooltip respects privacy; FIX-7: status indicators) */}
+      {/* Chain Status Chips */}
       <div className="flex flex-wrap items-center gap-2 mb-2">
-        {Object.entries(chainTotals).map(([chain, { total, label }]) => {
-          const chainError = errors[chain as PortfolioChain];
-          const chipTooltip = chainError
-            ? `${label}: Error — ${chainError}`
-            : privacyMode
-            ? `${label}: Hidden`
-            : `${label}: $${total.toFixed(2)}`;
+        {PORTFOLIO_CHAINS.map((chain) => {
+          const total = chainTotals[chain];
+          const health = chainHealth[chain];
+          const chainError = errors[chain];
+          const label = getPortfolioChainLabel(chain);
+          const status: ChainHealthStatus = health?.status || (chainError ? 'degraded' : 'ok');
+          const isStale = health && health.status !== 'ok' && isStaleDataValid(health.lastSuccessAt);
+
+          // Build tooltip
+          let tooltip = '';
+          if (privacyMode) {
+            tooltip = `${label}: Hidden`;
+          } else if (status === 'ok' && total) {
+            tooltip = `${label}: $${total.total.toFixed(2)}`;
+            if (health?.lastLatencyMs) tooltip += ` (${health.lastLatencyMs}ms)`;
+          } else if (status !== 'ok' && health) {
+            tooltip = `${label}: ${status.toUpperCase()}`;
+            if (health.lastError) tooltip += ` — ${redactError(health.lastError)}`;
+            if (isStale) tooltip += ` (showing stale data from ${formatMsAgo(health.lastSuccessAt)})`;
+            if (health.failureCount > 0) tooltip += ` | Failures: ${health.failureCount}`;
+          } else if (!total) {
+            tooltip = `${label}: No data`;
+          }
+
+          // Colors by status
+          const chipClass =
+            status === 'down' ? 'bg-red-900/20 text-red-400'
+            : status === 'degraded' ? 'bg-yellow-900/20 text-yellow-400'
+            : 'bg-dark-700/60 text-dark-300';
+
+          const dotClass =
+            status === 'down' ? 'bg-red-400'
+            : status === 'degraded' ? 'bg-yellow-400'
+            : 'bg-green-400';
+
+          // Value display
+          let valueDisplay: string;
+          if (status === 'down' && !isStale) {
+            valueDisplay = '—';
+          } else if (total) {
+            valueDisplay = formatUsdPrivate(total.total, privacyMode);
+          } else {
+            valueDisplay = '$0.00';
+          }
 
           return (
             <span
               key={chain}
-              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium ${
-                chainError
-                  ? 'bg-red-900/20 text-red-400'
-                  : 'bg-dark-700/60 text-dark-300'
-              }`}
-              title={chipTooltip}
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium ${chipClass}`}
+              title={tooltip}
             >
-              {/* Status dot */}
-              <span
-                className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                  chainError ? 'bg-red-400' : 'bg-green-400'
-                }`}
-              />
-              {label}: {chainError ? 'Error' : formatUsdPrivate(total, privacyMode)}
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dotClass}`} />
+              {label}: {valueDisplay}
+              {isStale && <span className="text-[9px] opacity-60 ml-0.5">(stale)</span>}
             </span>
           );
         })}
-
-        {/* Error-only chips (chains with no data at all) */}
-        {errorChains
-          .filter((c) => !chainTotals[c])
-          .map((chain) => (
-            <span
-              key={chain}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-red-900/20 text-red-400"
-              title={`${getPortfolioChainLabel(chain)}: ${errors[chain] || 'Unavailable'}`}
-            >
-              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-red-400" />
-              {getPortfolioChainLabel(chain)}: Offline
-            </span>
-          ))}
       </div>
 
       {/* Bottom row: last updated + hide small */}

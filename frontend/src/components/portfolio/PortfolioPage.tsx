@@ -10,15 +10,17 @@
  * AUDIT FIX-5: Guards against concurrent refresh calls.
  */
 
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useMemo } from 'react';
 import { useWalletStore } from '@/stores/walletStore';
 import { usePortfolioStore } from '@/stores/portfolioStore';
 import { usePortfolio } from '@/hooks/usePortfolio';
 import { PortfolioHeader } from './PortfolioHeader';
 import { PortfolioTokenTable } from './PortfolioTokenTable';
 import { ActivityPanel } from './ActivityPanel';
+import { DiagnosticsPanel } from './DiagnosticsPanel';
 import type { SwapRecord } from '@/stores/swapHistoryStore';
 import type { PortfolioChain } from '@/services/portfolioTypes';
+import { isDebugMode } from '@/utils/chainHealth';
 
 interface PortfolioPageProps {
   onSwapToken?: (symbol: string, chainId: number) => void;
@@ -30,6 +32,9 @@ const REFRESH_INTERVAL = 30_000;
 
 export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps) {
   const { address, isConnected } = useWalletStore();
+
+  // Debug mode check (cached for session)
+  const debugMode = useMemo(() => isDebugMode(), []);
 
   // Individual selectors — only re-render when specific values change (FIX-1)
   const setPortfolio = usePortfolioStore((s) => s.setPortfolio);
@@ -145,6 +150,9 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
 
       {/* Activity (merged local + explorer, tabs, export) */}
       <ActivityPanel onRepeatSwap={onRepeatSwap} />
+
+      {/* Diagnostics (debug mode only: ?debug=1) */}
+      {debugMode && <DiagnosticsPanel />}
 
       {/* Footer */}
       <div className="text-center text-[11px] text-dark-500 pb-4">

@@ -1,16 +1,14 @@
 /**
  * Portfolio Hook
  *
- * PHASE 13: Fetches and manages multi-chain portfolio balances.
+ * Fetches and manages multi-chain portfolio balances.
  * Supports EVM chains (ETH, BSC, Polygon, Arbitrum) and Solana.
  *
- * Lifecycle: idle → fetching → success/error
- *
- * Error Handling:
- * - Validates wallet address before fetching
- * - Validates chain support
- * - Retry logic with exponential backoff for network errors
- * - Clear error categorization and user-friendly messages
+ * Production Hardening:
+ *  - Per-chain fetching with backoff (skip chains in cooldown)
+ *  - Partial failure: keep stale data for failed chains, show others
+ *  - Refresh timing and health tracking via portfolioStore
+ *  - Pricing status diagnostics
  *
  * SECURITY: Read-only operations, no signing required.
  */
@@ -26,7 +24,6 @@ import {
 } from '@/services/portfolioTypes';
 import {
   fetchEvmChainBalance,
-  fetchMultiEvmBalances,
   isValidEvmAddress,
 } from '@/services/evmBalanceService';
 import {
@@ -39,12 +36,12 @@ import {
 } from '@/services/priceService';
 import {
   validateWalletAddress,
-  validateChain,
-  withRetry,
   categorizeError,
   formatErrorForDisplay,
   type PortfolioError,
 } from '@/services/portfolioErrorHandler';
+import { usePortfolioStore } from '@/stores/portfolioStore';
+import { isInBackoff } from '@/utils/chainHealth';
 
 /**
  * Portfolio state
@@ -62,6 +59,9 @@ interface PortfolioState {
  */
 const DEFAULT_EVM_CHAINS: PortfolioChain[] = ['ethereum', 'bsc', 'polygon', 'arbitrum'];
 
+/** RPC timeout per chain (ms) */
+const CHAIN_FETCH_TIMEOUT = 15_000;
+
 /**
  * Portfolio hook options
  */
@@ -73,9 +73,22 @@ interface UsePortfolioOptions {
 }
 
 /**
+ * Wrap a promise with a timeout
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Timeout: ${label} exceeded ${ms}ms`)), ms)
+    ),
+  ]);
+}
+
+/**
  * Portfolio hook
  *
  * Fetches multi-chain balances for a wallet address.
+ * Per-chain backoff, partial failure support, and health tracking.
  */
 export function usePortfolio(
   address: string | null,
@@ -109,24 +122,97 @@ export function usePortfolio(
   );
 
   /**
-   * Fetch portfolio for EVM address
+   * Fetch a single EVM chain with health tracking
+   */
+  const fetchSingleChain = useCallback(
+    async (
+      addr: string,
+      chain: PortfolioChain
+    ): Promise<{ chain: PortfolioChain; balance: ChainBalance | null; error: string | null }> => {
+      const store = usePortfolioStore.getState();
+      const health = store.chainHealth[chain];
+
+      // Skip if in backoff — use stale data
+      if (isInBackoff(health)) {
+        logPortfolioLifecycle('Chain in backoff, using stale data', {
+          chain,
+          nextRetryAt: health?.nextRetryAt,
+        });
+        return { chain, balance: health?.staleData || null, error: 'In backoff' };
+      }
+
+      const startMs = Date.now();
+      try {
+        const rawBalance = await withTimeout(
+          fetchEvmChainBalance(addr, chain),
+          CHAIN_FETCH_TIMEOUT,
+          chain
+        );
+
+        // Check if the service-level fetch had an error
+        if (rawBalance.error) {
+          store.recordChainFailure(chain, rawBalance.error);
+          // If we have stale data, merge it
+          if (health?.staleData) {
+            return { chain, balance: health.staleData, error: rawBalance.error };
+          }
+          return { chain, balance: rawBalance, error: rawBalance.error };
+        }
+
+        // Enrich with prices
+        let enriched = rawBalance;
+        if (includeUsdPrices) {
+          try {
+            enriched = await withTimeout(
+              enrichEvmChainBalance(rawBalance),
+              CHAIN_FETCH_TIMEOUT,
+              `${chain}-prices`
+            );
+
+            // Track pricing stats
+            const priced = [enriched.nativeBalance, ...enriched.tokenBalances]
+              .filter((t) => t.usdPrice !== null && t.usdPrice !== undefined).length;
+            const total = 1 + enriched.tokenBalances.length;
+            store.setPricingStatus({
+              lastFetchAt: Date.now(),
+              lastError: null,
+              tokensPriced: (store.pricingStatus.tokensPriced || 0) + priced,
+              tokensMissing: (store.pricingStatus.tokensMissing || 0) + (total - priced),
+            });
+          } catch (priceError) {
+            logPortfolioLifecycle('Price enrichment failed, using raw balance', { chain });
+            store.setPricingStatus({
+              lastFetchAt: Date.now(),
+              lastError: priceError instanceof Error ? priceError.message : 'Price fetch failed',
+            });
+          }
+        }
+
+        const latencyMs = Date.now() - startMs;
+        store.recordChainSuccess(chain, enriched, latencyMs);
+        return { chain, balance: enriched, error: null };
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : 'Unknown error';
+        store.recordChainFailure(chain, msg);
+
+        // Use stale data if available
+        if (health?.staleData) {
+          return { chain, balance: health.staleData, error: msg };
+        }
+        return { chain, balance: null, error: msg };
+      }
+    },
+    [includeUsdPrices]
+  );
+
+  /**
+   * Fetch portfolio for EVM address — per-chain with health tracking
    */
   const fetchEvmPortfolio = useCallback(
     async (addr: string): Promise<Portfolio> => {
-      // Filter to only supported chains
-      const supportedChains = evmChains.filter((chain) => {
-        const chainError = validateChain(chain, 'portfolio');
-        if (chainError) {
-          logPortfolioLifecycle('Skipping unsupported chain', { chain });
-          return false;
-        }
-        return true;
-      });
-
-      logPortfolioLifecycle('Fetching EVM portfolio', {
+      logPortfolioLifecycle('Fetching EVM portfolio (per-chain)', {
         address: addr.slice(0, 10) + '...',
-        chains: supportedChains,
-        skippedChains: evmChains.filter((c) => !supportedChains.includes(c)),
+        chains: evmChains,
       });
 
       const chains: Record<PortfolioChain, ChainBalance | null> = {
@@ -137,33 +223,22 @@ export function usePortfolio(
         solana: null,
       };
 
-      // Fetch all EVM chains with retry logic
-      const evmBalances = await withRetry(
-        () => fetchMultiEvmBalances(addr, supportedChains as string[]),
-        { maxRetries: 2 },
-        { operation: 'fetchMultiEvmBalances', chain: 'multi' }
+      // Reset pricing counters for this refresh cycle
+      usePortfolioStore.getState().setPricingStatus({
+        tokensPriced: 0,
+        tokensMissing: 0,
+      });
+
+      // Fetch all chains concurrently (3 chains = natural concurrency limit)
+      const results = await Promise.all(
+        evmChains.map((chain) => fetchSingleChain(addr, chain))
       );
 
-      // Enrich with USD prices if enabled (with retry)
-      for (const [chain, balance] of Object.entries(evmBalances)) {
-        try {
-          if (includeUsdPrices) {
-            chains[chain as PortfolioChain] = await withRetry(
-              () => enrichEvmChainBalance(balance),
-              { maxRetries: 1 },
-              { operation: 'enrichEvmChainBalance', chain }
-            );
-          } else {
-            chains[chain as PortfolioChain] = balance;
-          }
-        } catch (priceError) {
-          // If price enrichment fails, use balance without prices
-          logPortfolioLifecycle('Price enrichment failed, using raw balance', { chain });
-          chains[chain as PortfolioChain] = balance;
-        }
+      for (const { chain, balance } of results) {
+        chains[chain] = balance;
       }
 
-      // Calculate total USD value
+      // Calculate total USD value (only from chains that succeeded or have stale data)
       let totalUsd = 0;
       for (const balance of Object.values(chains)) {
         if (balance?.totalUsdValue) {
@@ -179,7 +254,7 @@ export function usePortfolio(
         lastUpdated: Date.now(),
       };
     },
-    [evmChains, includeUsdPrices]
+    [evmChains, fetchSingleChain]
   );
 
   /**
@@ -199,22 +274,20 @@ export function usePortfolio(
         solana: null,
       };
 
-      // Fetch Solana balance with retry
-      let solanaBalance = await withRetry(
-        () => fetchSolanaBalance(addr),
-        { maxRetries: 2 },
-        { operation: 'fetchSolanaBalance', chain: 'solana' }
+      let solanaBalance = await withTimeout(
+        fetchSolanaBalance(addr),
+        CHAIN_FETCH_TIMEOUT,
+        'solana'
       );
 
-      // Enrich with USD prices if enabled (with retry)
       if (includeUsdPrices) {
         try {
-          solanaBalance = await withRetry(
-            () => enrichSolanaChainBalance(solanaBalance),
-            { maxRetries: 1 },
-            { operation: 'enrichSolanaChainBalance', chain: 'solana' }
+          solanaBalance = await withTimeout(
+            enrichSolanaChainBalance(solanaBalance),
+            CHAIN_FETCH_TIMEOUT,
+            'solana-prices'
           );
-        } catch (priceError) {
+        } catch {
           logPortfolioLifecycle('Solana price enrichment failed, using raw balance');
         }
       }
@@ -249,13 +322,11 @@ export function usePortfolio(
       return;
     }
 
-    // Address is guaranteed non-null after validation
     const addr = address as string;
     const addressType = getAddressType(addr);
 
     if (!addressType) {
       const invalidError = categorizeError(new Error('Invalid wallet address'));
-      logPortfolioLifecycle('Invalid address', { address: addr.slice(0, 10) + '...' });
       setState({
         status: 'error',
         portfolio: null,
@@ -266,11 +337,8 @@ export function usePortfolio(
       return;
     }
 
-    logPortfolioLifecycle('Fetching portfolio', {
-      address: addr.slice(0, 10) + '...',
-      addressType,
-    });
-
+    // Record refresh start
+    usePortfolioStore.getState().setRefreshTimestamp('start');
     setState((s) => ({ ...s, status: 'fetching', error: null, errorDetails: null }));
 
     try {
@@ -281,9 +349,7 @@ export function usePortfolio(
       } else {
         portfolio = await fetchEvmPortfolio(addr);
 
-        // Also fetch Solana if we have a Solana address in options
         if (includeSolana) {
-          // Note: EVM address can't be used for Solana, would need separate address
           logPortfolioLifecycle('Solana not available for EVM address');
         }
       }
@@ -295,6 +361,9 @@ export function usePortfolio(
           .map(([k]) => k),
       });
 
+      // Record refresh finish
+      usePortfolioStore.getState().setRefreshTimestamp('finish');
+
       setState({
         status: 'success',
         portfolio,
@@ -303,15 +372,15 @@ export function usePortfolio(
         lastUpdated: Date.now(),
       });
     } catch (error) {
-      // Categorize the error for better handling
       const portfolioError = categorizeError(error);
       const displayMessage = formatErrorForDisplay(portfolioError);
 
       logPortfolioLifecycle('Portfolio error', {
         error: portfolioError.message,
         category: portfolioError.category,
-        retryable: portfolioError.retryable,
       });
+
+      usePortfolioStore.getState().setRefreshTimestamp('finish');
 
       setState((s) => ({
         ...s,
@@ -357,7 +426,6 @@ export function usePortfolio(
 
           const newChains = { ...s.portfolio.chains, [chain]: balance };
 
-          // Recalculate total
           let totalUsd = 0;
           for (const b of Object.values(newChains)) {
             if (b?.totalUsdValue) {
@@ -375,11 +443,6 @@ export function usePortfolio(
             },
             lastUpdated: Date.now(),
           };
-        });
-
-        logPortfolioLifecycle('Chain refreshed', {
-          chain,
-          usdValue: balance.totalUsdValue,
         });
       } catch (error) {
         console.error(`[Portfolio] Failed to refresh ${chain}:`, error);
@@ -427,7 +490,6 @@ export function usePortfolio(
   }, [state.portfolio]);
 
   return {
-    // State
     status: state.status,
     portfolio: state.portfolio,
     error: state.error,
@@ -435,11 +497,9 @@ export function usePortfolio(
     lastUpdated: state.lastUpdated,
     isLoading: state.status === 'fetching',
 
-    // Actions
     fetchPortfolio,
     refreshChain,
 
-    // Helpers
     getChainBalance,
     getAllBalances,
     totalUsdValue: state.portfolio?.totalUsdValue || '0',
