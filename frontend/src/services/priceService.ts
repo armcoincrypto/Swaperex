@@ -121,7 +121,7 @@ async function fetchCoinGeckoPrices(
     );
 
     if (!response.ok) {
-      console.warn('[PriceService] CoinGecko rate limited or error:', response.status);
+      // Rate limit or server error — use cached prices, stay silent
       return prices;
     }
 
@@ -140,8 +140,8 @@ async function fetchCoinGeckoPrices(
       requested: toFetch.length,
       received: Object.keys(prices).length,
     });
-  } catch (error) {
-    console.warn('[PriceService] CoinGecko fetch failed:', error);
+  } catch {
+    // Network/CORS failure — silent, will retry on next cycle
   }
 
   return prices;
@@ -175,7 +175,6 @@ async function fetchJupiterPrices(
     const response = await fetch(`${JUPITER_PRICE_API}?ids=${ids}`);
 
     if (!response.ok) {
-      console.warn('[PriceService] Jupiter price error:', response.status);
       return prices;
     }
 
@@ -193,8 +192,8 @@ async function fetchJupiterPrices(
       requested: toFetch.length,
       received: Object.keys(prices).length,
     });
-  } catch (error) {
-    console.warn('[PriceService] Jupiter fetch failed:', error);
+  } catch {
+    // Network/CORS failure — silent, will retry on next cycle
   }
 
   return prices;

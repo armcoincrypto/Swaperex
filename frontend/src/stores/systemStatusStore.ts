@@ -115,7 +115,9 @@ export const useSystemStatusStore = create<SystemStatusState>((set, get) => ({
         failureCount: currentFailures + 1,
       });
 
-      console.log(`[SystemStatus] Check failed (${currentFailures + 1}):`, err);
+      if (import.meta.env.DEV) {
+        console.log(`[SystemStatus] Check failed (${currentFailures + 1}):`, err);
+      }
     }
   },
 

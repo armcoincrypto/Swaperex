@@ -101,6 +101,13 @@ function isSwapTransaction(to: string, inputData: string): { isSwap: boolean; ro
 }
 
 /**
+ * Simple result cache — explorer data changes slowly, 5-min TTL avoids
+ * rate limits and CORS errors from re-fetching every 30s refresh.
+ */
+const txCache: Record<string, { data: Transaction[]; expiresAt: number }> = {};
+const TX_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+/**
  * Fetch recent transactions for an address
  * Returns empty array on error (does not throw)
  */
@@ -111,12 +118,17 @@ export async function getRecentTransactions(
 ): Promise<Transaction[]> {
   const explorerConfig = EXPLORER_APIS[chainId];
   if (!explorerConfig) {
-    console.warn(`[TxHistory] No explorer API for chain ${chainId}`);
     return [];
   }
 
+  // Check cache — avoids hitting rate-limited APIs every 30s
+  const cacheKey = `${address}:${chainId}:${limit}`;
+  const cached = txCache[cacheKey];
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.data;
+  }
+
   try {
-    // Fetch normal transactions
     const url = new URL(explorerConfig.api);
     url.searchParams.set('module', 'account');
     url.searchParams.set('action', 'txlist');
@@ -127,10 +139,8 @@ export async function getRecentTransactions(
     url.searchParams.set('offset', String(limit));
     url.searchParams.set('sort', 'desc');
 
-    console.log('[TxHistory] Fetching from:', explorerConfig.name);
-
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
     const response = await fetch(url.toString(), { signal: controller.signal });
     clearTimeout(timeoutId);
@@ -138,12 +148,11 @@ export async function getRecentTransactions(
     const data = await response.json();
 
     if (data.status !== '1' || !Array.isArray(data.result)) {
-      // API returned error or no results - not a failure, just no data
-      console.log('[TxHistory] No transactions found or API limit:', data.message || 'no results');
+      // Cache empty result too — prevents re-hitting rate-limited API
+      txCache[cacheKey] = { data: [], expiresAt: Date.now() + TX_CACHE_TTL };
       return [];
     }
 
-    // Parse transactions
     const transactions: Transaction[] = data.result.map((tx: any) => {
       const { isSwap, router } = isSwapTransaction(tx.to, tx.input);
 
@@ -164,17 +173,11 @@ export async function getRecentTransactions(
       };
     });
 
-    console.log('[TxHistory] Found', transactions.length, 'transactions,',
-      transactions.filter(t => t.isSwap).length, 'swaps');
+    txCache[cacheKey] = { data: transactions, expiresAt: Date.now() + TX_CACHE_TTL };
     return transactions;
-  } catch (error) {
-    // Log but don't throw - return empty array
-    if ((error as Error).name === 'AbortError') {
-      console.warn('[TxHistory] Request timed out for chain', chainId);
-    } else {
-      console.warn('[TxHistory] Fetch failed for chain', chainId, ':', (error as Error).message);
-    }
-    return [];
+  } catch {
+    // Silent failure — return stale cache if available, else empty
+    return cached?.data || [];
   }
 }
 
@@ -208,13 +211,11 @@ export async function getMultiChainSwaps(
 
   // Combine successful results
   const allSwaps: Transaction[] = [];
-  results.forEach((result, index) => {
+  for (const result of results) {
     if (result.status === 'fulfilled') {
       allSwaps.push(...result.value);
-    } else {
-      console.warn(`[TxHistory] Failed to fetch swaps for chain ${chainIds[index]}`);
     }
-  });
+  }
 
   // Sort by timestamp descending
   return allSwaps.sort((a, b) => b.timestamp - a.timestamp);

@@ -141,9 +141,9 @@ async function fetchTokenBalance(
       isNative: false,
       chain: chain as PortfolioChain,
     };
-  } catch (error) {
-    // Token may not exist or contract call failed
-    console.warn(`[EVMBalance] Failed to fetch ${token.symbol}:`, error);
+  } catch {
+    // Expected: token may not exist on-chain or user holds zero
+    // Silent in production — not an error condition
     return null;
   }
 }

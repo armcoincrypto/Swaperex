@@ -66,13 +66,12 @@ async function fetchFromDexScreener(
 ): Promise<Partial<TokenMeta> | null> {
   const chainName = CHAIN_ID_TO_NAME[chainId];
   if (!chainName) {
-    console.warn(`[TokenMeta] Unsupported chain ID: ${chainId}`);
     return null;
   }
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
     const res = await fetch(
       `${DEXSCREENER_API}/tokens/${address}`,
@@ -85,14 +84,12 @@ async function fetchFromDexScreener(
     clearTimeout(timeoutId);
 
     if (!res.ok) {
-      console.warn(`[TokenMeta] DexScreener returned ${res.status}`);
       return null;
     }
 
     const data: DexScreenerResponse = await res.json();
 
     if (!data.pairs || data.pairs.length === 0) {
-      console.log(`[TokenMeta] No pairs found for ${address}`);
       return null;
     }
 
@@ -110,8 +107,7 @@ async function fetchFromDexScreener(
       priceUsd: pair.priceUsd ? parseFloat(pair.priceUsd) : null,
       priceChange24h: pair.priceChange?.h24 ?? null,
     };
-  } catch (error) {
-    console.warn(`[TokenMeta] Failed to fetch from DexScreener:`, error);
+  } catch {
     return null;
   }
 }
@@ -183,7 +179,7 @@ export async function prefetchTokenMeta(
 
   if (toFetch.length === 0) return;
 
-  console.log(`[TokenMeta] Prefetching ${toFetch.length} tokens...`);
+  if (import.meta.env.DEV) console.log(`[TokenMeta] Prefetching ${toFetch.length} tokens...`);
 
   // Fetch in small batches to avoid rate limiting
   const BATCH_SIZE = 3;

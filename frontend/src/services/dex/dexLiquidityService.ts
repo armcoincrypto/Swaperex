@@ -32,7 +32,6 @@ export async function getPoolLiquidity(
 ): Promise<LiquidityData | null> {
   const chainName = CHAIN_NAMES[chainId];
   if (!chainName) {
-    console.warn(`[Liquidity] Unsupported chain: ${chainId}`);
     return null;
   }
 
@@ -50,7 +49,6 @@ export async function getPoolLiquidity(
     });
 
     if (!response.ok) {
-      console.warn(`[Liquidity] DexScreener API error: ${response.status}`);
       return null;
     }
 
@@ -91,7 +89,6 @@ export async function getPoolLiquidity(
 
     return liquidityData;
   } catch (error) {
-    console.warn('[Liquidity] Failed to fetch:', error);
     return null;
   }
 }

@@ -85,11 +85,11 @@ async function pollWatchlist(): Promise<void> {
 
   // Skip if backend unavailable
   if (systemStatus === 'unavailable') {
-    console.log('[WatchlistMonitor] Backend unavailable, skipping poll');
+    import.meta.env.DEV && console.log('[WatchlistMonitor] Backend unavailable, skipping poll');
     return;
   }
 
-  console.log(`[WatchlistMonitor] Polling ${tokens.length} tokens...`);
+  import.meta.env.DEV && console.log(`[WatchlistMonitor] Polling ${tokens.length} tokens...`);
   lastPollTime = Date.now();
 
   for (const token of tokens) {
@@ -98,7 +98,7 @@ async function pollWatchlist(): Promise<void> {
 
       if (!response) {
         // Backend might be down, trigger backoff
-        console.warn('[WatchlistMonitor] No response, entering backoff');
+        import.meta.env.DEV && console.warn('[WatchlistMonitor] No response, entering backoff');
         enterBackoff();
         return;
       }
@@ -128,7 +128,7 @@ async function pollWatchlist(): Promise<void> {
             recurrence: response.liquidity.recurrence,
             timestamp: Date.now(),
           });
-          console.log('[WatchlistMonitor] New liquidity signal recorded for', token.address);
+          import.meta.env.DEV && console.log('[WatchlistMonitor] New liquidity signal recorded for', token.address);
         }
       }
 
@@ -157,14 +157,14 @@ async function pollWatchlist(): Promise<void> {
             recurrence: response.risk.recurrence,
             timestamp: Date.now(),
           });
-          console.log('[WatchlistMonitor] New risk signal recorded for', token.address);
+          import.meta.env.DEV && console.log('[WatchlistMonitor] New risk signal recorded for', token.address);
         }
       }
 
       // Small delay between requests to avoid rate limiting
       await new Promise((resolve) => setTimeout(resolve, 200));
     } catch (error) {
-      console.error('[WatchlistMonitor] Error polling token:', token.address, error);
+      import.meta.env.DEV && console.error('[WatchlistMonitor] Error polling token:', token.address, error);
       // Don't backoff on individual token errors, continue with next
     }
   }
@@ -177,11 +177,11 @@ function enterBackoff(): void {
   if (isBackingOff) return;
 
   isBackingOff = true;
-  console.log('[WatchlistMonitor] Entering backoff for 2 minutes');
+  import.meta.env.DEV && console.log('[WatchlistMonitor] Entering backoff for 2 minutes');
 
   setTimeout(() => {
     isBackingOff = false;
-    console.log('[WatchlistMonitor] Backoff complete, resuming');
+    import.meta.env.DEV && console.log('[WatchlistMonitor] Backoff complete, resuming');
   }, BACKOFF_INTERVAL_MS);
 }
 
@@ -190,12 +190,12 @@ function enterBackoff(): void {
  */
 export function startWatchlistMonitor(): void {
   if (isRunning) {
-    console.log('[WatchlistMonitor] Already running');
+    import.meta.env.DEV && console.log('[WatchlistMonitor] Already running');
     return;
   }
 
   isRunning = true;
-  console.log('[WatchlistMonitor] Starting...');
+  import.meta.env.DEV && console.log('[WatchlistMonitor] Starting...');
 
   // Initial poll after short delay
   setTimeout(() => {
@@ -223,7 +223,7 @@ export function stopWatchlistMonitor(): void {
     clearInterval(monitorInterval);
     monitorInterval = null;
   }
-  console.log('[WatchlistMonitor] Stopped');
+  import.meta.env.DEV && console.log('[WatchlistMonitor] Stopped');
 }
 
 /**
@@ -247,7 +247,7 @@ export async function pollSingleToken(chainId: number, address: string): Promise
   const systemStatus = useSystemStatusStore.getState().status;
 
   if (systemStatus === 'unavailable') {
-    console.log('[WatchlistMonitor] Backend unavailable, cannot poll');
+    import.meta.env.DEV && console.log('[WatchlistMonitor] Backend unavailable, cannot poll');
     return;
   }
 
@@ -258,7 +258,7 @@ export async function pollSingleToken(chainId: number, address: string): Promise
   );
 
   if (!token) {
-    console.log('[WatchlistMonitor] Token not in watchlist');
+    import.meta.env.DEV && console.log('[WatchlistMonitor] Token not in watchlist');
     return;
   }
 
@@ -268,7 +268,7 @@ export async function pollSingleToken(chainId: number, address: string): Promise
     const response = await fetchSignals(chainId, address, false);
 
     if (!response) {
-      console.warn('[WatchlistMonitor] No response for single poll');
+      import.meta.env.DEV && console.warn('[WatchlistMonitor] No response for single poll');
       return;
     }
 
@@ -303,9 +303,9 @@ export async function pollSingleToken(chainId: number, address: string): Promise
       });
     }
 
-    console.log('[WatchlistMonitor] Manual poll complete for', address);
+    import.meta.env.DEV && console.log('[WatchlistMonitor] Manual poll complete for', address);
   } catch (error) {
-    console.error('[WatchlistMonitor] Error in manual poll:', error);
+    import.meta.env.DEV && console.error('[WatchlistMonitor] Error in manual poll:', error);
   }
 }
 
