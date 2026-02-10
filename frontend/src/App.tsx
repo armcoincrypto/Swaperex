@@ -10,11 +10,11 @@ import { WalletConnect } from '@/components/wallet/WalletConnect';
 import { SwapInterface } from '@/components/swap/SwapInterface';
 import { WithdrawalInterface } from '@/components/withdrawal/WithdrawalInterface';
 import { TokenList } from '@/components/balances/TokenList';
+import { PortfolioPage } from '@/components/portfolio/PortfolioPage';
 import { ChainWarningBanner } from '@/components/chain/ChainWarning';
 import { ToastContainer } from '@/components/common/Toast';
 import { GlobalErrorDisplay } from '@/components/common/GlobalErrorDisplay';
 import { NetworkSelector } from '@/components/common/NetworkSelector';
-import { SwapHistory } from '@/components/history/SwapHistory';
 import { TokenScreener } from '@/components/screener/TokenScreener';
 import { RadarPanel } from '@/components/radar/RadarPanel';
 import { AboutPage, TermsPage, PrivacyPage, DisclaimerPage } from '@/components/pages/StaticPages';
@@ -113,26 +113,26 @@ export function App() {
     setCurrentPage('swap');
   };
 
-  // Handle swap from portfolio - prefill from token and go to swap
-  const handlePortfolioSwap = (symbol: string) => {
-    const token = getTokenBySymbol(symbol, chainId || 1);
+  // Handle swap from portfolio v2 - prefill from token and go to swap
+  const handlePortfolioSwapV2 = (symbol: string, targetChainId: number) => {
+    const cid = targetChainId || chainId || 1;
+    const token = getTokenBySymbol(symbol, cid);
     if (token) {
       setFromAsset({
         symbol: token.symbol,
         name: token.name,
-        chain: chainId === 56 ? 'bsc' : 'ethereum',
+        chain: cid === 56 ? 'bsc' : cid === 137 ? 'polygon' : 'ethereum',
         decimals: token.decimals,
-        is_native: symbol === 'ETH' || symbol === 'BNB',
+        is_native: symbol === 'ETH' || symbol === 'BNB' || symbol === 'MATIC',
         contract_address: token.address,
         logo_url: token.logoURI,
       });
-      // Set USDT as default "to" token
-      const stablecoin = getTokenBySymbol('USDT', chainId || 1);
+      const stablecoin = getTokenBySymbol('USDT', cid);
       if (stablecoin && stablecoin.symbol !== symbol) {
         setToAsset({
           symbol: stablecoin.symbol,
           name: stablecoin.name,
-          chain: chainId === 56 ? 'bsc' : 'ethereum',
+          chain: cid === 56 ? 'bsc' : cid === 137 ? 'polygon' : 'ethereum',
           decimals: stablecoin.decimals,
           is_native: false,
           contract_address: stablecoin.address,
@@ -310,27 +310,10 @@ export function App() {
         )}
 
         {currentPage === 'portfolio' && (
-          <div className="max-w-2xl mx-auto">
-            {isConnected ? (
-              <>
-                <TokenList
-                  onSwapToken={handlePortfolioSwap}
-                  showSwapButtons={true}
-                />
-                <div className="mt-8">
-                  <SwapHistory onRepeatSwap={handleRepeatSwap} />
-                </div>
-              </>
-            ) : (
-              <div className="text-center py-16">
-                <h2 className="text-2xl font-bold mb-4">Connect Your Wallet</h2>
-                <p className="text-dark-400 mb-6">
-                  Connect your wallet to view your portfolio and token balances.
-                </p>
-                <WalletConnect />
-              </div>
-            )}
-          </div>
+          <PortfolioPage
+            onSwapToken={handlePortfolioSwapV2}
+            onRepeatSwap={handleRepeatSwap}
+          />
         )}
 
         {currentPage === 'radar' && (
