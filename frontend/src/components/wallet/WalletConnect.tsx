@@ -257,6 +257,8 @@ export function WalletConnect() {
         <div className="text-sm text-dark-400 mb-1">Enter wallet address to view</div>
         <div className="flex items-center gap-2">
           <input
+            id="wallet-address"
+            name="wallet-address"
             type="text"
             placeholder="0x..."
             value={readOnlyAddress}

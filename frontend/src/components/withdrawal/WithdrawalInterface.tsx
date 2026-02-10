@@ -232,6 +232,8 @@ export function WithdrawalInterface() {
             )}
           </div>
           <input
+            id="withdraw-amount"
+            name="withdraw-amount"
             type="text"
             placeholder="0.0"
             value={input.amount}
@@ -253,6 +255,8 @@ export function WithdrawalInterface() {
             <span className="text-sm text-dark-400">Destination Address</span>
           </div>
           <input
+            id="withdraw-destination"
+            name="withdraw-destination"
             type="text"
             placeholder="0x..."
             value={input.destinationAddress}

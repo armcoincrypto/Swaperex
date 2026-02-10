@@ -308,6 +308,8 @@ export function TokenCheckInput({ className = '' }: TokenCheckInputProps) {
           </select>
 
           <input
+            id="token-check-address"
+            name="token-check-address"
             ref={inputRef}
             type="text"
             value={tokenAddress}

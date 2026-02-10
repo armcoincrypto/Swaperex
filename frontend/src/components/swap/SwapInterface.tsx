@@ -687,6 +687,8 @@ export function SwapInterface() {
               )}
             </div>
             <input
+              id="swap-from-amount"
+              name="swap-from-amount"
               type="text"
               placeholder="0.0"
               value={fromAmount}
@@ -1145,6 +1147,8 @@ function TokenSelectorDropdown({
       {/* Search Input */}
       <div className="px-3 pb-2 mb-2 border-b border-dark-700">
         <input
+          id="token-search"
+          name="token-search"
           type="text"
           placeholder="Search or paste contract address..."
           value={searchQuery}
@@ -1444,6 +1448,8 @@ function SlippageSettings({
           isCustom ? 'bg-accent/10 border border-accent/30' : 'bg-electro-panel border border-white/[0.06]'
         }`}>
           <input
+            id="slippage-custom"
+            name="slippage-custom"
             type="text"
             placeholder="Custom"
             value={customValue}

@@ -310,6 +310,8 @@ export function ActivityTimeline({ maxGroups = 20, className = '' }: ActivityTim
 
         {/* Search */}
         <input
+          id="activity-search"
+          name="activity-search"
           type="text"
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}

@@ -521,6 +521,8 @@ function DustFilterControls({
     <div className="flex items-center gap-3 text-[10px]">
       <label className="flex items-center gap-1 cursor-pointer">
         <input
+          id="scan-hide-dust"
+          name="scan-hide-dust"
           type="checkbox"
           checked={dustSettings.hideDust}
           onChange={(e) => updateDustSettings({ hideDust: e.target.checked })}
@@ -530,6 +532,8 @@ function DustFilterControls({
       </label>
       <label className="flex items-center gap-1 cursor-pointer">
         <input
+          id="scan-hide-spam"
+          name="scan-hide-spam"
           type="checkbox"
           checked={dustSettings.hideSpam}
           onChange={(e) => updateDustSettings({ hideSpam: e.target.checked })}
@@ -862,6 +866,8 @@ export function WalletScan({ className = '' }: WalletScanProps) {
           <div className="mb-3">
             <div className="flex gap-2">
               <input
+                id="scan-wallet-address"
+                name="scan-wallet-address"
                 type="text"
                 value={customAddress}
                 onChange={(e) => { setCustomAddress(e.target.value); setAddressError(''); }}

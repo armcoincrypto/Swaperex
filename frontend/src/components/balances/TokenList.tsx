@@ -145,6 +145,8 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
           {/* Hide Zero Toggle */}
           <label className="flex items-center gap-2 text-sm text-dark-400 cursor-pointer">
             <input
+              id="hide-zero-balances"
+              name="hide-zero-balances"
               type="checkbox"
               checked={hideZeroBalances}
               onChange={(e) => setHideZeroBalances(e.target.checked)}

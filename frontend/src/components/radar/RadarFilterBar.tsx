@@ -226,6 +226,8 @@ function FilterControls({ isOpen }: { isOpen: boolean }) {
           </label>
           <div className="flex items-center gap-2">
             <input
+              id="radar-confidence"
+              name="radar-confidence"
               type="range"
               min={40}
               max={90}
@@ -292,6 +294,8 @@ function FilterControls({ isOpen }: { isOpen: boolean }) {
             Search
           </label>
           <input
+            id="radar-search"
+            name="radar-search"
             type="text"
             value={filters.searchQuery}
             onChange={(e) => filters.setSearchQuery(e.target.value)}
