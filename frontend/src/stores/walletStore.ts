@@ -83,7 +83,7 @@ export const useWalletStore = create<WalletState>()((set, get) => ({
         }
       } catch (backendError) {
         // Backend unavailable - continue without session (non-custodial mode)
-        console.warn('[Wallet] Backend unavailable, continuing without session:', backendError);
+        // Silent in production: Python backend is optional for web-only mode
       }
 
       const { supportedChainIds } = get();
@@ -114,7 +114,7 @@ export const useWalletStore = create<WalletState>()((set, get) => ({
       try {
         await walletApi.disconnectWallet(address);
       } catch (error) {
-        console.warn('Backend disconnect failed:', error);
+        // Silent: backend is optional for non-custodial mode
       }
     }
 

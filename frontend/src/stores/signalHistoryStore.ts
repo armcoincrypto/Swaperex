@@ -140,7 +140,6 @@ export const useSignalHistoryStore = create<SignalHistoryState>()(
           );
 
           if (isDuplicate || isFallbackDuplicate) {
-            console.log('[SignalHistory] Duplicate entry ignored (hash:', stateHash, ')');
             return state;
           }
 
@@ -149,8 +148,6 @@ export const useSignalHistoryStore = create<SignalHistoryState>()(
 
           // Trim to max entries
           const trimmedEntries = newEntries.slice(0, MAX_ENTRIES);
-
-          console.log('[SignalHistory] New entry added:', entry.type, entry.token, 'hash:', stateHash);
 
           return {
             entries: trimmedEntries,
@@ -161,7 +158,6 @@ export const useSignalHistoryStore = create<SignalHistoryState>()(
 
       clearHistory: () => {
         set({ entries: [], lastUpdated: Date.now() });
-        console.log('[SignalHistory] History cleared');
       },
 
       getRecentEntries: (limit = 10) => {

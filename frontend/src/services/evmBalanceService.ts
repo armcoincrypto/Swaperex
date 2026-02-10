@@ -7,7 +7,7 @@
  * SECURITY: Read-only operations, no signing.
  */
 
-import { Contract, JsonRpcProvider } from 'ethers';
+import { Contract, JsonRpcProvider, Network } from 'ethers';
 import {
   type PortfolioChain,
   type TokenBalance,
@@ -66,14 +66,24 @@ const NATIVE_TOKENS: Record<string, { symbol: string; name: string; decimals: nu
 const NATIVE_ADDRESS = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
 
 /**
- * Create provider for chain
+ * Singleton provider cache — reuses providers across calls to prevent
+ * connection exhaustion. staticNetwork skips eth_chainId detection,
+ * eliminating the infinite "retry in 1s" loop on network errors.
  */
+const providerCache: Record<string, JsonRpcProvider> = {};
+
 function getProvider(chain: string): JsonRpcProvider {
   const rpc = RPC_ENDPOINTS[chain];
   if (!rpc) {
     throw new Error(`Unsupported chain: ${chain}`);
   }
-  return new JsonRpcProvider(rpc);
+
+  if (!providerCache[chain]) {
+    const chainId = CHAIN_IDS[chain];
+    const network = Network.from(chainId);
+    providerCache[chain] = new JsonRpcProvider(rpc, network, { staticNetwork: network });
+  }
+  return providerCache[chain];
 }
 
 /**

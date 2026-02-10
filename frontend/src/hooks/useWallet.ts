@@ -64,7 +64,7 @@ export function useWallet() {
         })) as string[];
 
         if (accounts && accounts.length > 0) {
-          console.log('[Wallet] Auto-reconnecting to:', accounts[0]);
+          import.meta.env.DEV && console.log('[Wallet] Auto-reconnecting to:', accounts[0]);
 
           // Get chain ID
           const chainIdHex = (await window.ethereum.request({
@@ -83,12 +83,12 @@ export function useWallet() {
           await connect(accounts[0], currentChainId, 'injected');
 
           // Fetch balances
-          fetchBalances(accounts[0], ['ethereum', 'bsc', 'polygon']).catch((err) => {
-            console.warn('[Wallet] Auto-reconnect balance fetch failed:', err.message);
+          fetchBalances(accounts[0], ['ethereum', 'bsc', 'polygon']).catch(() => {
+            // Silent: balance fetch is non-critical for connection
           });
         }
-      } catch (err) {
-        console.warn('[Wallet] Auto-reconnect failed:', err);
+      } catch {
+        // Silent: auto-reconnect is best-effort
       }
     };
 
@@ -133,8 +133,8 @@ export function useWallet() {
       await connect(accounts[0], currentChainId, 'injected');
 
       // Fetch balances (non-blocking - connection succeeds even if balances fail)
-      fetchBalances(accounts[0], ['ethereum', 'bsc', 'polygon']).catch((err) => {
-        console.warn('[Wallet] Balance fetch failed (non-critical):', err.message);
+      fetchBalances(accounts[0], ['ethereum', 'bsc', 'polygon']).catch(() => {
+        // Silent: balance fetch is non-critical for connection
       });
     } catch (err) {
       const parsed = parseWalletError(err);
@@ -220,7 +220,7 @@ export function useWallet() {
 
     // Try to recreate provider from window.ethereum if wallet is connected
     if (window.ethereum && address) {
-      console.log('[Wallet] Recreating provider from window.ethereum');
+      import.meta.env.DEV && console.log('[Wallet] Recreating provider from window.ethereum');
       const browserProvider = new BrowserProvider(window.ethereum);
       const walletSigner = await browserProvider.getSigner();
       setProvider(browserProvider);

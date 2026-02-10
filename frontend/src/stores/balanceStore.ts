@@ -7,7 +7,7 @@
  */
 
 import { create } from 'zustand';
-import { JsonRpcProvider, Contract, formatUnits, formatEther } from 'ethers';
+import { JsonRpcProvider, Contract, formatUnits, formatEther, Network } from 'ethers';
 import { useCustomTokenStore } from './customTokenStore';
 
 // Chain RPC endpoints
@@ -70,6 +70,25 @@ export const ERC20_TOKENS: Record<string, Array<{ symbol: string; address: strin
   ],
 };
 
+/**
+ * Singleton provider cache — reuses providers across calls to prevent
+ * connection exhaustion. staticNetwork skips eth_chainId detection,
+ * eliminating the infinite "retry in 1s" loop on network errors.
+ */
+const providerCache: Record<string, JsonRpcProvider> = {};
+
+function getCachedProvider(chain: string): JsonRpcProvider | null {
+  const rpcUrl = RPC_URLS[chain];
+  const chainId = CHAIN_NAME_TO_ID[chain];
+  if (!rpcUrl || !chainId) return null;
+
+  if (!providerCache[chain]) {
+    const network = Network.from(chainId);
+    providerCache[chain] = new JsonRpcProvider(rpcUrl, network, { staticNetwork: network });
+  }
+  return providerCache[chain];
+}
+
 // ERC20 ABI for balanceOf
 const ERC20_ABI = ['function balanceOf(address owner) view returns (uint256)'];
 
@@ -127,8 +146,8 @@ async function fetchERC20Balance(
     const contract = new Contract(tokenAddress, ERC20_ABI, provider);
     const balanceRaw = await contract.balanceOf(walletAddress);
     return formatUnits(balanceRaw, decimals);
-  } catch (err) {
-    console.warn(`[Balance] Failed to fetch ERC20 balance for ${tokenAddress}:`, err);
+  } catch {
+    // Expected: token may not exist on-chain or user holds zero
     return '0';
   }
 }
@@ -152,15 +171,12 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
       await Promise.all(
         chains.map(async (chain) => {
           try {
-            const rpcUrl = RPC_URLS[chain];
             const nativeToken = NATIVE_TOKENS[chain];
+            const provider = getCachedProvider(chain);
 
-            if (!rpcUrl || !nativeToken) {
-              console.warn(`[Balance] Unknown chain: ${chain}`);
+            if (!provider || !nativeToken) {
               return;
             }
-
-            const provider = new JsonRpcProvider(rpcUrl);
 
             // Fetch native balance
             const balanceWei = await provider.getBalance(address);
@@ -252,16 +268,13 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
     set({ isLoading: true });
 
     try {
-      const rpcUrl = RPC_URLS[chain];
       const nativeToken = NATIVE_TOKENS[chain];
+      const provider = getCachedProvider(chain);
 
-      if (!rpcUrl || !nativeToken) {
-        console.warn(`[Balance] Unknown chain: ${chain}`);
+      if (!provider || !nativeToken) {
         set({ isLoading: false });
         return;
       }
-
-      const provider = new JsonRpcProvider(rpcUrl);
 
       // Fetch native balance
       const balanceWei = await provider.getBalance(address);
