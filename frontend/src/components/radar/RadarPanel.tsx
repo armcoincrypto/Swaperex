@@ -15,7 +15,7 @@ import { RadarItem } from './RadarItem';
 import { TierBadge } from '@/components/common/TierBadge';
 import { SignalsStatusBadge } from '@/components/signals/SignalsStatusBadge';
 import { SignalDebugPanel } from '@/components/signals/SignalDebugPanel';
-import { SignalHistoryPanel } from '@/components/signals/SignalHistoryPanel';
+import { ActivityTimeline } from '@/components/signals/ActivityTimeline';
 import { SignalFilters } from '@/components/signals/SignalFilters';
 import { TokenCheckInput } from '@/components/signals/TokenCheckInput';
 import { WatchlistPanel } from '@/components/signals/WatchlistPanel';
@@ -269,7 +269,7 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
                   onClick={() => setShowHistory(true)}
                   className="text-primary-400 hover:underline"
                 >
-                  Signal History
+                  Activity Timeline
                 </button>{' '}
                 for past signals.
               </p>
@@ -361,17 +361,14 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
         }}
       />
 
-      {/* Signal History Section */}
+      {/* Activity Timeline Section */}
       <div className="mt-6">
         <button
           onClick={() => setShowHistory(!showHistory)}
           className="w-full flex items-center justify-between px-4 py-3 bg-dark-800 rounded-lg hover:bg-dark-700 transition-colors mb-3"
         >
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-dark-300">Signal History</span>
-            <span className="px-1.5 py-0.5 bg-dark-700 text-dark-400 text-xs rounded font-mono">
-              Last 24h
-            </span>
+            <span className="text-sm font-medium text-dark-300">Activity Timeline</span>
             {historyEntries.length > 0 && (
               <span className={`px-1.5 py-0.5 text-xs rounded ${
                 hiddenByFilters > 0
@@ -383,11 +380,6 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
                   : historyEntries.length}
               </span>
             )}
-            {hiddenByFilters > 0 && (
-              <span className="text-[10px] text-dark-500 font-mono">
-                (filtered)
-              </span>
-            )}
           </div>
           <span className="text-dark-500 text-xs">
             {showHistory ? '▼' : '▶'}
@@ -395,7 +387,7 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
         </button>
 
         {showHistory && (
-          <SignalHistoryPanel maxEntries={10} />
+          <ActivityTimeline maxGroups={20} />
         )}
       </div>
 
