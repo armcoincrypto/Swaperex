@@ -4,11 +4,15 @@
  * Main portfolio view. Activates usePortfolio hook for multi-chain fetching,
  * syncs to portfolioStore, renders PortfolioHeader + PortfolioTokenTable + ActivityPanel.
  * Supports snapshot hydration for instant load.
+ *
+ * AUDIT FIX-1: Uses individual store selectors (no full-store subscription).
+ * AUDIT FIX-3: Uses hydrateFromSnapshot (doesn't re-stamp snapshotAt).
+ * AUDIT FIX-5: Guards against concurrent refresh calls.
  */
 
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useWalletStore } from '@/stores/walletStore';
-import { usePortfolioStore, isSnapshotValid } from '@/stores/portfolioStore';
+import { usePortfolioStore } from '@/stores/portfolioStore';
 import { usePortfolio } from '@/hooks/usePortfolio';
 import { PortfolioHeader } from './PortfolioHeader';
 import { PortfolioTokenTable } from './PortfolioTokenTable';
@@ -26,7 +30,17 @@ const REFRESH_INTERVAL = 30_000;
 
 export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps) {
   const { address, isConnected } = useWalletStore();
-  const store = usePortfolioStore();
+
+  // Individual selectors — only re-render when specific values change (FIX-1)
+  const setPortfolio = usePortfolioStore((s) => s.setPortfolio);
+  const setLoading = usePortfolioStore((s) => s.setLoading);
+  const setChainError = usePortfolioStore((s) => s.setChainError);
+  const clearErrors = usePortfolioStore((s) => s.clearErrors);
+  const hydrateFromSnapshot = usePortfolioStore((s) => s.hydrateFromSnapshot);
+  const clear = usePortfolioStore((s) => s.clear);
+
+  // Refresh guard — prevent concurrent fetches (FIX-5)
+  const refreshingRef = useRef(false);
 
   // Activate the multi-chain portfolio hook (ETH + BSC + Polygon, no Solana)
   const {
@@ -42,47 +56,52 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
     includeUsdPrices: true,
   });
 
+  // Track loading state for refresh guard
+  useEffect(() => {
+    refreshingRef.current = isLoading;
+  }, [isLoading]);
+
   // Sync hook state → store
   useEffect(() => {
     if (portfolio) {
-      store.setPortfolio(portfolio);
-      store.clearErrors();
+      setPortfolio(portfolio);
+      clearErrors();
 
       // Set per-chain errors if any
       for (const [chain, balance] of Object.entries(portfolio.chains)) {
         if (balance?.error) {
-          store.setChainError(chain as PortfolioChain, balance.error);
+          setChainError(chain as PortfolioChain, balance.error);
         }
       }
     }
-  }, [portfolio]);
+  }, [portfolio, setPortfolio, clearErrors, setChainError]);
 
   useEffect(() => {
-    store.setLoading(isLoading);
-  }, [isLoading]);
+    setLoading(isLoading);
+  }, [isLoading, setLoading]);
 
   useEffect(() => {
     if (error && errorDetails) {
       // Global error — mark all chains
       if (errorDetails.category === 'network') {
-        store.setChainError('ethereum', error);
+        setChainError('ethereum', error);
       }
     }
-  }, [error, errorDetails]);
+  }, [error, errorDetails, setChainError]);
 
-  // Hydrate from snapshot on first mount (instant UI)
+  // Hydrate from snapshot on first mount — doesn't re-stamp snapshotAt (FIX-3)
   useEffect(() => {
-    if (!store.portfolio && store.snapshot && isSnapshotValid(store.snapshotAt)) {
-      store.setPortfolio(store.snapshot);
-    }
-  }, []);
+    hydrateFromSnapshot();
+  }, [hydrateFromSnapshot]);
 
-  // Auto-refresh every 30s
+  // Auto-refresh every 30s with concurrent guard (FIX-5)
   useEffect(() => {
     if (!isConnected || !address) return;
 
     const interval = setInterval(() => {
-      fetchPortfolio();
+      if (!refreshingRef.current) {
+        fetchPortfolio();
+      }
     }, REFRESH_INTERVAL);
 
     return () => clearInterval(interval);
@@ -91,12 +110,14 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
   // Clear store on disconnect
   useEffect(() => {
     if (!isConnected) {
-      store.clear();
+      clear();
     }
-  }, [isConnected]);
+  }, [isConnected, clear]);
 
   const handleRefresh = useCallback(() => {
-    fetchPortfolio();
+    if (!refreshingRef.current) {
+      fetchPortfolio();
+    }
   }, [fetchPortfolio]);
 
   // Not connected

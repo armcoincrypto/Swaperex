@@ -41,6 +41,8 @@ export interface PortfolioStoreState {
   setLoading: (loading: boolean) => void;
   setChainError: (chain: PortfolioChain, error: string | null) => void;
   clearErrors: () => void;
+  /** Hydrate from snapshot without re-stamping snapshotAt */
+  hydrateFromSnapshot: () => boolean;
   setSortMode: (mode: SortMode) => void;
   setHideSmallBalances: (hide: boolean) => void;
   setSmallBalanceThreshold: (threshold: number) => void;
@@ -78,6 +80,15 @@ export const usePortfolioStore = create<PortfolioStoreState>()(
         }),
 
       setLoading: (loading) => set({ loading }),
+
+      hydrateFromSnapshot: () => {
+        const { snapshot, snapshotAt, portfolio } = usePortfolioStore.getState();
+        if (!portfolio && snapshot && isSnapshotValid(snapshotAt)) {
+          set({ portfolio: snapshot, updatedAt: snapshotAt, loading: false });
+          return true;
+        }
+        return false;
+      },
 
       setChainError: (chain, error) =>
         set((s) => ({

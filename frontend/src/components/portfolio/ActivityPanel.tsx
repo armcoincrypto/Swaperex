@@ -11,12 +11,16 @@ import { useWalletStore } from '@/stores/walletStore';
 import { useSwapHistoryStore, type SwapRecord } from '@/stores/swapHistoryStore';
 import {
   fetchMergedActivity,
+  mergeLocalAndExplorer,
   exportActivityCsv,
   exportActivityJson,
   formatActivityTime,
   type ActivityItem,
   type ActivityType,
 } from '@/services/activityService';
+
+/** Explorer-supported chain IDs (FIX-6: added Polygon 137) */
+const ACTIVITY_CHAIN_IDS = [1, 56, 137];
 
 interface ActivityPanelProps {
   onRepeatSwap?: (record: SwapRecord) => void;
@@ -26,39 +30,36 @@ interface ActivityPanelProps {
 type TabFilter = 'all' | 'swap' | 'transfer';
 
 export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelProps) {
-  const { address, chainId, isConnected } = useWalletStore();
-  const { getRecentRecords } = useSwapHistoryStore();
+  const { address, isConnected } = useWalletStore();
   const [items, setItems] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<TabFilter>('all');
 
-  // Get all local records (cross-chain)
-  const localRecords = getRecentRecords(100);
-
-  // Fetch merged activity
+  // FIX-2: Read localRecords inside callback to avoid stale closure
   const fetchActivity = useCallback(async () => {
     if (!address || !isConnected) return;
 
     setLoading(true);
     setError(null);
 
+    // Read fresh records directly from store (not from stale closure)
+    const localRecords = useSwapHistoryStore.getState().records.slice(0, 100);
+
     try {
-      const chainIds = [1, 56]; // ETH + BSC (explorers we support)
-      const merged = await fetchMergedActivity(address, chainIds, localRecords, 10);
+      const merged = await fetchMergedActivity(address, ACTIVITY_CHAIN_IDS, localRecords, 10);
       setItems(merged);
     } catch (err) {
       console.error('[ActivityPanel] Fetch failed:', err);
       setError('Failed to load activity');
       // Fall back to local-only
       if (localRecords.length > 0) {
-        const { mergeLocalAndExplorer } = await import('@/services/activityService');
         setItems(mergeLocalAndExplorer(localRecords, []));
       }
     } finally {
       setLoading(false);
     }
-  }, [address, chainId, isConnected]);
+  }, [address, isConnected]);
 
   useEffect(() => {
     fetchActivity();

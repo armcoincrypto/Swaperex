@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
+  usePortfolioStore,
   flattenPortfolioTokens,
   sortTokens,
   filterTokensBySearch,
@@ -224,6 +225,139 @@ describe('portfolioStore helpers', () => {
     });
     it('returns Polygon for polygon', () => {
       expect(getPortfolioChainLabel('polygon')).toBe('Polygon');
+    });
+  });
+
+  // ── Audit edge case tests ──────────────────────────────────────────
+
+  describe('sortTokens edge cases', () => {
+    it('sorts tokens with null usdValue (treated as 0)', () => {
+      const tokens = [
+        makeToken({ symbol: 'UNKNOWN', usdValue: null, balanceFormatted: '99' }),
+        makeToken({ symbol: 'ETH', usdValue: '3000.00', balanceFormatted: '1' }),
+      ];
+      const sorted = sortTokens(tokens, 'value');
+      expect(sorted[0].symbol).toBe('ETH'); // has value
+      expect(sorted[1].symbol).toBe('UNKNOWN'); // null → 0
+    });
+
+    it('sorts by chain groups correctly', () => {
+      const tokens = [
+        makeToken({ symbol: 'BNB', chain: 'bsc' }),
+        makeToken({ symbol: 'ETH', chain: 'ethereum' }),
+        makeToken({ symbol: 'MATIC', chain: 'polygon' }),
+      ];
+      const sorted = sortTokens(tokens, 'chain');
+      expect(sorted[0].chain).toBe('bsc');
+      expect(sorted[1].chain).toBe('ethereum');
+      expect(sorted[2].chain).toBe('polygon');
+    });
+  });
+
+  describe('filterSmallBalances edge cases', () => {
+    it('treats null usdValue as 0 (hides below threshold)', () => {
+      const tokens = [
+        makeToken({ symbol: 'UNKNOWN', usdValue: null, isNative: false }),
+      ];
+      const filtered = filterSmallBalances(tokens, 1, true);
+      expect(filtered.length).toBe(0);
+    });
+  });
+
+  describe('getChainTotals edge cases', () => {
+    it('treats missing totalUsdValue as 0', () => {
+      const portfolio = makePortfolio({
+        polygon: {
+          chain: 'polygon',
+          chainId: 137,
+          nativeBalance: makeToken({ symbol: 'MATIC', chain: 'polygon', usdValue: null }),
+          tokenBalances: [],
+          totalUsdValue: '',
+          lastUpdated: Date.now(),
+        },
+      });
+      const totals = getChainTotals(portfolio);
+      expect(totals.polygon.total).toBe(0);
+    });
+  });
+
+  describe('hydrateFromSnapshot (store action)', () => {
+    beforeEach(() => {
+      // Reset store between tests
+      usePortfolioStore.setState({
+        portfolio: null,
+        snapshot: null,
+        snapshotAt: 0,
+        loading: false,
+        errors: {},
+        updatedAt: 0,
+        searchQuery: '',
+      });
+    });
+
+    it('hydrates from valid snapshot without re-stamping', () => {
+      const snap = makePortfolio();
+      const originalAt = Date.now() - 5 * 60_000; // 5 min ago (valid)
+      usePortfolioStore.setState({
+        snapshot: snap,
+        snapshotAt: originalAt,
+        portfolio: null,
+      });
+
+      const result = usePortfolioStore.getState().hydrateFromSnapshot();
+      expect(result).toBe(true);
+
+      const state = usePortfolioStore.getState();
+      expect(state.portfolio).toBe(snap);
+      // snapshotAt should NOT be re-stamped
+      expect(state.snapshotAt).toBe(originalAt);
+      // updatedAt should match original snapshotAt
+      expect(state.updatedAt).toBe(originalAt);
+    });
+
+    it('returns false if no snapshot', () => {
+      const result = usePortfolioStore.getState().hydrateFromSnapshot();
+      expect(result).toBe(false);
+    });
+
+    it('returns false if snapshot expired', () => {
+      usePortfolioStore.setState({
+        snapshot: makePortfolio(),
+        snapshotAt: Date.now() - 15 * 60_000, // 15 min ago (expired)
+        portfolio: null,
+      });
+
+      const result = usePortfolioStore.getState().hydrateFromSnapshot();
+      expect(result).toBe(false);
+      expect(usePortfolioStore.getState().portfolio).toBeNull();
+    });
+
+    it('returns false if portfolio already exists', () => {
+      const existing = makePortfolio();
+      usePortfolioStore.setState({
+        portfolio: existing,
+        snapshot: makePortfolio(),
+        snapshotAt: Date.now() - 60_000,
+      });
+
+      const result = usePortfolioStore.getState().hydrateFromSnapshot();
+      expect(result).toBe(false);
+      // Should keep existing portfolio unchanged
+      expect(usePortfolioStore.getState().portfolio).toBe(existing);
+    });
+  });
+
+  describe('formatUsdPrivate edge cases', () => {
+    it('handles zero value', () => {
+      expect(formatUsdPrivate(0, false)).toBe('$0.00');
+    });
+
+    it('handles string zero', () => {
+      expect(formatUsdPrivate('0', false)).toBe('$0.00');
+    });
+
+    it('handles empty string', () => {
+      expect(formatUsdPrivate('', false)).toBe('$0.00');
     });
   });
 });

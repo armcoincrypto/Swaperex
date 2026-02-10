@@ -1,8 +1,11 @@
 /**
  * Portfolio Header
  *
- * Shows: total portfolio value (USD), per-chain chips, refresh button,
+ * Shows: total portfolio value (USD), per-chain status chips, refresh button,
  * last updated time, privacy toggle, and error states.
+ *
+ * AUDIT FIX-4: Tooltips respect privacy mode.
+ * AUDIT FIX-7: Per-chain status indicators (OK / Error) with tooltip detail.
  */
 
 import { useState, useEffect } from 'react';
@@ -95,32 +98,48 @@ export function PortfolioHeader({ onRefresh, className = '' }: PortfolioHeaderPr
         </div>
       </div>
 
-      {/* Chain Chips */}
+      {/* Chain Status Chips (FIX-4: tooltip respects privacy; FIX-7: status indicators) */}
       <div className="flex flex-wrap items-center gap-2 mb-2">
-        {Object.entries(chainTotals).map(([chain, { total, label }]) => (
-          <span
-            key={chain}
-            className={`px-2.5 py-1 rounded-lg text-xs font-medium ${
-              errors[chain as PortfolioChain]
-                ? 'bg-red-900/20 text-red-400'
-                : 'bg-dark-700/60 text-dark-300'
-            }`}
-            title={errors[chain as PortfolioChain] || `${label}: $${total.toFixed(2)}`}
-          >
-            {label}: {formatUsdPrivate(total, privacyMode)}
-          </span>
-        ))}
+        {Object.entries(chainTotals).map(([chain, { total, label }]) => {
+          const chainError = errors[chain as PortfolioChain];
+          const chipTooltip = chainError
+            ? `${label}: Error — ${chainError}`
+            : privacyMode
+            ? `${label}: Hidden`
+            : `${label}: $${total.toFixed(2)}`;
 
-        {/* Error chips */}
+          return (
+            <span
+              key={chain}
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium ${
+                chainError
+                  ? 'bg-red-900/20 text-red-400'
+                  : 'bg-dark-700/60 text-dark-300'
+              }`}
+              title={chipTooltip}
+            >
+              {/* Status dot */}
+              <span
+                className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                  chainError ? 'bg-red-400' : 'bg-green-400'
+                }`}
+              />
+              {label}: {chainError ? 'Error' : formatUsdPrivate(total, privacyMode)}
+            </span>
+          );
+        })}
+
+        {/* Error-only chips (chains with no data at all) */}
         {errorChains
           .filter((c) => !chainTotals[c])
           .map((chain) => (
             <span
               key={chain}
-              className="px-2.5 py-1 rounded-lg text-xs font-medium bg-red-900/20 text-red-400"
-              title={errors[chain] || ''}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-red-900/20 text-red-400"
+              title={`${getPortfolioChainLabel(chain)}: ${errors[chain] || 'Unavailable'}`}
             >
-              {getPortfolioChainLabel(chain)}: Failed
+              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-red-400" />
+              {getPortfolioChainLabel(chain)}: Offline
             </span>
           ))}
       </div>
