@@ -270,6 +270,8 @@ export function ActivityTimeline({ maxGroups = 20, className = '' }: ActivityTim
 
         {/* Severity filter */}
         <select
+          id="activity-severity"
+          name="activity-severity"
           value={severityFilter}
           onChange={e => setSeverityFilter(e.target.value as typeof severityFilter)}
           className="px-2 py-1 bg-dark-700 border border-dark-600 rounded text-[10px] text-dark-300 focus:outline-none"
@@ -299,6 +301,8 @@ export function ActivityTimeline({ maxGroups = 20, className = '' }: ActivityTim
 
         {/* Chain filter */}
         <select
+          id="activity-chain"
+          name="activity-chain"
           value={chainFilter}
           onChange={e => setChainFilter(Number(e.target.value))}
           className="px-2 py-1 bg-dark-700 border border-dark-600 rounded text-[10px] text-dark-300 focus:outline-none"

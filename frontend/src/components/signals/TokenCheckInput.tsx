@@ -298,6 +298,8 @@ export function TokenCheckInput({ className = '' }: TokenCheckInputProps) {
         {/* ── Input Row ─────────────────────────────── */}
         <div className="flex gap-2">
           <select
+            id="token-check-chain"
+            name="token-check-chain"
             value={selectedChainId}
             onChange={(e) => { setSelectedChainId(Number(e.target.value)); setResponse(null); }}
             className="px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-sm text-dark-200 focus:outline-none focus:border-primary-500"

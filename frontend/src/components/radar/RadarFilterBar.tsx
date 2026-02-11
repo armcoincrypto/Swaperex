@@ -272,6 +272,8 @@ function FilterControls({ isOpen }: { isOpen: boolean }) {
             Chain
           </label>
           <select
+            id="radar-chain"
+            name="radar-chain"
             value={filters.chainFilter}
             onChange={(e) => filters.setChainFilter(Number(e.target.value))}
             className="w-full px-2 py-1.5 bg-dark-800 border border-dark-700 rounded text-xs text-dark-200 focus:outline-none focus:border-primary-500"

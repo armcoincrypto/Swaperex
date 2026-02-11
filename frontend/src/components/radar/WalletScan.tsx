@@ -1010,6 +1010,8 @@ export function WalletScan({ className = '' }: WalletScanProps) {
 
                 {/* Sort */}
                 <select
+                  id="scan-sort"
+                  name="scan-sort"
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as SortBy)}
                   className="bg-dark-700 text-dark-300 text-[10px] rounded px-2 py-1 border-none outline-none"
