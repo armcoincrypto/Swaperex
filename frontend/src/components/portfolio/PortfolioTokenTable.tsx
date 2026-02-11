@@ -86,7 +86,7 @@ export function PortfolioTokenTable({ onSwapToken, className = '' }: PortfolioTo
   }
 
   return (
-    <div className={`space-y-3 ${className}`}>
+    <div className={`space-y-3 animate-fadeIn ${className}`}>
       {/* Header with search + sort */}
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-lg font-bold whitespace-nowrap">Your Tokens</h2>

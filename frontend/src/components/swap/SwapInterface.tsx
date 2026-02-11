@@ -749,9 +749,10 @@ export function SwapInterface() {
                 />
               )}
             </div>
-            <div className="flex-1 text-right">
+            {/* Fixed height prevents layout shift when toggling between states */}
+            <div className="flex-1 text-right h-9 flex items-center justify-end">
               {showSpinner ? (
-                <div className="flex items-center justify-end gap-2">
+                <div className="flex items-center gap-2">
                   <LoadingSpinner />
                   <span className="text-dark-400">Getting quote...</span>
                 </div>
@@ -760,9 +761,7 @@ export function SwapInterface() {
                   {formatBalance(swapQuote.amountOutFormatted, 6)}
                 </span>
               ) : fromAmount && parseFloat(fromAmount) > 0 && !insufficientBalance ? (
-                <div className="flex items-center justify-end gap-2">
-                  <span className="text-2xl font-medium text-dark-500">~</span>
-                </div>
+                <span className="text-2xl font-medium text-dark-500">~</span>
               ) : (
                 <span className="text-2xl font-medium text-dark-500">0.0</span>
               )}

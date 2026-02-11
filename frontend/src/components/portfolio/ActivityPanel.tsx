@@ -182,7 +182,7 @@ export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelPro
 
       {/* Activity rows */}
       {filteredItems.length > 0 && (
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 animate-fadeIn">
           {filteredItems.map((item) => (
             <ActivityRow
               key={item.id}

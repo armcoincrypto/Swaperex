@@ -137,7 +137,7 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 animate-fadeIn">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">Your Tokens</h2>

@@ -81,9 +81,13 @@ export function PortfolioHeader({ onRefresh, className = '' }: PortfolioHeaderPr
 
   return (
     <div className={`bg-dark-800/50 rounded-xl border border-dark-700/50 p-4 ${className}`}>
-      {/* Partial Failure Banner */}
-      {degradedChains.length > 0 && (
-        <div className="mb-3 p-2.5 bg-yellow-900/15 border border-yellow-700/30 rounded-lg">
+      {/* Partial Failure Banner — smooth transition instead of abrupt appear/disappear */}
+      <div
+        className={`overflow-hidden transition-all duration-300 ease-in-out ${
+          degradedChains.length > 0 ? 'max-h-40 opacity-100 mb-3' : 'max-h-0 opacity-0 mb-0'
+        }`}
+      >
+        <div className="p-2.5 bg-yellow-900/15 border border-yellow-700/30 rounded-lg">
           {degradedChains.map(({ chain, label, isStale }) => (
             <div key={chain} className="flex items-center gap-2 text-xs text-yellow-400">
               <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -98,7 +102,7 @@ export function PortfolioHeader({ onRefresh, className = '' }: PortfolioHeaderPr
             </div>
           ))}
         </div>
-      )}
+      </div>
 
       {/* Total Portfolio Value */}
       <div className="flex items-start justify-between mb-3">
@@ -106,7 +110,7 @@ export function PortfolioHeader({ onRefresh, className = '' }: PortfolioHeaderPr
           <div className="text-xs text-dark-500 uppercase tracking-wider mb-1">
             Portfolio Value
           </div>
-          <div className="text-3xl font-bold">
+          <div className="text-3xl font-bold h-9 flex items-center">
             {loading && !portfolio ? (
               <span className="animate-pulse text-dark-500">Loading...</span>
             ) : (

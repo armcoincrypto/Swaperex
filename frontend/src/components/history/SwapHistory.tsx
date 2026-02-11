@@ -109,7 +109,7 @@ export function SwapHistory({ onRepeatSwap }: SwapHistoryProps = {}) {
   }
 
   return (
-    <div className="mt-8">
+    <div className="mt-8 animate-fadeIn">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold">Recent Swaps</h2>
         <div className="flex items-center gap-3">
