@@ -28,9 +28,10 @@ await app.register(cors, {
   allowedHeaders: ["Content-Type", "Accept"],
 });
 
-// Rate limiting - 100 requests per minute per IP
+// Rate limiting - 600 requests per minute per IP
+// Portfolio refresh needs ~30+ RPC calls per cycle (native + tokens × chains)
 await app.register(rateLimit, {
-  max: 100,
+  max: 600,
   timeWindow: "1 minute",
 });
 
@@ -318,40 +319,20 @@ app.get("/rpc/test", async () => {
   return { timestamp: Date.now(), results };
 });
 
-app.post<{ Params: { chain: string } }>("/rpc/:chain", async (req, reply) => {
-  // Explicit CORS headers (safety net in case plugin misses)
-  const origin = req.headers.origin;
-  if (origin) {
-    reply.header("Access-Control-Allow-Origin", origin);
-    reply.header("Access-Control-Allow-Methods", "POST, OPTIONS");
-    reply.header("Access-Control-Allow-Headers", "Content-Type");
-  }
+// Only allow read methods (no signing, no state changes)
+const ALLOWED_METHODS = new Set([
+  "eth_call", "eth_getBalance", "eth_getTransactionCount",
+  "eth_getTransactionReceipt", "eth_getTransactionByHash",
+  "eth_blockNumber", "eth_getBlockByNumber", "eth_chainId",
+  "eth_gasPrice", "eth_estimateGas", "eth_getCode",
+  "eth_getLogs", "eth_getStorageAt", "net_version",
+]);
 
-  const { chain } = req.params;
+/** Forward a JSON-RPC payload (single or batch) to chain RPCs with failover */
+async function forwardToRpc(chain: string, payload: any): Promise<any> {
   const targets = RPC_TARGETS[chain];
-  if (!targets) {
-    return reply.code(400).send({ error: `Unsupported chain: ${chain}. Supported: ${Object.keys(RPC_TARGETS).join(", ")}` });
-  }
+  if (!targets) return null;
 
-  // Validate JSON-RPC body
-  const body = req.body as any;
-  if (!body || !body.method) {
-    return reply.code(400).send({ error: "Invalid JSON-RPC request" });
-  }
-
-  // Only allow read methods (no signing, no state changes)
-  const ALLOWED_METHODS = [
-    "eth_call", "eth_getBalance", "eth_getTransactionCount",
-    "eth_getTransactionReceipt", "eth_getTransactionByHash",
-    "eth_blockNumber", "eth_getBlockByNumber", "eth_chainId",
-    "eth_gasPrice", "eth_estimateGas", "eth_getCode",
-    "eth_getLogs", "eth_getStorageAt", "net_version",
-  ];
-  if (!ALLOWED_METHODS.includes(body.method)) {
-    return reply.code(403).send({ error: `Method not allowed: ${body.method}` });
-  }
-
-  // Try RPCs with fallback
   const startIdx = rpcIndex[chain] || 0;
   for (let i = 0; i < targets.length; i++) {
     const idx = (startIdx + i) % targets.length;
@@ -362,26 +343,82 @@ app.post<{ Params: { chain: string } }>("/rpc/:chain", async (req, reply) => {
       const res = await fetch(target, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(payload),
         signal: controller.signal,
       });
       clearTimeout(timeout);
-
       if (!res.ok) continue;
 
       const data = await res.json();
-      // Update index to use this working RPC next time
       rpcIndex[chain] = idx;
       return data;
     } catch {
-      // Try next RPC
       continue;
     }
   }
 
-  // All RPCs failed — rotate to next for future requests
   rpcIndex[chain] = (startIdx + 1) % targets.length;
-  return reply.code(502).send({ error: "All RPC endpoints failed", chain });
+  return null;
+}
+
+app.post<{ Params: { chain: string } }>("/rpc/:chain", async (req, reply) => {
+  // Explicit CORS headers (safety net in case plugin misses)
+  const origin = req.headers.origin;
+  if (origin) {
+    reply.header("Access-Control-Allow-Origin", origin);
+    reply.header("Access-Control-Allow-Methods", "POST, OPTIONS");
+    reply.header("Access-Control-Allow-Headers", "Content-Type");
+  }
+
+  const { chain } = req.params;
+  if (!RPC_TARGETS[chain]) {
+    return reply.code(400).send({ error: `Unsupported chain: ${chain}. Supported: ${Object.keys(RPC_TARGETS).join(", ")}` });
+  }
+
+  const body = req.body as any;
+  if (!body) {
+    return reply.code(400).send({ jsonrpc: "2.0", error: { code: -32600, message: "Empty request body" }, id: null });
+  }
+
+  // ── Batch request (ethers.js v6 batches multiple calls) ──
+  if (Array.isArray(body)) {
+    // Validate all methods in the batch
+    for (const item of body) {
+      if (!item?.method || !ALLOWED_METHODS.has(item.method)) {
+        return reply.send(body.map((item: any) => ({
+          jsonrpc: "2.0",
+          error: { code: -32601, message: `Method not allowed: ${item?.method}` },
+          id: item?.id ?? null,
+        })));
+      }
+    }
+
+    // Forward entire batch to RPC (most RPCs support batch natively)
+    const result = await forwardToRpc(chain, body);
+    if (!result) {
+      return reply.code(502).send(body.map((item: any) => ({
+        jsonrpc: "2.0",
+        error: { code: -32000, message: "All RPC endpoints failed" },
+        id: item?.id ?? null,
+      })));
+    }
+    return result;
+  }
+
+  // ── Single request ──
+  if (!body.method) {
+    return reply.send({ jsonrpc: "2.0", error: { code: -32600, message: "Missing method" }, id: body.id ?? null });
+  }
+
+  if (!ALLOWED_METHODS.has(body.method)) {
+    return reply.send({ jsonrpc: "2.0", error: { code: -32601, message: `Method not allowed: ${body.method}` }, id: body.id ?? null });
+  }
+
+  const result = await forwardToRpc(chain, body);
+  if (!result) {
+    return reply.code(502).send({ jsonrpc: "2.0", error: { code: -32000, message: "All RPC endpoints failed" }, id: body.id ?? null });
+  }
+  return result;
 });
 
 // Start server
