@@ -108,7 +108,7 @@ function setCachedPrice(key: string, price: number): void {
 /**
  * Fetch prices from CoinGecko for multiple tokens
  */
-async function fetchCoinGeckoPrices(
+export async function fetchCoinGeckoPrices(
   symbols: string[]
 ): Promise<Record<string, number>> {
   const prices: Record<string, number> = {};

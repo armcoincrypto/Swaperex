@@ -8,7 +8,7 @@
 
 import type { SwapRecord } from '@/stores/swapHistoryStore';
 import {
-  getMultiChainSwaps,
+  getMultiChainTransactions,
   type Transaction,
   formatTimeAgo as txFormatTimeAgo,
 } from '@/services/transactionHistory';
@@ -67,16 +67,41 @@ export function normalizeLocalRecord(record: SwapRecord): ActivityItem {
   };
 }
 
+/** Known approval method signatures */
+const APPROVAL_METHODS = ['0x095ea7b3', '0x39509351', '0xa22cb465'];
+
+/** Classify transaction type from method ID and context */
+function classifyTransaction(tx: Transaction): { type: ActivityType; title: string } {
+  if (tx.isSwap) {
+    return { type: 'swap', title: tx.swapRouter || 'Swap' };
+  }
+
+  const methodId = tx.methodId?.toLowerCase();
+  if (methodId && APPROVAL_METHODS.includes(methodId)) {
+    return { type: 'approval', title: 'Token Approval' };
+  }
+
+  // Received tokens (value > 0 sent to this address)
+  if (tx.value !== '0' && tx.valueFormatted !== '0') {
+    return { type: 'transfer', title: 'Transfer' };
+  }
+
+  // Contract interaction (has input data but no value)
+  return { type: 'transfer', title: 'Contract Interaction' };
+}
+
 /** Normalize a blockchain Transaction to ActivityItem */
 export function normalizeTransaction(tx: Transaction): ActivityItem {
+  const { type, title } = classifyTransaction(tx);
+
   return {
     id: `chain:${tx.hash}`,
     chainId: tx.chainId,
-    type: tx.isSwap ? 'swap' : 'transfer',
+    type,
     status: tx.status === 'success' ? 'success' : 'failed',
     ts: tx.timestamp,
     txHash: tx.hash,
-    title: tx.swapRouter || (tx.isSwap ? 'Swap' : 'Transfer'),
+    title,
     detail: tx.valueFormatted !== '0' ? tx.valueFormatted : `on ${CHAIN_LABELS[tx.chainId] || 'Chain'}`,
     provider: tx.swapRouter,
     explorerUrl: tx.explorerUrl,
@@ -130,7 +155,7 @@ export async function fetchMergedActivity(
   localRecords: SwapRecord[],
   limitPerChain: number = 10
 ): Promise<ActivityItem[]> {
-  const explorerTxs = await getMultiChainSwaps(address, chainIds, limitPerChain);
+  const explorerTxs = await getMultiChainTransactions(address, chainIds, limitPerChain);
   return mergeLocalAndExplorer(localRecords, explorerTxs);
 }
 

@@ -33,6 +33,8 @@ import {
 import {
   enrichEvmChainBalance,
   enrichSolanaChainBalance,
+  fetchCoinGeckoPrices,
+  applyPricesToChainBalance,
 } from '@/services/priceService';
 import {
   validateWalletAddress,
@@ -181,33 +183,10 @@ export function usePortfolio(
           };
         }
 
-        // Enrich with prices
-        let enriched = rawBalance;
-        let priced = 0;
-        let totalTokens = 0;
-        let priceError: string | null = null;
-
-        if (includeUsdPrices) {
-          try {
-            enriched = await withTimeout(
-              enrichEvmChainBalance(rawBalance),
-              CHAIN_FETCH_TIMEOUT,
-              `${chain}-prices`
-            );
-
-            priced = [enriched.nativeBalance, ...enriched.tokenBalances]
-              .filter((t) => t.usdPrice !== null && t.usdPrice !== undefined).length;
-            totalTokens = 1 + enriched.tokenBalances.length;
-          } catch (err) {
-            logPortfolioLifecycle('Price enrichment failed, using raw balance', { chain });
-            priceError = err instanceof Error ? err.message : 'Price fetch failed';
-          }
-        }
-
         return {
-          chain, balance: enriched, error: null,
+          chain, balance: rawBalance, error: null,
           success: true, latencyMs: Date.now() - startMs,
-          priced, totalTokens, priceError, skippedBackoff: false,
+          priced: 0, totalTokens: 0, priceError: null, skippedBackoff: false,
         };
       } catch (error) {
         const msg = error instanceof Error ? error.message : 'Unknown error';
@@ -225,7 +204,7 @@ export function usePortfolio(
         };
       }
     },
-    [includeUsdPrices]
+    []
   );
 
   /**
@@ -252,10 +231,52 @@ export function usePortfolio(
         evmChains.map((chain) => fetchSingleChain(addr, chain))
       );
 
-      // Collect batch data from results
+      // Batch price enrichment: ONE CoinGecko call for all chains (avoids rate limiting)
       let totalPriced = 0;
       let totalMissing = 0;
       let lastPriceError: string | null = null;
+
+      if (includeUsdPrices) {
+        // Collect all unique symbols across all chains
+        const allSymbols = new Set<string>();
+        for (const result of results) {
+          if (result.balance) {
+            allSymbols.add(result.balance.nativeBalance.symbol);
+            for (const tb of result.balance.tokenBalances) {
+              allSymbols.add(tb.symbol);
+            }
+          }
+        }
+
+        // Fetch all prices in ONE API call
+        let allPrices: Record<string, number> = {};
+        if (allSymbols.size > 0) {
+          try {
+            allPrices = await withTimeout(
+              fetchCoinGeckoPrices([...allSymbols]),
+              CHAIN_FETCH_TIMEOUT,
+              'batch-prices'
+            );
+            logPortfolioLifecycle('Batch prices fetched', {
+              symbols: allSymbols.size,
+              priced: Object.keys(allPrices).length,
+            });
+          } catch (err) {
+            lastPriceError = err instanceof Error ? err.message : 'Price fetch failed';
+            logPortfolioLifecycle('Batch price fetch failed', { error: lastPriceError });
+          }
+        }
+
+        // Apply prices to each chain balance
+        for (const result of results) {
+          if (result.balance) {
+            result.balance = applyPricesToChainBalance(result.balance, allPrices);
+            const allTokens = [result.balance.nativeBalance, ...result.balance.tokenBalances];
+            result.priced = allTokens.filter((t) => t.usdPrice !== null && t.usdPrice !== undefined).length;
+            result.totalTokens = allTokens.length;
+          }
+        }
+      }
 
       const chainResults: Array<{
         chain: PortfolioChain;
@@ -313,7 +334,7 @@ export function usePortfolio(
         lastUpdated: Date.now(),
       };
     },
-    [evmChains, fetchSingleChain]
+    [evmChains, fetchSingleChain, includeUsdPrices]
   );
 
   /**

@@ -20,6 +20,11 @@ const EXPLORER_APIS: Record<number, { api: string; explorer: string; name: strin
     explorer: 'https://bscscan.com',
     name: 'BscScan',
   },
+  137: {
+    api: 'https://api.polygonscan.com/api',
+    explorer: 'https://polygonscan.com',
+    name: 'PolygonScan',
+  },
 };
 
 // Known DEX router addresses for swap detection (lowercase)
@@ -222,6 +227,29 @@ export async function getMultiChainSwaps(
 }
 
 /**
+ * Get ALL transactions across multiple chains (swaps + transfers + approvals)
+ * For the Activity panel which shows all activity types.
+ */
+export async function getMultiChainTransactions(
+  address: string,
+  chainIds: number[],
+  limitPerChain: number = 10
+): Promise<Transaction[]> {
+  const results = await Promise.allSettled(
+    chainIds.map(chainId => getRecentTransactions(address, chainId, limitPerChain))
+  );
+
+  const allTxs: Transaction[] = [];
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      allTxs.push(...result.value);
+    }
+  }
+
+  return allTxs.sort((a, b) => b.timestamp - a.timestamp);
+}
+
+/**
  * Format wei value to readable string
  */
 function formatValue(weiValue: string, chainId: number): string {
@@ -232,7 +260,7 @@ function formatValue(weiValue: string, chainId: number): string {
     if (ether === 0) return '0';
     if (ether < 0.0001) return '< 0.0001';
 
-    const symbol = chainId === 56 ? 'BNB' : 'ETH';
+    const symbol = chainId === 56 ? 'BNB' : chainId === 137 ? 'MATIC' : 'ETH';
     return `${ether.toFixed(4)} ${symbol}`;
   } catch {
     return '0';

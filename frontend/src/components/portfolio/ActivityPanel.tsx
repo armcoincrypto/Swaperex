@@ -27,7 +27,7 @@ interface ActivityPanelProps {
   className?: string;
 }
 
-type TabFilter = 'all' | 'swap' | 'transfer';
+type TabFilter = 'all' | 'swap' | 'transfer' | 'approval';
 
 export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelProps) {
   // Individual selectors — only re-render on address/connection change, not chainId
@@ -101,7 +101,7 @@ export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelPro
         <div className="flex items-center gap-2">
           {/* Tabs */}
           <div className="flex gap-1 p-0.5 bg-dark-800 rounded-lg">
-            {(['all', 'swap', 'transfer'] as TabFilter[]).map((t) => (
+            {(['all', 'swap', 'transfer', 'approval'] as TabFilter[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -111,7 +111,7 @@ export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelPro
                     : 'text-dark-400 hover:text-white'
                 }`}
               >
-                {t === 'all' ? 'All' : t === 'swap' ? 'Swaps' : 'Transfers'}
+                {t === 'all' ? 'All' : t === 'swap' ? 'Swaps' : t === 'transfer' ? 'Transfers' : 'Approvals'}
               </button>
             ))}
           </div>
@@ -275,7 +275,7 @@ function ActivityRow({
   );
 }
 
-function StatusIcon({ status }: { status: string; type: ActivityType }) {
+function StatusIcon({ status, type }: { status: string; type: ActivityType }) {
   const bgColor =
     status === 'success'
       ? 'bg-green-900/30 text-green-400'
@@ -283,21 +283,29 @@ function StatusIcon({ status }: { status: string; type: ActivityType }) {
       ? 'bg-yellow-900/30 text-yellow-400'
       : 'bg-red-900/30 text-red-400';
 
+  // Type-based icons
+  const icon = () => {
+    if (status === 'failed') {
+      return <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />;
+    }
+    if (status === 'pending') {
+      return <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />;
+    }
+    switch (type) {
+      case 'swap':
+        return <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />;
+      case 'approval':
+        return <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />;
+      default:
+        return <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />;
+    }
+  };
+
   return (
     <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${bgColor}`}>
-      {status === 'success' ? (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-        </svg>
-      ) : status === 'pending' ? (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ) : (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      )}
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        {icon()}
+      </svg>
     </div>
   );
 }
