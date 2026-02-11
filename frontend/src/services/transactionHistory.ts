@@ -1,30 +1,21 @@
 /**
  * Transaction History Service
  *
- * Fetches recent transactions from blockchain explorers (Etherscan/BSCScan).
- * READ-ONLY: No backend needed, uses public APIs.
+ * Fetches recent transactions via backend-signals explorer proxy.
+ * The proxy forwards to Etherscan/BSCScan/PolygonScan server-side,
+ * bypassing browser CORS restrictions and rate limits.
  *
- * PRODUCTION: Simple, reliable, no analytics.
- * Improved swap detection and error handling.
+ * READ-ONLY: No signing, no state changes.
  */
 
-// Explorer API endpoints
-const EXPLORER_APIS: Record<number, { api: string; explorer: string; name: string }> = {
-  1: {
-    api: 'https://api.etherscan.io/api',
-    explorer: 'https://etherscan.io',
-    name: 'Etherscan',
-  },
-  56: {
-    api: 'https://api.bscscan.com/api',
-    explorer: 'https://bscscan.com',
-    name: 'BscScan',
-  },
-  137: {
-    api: 'https://api.polygonscan.com/api',
-    explorer: 'https://polygonscan.com',
-    name: 'PolygonScan',
-  },
+// Backend-signals explorer proxy base URL
+const EXPLORER_PROXY = import.meta.env.VITE_SIGNALS_API_URL || 'http://207.180.212.142:4001';
+
+// Chain ID → proxy chain key + explorer base URL (for tx links)
+const EXPLORER_CHAINS: Record<number, { proxyChain: string; explorer: string; name: string }> = {
+  1: { proxyChain: 'eth', explorer: 'https://etherscan.io', name: 'Etherscan' },
+  56: { proxyChain: 'bsc', explorer: 'https://bscscan.com', name: 'BscScan' },
+  137: { proxyChain: 'polygon', explorer: 'https://polygonscan.com', name: 'PolygonScan' },
 };
 
 // Known DEX router addresses for swap detection (lowercase)
@@ -122,12 +113,12 @@ export async function getRecentTransactions(
   chainId: number,
   limit: number = 10
 ): Promise<Transaction[]> {
-  const explorerConfig = EXPLORER_APIS[chainId];
-  if (!explorerConfig) {
+  const chainConfig = EXPLORER_CHAINS[chainId];
+  if (!chainConfig) {
     return [];
   }
 
-  // Check cache — avoids hitting rate-limited APIs every 30s
+  // Check cache — avoids hitting APIs every 30s
   const cacheKey = `${address}:${chainId}:${limit}`;
   const cached = txCache[cacheKey];
   if (cached && Date.now() < cached.expiresAt) {
@@ -135,7 +126,8 @@ export async function getRecentTransactions(
   }
 
   try {
-    const url = new URL(explorerConfig.api);
+    // Use backend-signals proxy (server-side → no CORS, no browser rate limits)
+    const url = new URL(`${EXPLORER_PROXY}/explorer/${chainConfig.proxyChain}`);
     url.searchParams.set('module', 'account');
     url.searchParams.set('action', 'txlist');
     url.searchParams.set('address', address);
@@ -146,7 +138,7 @@ export async function getRecentTransactions(
     url.searchParams.set('sort', 'desc');
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     const response = await fetch(url.toString(), { signal: controller.signal });
     clearTimeout(timeoutId);
@@ -173,7 +165,7 @@ export async function getRecentTransactions(
         isSwap,
         swapRouter: router,
         status: tx.isError === '0' ? 'success' : 'failed',
-        explorerUrl: `${explorerConfig.explorer}/tx/${tx.hash}`,
+        explorerUrl: `${chainConfig.explorer}/tx/${tx.hash}`,
         chainId,
         methodId: tx.input?.slice(0, 10),
       };
@@ -211,17 +203,14 @@ export async function getMultiChainSwaps(
   chainIds: number[],
   limitPerChain: number = 10
 ): Promise<Transaction[]> {
-  const allSwaps: Transaction[] = [];
+  const results = await Promise.allSettled(
+    chainIds.map((chainId) => getRecentSwaps(address, chainId, limitPerChain))
+  );
 
-  for (let i = 0; i < chainIds.length; i++) {
-    try {
-      const swaps = await getRecentSwaps(address, chainIds[i], limitPerChain);
-      allSwaps.push(...swaps);
-    } catch {
-      // Silent per-chain failure
-    }
-    if (i < chainIds.length - 1) {
-      await new Promise((r) => setTimeout(r, 1500));
+  const allSwaps: Transaction[] = [];
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      allSwaps.push(...result.value);
     }
   }
 
@@ -231,27 +220,21 @@ export async function getMultiChainSwaps(
 /**
  * Get ALL transactions across multiple chains (swaps + transfers + approvals)
  * For the Activity panel which shows all activity types.
- *
- * Fetches sequentially with a small delay between chains to avoid rate limits
- * (Etherscan free tier without API key: 1 request per 5 seconds).
+ * Uses backend proxy so parallel requests are safe (no browser rate limits).
  */
 export async function getMultiChainTransactions(
   address: string,
   chainIds: number[],
   limitPerChain: number = 10
 ): Promise<Transaction[]> {
-  const allTxs: Transaction[] = [];
+  const results = await Promise.allSettled(
+    chainIds.map((chainId) => getRecentTransactions(address, chainId, limitPerChain))
+  );
 
-  for (let i = 0; i < chainIds.length; i++) {
-    try {
-      const txs = await getRecentTransactions(address, chainIds[i], limitPerChain);
-      allTxs.push(...txs);
-    } catch {
-      // Silent per-chain failure
-    }
-    // Delay between chains to respect free-tier rate limits
-    if (i < chainIds.length - 1) {
-      await new Promise((r) => setTimeout(r, 1500));
+  const allTxs: Transaction[] = [];
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      allTxs.push(...result.value);
     }
   }
 
@@ -299,7 +282,7 @@ export function formatTimeAgo(timestamp: number): string {
  * Get explorer URL for a transaction
  */
 export function getExplorerUrl(hash: string, chainId: number): string {
-  const config = EXPLORER_APIS[chainId];
+  const config = EXPLORER_CHAINS[chainId];
   if (!config) return '#';
   return `${config.explorer}/tx/${hash}`;
 }

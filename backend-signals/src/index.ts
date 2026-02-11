@@ -421,6 +421,47 @@ app.post<{ Params: { chain: string } }>("/rpc/:chain", async (req, reply) => {
   return result;
 });
 
+// ── Explorer API Proxy (bypasses browser CORS/rate-limit issues) ─────
+// Frontend calls /explorer/:chain?module=account&action=txlist&...
+// We forward server-side to Etherscan/BSCScan/PolygonScan.
+
+const EXPLORER_TARGETS: Record<string, string> = {
+  eth: "https://api.etherscan.io/api",
+  bsc: "https://api.bscscan.com/api",
+  polygon: "https://api.polygonscan.com/api",
+};
+
+app.get<{ Params: { chain: string } }>("/explorer/:chain", async (req, reply) => {
+  const { chain } = req.params;
+  const target = EXPLORER_TARGETS[chain];
+  if (!target) {
+    return reply.code(400).send({ status: "0", message: `Unsupported chain: ${chain}. Supported: ${Object.keys(EXPLORER_TARGETS).join(", ")}` });
+  }
+
+  // Forward all query params to the explorer API
+  const url = new URL(target);
+  const query = req.query as Record<string, string>;
+  for (const [key, value] of Object.entries(query)) {
+    url.searchParams.set(key, value);
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const res = await fetch(url.toString(), { signal: controller.signal });
+    clearTimeout(timeout);
+
+    if (!res.ok) {
+      return reply.code(502).send({ status: "0", message: `Explorer returned HTTP ${res.status}` });
+    }
+
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    return reply.code(502).send({ status: "0", message: err instanceof Error ? err.message : "Explorer request failed" });
+  }
+});
+
 // Start server
 try {
   await app.listen({ port: PORT, host: "0.0.0.0" });
