@@ -110,7 +110,8 @@ function isSwapTransaction(to: string, inputData: string): { isSwap: boolean; ro
  * rate limits and CORS errors from re-fetching every 30s refresh.
  */
 const txCache: Record<string, { data: Transaction[]; expiresAt: number }> = {};
-const TX_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const TX_CACHE_TTL = 5 * 60 * 1000; // 5 minutes (success)
+const TX_CACHE_TTL_EMPTY = 30 * 1000; // 30 seconds (rate-limited/empty → retry sooner)
 
 /**
  * Fetch recent transactions for an address
@@ -153,8 +154,8 @@ export async function getRecentTransactions(
     const data = await response.json();
 
     if (data.status !== '1' || !Array.isArray(data.result)) {
-      // Cache empty result too — prevents re-hitting rate-limited API
-      txCache[cacheKey] = { data: [], expiresAt: Date.now() + TX_CACHE_TTL };
+      // Short cache on failure/rate-limit — retry sooner
+      txCache[cacheKey] = { data: [], expiresAt: Date.now() + TX_CACHE_TTL_EMPTY };
       return [];
     }
 
@@ -210,39 +211,47 @@ export async function getMultiChainSwaps(
   chainIds: number[],
   limitPerChain: number = 10
 ): Promise<Transaction[]> {
-  const results = await Promise.allSettled(
-    chainIds.map(chainId => getRecentSwaps(address, chainId, limitPerChain))
-  );
-
-  // Combine successful results
   const allSwaps: Transaction[] = [];
-  for (const result of results) {
-    if (result.status === 'fulfilled') {
-      allSwaps.push(...result.value);
+
+  for (let i = 0; i < chainIds.length; i++) {
+    try {
+      const swaps = await getRecentSwaps(address, chainIds[i], limitPerChain);
+      allSwaps.push(...swaps);
+    } catch {
+      // Silent per-chain failure
+    }
+    if (i < chainIds.length - 1) {
+      await new Promise((r) => setTimeout(r, 1500));
     }
   }
 
-  // Sort by timestamp descending
   return allSwaps.sort((a, b) => b.timestamp - a.timestamp);
 }
 
 /**
  * Get ALL transactions across multiple chains (swaps + transfers + approvals)
  * For the Activity panel which shows all activity types.
+ *
+ * Fetches sequentially with a small delay between chains to avoid rate limits
+ * (Etherscan free tier without API key: 1 request per 5 seconds).
  */
 export async function getMultiChainTransactions(
   address: string,
   chainIds: number[],
   limitPerChain: number = 10
 ): Promise<Transaction[]> {
-  const results = await Promise.allSettled(
-    chainIds.map(chainId => getRecentTransactions(address, chainId, limitPerChain))
-  );
-
   const allTxs: Transaction[] = [];
-  for (const result of results) {
-    if (result.status === 'fulfilled') {
-      allTxs.push(...result.value);
+
+  for (let i = 0; i < chainIds.length; i++) {
+    try {
+      const txs = await getRecentTransactions(address, chainIds[i], limitPerChain);
+      allTxs.push(...txs);
+    } catch {
+      // Silent per-chain failure
+    }
+    // Delay between chains to respect free-tier rate limits
+    if (i < chainIds.length - 1) {
+      await new Promise((r) => setTimeout(r, 1500));
     }
   }
 
