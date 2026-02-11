@@ -56,13 +56,13 @@ const CHAIN_IDS: Record<string, number> = {
 };
 
 /**
- * Native token info by chain
+ * Native token info by chain (includes logo URLs from token list)
  */
-const NATIVE_TOKENS: Record<string, { symbol: string; name: string; decimals: number }> = {
-  ethereum: { symbol: 'ETH', name: 'Ethereum', decimals: 18 },
-  bsc: { symbol: 'BNB', name: 'BNB', decimals: 18 },
-  polygon: { symbol: 'MATIC', name: 'Polygon', decimals: 18 },
-  arbitrum: { symbol: 'ETH', name: 'Ethereum', decimals: 18 },
+const NATIVE_TOKENS: Record<string, { symbol: string; name: string; decimals: number; logoUrl: string }> = {
+  ethereum: { symbol: 'ETH', name: 'Ethereum', decimals: 18, logoUrl: 'https://tokens.1inch.io/0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee.png' },
+  bsc: { symbol: 'BNB', name: 'BNB', decimals: 18, logoUrl: 'https://tokens.1inch.io/0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c.png' },
+  polygon: { symbol: 'MATIC', name: 'Polygon', decimals: 18, logoUrl: 'https://tokens.1inch.io/0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0.png' },
+  arbitrum: { symbol: 'ETH', name: 'Ethereum', decimals: 18, logoUrl: 'https://tokens.1inch.io/0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee.png' },
 };
 
 /**
@@ -132,6 +132,7 @@ async function fetchNativeBalance(
     balanceFormatted: formatBalance(balance, nativeInfo.decimals),
     usdValue: null,
     usdPrice: null,
+    logoUrl: nativeInfo.logoUrl,
     isNative: true,
     chain: chain as PortfolioChain,
   };
@@ -248,6 +249,7 @@ export async function fetchEvmChainBalance(
         balanceFormatted: '0',
         usdValue: null,
         usdPrice: null,
+        logoUrl: NATIVE_TOKENS[chain]?.logoUrl,
         isNative: true,
         chain: chain as PortfolioChain,
       },

@@ -29,8 +29,13 @@ interface PortfolioPageProps {
 /** Auto-refresh interval: 30 seconds */
 const REFRESH_INTERVAL = 30_000;
 
+/** Stable chain list — avoids new array reference on every render */
+const PORTFOLIO_EVM_CHAINS: ['ethereum', 'bsc', 'polygon'] = ['ethereum', 'bsc', 'polygon'];
+
 export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps) {
-  const { address, isConnected } = useWalletStore();
+  // Individual selectors — only re-render when address/connection changes, NOT chainId
+  const address = useWalletStore((s) => s.address);
+  const isConnected = useWalletStore((s) => s.isConnected);
 
   // Debug mode check (cached for session)
   const debugMode = useMemo(() => isDebugMode(), []);
@@ -57,7 +62,7 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
   } = usePortfolio(address, {
     autoFetch: true,
     includeSolana: false,
-    evmChains: ['ethereum', 'bsc', 'polygon'],
+    evmChains: PORTFOLIO_EVM_CHAINS,
     includeUsdPrices: true,
   });
 

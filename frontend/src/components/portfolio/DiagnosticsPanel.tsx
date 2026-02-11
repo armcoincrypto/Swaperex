@@ -28,7 +28,7 @@ export function DiagnosticsPanel() {
   const [expanded, setExpanded] = useState(false);
   const [, tick] = useState(0);
 
-  const { address } = useWalletStore();
+  const address = useWalletStore((s) => s.address);
   const snapshotAt = usePortfolioStore((s) => s.snapshotAt);
   const loading = usePortfolioStore((s) => s.loading);
   const refreshStartedAt = usePortfolioStore((s) => s.refreshStartedAt);

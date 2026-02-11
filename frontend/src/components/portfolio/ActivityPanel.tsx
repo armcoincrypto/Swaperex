@@ -30,7 +30,9 @@ interface ActivityPanelProps {
 type TabFilter = 'all' | 'swap' | 'transfer';
 
 export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelProps) {
-  const { address, isConnected } = useWalletStore();
+  // Individual selectors — only re-render on address/connection change, not chainId
+  const address = useWalletStore((s) => s.address);
+  const isConnected = useWalletStore((s) => s.isConnected);
   const [items, setItems] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
