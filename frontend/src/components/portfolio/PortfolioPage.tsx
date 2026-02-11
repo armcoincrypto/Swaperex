@@ -44,6 +44,8 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
 
   // Refresh guard — prevent concurrent fetches (FIX-5)
   const refreshingRef = useRef(false);
+  // Track manual vs auto refresh — only manual shows spinner (prevents 30s flicker)
+  const manualRefreshRef = useRef(false);
 
   // Activate the multi-chain portfolio hook (ETH + BSC + Polygon, no Solana)
   const {
@@ -62,6 +64,7 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
   // Track loading state for refresh guard
   useEffect(() => {
     refreshingRef.current = isLoading;
+    if (!isLoading) manualRefreshRef.current = false;
   }, [isLoading]);
 
   // Sync hook state → store (batched: setPortfolio already sets loading=false)
@@ -71,9 +74,9 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
     }
   }, [portfolio, setPortfolio]);
 
-  // Only sync loading=true (setPortfolio handles loading=false)
+  // Only show loading spinner for manual refreshes + initial load (not background auto-refresh)
   useEffect(() => {
-    if (isLoading) {
+    if (isLoading && manualRefreshRef.current) {
       setLoading(true);
     }
   }, [isLoading, setLoading]);
@@ -114,9 +117,11 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
 
   const handleRefresh = useCallback(() => {
     if (!refreshingRef.current) {
+      manualRefreshRef.current = true;
+      setLoading(true);
       fetchPortfolio();
     }
-  }, [fetchPortfolio]);
+  }, [fetchPortfolio, setLoading]);
 
   // Not connected
   if (!isConnected) {

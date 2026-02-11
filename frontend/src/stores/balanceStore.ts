@@ -12,9 +12,9 @@ import { useCustomTokenStore } from './customTokenStore';
 
 // Chain RPC endpoints
 const RPC_URLS: Record<string, string> = {
-  ethereum: 'https://rpc.ankr.com/eth',
+  ethereum: 'https://cloudflare-eth.com',
   bsc: 'https://bsc-dataseed.binance.org',
-  polygon: 'https://rpc.ankr.com/polygon',
+  polygon: 'https://1rpc.io/matic',
 };
 
 // Chain name to ID mapping (for custom token lookup)
@@ -162,7 +162,9 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
 
   // Fetch balances for multiple chains
   fetchBalances: async (address: string, chains: string[]) => {
-    set({ isLoading: true });
+    // Only show loading spinner on initial fetch (not background auto-refresh)
+    const hasExistingData = Object.keys(get().balances).length > 0;
+    if (!hasExistingData) set({ isLoading: true });
 
     try {
       const balanceMap: Record<string, ChainBalance> = {};
