@@ -33,10 +33,10 @@ import {
  * RPC endpoints by chain
  */
 const RPC_ENDPOINTS: Record<string, string> = {
-  ethereum: 'https://ethereum-rpc.publicnode.com',
+  ethereum: 'https://rpc.ankr.com/eth',
   bsc: 'https://bsc-dataseed.binance.org',
-  polygon: 'https://polygon-rpc.com',
-  arbitrum: 'https://arb1.arbitrum.io/rpc',
+  polygon: 'https://rpc.ankr.com/polygon',
+  arbitrum: 'https://rpc.ankr.com/arbitrum',
 };
 
 /**

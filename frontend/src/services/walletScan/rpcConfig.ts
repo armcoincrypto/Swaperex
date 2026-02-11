@@ -17,9 +17,9 @@ export interface RpcEndpoint {
 /** RPC endpoints per chain, ordered by priority */
 const RPC_CONFIG: Record<ScanChainName, RpcEndpoint[]> = {
   ethereum: [
-    { url: 'https://ethereum-rpc.publicnode.com', name: 'PublicNode', timeout: 8000 },
     { url: 'https://rpc.ankr.com/eth', name: 'Ankr', timeout: 8000 },
     { url: 'https://ethereum-rpc.publicnode.com', name: 'PublicNode', timeout: 10000 },
+    { url: 'https://1rpc.io/eth', name: '1RPC', timeout: 10000 },
   ],
   bsc: [
     { url: 'https://bsc-dataseed.binance.org', name: 'Binance', timeout: 8000 },
@@ -27,9 +27,9 @@ const RPC_CONFIG: Record<ScanChainName, RpcEndpoint[]> = {
     { url: 'https://rpc.ankr.com/bsc', name: 'Ankr', timeout: 10000 },
   ],
   polygon: [
-    { url: 'https://polygon-rpc.com', name: 'PolygonRPC', timeout: 10000 },
     { url: 'https://rpc.ankr.com/polygon', name: 'Ankr', timeout: 10000 },
-    { url: 'https://polygon-bor-rpc.publicnode.com', name: 'PublicNode', timeout: 12000 },
+    { url: 'https://polygon-bor-rpc.publicnode.com', name: 'PublicNode', timeout: 10000 },
+    { url: 'https://1rpc.io/matic', name: '1RPC', timeout: 12000 },
   ],
 };
 
