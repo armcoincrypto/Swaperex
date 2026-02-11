@@ -23,7 +23,7 @@ const SUPPORTED_NETWORKS: NetworkInfo[] = [
     name: 'Ethereum',
     symbol: 'ETH',
     icon: '⟠',
-    rpcUrl: 'https://cloudflare-eth.com',
+    rpcUrl: 'https://ethereum-rpc.publicnode.com',
     explorerUrl: 'https://etherscan.io',
   },
   {
@@ -39,7 +39,7 @@ const SUPPORTED_NETWORKS: NetworkInfo[] = [
     name: 'Polygon',
     symbol: 'MATIC',
     icon: '⬡',
-    rpcUrl: 'https://1rpc.io/matic',
+    rpcUrl: 'https://polygon-bor-rpc.publicnode.com',
     explorerUrl: 'https://polygonscan.com',
   },
 ];

@@ -8,7 +8,7 @@ export const CHAINS = {
     id: 1,
     name: 'Ethereum',
     nativeSymbol: 'ETH',
-    rpcUrl: 'https://cloudflare-eth.com',
+    rpcUrl: 'https://ethereum-rpc.publicnode.com',
     explorer: 'https://etherscan.io',
     logo: '/assets/chains/ethereum.svg',
   },
@@ -24,7 +24,7 @@ export const CHAINS = {
     id: 137,
     name: 'Polygon',
     nativeSymbol: 'MATIC',
-    rpcUrl: 'https://1rpc.io/matic',
+    rpcUrl: 'https://polygon-bor-rpc.publicnode.com',
     explorer: 'https://polygonscan.com',
     logo: '/assets/chains/polygon.svg',
   },
@@ -32,7 +32,7 @@ export const CHAINS = {
     id: 42161,
     name: 'Arbitrum',
     nativeSymbol: 'ETH',
-    rpcUrl: 'https://1rpc.io/arb',
+    rpcUrl: 'https://arb1.arbitrum.io/rpc',
     explorer: 'https://arbiscan.io',
     logo: '/assets/chains/arbitrum.svg',
   },
@@ -69,6 +69,9 @@ export const QUOTE_REFRESH_INTERVAL = 15000;
 
 // API configuration
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+// RPC proxy (backend-signals proxies RPC calls to bypass browser CORS)
+export const RPC_PROXY_URL = import.meta.env.VITE_SIGNALS_API_URL || 'http://207.180.212.142:4001';
 
 // WalletConnect project ID
 export const WALLETCONNECT_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '';

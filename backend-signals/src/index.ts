@@ -242,6 +242,92 @@ app.post<{ Body: ScanSummaryBody }>("/api/v1/wallet/scan-summary", async (req, r
   return result;
 });
 
+// ── RPC Proxy (bypasses browser CORS restrictions) ──────────────────
+// Frontend calls /rpc/:chain with JSON-RPC body; we forward server-side.
+// Server-to-server requests have no CORS restrictions.
+
+const RPC_TARGETS: Record<string, string[]> = {
+  eth: [
+    "https://ethereum-rpc.publicnode.com",
+    "https://1rpc.io/eth",
+    "https://eth.llamarpc.com",
+  ],
+  bsc: [
+    "https://bsc-dataseed.binance.org",
+    "https://bsc-dataseed1.defibit.io",
+  ],
+  polygon: [
+    "https://polygon-bor-rpc.publicnode.com",
+    "https://1rpc.io/matic",
+    "https://polygon.llamarpc.com",
+  ],
+  arbitrum: [
+    "https://arb1.arbitrum.io/rpc",
+    "https://1rpc.io/arb",
+  ],
+};
+
+// Track which RPC index to use per chain (round-robin on failure)
+const rpcIndex: Record<string, number> = {};
+
+app.post<{ Params: { chain: string } }>("/rpc/:chain", async (req, reply) => {
+  const { chain } = req.params;
+  const targets = RPC_TARGETS[chain];
+  if (!targets) {
+    return reply.code(400).send({ error: `Unsupported chain: ${chain}. Supported: ${Object.keys(RPC_TARGETS).join(", ")}` });
+  }
+
+  // Validate JSON-RPC body
+  const body = req.body as any;
+  if (!body || !body.method) {
+    return reply.code(400).send({ error: "Invalid JSON-RPC request" });
+  }
+
+  // Only allow read methods (no signing, no state changes)
+  const ALLOWED_METHODS = [
+    "eth_call", "eth_getBalance", "eth_getTransactionCount",
+    "eth_getTransactionReceipt", "eth_getTransactionByHash",
+    "eth_blockNumber", "eth_getBlockByNumber", "eth_chainId",
+    "eth_gasPrice", "eth_estimateGas", "eth_getCode",
+    "eth_getLogs", "eth_getStorageAt", "net_version",
+  ];
+  if (!ALLOWED_METHODS.includes(body.method)) {
+    return reply.code(403).send({ error: `Method not allowed: ${body.method}` });
+  }
+
+  // Try RPCs with fallback
+  const startIdx = rpcIndex[chain] || 0;
+  for (let i = 0; i < targets.length; i++) {
+    const idx = (startIdx + i) % targets.length;
+    const target = targets[idx];
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      const res = await fetch(target, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (!res.ok) continue;
+
+      const data = await res.json();
+      // Update index to use this working RPC next time
+      rpcIndex[chain] = idx;
+      return data;
+    } catch {
+      // Try next RPC
+      continue;
+    }
+  }
+
+  // All RPCs failed — rotate to next for future requests
+  rpcIndex[chain] = (startIdx + 1) % targets.length;
+  return reply.code(502).send({ error: "All RPC endpoints failed", chain });
+});
+
 // Start server
 try {
   await app.listen({ port: PORT, host: "0.0.0.0" });

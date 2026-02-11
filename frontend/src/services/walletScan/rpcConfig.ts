@@ -14,22 +14,25 @@ export interface RpcEndpoint {
   timeout: number;
 }
 
-/** RPC endpoints per chain, ordered by priority */
+/** RPC proxy base URL (backend-signals proxies to bypass browser CORS) */
+const RPC_PROXY = import.meta.env.VITE_SIGNALS_API_URL || 'http://207.180.212.142:4001';
+
+/** RPC endpoints per chain, ordered by priority (proxy first, direct fallbacks) */
 const RPC_CONFIG: Record<ScanChainName, RpcEndpoint[]> = {
   ethereum: [
-    { url: 'https://cloudflare-eth.com', name: 'Cloudflare', timeout: 8000 },
-    { url: 'https://1rpc.io/eth', name: '1RPC', timeout: 10000 },
+    { url: `${RPC_PROXY}/rpc/eth`, name: 'Proxy', timeout: 12000 },
     { url: 'https://ethereum-rpc.publicnode.com', name: 'PublicNode', timeout: 10000 },
+    { url: 'https://1rpc.io/eth', name: '1RPC', timeout: 10000 },
   ],
   bsc: [
     { url: 'https://bsc-dataseed.binance.org', name: 'Binance', timeout: 8000 },
     { url: 'https://bsc-dataseed1.defibit.io', name: 'DeFiBit', timeout: 8000 },
-    { url: 'https://1rpc.io/bsc', name: '1RPC', timeout: 10000 },
+    { url: `${RPC_PROXY}/rpc/bsc`, name: 'Proxy', timeout: 12000 },
   ],
   polygon: [
-    { url: 'https://1rpc.io/matic', name: '1RPC', timeout: 10000 },
+    { url: `${RPC_PROXY}/rpc/polygon`, name: 'Proxy', timeout: 12000 },
     { url: 'https://polygon-bor-rpc.publicnode.com', name: 'PublicNode', timeout: 10000 },
-    { url: 'https://polygon.llamarpc.com', name: 'LlamaRPC', timeout: 12000 },
+    { url: 'https://1rpc.io/matic', name: '1RPC', timeout: 12000 },
   ],
 };
 

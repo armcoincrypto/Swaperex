@@ -10,11 +10,14 @@ import { create } from 'zustand';
 import { JsonRpcProvider, Contract, formatUnits, formatEther, Network } from 'ethers';
 import { useCustomTokenStore } from './customTokenStore';
 
-// Chain RPC endpoints
+// RPC proxy base URL (backend-signals proxies to bypass browser CORS)
+const RPC_PROXY = import.meta.env.VITE_SIGNALS_API_URL || 'http://207.180.212.142:4001';
+
+// Chain RPC endpoints (ETH/Polygon via proxy; BSC direct — Binance has permissive CORS)
 const RPC_URLS: Record<string, string> = {
-  ethereum: 'https://cloudflare-eth.com',
+  ethereum: `${RPC_PROXY}/rpc/eth`,
   bsc: 'https://bsc-dataseed.binance.org',
-  polygon: 'https://1rpc.io/matic',
+  polygon: `${RPC_PROXY}/rpc/polygon`,
 };
 
 // Chain name to ID mapping (for custom token lookup)

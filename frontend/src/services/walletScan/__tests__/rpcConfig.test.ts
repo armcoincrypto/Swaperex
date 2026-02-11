@@ -27,7 +27,7 @@ describe('walletScan/rpcConfig', () => {
         const rpcs = getRpcEndpoints(chain);
         expect(rpcs.length).toBeGreaterThanOrEqual(2);
         for (const rpc of rpcs) {
-          expect(rpc.url).toMatch(/^https:\/\//);
+          expect(rpc.url).toMatch(/^https?:\/\//);
           expect(rpc.name).toBeTruthy();
           expect(rpc.timeout).toBeGreaterThanOrEqual(5000);
         }
@@ -36,7 +36,7 @@ describe('walletScan/rpcConfig', () => {
 
     it('returns primary RPC first', () => {
       const ethRpcs = getRpcEndpoints('ethereum');
-      expect(ethRpcs[0].name).toBe('Cloudflare');
+      expect(ethRpcs[0].name).toBe('Proxy');
     });
   });
 
