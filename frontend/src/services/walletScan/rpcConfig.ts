@@ -17,7 +17,7 @@ export interface RpcEndpoint {
 /** RPC endpoints per chain, ordered by priority */
 const RPC_CONFIG: Record<ScanChainName, RpcEndpoint[]> = {
   ethereum: [
-    { url: 'https://eth.llamarpc.com', name: 'LlamaRPC', timeout: 8000 },
+    { url: 'https://ethereum-rpc.publicnode.com', name: 'PublicNode', timeout: 8000 },
     { url: 'https://rpc.ankr.com/eth', name: 'Ankr', timeout: 8000 },
     { url: 'https://ethereum-rpc.publicnode.com', name: 'PublicNode', timeout: 10000 },
   ],

@@ -8,7 +8,7 @@ export const CHAINS = {
     id: 1,
     name: 'Ethereum',
     nativeSymbol: 'ETH',
-    rpcUrl: 'https://eth.llamarpc.com',
+    rpcUrl: 'https://ethereum-rpc.publicnode.com',
     explorer: 'https://etherscan.io',
     logo: '/assets/chains/ethereum.svg',
   },

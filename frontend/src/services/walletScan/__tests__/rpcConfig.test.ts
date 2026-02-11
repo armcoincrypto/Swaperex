@@ -36,7 +36,7 @@ describe('walletScan/rpcConfig', () => {
 
     it('returns primary RPC first', () => {
       const ethRpcs = getRpcEndpoints('ethereum');
-      expect(ethRpcs[0].name).toBe('LlamaRPC');
+      expect(ethRpcs[0].name).toBe('PublicNode');
     });
   });
 

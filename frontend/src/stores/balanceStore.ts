@@ -12,7 +12,7 @@ import { useCustomTokenStore } from './customTokenStore';
 
 // Chain RPC endpoints
 const RPC_URLS: Record<string, string> = {
-  ethereum: 'https://eth.llamarpc.com',
+  ethereum: 'https://ethereum-rpc.publicnode.com',
   bsc: 'https://bsc-dataseed.binance.org',
   polygon: 'https://polygon-rpc.com',
 };

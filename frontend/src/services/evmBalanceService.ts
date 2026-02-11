@@ -34,7 +34,7 @@ const ERC20_BALANCE_ABI = [
  * RPC endpoints by chain
  */
 const RPC_ENDPOINTS: Record<string, string> = {
-  ethereum: 'https://eth.llamarpc.com',
+  ethereum: 'https://ethereum-rpc.publicnode.com',
   bsc: 'https://bsc-dataseed.binance.org',
   polygon: 'https://polygon-rpc.com',
   arbitrum: 'https://arb1.arbitrum.io/rpc',

@@ -23,7 +23,7 @@ const SUPPORTED_NETWORKS: NetworkInfo[] = [
     name: 'Ethereum',
     symbol: 'ETH',
     icon: '⟠',
-    rpcUrl: 'https://eth.llamarpc.com',
+    rpcUrl: 'https://ethereum-rpc.publicnode.com',
     explorerUrl: 'https://etherscan.io',
   },
   {
