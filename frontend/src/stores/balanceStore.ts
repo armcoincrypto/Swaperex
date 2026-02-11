@@ -79,11 +79,18 @@ export const ERC20_TOKENS: Record<string, Array<{ symbol: string; address: strin
  * eliminating the infinite "retry in 1s" loop on network errors.
  */
 const providerCache: Record<string, JsonRpcProvider> = {};
+const providerFailCount: Record<string, number> = {};
 
 function getCachedProvider(chain: string): JsonRpcProvider | null {
   const rpcUrl = RPC_URLS[chain];
   const chainId = CHAIN_NAME_TO_ID[chain];
   if (!rpcUrl || !chainId) return null;
+
+  // Recreate provider after 3 consecutive failures (clears stale connections)
+  if (providerCache[chain] && (providerFailCount[chain] || 0) >= 3) {
+    delete providerCache[chain];
+    providerFailCount[chain] = 0;
+  }
 
   if (!providerCache[chain]) {
     const network = Network.from(chainId);

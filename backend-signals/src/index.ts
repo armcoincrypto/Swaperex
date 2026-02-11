@@ -20,10 +20,12 @@ const VERSION = "1.0.0";
 
 const app = Fastify({ logger: true });
 
-// CORS - allow frontend origins
+// CORS - allow frontend origins (use 'true' to reflect any origin;
+// all endpoints are read-only so permissive CORS is safe)
 await app.register(cors, {
-  origin: ALLOWED_ORIGINS,
-  methods: ["GET", "POST"],
+  origin: true,
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Accept"],
 });
 
 // Rate limiting - 100 requests per minute per IP
@@ -270,7 +272,61 @@ const RPC_TARGETS: Record<string, string[]> = {
 // Track which RPC index to use per chain (round-robin on failure)
 const rpcIndex: Record<string, number> = {};
 
+// ── RPC Diagnostic Endpoint ──────────────────────────────────────────
+// Visit /rpc/test in browser to verify server-side RPC connectivity
+
+app.get("/rpc/test", async () => {
+  const results: Record<string, { ok: boolean; rpc: string; blockNumber?: string; error?: string; latencyMs: number }> = {};
+
+  for (const [chain, rpcs] of Object.entries(RPC_TARGETS)) {
+    const rpc = rpcs[0];
+    const start = Date.now();
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      const res = await fetch(rpc, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", method: "eth_blockNumber", params: [], id: 1 }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (!res.ok) {
+        results[chain] = { ok: false, rpc, error: `HTTP ${res.status}`, latencyMs: Date.now() - start };
+        continue;
+      }
+
+      const data = await res.json() as any;
+      results[chain] = {
+        ok: !!data.result,
+        rpc,
+        blockNumber: data.result || undefined,
+        error: data.error?.message || undefined,
+        latencyMs: Date.now() - start,
+      };
+    } catch (err) {
+      results[chain] = {
+        ok: false,
+        rpc,
+        error: err instanceof Error ? err.message : "Unknown error",
+        latencyMs: Date.now() - start,
+      };
+    }
+  }
+
+  return { timestamp: Date.now(), results };
+});
+
 app.post<{ Params: { chain: string } }>("/rpc/:chain", async (req, reply) => {
+  // Explicit CORS headers (safety net in case plugin misses)
+  const origin = req.headers.origin;
+  if (origin) {
+    reply.header("Access-Control-Allow-Origin", origin);
+    reply.header("Access-Control-Allow-Methods", "POST, OPTIONS");
+    reply.header("Access-Control-Allow-Headers", "Content-Type");
+  }
+
   const { chain } = req.params;
   const targets = RPC_TARGETS[chain];
   if (!targets) {

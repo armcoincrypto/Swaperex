@@ -76,11 +76,18 @@ const NATIVE_ADDRESS = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
  * eliminating the infinite "retry in 1s" loop on network errors.
  */
 const providerCache: Record<string, JsonRpcProvider> = {};
+const providerFailCount: Record<string, number> = {};
 
 function getProvider(chain: string): JsonRpcProvider {
   const rpc = RPC_ENDPOINTS[chain];
   if (!rpc) {
     throw new Error(`Unsupported chain: ${chain}`);
+  }
+
+  // Recreate provider after 3 consecutive failures (clears stale connections)
+  if (providerCache[chain] && (providerFailCount[chain] || 0) >= 3) {
+    delete providerCache[chain];
+    providerFailCount[chain] = 0;
   }
 
   if (!providerCache[chain]) {
@@ -89,6 +96,16 @@ function getProvider(chain: string): JsonRpcProvider {
     providerCache[chain] = new JsonRpcProvider(rpc, network, { staticNetwork: network });
   }
   return providerCache[chain];
+}
+
+/** Record provider success — reset failure count */
+function recordProviderSuccess(chain: string): void {
+  providerFailCount[chain] = 0;
+}
+
+/** Record provider failure — increment count for cache clearing */
+function recordProviderFailure(chain: string): void {
+  providerFailCount[chain] = (providerFailCount[chain] || 0) + 1;
 }
 
 /**
@@ -203,6 +220,8 @@ export async function fetchEvmChainBalance(
       tokenCount: tokenBalances.length,
     });
 
+    recordProviderSuccess(chain);
+
     return {
       chain: chain as PortfolioChain,
       chainId,
@@ -212,6 +231,7 @@ export async function fetchEvmChainBalance(
       lastUpdated: Date.now(),
     };
   } catch (error) {
+    recordProviderFailure(chain);
     const message = error instanceof Error ? error.message : 'Failed to fetch balances';
     logPortfolioLifecycle('EVM balance error', { chain, error: message });
 
