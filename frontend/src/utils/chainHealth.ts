@@ -42,8 +42,9 @@ export const BACKOFF_JITTER = 0.2;
 /** Stale data TTL: 30 minutes (show last known data with warning) */
 export const STALE_TTL_MS = 30 * 60 * 1000;
 
-/** Number of consecutive failures before status changes from ok → degraded */
-export const DEGRADED_THRESHOLD = 1;
+/** Number of consecutive failures before status changes from ok → degraded.
+ *  Value of 2 means a single transient failure stays 'ok' (invisible to user). */
+export const DEGRADED_THRESHOLD = 2;
 
 /** Number of consecutive failures before status changes from degraded → down */
 export const DOWN_THRESHOLD = 3;
@@ -76,15 +77,19 @@ export function calculateBackoffDelay(failureCount: number): number {
   return BACKOFF_SCHEDULE_MS[Math.max(0, idx)];
 }
 
-/** Check if chain is in backoff period */
+/** Check if chain is in backoff period.
+ *  Chains still in 'ok' status (transient failure) skip backoff so
+ *  manual Refresh retries immediately. */
 export function isInBackoff(health: ChainHealthState | undefined): boolean {
   if (!health || health.failureCount === 0) return false;
+  if (health.status === 'ok') return false;
   return Date.now() < health.nextRetryAt;
 }
 
-/** Get chain health status from failure count */
+/** Get chain health status from failure count.
+ *  Uses DEGRADED_THRESHOLD so transient failures stay 'ok'. */
 export function getHealthStatus(failureCount: number): ChainHealthStatus {
-  if (failureCount === 0) return 'ok';
+  if (failureCount < DEGRADED_THRESHOLD) return 'ok';
   if (failureCount < DOWN_THRESHOLD) return 'degraded';
   return 'down';
 }

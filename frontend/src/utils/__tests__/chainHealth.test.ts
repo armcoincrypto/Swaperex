@@ -91,10 +91,21 @@ describe('chainHealth utilities', () => {
       expect(isInBackoff(createInitialHealth())).toBe(false);
     });
 
-    it('returns true when nextRetryAt is in the future', () => {
+    it('returns false for ok status even with failures (transient tolerance)', () => {
       const health = {
         ...createInitialHealth(),
+        status: 'ok' as const,
         failureCount: 1,
+        nextRetryAt: Date.now() + 10_000,
+      };
+      expect(isInBackoff(health)).toBe(false);
+    });
+
+    it('returns true for degraded status when nextRetryAt is in the future', () => {
+      const health = {
+        ...createInitialHealth(),
+        status: 'degraded' as const,
+        failureCount: 2,
         nextRetryAt: Date.now() + 10_000,
       };
       expect(isInBackoff(health)).toBe(true);
@@ -103,7 +114,8 @@ describe('chainHealth utilities', () => {
     it('returns false when nextRetryAt has passed', () => {
       const health = {
         ...createInitialHealth(),
-        failureCount: 1,
+        status: 'degraded' as const,
+        failureCount: 2,
         nextRetryAt: Date.now() - 1_000,
       };
       expect(isInBackoff(health)).toBe(false);
@@ -115,8 +127,11 @@ describe('chainHealth utilities', () => {
       expect(getHealthStatus(0)).toBe('ok');
     });
 
-    it('returns degraded for 1-2 failures', () => {
-      expect(getHealthStatus(1)).toBe('degraded');
+    it('returns ok for 1 failure (transient tolerance)', () => {
+      expect(getHealthStatus(1)).toBe('ok');
+    });
+
+    it('returns degraded for 2 failures (DEGRADED_THRESHOLD)', () => {
       expect(getHealthStatus(2)).toBe('degraded');
     });
 
@@ -174,16 +189,26 @@ describe('chainHealth utilities', () => {
       expect(health!.staleData).toBe(balance);
     });
 
-    it('recordChainFailure increments failure count and sets backoff', () => {
+    it('recordChainFailure increments failure count (1st failure stays ok)', () => {
       const store = usePortfolioStore.getState();
       store.recordChainFailure('polygon', 'RPC timeout');
 
       const health = usePortfolioStore.getState().chainHealth.polygon;
       expect(health).toBeDefined();
       expect(health!.failureCount).toBe(1);
-      expect(health!.status).toBe('degraded');
+      expect(health!.status).toBe('ok');
       expect(health!.lastError).toBe('RPC timeout');
       expect(health!.nextRetryAt).toBeGreaterThan(Date.now());
+    });
+
+    it('2nd consecutive failure transitions to degraded', () => {
+      const store = usePortfolioStore.getState();
+      store.recordChainFailure('polygon', 'RPC timeout');
+      store.recordChainFailure('polygon', 'RPC timeout again');
+
+      const health = usePortfolioStore.getState().chainHealth.polygon;
+      expect(health!.failureCount).toBe(2);
+      expect(health!.status).toBe('degraded');
     });
 
     it('consecutive failures increase backoff and change status to down', () => {
@@ -212,6 +237,18 @@ describe('chainHealth utilities', () => {
       expect(health!.nextRetryAt).toBe(0);
     });
 
+    it('all chains fail once → none show degraded (transient tolerance)', () => {
+      const store = usePortfolioStore.getState();
+      store.recordChainFailure('ethereum', 'CORS error');
+      store.recordChainFailure('bsc', 'Rate limited');
+      store.recordChainFailure('polygon', 'Timeout');
+
+      const state = usePortfolioStore.getState();
+      expect(state.chainHealth.ethereum!.status).toBe('ok');
+      expect(state.chainHealth.bsc!.status).toBe('ok');
+      expect(state.chainHealth.polygon!.status).toBe('ok');
+    });
+
     it('failure preserves staleData from prior success within TTL', () => {
       const store = usePortfolioStore.getState();
       const balance = makeChainBalance();
@@ -222,6 +259,46 @@ describe('chainHealth utilities', () => {
 
       const health = usePortfolioStore.getState().chainHealth.ethereum;
       expect(health!.staleData).toBe(balance);
+    });
+
+    it('batchRecordChainResults: all-fail-once leaves all chains ok', () => {
+      const store = usePortfolioStore.getState();
+      store.batchRecordChainResults({
+        chainResults: [
+          { chain: 'ethereum', success: false, balance: null, latencyMs: 0, error: 'CORS' },
+          { chain: 'bsc', success: false, balance: null, latencyMs: 0, error: 'Timeout' },
+          { chain: 'polygon', success: false, balance: null, latencyMs: 0, error: '429' },
+        ],
+        pricing: { lastFetchAt: Date.now(), lastError: null, tokensPriced: 0, tokensMissing: 0 },
+      });
+
+      const state = usePortfolioStore.getState();
+      expect(state.chainHealth.ethereum!.status).toBe('ok');
+      expect(state.chainHealth.bsc!.status).toBe('ok');
+      expect(state.chainHealth.polygon!.status).toBe('ok');
+      expect(state.chainHealth.ethereum!.failureCount).toBe(1);
+    });
+
+    it('batchRecordChainResults: 2nd batch failure transitions to degraded', () => {
+      const store = usePortfolioStore.getState();
+      // First batch — all fail
+      store.batchRecordChainResults({
+        chainResults: [
+          { chain: 'ethereum', success: false, balance: null, latencyMs: 0, error: 'CORS' },
+        ],
+        pricing: { lastFetchAt: Date.now(), lastError: null, tokensPriced: 0, tokensMissing: 0 },
+      });
+      expect(usePortfolioStore.getState().chainHealth.ethereum!.status).toBe('ok');
+
+      // Second batch — still failing
+      store.batchRecordChainResults({
+        chainResults: [
+          { chain: 'ethereum', success: false, balance: null, latencyMs: 0, error: 'CORS again' },
+        ],
+        pricing: { lastFetchAt: Date.now(), lastError: null, tokensPriced: 0, tokensMissing: 0 },
+      });
+      expect(usePortfolioStore.getState().chainHealth.ethereum!.status).toBe('degraded');
+      expect(usePortfolioStore.getState().chainHealth.ethereum!.failureCount).toBe(2);
     });
   });
 
