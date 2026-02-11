@@ -76,6 +76,7 @@ import {
   buildPancakeSwapTx,
   buildPancakeApprovalTx,
 } from '@/services/pancakeSwapTxBuilder';
+import { PANCAKESWAP_V3_ADDRESSES } from '@/services/pancakeSwapQuote';
 import { getTokenBySymbol, isNativeToken } from '@/tokens';
 import { getUniswapV3Addresses, getExplorerTxUrl } from '@/config';
 
@@ -362,8 +363,21 @@ export function useSwap() {
           const allowance = await checkOneInchAllowance(fromSymbol, address, chainId || 1);
           const amountInWei = BigInt(aggregatedQuote.amountIn);
           hasAllowance = allowance === 'unlimited' || BigInt(allowance) >= amountInWei;
+        } else if (aggregatedQuote.provider === 'pancakeswap-v3') {
+          // Check PancakeSwap router allowance (BSC)
+          try {
+            const { Contract } = await import('ethers');
+            const tokenContract = new Contract(tokenIn.address, ALLOWANCE_ABI, provider);
+            const allowance = await tokenContract.allowance(address, PANCAKESWAP_V3_ADDRESSES.router);
+            const amountInWei = BigInt(quote.amountIn.includes('.')
+              ? (parseFloat(quote.amountIn) * 10 ** tokenIn.decimals).toString()
+              : quote.amountIn);
+            hasAllowance = allowance >= amountInWei;
+          } catch {
+            hasAllowance = false;
+          }
         } else {
-          // Check Uniswap router allowance
+          // Check Uniswap router allowance (ETH)
           const amountInWei = tokenIn
             ? BigInt(quote.amountIn.includes('.')
                 ? (parseFloat(quote.amountIn) * 10 ** tokenIn.decimals).toString()

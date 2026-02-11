@@ -457,6 +457,7 @@ export function usePortfolio(
       if (!address || !state.portfolio) return;
 
       logPortfolioLifecycle('Refreshing chain', { chain });
+      const startMs = Date.now();
 
       try {
         let balance: ChainBalance;
@@ -472,6 +473,9 @@ export function usePortfolio(
             balance = await enrichEvmChainBalance(balance);
           }
         }
+
+        // Record success in chain health
+        usePortfolioStore.getState().recordChainSuccess(chain, balance, Date.now() - startMs);
 
         setState((s) => {
           if (!s.portfolio) return s;
@@ -497,7 +501,10 @@ export function usePortfolio(
           };
         });
       } catch (error) {
-        console.error(`[Portfolio] Failed to refresh ${chain}:`, error);
+        const msg = error instanceof Error ? error.message : 'Unknown error';
+        logPortfolioLifecycle('Chain refresh failed', { chain, error: msg });
+        // Record failure in chain health (updates status, backoff, stale data)
+        usePortfolioStore.getState().recordChainFailure(chain, msg);
       }
     },
     [address, state.portfolio, includeUsdPrices]

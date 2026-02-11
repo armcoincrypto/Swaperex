@@ -105,6 +105,8 @@ export function PortfolioTokenTable({ onSwapToken, className = '' }: PortfolioTo
 
           {/* Sort */}
           <select
+            id="portfolio-sort"
+            name="portfolio-sort"
             value={sortMode}
             onChange={(e) => setSortMode(e.target.value as SortMode)}
             className="px-2 py-1.5 bg-dark-800 border border-dark-700 rounded-lg text-xs text-dark-200 focus:outline-none focus:border-primary-500"
@@ -120,7 +122,7 @@ export function PortfolioTokenTable({ onSwapToken, className = '' }: PortfolioTo
       {/* Token count */}
       <div className="text-[11px] text-dark-500">
         {displayTokens.length} token{displayTokens.length !== 1 ? 's' : ''} across{' '}
-        {new Set(displayTokens.map((t) => t.chain)).size} chain{new Set(displayTokens.map((t) => t.chain)).size !== 1 ? 's' : ''}
+        {(() => { const c = new Set(displayTokens.map((t) => t.chain)).size; return `${c} chain${c !== 1 ? 's' : ''}`; })()}
       </div>
 
       {/* Token rows */}
@@ -221,6 +223,8 @@ function PortfolioTokenRow({
         <div className="text-[11px] text-dark-400">
           {token.usdValue
             ? formatUsdPrivate(token.usdValue, privacyMode)
+            : parseFloat(token.balanceFormatted) === 0
+            ? formatUsdPrivate(0, privacyMode)
             : <span className="text-dark-600" title="Price unavailable">—</span>}
           {token.usdPrice && !privacyMode && (
             <span className="text-dark-600 ml-1">

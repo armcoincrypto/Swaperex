@@ -85,10 +85,24 @@ function getCachedPrice(key: string): number | null {
 }
 
 /**
- * Set price in cache
+ * Set price in cache, purging expired entries periodically
  */
+let lastPurge = 0;
+const PURGE_INTERVAL = 5 * 60_000; // 5 minutes
+
 function setCachedPrice(key: string, price: number): void {
   priceCache[key] = { price, timestamp: Date.now() };
+
+  // Purge expired entries every 5 minutes to prevent memory leak
+  if (Date.now() - lastPurge > PURGE_INTERVAL) {
+    lastPurge = Date.now();
+    const now = Date.now();
+    for (const k of Object.keys(priceCache)) {
+      if (now - priceCache[k].timestamp > CACHE_TTL) {
+        delete priceCache[k];
+      }
+    }
+  }
 }
 
 /**

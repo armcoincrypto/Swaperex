@@ -47,11 +47,13 @@ export function SwapPreviewModal({
   const [secondsRemaining, setSecondsRemaining] = useState(QUOTE_EXPIRY_SECONDS);
   const [isExpired, setIsExpired] = useState(false);
 
-  // Reset timer when quote changes or modal opens
+  // Compute remaining time from actual quoteTimestamp (not just reset to 30s)
   useEffect(() => {
     if (isOpen && quote) {
-      setSecondsRemaining(QUOTE_EXPIRY_SECONDS);
-      setIsExpired(false);
+      const elapsed = Math.floor((Date.now() - quote.quoteTimestamp) / 1000);
+      const remaining = Math.max(0, QUOTE_EXPIRY_SECONDS - elapsed);
+      setSecondsRemaining(remaining);
+      setIsExpired(remaining <= 0);
     }
   }, [isOpen, quote]);
 
