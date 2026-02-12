@@ -423,12 +423,17 @@ app.post<{ Params: { chain: string } }>("/rpc/:chain", async (req, reply) => {
 
 // ── Explorer API Proxy (bypasses browser CORS/rate-limit issues) ─────
 // Frontend calls /explorer/:chain?module=account&action=txlist&...
-// We forward server-side to Etherscan/BSCScan/PolygonScan.
+// We forward server-side via Etherscan V2 unified endpoint.
+// V1 was deprecated August 2025 — V2 uses a single URL with chainid param.
+// Docs: https://docs.etherscan.io/etherscan-v2
 
-const EXPLORER_TARGETS: Record<string, string> = {
-  eth: "https://api.etherscan.io/api",
-  bsc: "https://api.bscscan.com/api",
-  polygon: "https://api.polygonscan.com/api",
+const ETHERSCAN_V2_API = "https://api.etherscan.io/v2/api";
+
+const EXPLORER_CHAIN_IDS: Record<string, number> = {
+  eth: 1,
+  bsc: 56,
+  polygon: 137,
+  arbitrum: 42161,
 };
 
 // ── Explorer Diagnostic Endpoint ──────────────────────────────────────
@@ -439,15 +444,14 @@ app.get("/explorer/test", async (req) => {
 
   const results: Record<string, { ok: boolean; status?: string; message?: string; txCount?: number; error?: string; errorDetail?: string; latencyMs: number }> = {};
 
-  const chains = Object.entries(EXPLORER_TARGETS);
+  const chains = Object.entries(EXPLORER_CHAIN_IDS);
   for (let i = 0; i < chains.length; i++) {
-    const [chain, api] = chains[i];
-    // Stagger: 6s delay between chains to respect free-tier rate limits (1 req/5s)
-    if (i > 0) await new Promise(r => setTimeout(r, 6000));
+    const [chain, chainId] = chains[i];
 
     const start = Date.now();
     try {
-      const url = new URL(api);
+      const url = new URL(ETHERSCAN_V2_API);
+      url.searchParams.set("chainid", String(chainId));
       url.searchParams.set("module", "account");
       url.searchParams.set("action", "txlist");
       url.searchParams.set("address", testAddr);
@@ -490,13 +494,14 @@ app.get("/explorer/test", async (req) => {
 
 app.get<{ Params: { chain: string } }>("/explorer/:chain", async (req, reply) => {
   const { chain } = req.params;
-  const target = EXPLORER_TARGETS[chain];
-  if (!target) {
-    return reply.code(400).send({ status: "0", message: `Unsupported chain: ${chain}. Supported: ${Object.keys(EXPLORER_TARGETS).join(", ")}` });
+  const chainId = EXPLORER_CHAIN_IDS[chain];
+  if (!chainId) {
+    return reply.code(400).send({ status: "0", message: `Unsupported chain: ${chain}. Supported: ${Object.keys(EXPLORER_CHAIN_IDS).join(", ")}` });
   }
 
-  // Forward all query params to the explorer API
-  const url = new URL(target);
+  // Build V2 URL: single endpoint with chainid param
+  const url = new URL(ETHERSCAN_V2_API);
+  url.searchParams.set("chainid", String(chainId));
   const query = req.query as Record<string, string>;
   for (const [key, value] of Object.entries(query)) {
     url.searchParams.set(key, value);
