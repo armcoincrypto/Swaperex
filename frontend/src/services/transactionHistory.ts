@@ -144,6 +144,7 @@ export async function getRecentTransactions(
     clearTimeout(timeoutId);
 
     const data = await response.json();
+    console.log(`[TxHistory] ${chainConfig.proxyChain} → HTTP ${response.status}, status=${data.status}, msg=${data.message}, results=${Array.isArray(data.result) ? data.result.length : typeof data.result}`);
 
     if (data.status !== '1' || !Array.isArray(data.result)) {
       // Short cache on failure/rate-limit — retry sooner

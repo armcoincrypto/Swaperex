@@ -49,7 +49,9 @@ export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelPro
     const localRecords = useSwapHistoryStore.getState().records.slice(0, 100);
 
     try {
+      console.log('[ActivityPanel] Fetching activity for', address, 'chains:', ACTIVITY_CHAIN_IDS);
       const merged = await fetchMergedActivity(address, ACTIVITY_CHAIN_IDS, localRecords, 10);
+      console.log('[ActivityPanel] Got', merged.length, 'items:', merged.slice(0, 2));
       setItems(merged);
     } catch (err) {
       console.error('[ActivityPanel] Fetch failed:', err);

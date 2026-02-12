@@ -431,6 +431,57 @@ const EXPLORER_TARGETS: Record<string, string> = {
   polygon: "https://api.polygonscan.com/api",
 };
 
+// ── Explorer Diagnostic Endpoint ──────────────────────────────────────
+// Visit /explorer/test?address=0x... to verify server-side explorer connectivity
+app.get("/explorer/test", async (req) => {
+  const { address } = req.query as { address?: string };
+  const testAddr = address || "0x509c0968eB30D6CB0c3A1c2E55a5320196ed0196";
+
+  const results: Record<string, { ok: boolean; status?: string; message?: string; txCount?: number; error?: string; latencyMs: number }> = {};
+
+  for (const [chain, api] of Object.entries(EXPLORER_TARGETS)) {
+    const start = Date.now();
+    try {
+      const url = new URL(api);
+      url.searchParams.set("module", "account");
+      url.searchParams.set("action", "txlist");
+      url.searchParams.set("address", testAddr);
+      url.searchParams.set("startblock", "0");
+      url.searchParams.set("endblock", "99999999");
+      url.searchParams.set("page", "1");
+      url.searchParams.set("offset", "3");
+      url.searchParams.set("sort", "desc");
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      const res = await fetch(url.toString(), { signal: controller.signal });
+      clearTimeout(timeout);
+
+      if (!res.ok) {
+        results[chain] = { ok: false, error: `HTTP ${res.status}`, latencyMs: Date.now() - start };
+        continue;
+      }
+
+      const data = await res.json() as any;
+      results[chain] = {
+        ok: data.status === "1",
+        status: data.status,
+        message: data.message,
+        txCount: Array.isArray(data.result) ? data.result.length : 0,
+        latencyMs: Date.now() - start,
+      };
+    } catch (err) {
+      results[chain] = {
+        ok: false,
+        error: err instanceof Error ? err.message : "Unknown error",
+        latencyMs: Date.now() - start,
+      };
+    }
+  }
+
+  return { timestamp: Date.now(), address: testAddr, results };
+});
+
 app.get<{ Params: { chain: string } }>("/explorer/:chain", async (req, reply) => {
   const { chain } = req.params;
   const target = EXPLORER_TARGETS[chain];
@@ -445,6 +496,7 @@ app.get<{ Params: { chain: string } }>("/explorer/:chain", async (req, reply) =>
     url.searchParams.set(key, value);
   }
 
+  const start = Date.now();
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
@@ -452,13 +504,18 @@ app.get<{ Params: { chain: string } }>("/explorer/:chain", async (req, reply) =>
     clearTimeout(timeout);
 
     if (!res.ok) {
+      console.log(`[Explorer] ${chain} → HTTP ${res.status} (${Date.now() - start}ms)`);
       return reply.code(502).send({ status: "0", message: `Explorer returned HTTP ${res.status}` });
     }
 
-    const data = await res.json();
+    const data = await res.json() as any;
+    const txCount = Array.isArray(data.result) ? data.result.length : 0;
+    console.log(`[Explorer] ${chain} → status=${data.status} txs=${txCount} (${Date.now() - start}ms)`);
     return data;
   } catch (err) {
-    return reply.code(502).send({ status: "0", message: err instanceof Error ? err.message : "Explorer request failed" });
+    const msg = err instanceof Error ? err.message : "Explorer request failed";
+    console.log(`[Explorer] ${chain} → ERROR: ${msg} (${Date.now() - start}ms)`);
+    return reply.code(502).send({ status: "0", message: msg });
   }
 });
 
