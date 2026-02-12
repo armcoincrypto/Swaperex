@@ -423,42 +423,21 @@ app.post<{ Params: { chain: string } }>("/rpc/:chain", async (req, reply) => {
 
 // ── Explorer API Proxy (bypasses browser CORS/rate-limit issues) ─────
 // Frontend calls /explorer/:chain?module=account&action=txlist&...
-// Uses per-chain V2 endpoints with free API keys from each explorer.
+// Uses Etherscan V2 UNIFIED endpoint for all chains with ONE API key.
 // V1 was deprecated August 2025.
 // Docs: https://docs.etherscan.io/etherscan-v2
 //
-// API keys (free tier — register at each site):
-//   ETHERSCAN_API_KEY   → etherscan.io/apis
-//   BSCSCAN_API_KEY     → bscscan.com/apis
-//   POLYGONSCAN_API_KEY  → polygonscan.com/apis
+// ONE API key needed (free tier — register at etherscan.io/apis):
+//   ETHERSCAN_API_KEY → works for ETH, BSC, Polygon, Arbitrum, etc.
 
-interface ExplorerConfig {
-  v2Api: string;
-  chainId: number;
-  apiKey: string;
-}
+const ETHERSCAN_V2_API = "https://api.etherscan.io/v2/api";
+const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || "";
 
-const EXPLORER_CONFIGS: Record<string, ExplorerConfig> = {
-  eth: {
-    v2Api: "https://api.etherscan.io/v2/api",
-    chainId: 1,
-    apiKey: process.env.ETHERSCAN_API_KEY || "",
-  },
-  bsc: {
-    v2Api: "https://api.bscscan.com/v2/api",
-    chainId: 56,
-    apiKey: process.env.BSCSCAN_API_KEY || "",
-  },
-  polygon: {
-    v2Api: "https://api.polygonscan.com/v2/api",
-    chainId: 137,
-    apiKey: process.env.POLYGONSCAN_API_KEY || "",
-  },
-  arbitrum: {
-    v2Api: "https://api.arbiscan.io/v2/api",
-    chainId: 42161,
-    apiKey: process.env.ARBISCAN_API_KEY || "",
-  },
+const EXPLORER_CHAIN_IDS: Record<string, number> = {
+  eth: 1,
+  bsc: 56,
+  polygon: 137,
+  arbitrum: 42161,
 };
 
 // ── Explorer Diagnostic Endpoint ──────────────────────────────────────
@@ -469,16 +448,16 @@ app.get("/explorer/test", async (req) => {
 
   const results: Record<string, { ok: boolean; status?: string; message?: string; txCount?: number; error?: string; errorDetail?: string; hasApiKey: boolean; latencyMs: number }> = {};
 
-  const chains = Object.entries(EXPLORER_CONFIGS);
+  const chains = Object.entries(EXPLORER_CHAIN_IDS);
   for (let i = 0; i < chains.length; i++) {
-    const [chain, config] = chains[i];
+    const [chain, chainId] = chains[i];
 
     const start = Date.now();
     try {
-      const url = new URL(config.v2Api);
-      url.searchParams.set("chainid", String(config.chainId));
-      if (config.apiKey) {
-        url.searchParams.set("apikey", config.apiKey);
+      const url = new URL(ETHERSCAN_V2_API);
+      url.searchParams.set("chainid", String(chainId));
+      if (ETHERSCAN_API_KEY) {
+        url.searchParams.set("apikey", ETHERSCAN_API_KEY);
       }
       url.searchParams.set("module", "account");
       url.searchParams.set("action", "txlist");
@@ -495,7 +474,7 @@ app.get("/explorer/test", async (req) => {
       clearTimeout(timeout);
 
       if (!res.ok) {
-        results[chain] = { ok: false, error: `HTTP ${res.status}`, hasApiKey: !!config.apiKey, latencyMs: Date.now() - start };
+        results[chain] = { ok: false, error: `HTTP ${res.status}`, hasApiKey: !!ETHERSCAN_API_KEY, latencyMs: Date.now() - start };
         continue;
       }
 
@@ -506,14 +485,14 @@ app.get("/explorer/test", async (req) => {
         message: data.message,
         txCount: Array.isArray(data.result) ? data.result.length : 0,
         errorDetail: typeof data.result === "string" ? data.result : undefined,
-        hasApiKey: !!config.apiKey,
+        hasApiKey: !!ETHERSCAN_API_KEY,
         latencyMs: Date.now() - start,
       };
     } catch (err) {
       results[chain] = {
         ok: false,
         error: err instanceof Error ? err.message : "Unknown error",
-        hasApiKey: !!config.apiKey,
+        hasApiKey: !!ETHERSCAN_API_KEY,
         latencyMs: Date.now() - start,
       };
     }
@@ -524,16 +503,16 @@ app.get("/explorer/test", async (req) => {
 
 app.get<{ Params: { chain: string } }>("/explorer/:chain", async (req, reply) => {
   const { chain } = req.params;
-  const config = EXPLORER_CONFIGS[chain];
-  if (!config) {
-    return reply.code(400).send({ status: "0", message: `Unsupported chain: ${chain}. Supported: ${Object.keys(EXPLORER_CONFIGS).join(", ")}` });
+  const chainId = EXPLORER_CHAIN_IDS[chain];
+  if (!chainId) {
+    return reply.code(400).send({ status: "0", message: `Unsupported chain: ${chain}. Supported: ${Object.keys(EXPLORER_CHAIN_IDS).join(", ")}` });
   }
 
-  // Build per-chain V2 URL with API key
-  const url = new URL(config.v2Api);
-  url.searchParams.set("chainid", String(config.chainId));
-  if (config.apiKey) {
-    url.searchParams.set("apikey", config.apiKey);
+  // Build unified V2 URL with chainid + API key
+  const url = new URL(ETHERSCAN_V2_API);
+  url.searchParams.set("chainid", String(chainId));
+  if (ETHERSCAN_API_KEY) {
+    url.searchParams.set("apikey", ETHERSCAN_API_KEY);
   }
   const query = req.query as Record<string, string>;
   for (const [key, value] of Object.entries(query)) {
@@ -567,15 +546,12 @@ app.get<{ Params: { chain: string } }>("/explorer/:chain", async (req, reply) =>
 // Start server
 try {
   await app.listen({ port: PORT, host: "0.0.0.0" });
-  const explorerKeys = Object.entries(EXPLORER_CONFIGS)
-    .map(([chain, c]) => `${chain}:${c.apiKey ? "✓" : "✗"}`)
-    .join(" ");
   console.log(`
 ╔════════════════════════════════════════════╗
 ║  Signals Backend v${VERSION}                   ║
 ║  Port: ${PORT}                                ║
 ║  Signals: ${SIGNALS_ENABLED ? "ENABLED" : "DISABLED"}                        ║
-║  Explorer keys: ${explorerKeys.padEnd(24)}║
+║  Etherscan V2: ${ETHERSCAN_API_KEY ? "KEY SET" : "NO KEY"}                     ║
 ╚════════════════════════════════════════════╝
   `);
 } catch (err) {
