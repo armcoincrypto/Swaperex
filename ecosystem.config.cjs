@@ -30,7 +30,11 @@ module.exports = {
       cwd: "/root/Swaperex/backend-signals",
       script: "dist/index.js",
       env: {
-        NODE_ENV: "production"
+        NODE_ENV: "production",
+        // Explorer API keys (free tier — register at each site)
+        // ETHERSCAN_API_KEY: "your-key-from-etherscan.io/apis",
+        // BSCSCAN_API_KEY: "your-key-from-bscscan.com/apis",
+        // POLYGONSCAN_API_KEY: "your-key-from-polygonscan.com/apis",
       },
       // Restart policy
       max_restarts: 10,
