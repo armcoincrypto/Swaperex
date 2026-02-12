@@ -144,13 +144,15 @@ export async function getRecentTransactions(
     clearTimeout(timeoutId);
 
     const data = await response.json();
-    console.log(`[TxHistory] ${chainConfig.proxyChain} → HTTP ${response.status}, status=${data.status}, msg=${data.message}, results=${Array.isArray(data.result) ? data.result.length : typeof data.result}`);
 
     if (data.status !== '1' || !Array.isArray(data.result)) {
+      console.log(`[TxHistory] ${chainConfig.proxyChain} → status=${data.status}, msg=${data.message}, error=${typeof data.result === 'string' ? data.result : 'N/A'}`);
       // Short cache on failure/rate-limit — retry sooner
       txCache[cacheKey] = { data: [], expiresAt: Date.now() + TX_CACHE_TTL_EMPTY };
       return [];
     }
+
+    console.log(`[TxHistory] ${chainConfig.proxyChain} → OK, ${data.result.length} transactions`);
 
     const transactions: Transaction[] = data.result.map((tx: any) => {
       const { isSwap, router } = isSwapTransaction(tx.to, tx.input);
@@ -204,14 +206,17 @@ export async function getMultiChainSwaps(
   chainIds: number[],
   limitPerChain: number = 10
 ): Promise<Transaction[]> {
-  const results = await Promise.allSettled(
-    chainIds.map((chainId) => getRecentSwaps(address, chainId, limitPerChain))
-  );
-
   const allSwaps: Transaction[] = [];
-  for (const result of results) {
-    if (result.status === 'fulfilled') {
-      allSwaps.push(...result.value);
+
+  for (let i = 0; i < chainIds.length; i++) {
+    try {
+      const swaps = await getRecentSwaps(address, chainIds[i], limitPerChain);
+      allSwaps.push(...swaps);
+    } catch {
+      // Silent per-chain failure
+    }
+    if (i < chainIds.length - 1) {
+      await new Promise((r) => setTimeout(r, 5500));
     }
   }
 
@@ -221,21 +226,27 @@ export async function getMultiChainSwaps(
 /**
  * Get ALL transactions across multiple chains (swaps + transfers + approvals)
  * For the Activity panel which shows all activity types.
- * Uses backend proxy so parallel requests are safe (no browser rate limits).
+ *
+ * Sequential with delay: Etherscan/BSCScan/PolygonScan rate-limit to
+ * 1 req per 5 seconds per IP (even from the backend proxy server).
  */
 export async function getMultiChainTransactions(
   address: string,
   chainIds: number[],
   limitPerChain: number = 10
 ): Promise<Transaction[]> {
-  const results = await Promise.allSettled(
-    chainIds.map((chainId) => getRecentTransactions(address, chainId, limitPerChain))
-  );
-
   const allTxs: Transaction[] = [];
-  for (const result of results) {
-    if (result.status === 'fulfilled') {
-      allTxs.push(...result.value);
+
+  for (let i = 0; i < chainIds.length; i++) {
+    try {
+      const txs = await getRecentTransactions(address, chainIds[i], limitPerChain);
+      allTxs.push(...txs);
+    } catch {
+      // Silent per-chain failure
+    }
+    // 5.5s delay between chains to respect free-tier rate limit (1 req/5s per IP)
+    if (i < chainIds.length - 1) {
+      await new Promise((r) => setTimeout(r, 5500));
     }
   }
 

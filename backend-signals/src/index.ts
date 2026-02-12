@@ -437,9 +437,14 @@ app.get("/explorer/test", async (req) => {
   const { address } = req.query as { address?: string };
   const testAddr = address || "0x509c0968eB30D6CB0c3A1c2E55a5320196ed0196";
 
-  const results: Record<string, { ok: boolean; status?: string; message?: string; txCount?: number; error?: string; latencyMs: number }> = {};
+  const results: Record<string, { ok: boolean; status?: string; message?: string; txCount?: number; error?: string; errorDetail?: string; latencyMs: number }> = {};
 
-  for (const [chain, api] of Object.entries(EXPLORER_TARGETS)) {
+  const chains = Object.entries(EXPLORER_TARGETS);
+  for (let i = 0; i < chains.length; i++) {
+    const [chain, api] = chains[i];
+    // Stagger: 6s delay between chains to respect free-tier rate limits (1 req/5s)
+    if (i > 0) await new Promise(r => setTimeout(r, 6000));
+
     const start = Date.now();
     try {
       const url = new URL(api);
@@ -468,6 +473,7 @@ app.get("/explorer/test", async (req) => {
         status: data.status,
         message: data.message,
         txCount: Array.isArray(data.result) ? data.result.length : 0,
+        errorDetail: typeof data.result === "string" ? data.result : undefined,
         latencyMs: Date.now() - start,
       };
     } catch (err) {
@@ -510,7 +516,8 @@ app.get<{ Params: { chain: string } }>("/explorer/:chain", async (req, reply) =>
 
     const data = await res.json() as any;
     const txCount = Array.isArray(data.result) ? data.result.length : 0;
-    console.log(`[Explorer] ${chain} → status=${data.status} txs=${txCount} (${Date.now() - start}ms)`);
+    const detail = typeof data.result === "string" ? ` err="${data.result}"` : "";
+    console.log(`[Explorer] ${chain} → status=${data.status} txs=${txCount}${detail} (${Date.now() - start}ms)`);
     return data;
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Explorer request failed";
