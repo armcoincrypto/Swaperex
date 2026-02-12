@@ -441,18 +441,12 @@ const EXPLORER_CHAIN_IDS: Record<string, number> = {
 
 /** Build the correct explorer API URL for a given chain */
 function buildExplorerUrl(chain: string, chainId: number, params: Record<string, string>): string {
-  // BSC: use BSCScan's own API (V2 unified doesn't support BSC on free tier)
-  if (chain === "bsc" && BSCSCAN_API_KEY) {
-    const url = new URL("https://api.bscscan.com/api");
-    if (BSCSCAN_API_KEY) url.searchParams.set("apikey", BSCSCAN_API_KEY);
-    for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-    return url.toString();
-  }
-
-  // All other chains: Etherscan V2 unified endpoint
+  // All chains use Etherscan V2 unified endpoint.
+  // BSC uses a separate API key (migrated BSCScan subscription may have BSC access).
   const url = new URL(ETHERSCAN_V2_API);
   url.searchParams.set("chainid", String(chainId));
-  if (ETHERSCAN_API_KEY) url.searchParams.set("apikey", ETHERSCAN_API_KEY);
+  const key = chain === "bsc" && BSCSCAN_API_KEY ? BSCSCAN_API_KEY : ETHERSCAN_API_KEY;
+  if (key) url.searchParams.set("apikey", key);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   return url.toString();
 }
