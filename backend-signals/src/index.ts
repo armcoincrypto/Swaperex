@@ -423,15 +423,14 @@ app.post<{ Params: { chain: string } }>("/rpc/:chain", async (req, reply) => {
 
 // ── Explorer API Proxy (bypasses browser CORS/rate-limit issues) ─────
 // Frontend calls /explorer/:chain?module=account&action=txlist&...
-// Uses Etherscan V2 UNIFIED endpoint for all chains with ONE API key.
-// V1 was deprecated August 2025.
+// Uses Etherscan V2 UNIFIED endpoint for ETH/Polygon/Arbitrum.
+// BSC requires separate BSCScan API key (free tier at bscscan.com/apis).
+// V1 was deprecated August 2025 on Etherscan; BSCScan may still work with V1+key.
 // Docs: https://docs.etherscan.io/etherscan-v2
-//
-// ONE API key needed (free tier — register at etherscan.io/apis):
-//   ETHERSCAN_API_KEY → works for ETH, BSC, Polygon, Arbitrum, etc.
 
 const ETHERSCAN_V2_API = "https://api.etherscan.io/v2/api";
 const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || "";
+const BSCSCAN_API_KEY = process.env.BSCSCAN_API_KEY || "";
 
 const EXPLORER_CHAIN_IDS: Record<string, number> = {
   eth: 1,
@@ -439,6 +438,24 @@ const EXPLORER_CHAIN_IDS: Record<string, number> = {
   polygon: 137,
   arbitrum: 42161,
 };
+
+/** Build the correct explorer API URL for a given chain */
+function buildExplorerUrl(chain: string, chainId: number, params: Record<string, string>): string {
+  // BSC: use BSCScan's own API (V2 unified doesn't support BSC on free tier)
+  if (chain === "bsc" && BSCSCAN_API_KEY) {
+    const url = new URL("https://api.bscscan.com/api");
+    if (BSCSCAN_API_KEY) url.searchParams.set("apikey", BSCSCAN_API_KEY);
+    for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+    return url.toString();
+  }
+
+  // All other chains: Etherscan V2 unified endpoint
+  const url = new URL(ETHERSCAN_V2_API);
+  url.searchParams.set("chainid", String(chainId));
+  if (ETHERSCAN_API_KEY) url.searchParams.set("apikey", ETHERSCAN_API_KEY);
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  return url.toString();
+}
 
 // ── Explorer Diagnostic Endpoint ──────────────────────────────────────
 // Visit /explorer/test?address=0x... to verify server-side explorer connectivity
@@ -451,30 +468,29 @@ app.get("/explorer/test", async (req) => {
   const chains = Object.entries(EXPLORER_CHAIN_IDS);
   for (let i = 0; i < chains.length; i++) {
     const [chain, chainId] = chains[i];
+    const isBsc = chain === "bsc";
+    const hasKey = isBsc ? !!BSCSCAN_API_KEY : !!ETHERSCAN_API_KEY;
 
     const start = Date.now();
     try {
-      const url = new URL(ETHERSCAN_V2_API);
-      url.searchParams.set("chainid", String(chainId));
-      if (ETHERSCAN_API_KEY) {
-        url.searchParams.set("apikey", ETHERSCAN_API_KEY);
-      }
-      url.searchParams.set("module", "account");
-      url.searchParams.set("action", "txlist");
-      url.searchParams.set("address", testAddr);
-      url.searchParams.set("startblock", "0");
-      url.searchParams.set("endblock", "99999999");
-      url.searchParams.set("page", "1");
-      url.searchParams.set("offset", "3");
-      url.searchParams.set("sort", "desc");
+      const apiUrl = buildExplorerUrl(chain, chainId, {
+        module: "account",
+        action: "txlist",
+        address: testAddr,
+        startblock: "0",
+        endblock: "99999999",
+        page: "1",
+        offset: "3",
+        sort: "desc",
+      });
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 15000);
-      const res = await fetch(url.toString(), { signal: controller.signal });
+      const res = await fetch(apiUrl, { signal: controller.signal });
       clearTimeout(timeout);
 
       if (!res.ok) {
-        results[chain] = { ok: false, error: `HTTP ${res.status}`, hasApiKey: !!ETHERSCAN_API_KEY, latencyMs: Date.now() - start };
+        results[chain] = { ok: false, error: `HTTP ${res.status}`, hasApiKey: hasKey, latencyMs: Date.now() - start };
         continue;
       }
 
@@ -485,14 +501,14 @@ app.get("/explorer/test", async (req) => {
         message: data.message,
         txCount: Array.isArray(data.result) ? data.result.length : 0,
         errorDetail: typeof data.result === "string" ? data.result : undefined,
-        hasApiKey: !!ETHERSCAN_API_KEY,
+        hasApiKey: hasKey,
         latencyMs: Date.now() - start,
       };
     } catch (err) {
       results[chain] = {
         ok: false,
         error: err instanceof Error ? err.message : "Unknown error",
-        hasApiKey: !!ETHERSCAN_API_KEY,
+        hasApiKey: hasKey,
         latencyMs: Date.now() - start,
       };
     }
@@ -508,22 +524,15 @@ app.get<{ Params: { chain: string } }>("/explorer/:chain", async (req, reply) =>
     return reply.code(400).send({ status: "0", message: `Unsupported chain: ${chain}. Supported: ${Object.keys(EXPLORER_CHAIN_IDS).join(", ")}` });
   }
 
-  // Build unified V2 URL with chainid + API key
-  const url = new URL(ETHERSCAN_V2_API);
-  url.searchParams.set("chainid", String(chainId));
-  if (ETHERSCAN_API_KEY) {
-    url.searchParams.set("apikey", ETHERSCAN_API_KEY);
-  }
+  // Build URL: BSC → BSCScan API, others → Etherscan V2 unified
   const query = req.query as Record<string, string>;
-  for (const [key, value] of Object.entries(query)) {
-    url.searchParams.set(key, value);
-  }
+  const apiUrl = buildExplorerUrl(chain, chainId, query);
 
   const start = Date.now();
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
-    const res = await fetch(url.toString(), { signal: controller.signal });
+    const res = await fetch(apiUrl, { signal: controller.signal });
     clearTimeout(timeout);
 
     if (!res.ok) {
@@ -552,6 +561,7 @@ try {
 ║  Port: ${PORT}                                ║
 ║  Signals: ${SIGNALS_ENABLED ? "ENABLED" : "DISABLED"}                        ║
 ║  Etherscan V2: ${ETHERSCAN_API_KEY ? "KEY SET" : "NO KEY"}                     ║
+║  BSCScan:      ${BSCSCAN_API_KEY ? "KEY SET" : "NO KEY"}                     ║
 ╚════════════════════════════════════════════╝
   `);
 } catch (err) {
