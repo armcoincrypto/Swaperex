@@ -55,7 +55,10 @@ export function useWallet() {
   // Auto-reconnect on page load if wallet was previously connected
   useEffect(() => {
     const autoReconnect = async () => {
-      if (!window.ethereum || isConnected || isConnecting) return;
+      if (!window.ethereum || isConnecting) return;
+
+      // Skip if we already have a provider
+      if (provider) return;
 
       try {
         // Check if already connected (doesn't prompt user)
@@ -79,8 +82,10 @@ export function useWallet() {
           setProvider(browserProvider);
           setSigner(walletSigner);
 
-          // Connect to store
-          await connect(accounts[0], currentChainId, 'injected');
+          // Connect to store (only if not already connected)
+          if (!isConnected) {
+            await connect(accounts[0], currentChainId, 'injected');
+          }
 
           // Fetch balances
           fetchBalances(accounts[0], ['ethereum', 'bsc', 'polygon']).catch(() => {
