@@ -14,6 +14,7 @@
  */
 
 import { isAddress } from 'ethers';
+import { SUPPORTED_CHAIN_IDS, getChainById } from '@/config/chains';
 
 /**
  * Validation error types
@@ -58,10 +59,9 @@ export interface SwapValidationInput {
 }
 
 /**
- * Supported chain IDs for swaps
- * PHASE 11: ETH (1) and BSC (56) supported
+ * Supported chain IDs for swaps - derived from chain config (single source of truth)
  */
-const SUPPORTED_CHAIN_IDS = [1, 56]; // Ethereum mainnet and BSC
+const SWAP_SUPPORTED_CHAIN_IDS: readonly number[] = SUPPORTED_CHAIN_IDS;
 
 /**
  * Slippage limits
@@ -141,9 +141,13 @@ export function validateSwapInputs(input: SwapValidationInput): ValidationResult
   }
 
   // 7. Chain validation
-  if (input.chainId !== null && !SUPPORTED_CHAIN_IDS.includes(input.chainId)) {
+  if (input.chainId !== null && !SWAP_SUPPORTED_CHAIN_IDS.includes(input.chainId)) {
     errors.push('chain_not_supported');
-    messages.push('Please switch to Ethereum or BSC');
+    const networkNames = SWAP_SUPPORTED_CHAIN_IDS
+      .map((id) => getChainById(id)?.name)
+      .filter(Boolean)
+      .join(', ');
+    messages.push(`Please switch to a supported network: ${networkNames}`);
   }
 
   // 8. Recipient validation (if address is available)
@@ -263,7 +267,7 @@ export function getButtonValidationState(input: SwapValidationInput): {
     return { disabled: true, text: 'Insufficient Balance' };
   }
 
-  if (input.chainId !== null && !SUPPORTED_CHAIN_IDS.includes(input.chainId)) {
+  if (input.chainId !== null && !SWAP_SUPPORTED_CHAIN_IDS.includes(input.chainId)) {
     return { disabled: true, text: 'Switch Network' };
   }
 

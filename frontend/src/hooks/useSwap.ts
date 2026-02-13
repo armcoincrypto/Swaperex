@@ -30,7 +30,7 @@
  */
 
 import { useCallback, useState, useEffect, useRef } from 'react';
-import { formatUnits } from 'ethers';
+import { formatUnits, parseUnits } from 'ethers';
 import { useWallet } from './useWallet';
 import { useSwapStore } from '@/stores/swapStore';
 import { useBalanceStore } from '@/stores/balanceStore';
@@ -382,9 +382,9 @@ export function useSwap() {
             const { Contract } = await import('ethers');
             const tokenContract = new Contract(tokenIn.address, ALLOWANCE_ABI, provider);
             const allowance = await tokenContract.allowance(address, PANCAKESWAP_V3_ADDRESSES.router);
-            const amountInWei = BigInt(quote.amountIn.includes('.')
-              ? (parseFloat(quote.amountIn) * 10 ** tokenIn.decimals).toString()
-              : quote.amountIn);
+            const amountInWei = quote.amountIn.includes('.')
+              ? parseUnits(quote.amountIn, tokenIn.decimals)
+              : BigInt(quote.amountIn);
             hasAllowance = allowance >= amountInWei;
           } catch {
             hasAllowance = false;
@@ -392,9 +392,9 @@ export function useSwap() {
         } else {
           // Check Uniswap router allowance (ETH)
           const amountInWei = tokenIn
-            ? BigInt(quote.amountIn.includes('.')
-                ? (parseFloat(quote.amountIn) * 10 ** tokenIn.decimals).toString()
-                : quote.amountIn)
+            ? (quote.amountIn.includes('.')
+                ? parseUnits(quote.amountIn, tokenIn.decimals)
+                : BigInt(quote.amountIn))
             : 0n;
           hasAllowance = await checkAllowance(fromSymbol, amountInWei);
         }

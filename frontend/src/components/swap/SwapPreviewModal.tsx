@@ -12,6 +12,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Modal } from '@/components/common/Modal';
 import { Button } from '@/components/common/Button';
 import { formatBalance } from '@/utils/format';
+import { getExplorerTxUrl } from '@/config/chains';
 import type { SwapQuote } from '@/hooks/useSwap';
 
 // Quote expires after 30 seconds
@@ -366,7 +367,7 @@ function SuccessContent({
   onClose: () => void;
 }) {
   const [copied, setCopied] = useState(false);
-  const explorerUrl = providedExplorerUrl || getExplorerUrl(1, txHash || '');
+  const explorerUrl = providedExplorerUrl || getExplorerTxUrl(1, txHash || '');
   const timestamp = new Date().toLocaleString();
 
   const handleCopyTxHash = async () => {
@@ -696,18 +697,6 @@ function getLoadingText(step: SwapStep): string {
     default:
       return 'Processing...';
   }
-}
-
-function getExplorerUrl(chainId: number, txHash: string): string {
-  const explorers: Record<number, string> = {
-    1: 'https://etherscan.io/tx/',
-    56: 'https://bscscan.com/tx/',
-    137: 'https://polygonscan.com/tx/',
-    42161: 'https://arbiscan.io/tx/',
-    10: 'https://optimistic.etherscan.io/tx/',
-    43114: 'https://snowtrace.io/tx/',
-  };
-  return `${explorers[chainId] || 'https://etherscan.io/tx/'}${txHash}`;
 }
 
 // Icons
