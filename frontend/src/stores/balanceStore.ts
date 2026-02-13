@@ -9,6 +9,7 @@
 import { create } from 'zustand';
 import { JsonRpcProvider, Contract, formatUnits, formatEther, Network } from 'ethers';
 import { useCustomTokenStore } from './customTokenStore';
+import { getTokens, NATIVE_TOKEN_ADDRESS } from '@/tokens';
 
 // RPC proxy base URL (backend-signals proxies to bypass browser CORS)
 const RPC_PROXY = import.meta.env.VITE_SIGNALS_API_URL || 'http://207.180.212.142:4001';
@@ -144,6 +145,23 @@ interface BalanceState {
 }
 
 /**
+ * Look up token logo from static token lists
+ */
+function getTokenLogo(chain: string, symbol: string, address?: string): string | undefined {
+  const chainId = CHAIN_NAME_TO_ID[chain];
+  if (!chainId) return undefined;
+  const tokens = getTokens(chainId);
+  // Try by address first (most accurate)
+  if (address) {
+    const byAddr = tokens.find((t) => t.address.toLowerCase() === address.toLowerCase());
+    if (byAddr?.logoURI) return byAddr.logoURI;
+  }
+  // Fallback: by symbol
+  const bySym = tokens.find((t) => t.symbol.toUpperCase() === symbol.toUpperCase());
+  return bySym?.logoURI;
+}
+
+/**
  * Fetch ERC20 token balance
  */
 async function fetchERC20Balance(
@@ -215,6 +233,7 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
                     decimals: token.decimals,
                     chain,
                     name: token.name,
+                    logo_url: getTokenLogo(chain, token.symbol, token.address),
                   });
                 }
               })
@@ -240,6 +259,7 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
                     decimals: token.decimals,
                     chain,
                     name: token.name,
+                    logo_url: getTokenLogo(chain, token.symbol, token.address),
                     isCustom: true,
                   });
                 })
@@ -255,6 +275,7 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
                 decimals: nativeToken.decimals,
                 chain,
                 name: nativeToken.symbol,
+                logo_url: getTokenLogo(chain, nativeToken.symbol, NATIVE_TOKEN_ADDRESS),
               },
               token_balances: tokenBalances,
             };
@@ -313,6 +334,7 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
               decimals: token.decimals,
               chain,
               name: token.name,
+              logo_url: getTokenLogo(chain, token.symbol, token.address),
             });
           }
         })
@@ -338,6 +360,7 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
               decimals: token.decimals,
               chain,
               name: token.name,
+              logo_url: getTokenLogo(chain, token.symbol, token.address),
               isCustom: true,
             });
           })
@@ -356,6 +379,7 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
               decimals: nativeToken.decimals,
               chain,
               name: nativeToken.symbol,
+              logo_url: getTokenLogo(chain, nativeToken.symbol, NATIVE_TOKEN_ADDRESS),
             },
             token_balances: tokenBalances,
           },
