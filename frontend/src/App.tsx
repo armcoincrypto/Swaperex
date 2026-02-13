@@ -8,7 +8,7 @@
 import { useState, useEffect } from 'react';
 import { WalletConnect } from '@/components/wallet/WalletConnect';
 import { SwapInterface } from '@/components/swap/SwapInterface';
-import { WithdrawalInterface } from '@/components/withdrawal/WithdrawalInterface';
+import { SendPage } from '@/components/send/SendPage';
 import { TokenList } from '@/components/balances/TokenList';
 import { PortfolioPage } from '@/components/portfolio/PortfolioPage';
 import { ChainWarningBanner } from '@/components/chain/ChainWarning';
@@ -288,7 +288,7 @@ export function App() {
             {/* Send Panel */}
             <div className="flex-1 flex justify-center">
               {isConnected ? (
-                <WithdrawalInterface />
+                <SendPage />
               ) : (
                 <div className="w-full max-w-md mx-auto bg-dark-900 rounded-2xl p-8 border border-dark-800 text-center">
                   <h2 className="text-xl font-bold mb-4">Connect Your Wallet</h2>
