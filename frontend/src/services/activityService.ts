@@ -49,6 +49,29 @@ const CHAIN_LABELS: Record<number, string> = {
 
 /** Normalize a local SwapRecord to ActivityItem */
 export function normalizeLocalRecord(record: SwapRecord): ActivityItem {
+  const isTransfer = record.provider === 'transfer';
+
+  if (isTransfer) {
+    const shortAddr = record.toAddress
+      ? `${record.toAddress.slice(0, 6)}...${record.toAddress.slice(-4)}`
+      : '';
+    return {
+      id: `local:${record.txHash || record.id}`,
+      chainId: record.chainId,
+      type: 'transfer',
+      status: record.status,
+      ts: record.timestamp,
+      txHash: record.txHash,
+      title: `Send ${record.fromAsset.symbol}`,
+      detail: `${record.fromAmount} ${record.fromAsset.symbol}${shortAddr ? ` → ${shortAddr}` : ''}`,
+      tokenIn: { symbol: record.fromAsset.symbol, amount: record.fromAmount },
+      provider: record.provider,
+      explorerUrl: record.explorerUrl,
+      canRepeat: false,
+      localRecord: record,
+    };
+  }
+
   return {
     id: `local:${record.txHash || record.id}`,
     chainId: record.chainId,

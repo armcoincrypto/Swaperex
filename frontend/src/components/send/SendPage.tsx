@@ -18,6 +18,7 @@ import { Button } from '@/components/common/Button';
 import { AssetPicker, type SelectedAsset } from './AssetPicker';
 import { AddressInput } from './AddressInput';
 import { FeePreview } from './FeePreview';
+import { TransferHistory } from './TransferHistory';
 import { validateAddress } from '@/utils/address';
 import { parseAmount } from '@/utils/txBuilder';
 import { buildNativeTransfer, buildERC20Transfer } from '@/utils/txBuilder';
@@ -307,6 +308,7 @@ export function SendPage() {
             toAmount: amount,
             txHash: tx.hash,
             explorerUrl: getExplorerUrl(selectedAsset.chainId, tx.hash),
+            toAddress: resolvedAddr,
           });
         } catch {
           // Non-critical: activity recording failure doesn't affect send
@@ -600,6 +602,9 @@ export function SendPage() {
       <p className="text-xs text-dark-500 text-center mt-3">
         All transactions are signed locally in your wallet
       </p>
+
+      {/* Transfer History */}
+      <TransferHistory chainId={chainId} />
     </div>
   );
 }
