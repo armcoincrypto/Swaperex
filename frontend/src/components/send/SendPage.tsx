@@ -64,11 +64,13 @@ export function SendPage() {
   // Resolve contract address for selected ERC-20
   const resolveTokenAddress = useCallback((): string | undefined => {
     if (!selectedAsset || selectedAsset.isNative) return undefined;
-    // Find in ERC20_TOKENS
+    // Use contract address from selected asset (populated by AssetPicker from static lists)
+    if (selectedAsset.contractAddress) return selectedAsset.contractAddress;
+    // Fallback: Find in ERC20_TOKENS
     const chainTokens = ERC20_TOKENS[selectedAsset.chain] || [];
     const found = chainTokens.find((t) => t.symbol === selectedAsset.symbol);
     if (found) return found.address;
-    // Try from static token list
+    // Fallback: Try from static token list
     const staticToken = getTokenBySymbol(selectedAsset.symbol, selectedAsset.chainId);
     return staticToken?.address;
   }, [selectedAsset]);
