@@ -2,8 +2,8 @@
  * Screener Table
  *
  * Sortable table header + token rows.
- * Basic mode: 5 columns (token, price, 24h%, volume, action).
- * Advanced mode: 6 columns (token, price, 24h%, volume, mcap, actions).
+ * 6 columns: token, price, 24h%, volume, mcap, actions.
+ * Advanced mode shows extra action buttons + expandable details.
  */
 
 import type { ScreenerToken, SortField, SortDir } from '@/services/screener/types';
@@ -26,7 +26,6 @@ interface ColumnDef {
   label: string;
   field?: SortField;
   align?: 'right';
-  advancedOnly?: boolean;
 }
 
 const COLUMNS: ColumnDef[] = [
@@ -35,7 +34,7 @@ const COLUMNS: ColumnDef[] = [
   { label: '24h %', field: 'priceChange24h' },
   { label: 'Volume', field: 'volume24h' },
   { label: 'Market Cap', field: 'marketCap' },
-  { label: 'Actions', align: 'right', advancedOnly: true },
+  { label: 'Trade', align: 'right' },
 ];
 
 export function ScreenerTable({
@@ -50,13 +49,13 @@ export function ScreenerTable({
   onRunTokenCheck,
   isLoading,
 }: Props) {
-  const cols = isAdvanced ? COLUMNS : COLUMNS.filter((c) => !c.advancedOnly);
+  const cols = COLUMNS;
 
   return (
     <div className="bg-dark-900 rounded-xl border border-dark-800 overflow-hidden">
       {/* Header */}
       <div
-        className={`grid ${isAdvanced ? 'grid-cols-[2fr_1fr_1fr_1fr_1fr_auto]' : 'grid-cols-[2fr_1fr_1fr_1fr_1fr]'} gap-4 px-4 py-3 bg-dark-800/50 text-sm font-medium text-dark-400`}
+        className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-4 px-4 py-3 bg-dark-800/50 text-sm font-medium text-dark-400"
       >
         {cols.map((col) => (
           <div

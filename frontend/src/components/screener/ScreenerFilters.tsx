@@ -101,18 +101,26 @@ export function ScreenerFilters({ filters, onChange, onReset, tokenCount, totalC
               <label className="text-xs text-dark-400 mb-1 block">24h Min %</label>
               <input
                 type="number"
-                value={filters.changeMin}
-                onChange={(e) => onChange({ changeMin: Number(e.target.value) })}
-                className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary-500"
+                value={filters.changeMin === -100 ? '' : filters.changeMin}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  onChange({ changeMin: v === '' ? -100 : (isNaN(Number(v)) ? -100 : Number(v)) });
+                }}
+                placeholder="-100"
+                className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder-dark-500 focus:outline-none focus:border-primary-500"
               />
             </div>
             <div>
               <label className="text-xs text-dark-400 mb-1 block">24h Max %</label>
               <input
                 type="number"
-                value={filters.changeMax}
-                onChange={(e) => onChange({ changeMax: Number(e.target.value) })}
-                className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary-500"
+                value={filters.changeMax === 1000 ? '' : filters.changeMax}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  onChange({ changeMax: v === '' ? 1000 : (isNaN(Number(v)) ? 1000 : Number(v)) });
+                }}
+                placeholder="1000"
+                className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder-dark-500 focus:outline-none focus:border-primary-500"
               />
             </div>
             <div>
@@ -120,7 +128,10 @@ export function ScreenerFilters({ filters, onChange, onReset, tokenCount, totalC
               <input
                 type="number"
                 value={filters.priceMin || ''}
-                onChange={(e) => onChange({ priceMin: Number(e.target.value) || 0 })}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  onChange({ priceMin: v === '' ? 0 : (isNaN(Number(v)) ? 0 : Number(v)) });
+                }}
                 placeholder="Any"
                 className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder-dark-500 focus:outline-none focus:border-primary-500"
               />
@@ -130,7 +141,10 @@ export function ScreenerFilters({ filters, onChange, onReset, tokenCount, totalC
               <input
                 type="number"
                 value={filters.priceMax || ''}
-                onChange={(e) => onChange({ priceMax: Number(e.target.value) || 0 })}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  onChange({ priceMax: v === '' ? 0 : (isNaN(Number(v)) ? 0 : Number(v)) });
+                }}
                 placeholder="Any"
                 className="w-full bg-dark-800 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white placeholder-dark-500 focus:outline-none focus:border-primary-500"
               />
@@ -180,12 +194,16 @@ function Toggle({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label className="flex items-center gap-2 text-sm text-dark-300 cursor-pointer select-none">
+    <div
+      className="flex items-center gap-2 text-sm text-dark-300 cursor-pointer select-none"
+      onClick={() => onChange(!checked)}
+      role="switch"
+      aria-checked={checked}
+    >
       <div
         className={`w-8 h-4 rounded-full transition-colors relative ${
           checked ? 'bg-primary-600' : 'bg-dark-700'
         }`}
-        onClick={() => onChange(!checked)}
       >
         <div
           className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${
@@ -194,7 +212,7 @@ function Toggle({
         />
       </div>
       {label}
-    </label>
+    </div>
   );
 }
 

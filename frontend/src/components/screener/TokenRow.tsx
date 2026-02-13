@@ -50,7 +50,7 @@ export function TokenRow({ token, isAdvanced, isExpanded, onToggleExpand, onSwap
 
   return (
     <>
-      <div className={`grid ${isAdvanced ? 'grid-cols-[2fr_1fr_1fr_1fr_1fr_auto]' : 'grid-cols-[2fr_1fr_1fr_1fr_1fr]'} gap-4 px-4 py-3 border-t border-dark-800 hover:bg-dark-800/30 transition-colors`}>
+      <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-4 px-4 py-3 border-t border-dark-800 hover:bg-dark-800/30 transition-colors">
         {/* Token Info */}
         <div className="flex items-center gap-3 min-w-0">
           {token.image ? (
@@ -161,18 +161,16 @@ export function TokenRow({ token, isAdvanced, isExpanded, onToggleExpand, onSwap
             </button>
           </div>
         ) : (
-          /* Basic mode: just swap button in the market cap column area */
-          null
+          <div className="flex items-center justify-end">
+            <button
+              onClick={() => onSwap(token)}
+              className="px-3 py-1.5 bg-primary-600 hover:bg-primary-500 text-white text-xs font-medium rounded-lg transition-colors"
+            >
+              Trade
+            </button>
+          </div>
         )}
       </div>
-
-      {/* Basic mode: swap button overlaid on last column */}
-      {!isAdvanced && (
-        <div className="contents">
-          {/* Positioned within parent grid - put swap as absolute overlay isn't possible in grid,
-              so for basic mode we include it as a separate clickable area handled by parent */}
-        </div>
-      )}
 
       {/* Details panel */}
       {isExpanded && isAdvanced && (
