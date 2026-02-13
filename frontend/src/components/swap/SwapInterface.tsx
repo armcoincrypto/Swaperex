@@ -35,14 +35,25 @@ const CHAIN_NAMES: Record<number, string> = {
   56: 'bsc',
   137: 'polygon',
   42161: 'arbitrum',
+  10: 'optimism',
+  43114: 'avalanche',
+  100: 'gnosis',
+  250: 'fantom',
+  8453: 'base',
 };
 
 // Gas buffer for native tokens (to leave enough for transaction fees)
 // Use smaller of: fixed buffer OR 5% of balance
 const GAS_BUFFER_FIXED: Record<number, number> = {
-  1: 0.005,   // ETH - leave max 0.005 ETH for gas
-  56: 0.002,  // BNB - leave max 0.002 BNB for gas
-  137: 0.5,   // MATIC - leave max 0.5 MATIC for gas
+  1: 0.005,      // ETH - leave max 0.005 ETH for gas
+  56: 0.002,     // BNB - leave max 0.002 BNB for gas
+  137: 0.5,      // MATIC - leave max 0.5 MATIC for gas
+  42161: 0.0005, // Arbitrum ETH - L2 cheap gas
+  10: 0.0005,    // Optimism ETH - L2 cheap gas
+  43114: 0.05,   // AVAX - leave max 0.05 AVAX for gas
+  100: 0.1,      // xDAI - leave max 0.1 xDAI for gas
+  250: 0.5,      // FTM - leave max 0.5 FTM for gas
+  8453: 0.0005,  // Base ETH - L2 cheap gas
 };
 const GAS_BUFFER_PERCENT = 0.05; // 5% of balance as minimum buffer
 
@@ -1644,18 +1655,54 @@ function QuickSwapPresets({
   tokens: AssetInfo[];
   onSelect: (from: string, to: string) => void;
 }) {
-  // Define presets per chain
-  const presets = chainId === 56
-    ? [
-        { label: 'Sell BNB', from: 'BNB', to: 'USDT', icon: '📉' },
-        { label: 'Buy BNB', from: 'USDT', to: 'BNB', icon: '📈' },
-        { label: 'Exit to Stable', from: 'BNB', to: 'BUSD', icon: '🛡️' },
-      ]
-    : [
-        { label: 'Sell ETH', from: 'ETH', to: 'USDT', icon: '📉' },
-        { label: 'Buy ETH', from: 'USDT', to: 'ETH', icon: '📈' },
-        { label: 'Exit to Stable', from: 'ETH', to: 'USDC', icon: '🛡️' },
-      ];
+  // Define presets per chain (native token + major stablecoins)
+  const CHAIN_PRESETS: Record<number, { label: string; from: string; to: string; icon: string }[]> = {
+    1: [
+      { label: 'Sell ETH', from: 'ETH', to: 'USDT', icon: '📉' },
+      { label: 'Buy ETH', from: 'USDT', to: 'ETH', icon: '📈' },
+      { label: 'Exit to Stable', from: 'ETH', to: 'USDC', icon: '🛡️' },
+    ],
+    56: [
+      { label: 'Sell BNB', from: 'BNB', to: 'USDT', icon: '📉' },
+      { label: 'Buy BNB', from: 'USDT', to: 'BNB', icon: '📈' },
+      { label: 'Exit to Stable', from: 'BNB', to: 'BUSD', icon: '🛡️' },
+    ],
+    137: [
+      { label: 'Sell MATIC', from: 'MATIC', to: 'USDC', icon: '📉' },
+      { label: 'Buy MATIC', from: 'USDC', to: 'MATIC', icon: '📈' },
+      { label: 'Exit to Stable', from: 'MATIC', to: 'USDT', icon: '🛡️' },
+    ],
+    42161: [
+      { label: 'Sell ETH', from: 'ETH', to: 'USDC', icon: '📉' },
+      { label: 'Buy ETH', from: 'USDC', to: 'ETH', icon: '📈' },
+      { label: 'Exit to Stable', from: 'ETH', to: 'USDT', icon: '🛡️' },
+    ],
+    10: [
+      { label: 'Sell ETH', from: 'ETH', to: 'USDC', icon: '📉' },
+      { label: 'Buy ETH', from: 'USDC', to: 'ETH', icon: '📈' },
+      { label: 'Exit to Stable', from: 'ETH', to: 'USDT', icon: '🛡️' },
+    ],
+    43114: [
+      { label: 'Sell AVAX', from: 'AVAX', to: 'USDC', icon: '📉' },
+      { label: 'Buy AVAX', from: 'USDC', to: 'AVAX', icon: '📈' },
+      { label: 'Exit to Stable', from: 'AVAX', to: 'USDT', icon: '🛡️' },
+    ],
+    100: [
+      { label: 'Sell xDAI', from: 'xDAI', to: 'USDC', icon: '📉' },
+      { label: 'Buy GNO', from: 'xDAI', to: 'GNO', icon: '📈' },
+    ],
+    250: [
+      { label: 'Sell FTM', from: 'FTM', to: 'USDC', icon: '📉' },
+      { label: 'Buy FTM', from: 'USDC', to: 'FTM', icon: '📈' },
+      { label: 'Exit to Stable', from: 'FTM', to: 'DAI', icon: '🛡️' },
+    ],
+    8453: [
+      { label: 'Sell ETH', from: 'ETH', to: 'USDC', icon: '📉' },
+      { label: 'Buy ETH', from: 'USDC', to: 'ETH', icon: '📈' },
+    ],
+  };
+
+  const presets = CHAIN_PRESETS[chainId] || CHAIN_PRESETS[1];
 
   // Only show presets if tokens are available
   const hasTokens = presets.every(

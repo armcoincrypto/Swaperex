@@ -1,16 +1,16 @@
 /**
  * Quote Aggregator Service
  *
- * PHASE 10: Routes swaps through best available provider.
- * PHASE 11: Extended to support BSC (PancakeSwap + 1inch)
+ * Routes swaps through best available provider per chain.
  *
  * ETH Mainnet (chainId 1):
- * - 1inch (primary)
- * - Uniswap V3 (fallback)
+ * - 1inch (primary) + Uniswap V3 (fallback)
  *
  * BSC (chainId 56):
- * - 1inch (primary)
- * - PancakeSwap V3 (fallback)
+ * - 1inch (primary) + PancakeSwap V3 (fallback)
+ *
+ * Polygon, Arbitrum, Optimism, Avalanche, Gnosis, Fantom, Base:
+ * - 1inch (sole provider)
  *
  * The provider with better output amount wins.
  *
@@ -38,8 +38,8 @@ import {
 } from './pancakeSwapQuote';
 import { getTokenBySymbol } from '@/tokens';
 
-// PHASE 11: Supported chain IDs
-const SUPPORTED_CHAINS = [1, 56] as const;
+// Supported chain IDs: all chains where 1inch works
+const SUPPORTED_CHAINS = [1, 56, 137, 42161, 10, 43114, 100, 250, 8453] as const;
 type SupportedChainId = (typeof SUPPORTED_CHAINS)[number];
 
 /**
@@ -218,7 +218,7 @@ function formatFromWei(amount: string, decimals: number): string {
  * @param tokenIn - Input token symbol
  * @param tokenOut - Output token symbol
  * @param amountIn - Input amount (human readable)
- * @param chainId - Chain ID (1 = ETH, 56 = BSC)
+ * @param chainId - Chain ID (1 = ETH, 56 = BSC, 137 = Polygon, etc.)
  * @param slippage - Slippage tolerance percentage
  */
 export async function getAggregatedQuote(
@@ -228,7 +228,6 @@ export async function getAggregatedQuote(
   chainId: number = 1,
   slippage: number = 0.5
 ): Promise<AggregatedQuote> {
-  // PHASE 11: Support ETH and BSC
   if (!SUPPORTED_CHAINS.includes(chainId as SupportedChainId)) {
     throw new Error(`Quote aggregator only supports chains: ${SUPPORTED_CHAINS.join(', ')}`);
   }
@@ -249,7 +248,8 @@ export async function getAggregatedQuote(
     return getBscQuote(tokenIn, tokenOut, amountIn, slippage, tokenOutData.decimals, apiKey);
   }
 
-  throw new Error(`Unsupported chain: ${chainId}`);
+  // All other supported chains: use 1inch as sole provider
+  return getOneInchOnlyQuote(tokenIn, tokenOut, amountIn, chainId, slippage, tokenOutData.decimals, apiKey);
 }
 
 /**
@@ -338,6 +338,33 @@ async function getBscQuote(
   console.log('[Aggregator] Selected:', comparison.best.provider, '|', comparison.reason);
 
   return comparison.best;
+}
+
+/**
+ * Get quote for chains with 1inch-only support
+ * (Polygon, Arbitrum, Optimism, Avalanche, Gnosis, Fantom, Base)
+ */
+async function getOneInchOnlyQuote(
+  tokenIn: string,
+  tokenOut: string,
+  amountIn: string,
+  chainId: number,
+  slippage: number,
+  tokenOutDecimals: number,
+  apiKey?: string
+): Promise<AggregatedQuote> {
+  console.log('[Aggregator] 1inch-only quote request:', { tokenIn, tokenOut, amountIn, chainId });
+
+  const oneInchResult = await getBestOneInchQuote(tokenIn, tokenOut, amountIn, chainId, apiKey);
+
+  if (!oneInchResult) {
+    throw new Error(`No quote available from 1inch for chain ${chainId}`);
+  }
+
+  const quote = normalizeOneInchQuote(oneInchResult, slippage, tokenOutDecimals, chainId);
+  console.log('[Aggregator] 1inch quote:', quote.amountOutFormatted, tokenOut);
+
+  return quote;
 }
 
 /**

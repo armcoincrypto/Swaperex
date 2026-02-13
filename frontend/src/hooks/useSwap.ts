@@ -132,8 +132,21 @@ const DEFAULT_SLIPPAGE = 0.5;
 // Quote expires after 30 seconds
 const QUOTE_EXPIRY_MS = 30000;
 
-// PHASE 11: Supported chain IDs (ETH = 1, BSC = 56)
-const SUPPORTED_CHAIN_IDS = [1, 56] as const;
+// Supported chain IDs for swap (all chains with 1inch support)
+const SUPPORTED_CHAIN_IDS = [1, 56, 137, 42161, 10, 43114, 100, 250, 8453] as const;
+
+// Chain ID to balance store network name mapping
+const CHAIN_ID_TO_NETWORK: Record<number, string> = {
+  1: 'ethereum',
+  56: 'bsc',
+  137: 'polygon',
+  42161: 'arbitrum',
+  10: 'optimism',
+  43114: 'avalanche',
+  100: 'gnosis',
+  250: 'fantom',
+  8453: 'base',
+};
 
 /**
  * Log swap lifecycle state transitions
@@ -695,7 +708,7 @@ export function useSwap() {
         trackEvent('swap_completed');
 
         // Refresh balances for the current chain
-        const chainNetwork = chainId === 56 ? 'bsc' : 'ethereum';
+        const chainNetwork = CHAIN_ID_TO_NETWORK[chainId] || 'ethereum';
         await fetchBalances(address, [chainNetwork]);
 
         return tx.hash;
@@ -766,7 +779,7 @@ export function useSwap() {
     // VALIDATION 2: Network guard - Block swap on wrong chain
     // PHASE 11: Allow ETH (1) and BSC (56)
     if (!SUPPORTED_CHAIN_IDS.includes(chainId as typeof SUPPORTED_CHAIN_IDS[number])) {
-      const error = `Network mismatch: Please switch to Ethereum or BSC. Supported: ${SUPPORTED_CHAIN_IDS.join(', ')}. Current: ${chainId}`;
+      const error = `Network mismatch: Please switch to a supported chain. Supported chain IDs: ${SUPPORTED_CHAIN_IDS.join(', ')}. Current: ${chainId}`;
       logLifecycle(null, 'error', { reason: 'wrong_chain', currentChainId: chainId, supportedChains: [...SUPPORTED_CHAIN_IDS] });
       logError('Swap Validation - NETWORK GUARD', new Error(error));
       toast.error(error);

@@ -52,10 +52,34 @@ export const CHAINS = {
     explorer: 'https://snowtrace.io',
     logo: '/assets/chains/avalanche.svg',
   },
+  gnosis: {
+    id: 100,
+    name: 'Gnosis Chain',
+    nativeSymbol: 'xDAI',
+    rpcUrl: 'https://rpc.gnosischain.com',
+    explorer: 'https://gnosisscan.io',
+    logo: '/assets/chains/gnosis.svg',
+  },
+  fantom: {
+    id: 250,
+    name: 'Fantom',
+    nativeSymbol: 'FTM',
+    rpcUrl: 'https://rpc.ftm.tools',
+    explorer: 'https://ftmscan.com',
+    logo: '/assets/chains/fantom.svg',
+  },
+  base: {
+    id: 8453,
+    name: 'Base',
+    nativeSymbol: 'ETH',
+    rpcUrl: 'https://mainnet.base.org',
+    explorer: 'https://basescan.org',
+    logo: '/assets/chains/base.svg',
+  },
 } as const;
 
 // Supported chain IDs
-export const SUPPORTED_CHAIN_IDS: number[] = [1, 56, 137, 42161, 10, 43114];
+export const SUPPORTED_CHAIN_IDS: number[] = [1, 56, 137, 42161, 10, 43114, 100, 250, 8453];
 
 // Default slippage options
 export const SLIPPAGE_OPTIONS = [0.1, 0.5, 1.0, 3.0];
