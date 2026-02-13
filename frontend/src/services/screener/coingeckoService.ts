@@ -1,7 +1,8 @@
 /**
  * CoinGecko Markets Service for Screener
  *
- * Fetches top tokens by market cap from CoinGecko /coins/markets.
+ * Fetches top tokens by market cap via backend-signals proxy.
+ * The proxy bypasses browser CORS restrictions on CoinGecko.
  * Uses two-layer caching. On 429, returns cached data with a warning.
  *
  * READ-ONLY: No auth required (free tier).
@@ -10,7 +11,8 @@
 import { cacheGet, cacheSet } from './cache';
 import type { ScreenerToken, ScreenerChainId } from './types';
 
-const COINGECKO_API = 'https://api.coingecko.com/api/v3';
+// Backend-signals proxy (server-side CoinGecko fetch → no CORS)
+const PROXY_BASE = import.meta.env.VITE_SIGNALS_API_URL || 'http://207.180.212.142:4001';
 const CACHE_TTL = 60_000; // 1 minute success
 
 // CoinGecko category IDs per chain
@@ -22,7 +24,6 @@ const CHAIN_CATEGORIES: Record<ScreenerChainId, string> = {
 };
 
 // Map of known token symbol → CoinGecko ID (extend as needed)
-// Used to map results back to our token model
 const KNOWN_IDS: Record<string, string> = {
   ethereum: 'ETH', binancecoin: 'BNB', 'matic-network': 'MATIC',
   tether: 'USDT', 'usd-coin': 'USDC', dai: 'DAI',
@@ -43,11 +44,12 @@ export interface FetchResult {
 }
 
 /**
- * Fetch top market tokens for a chain from CoinGecko
+ * Fetch top market tokens for a chain via backend proxy.
+ * Fetches up to `perPage` tokens (max 250).
  */
 export async function fetchMarketTokens(
   chainId: ScreenerChainId,
-  perPage: number = 50,
+  perPage: number = 100,
   signal?: AbortSignal,
 ): Promise<FetchResult> {
   const cacheKey = `markets:${chainId}:${perPage}`;
@@ -55,12 +57,11 @@ export async function fetchMarketTokens(
 
   try {
     const category = CHAIN_CATEGORIES[chainId];
-    const url = `${COINGECKO_API}/coins/markets?vs_currency=usd&category=${category}&order=market_cap_desc&per_page=${perPage}&page=1&sparkline=false&price_change_percentage=1h%2C24h`;
+    const url = `${PROXY_BASE}/coingecko/markets?category=${category}&per_page=${perPage}&page=1`;
 
     const res = await fetch(url, { signal });
 
     if (res.status === 429) {
-      // Rate limited - return cached data if available
       if (cached) {
         return { tokens: cached, fromCache: true, rateLimited: true };
       }

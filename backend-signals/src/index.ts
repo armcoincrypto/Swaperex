@@ -546,6 +546,70 @@ app.get<{ Params: { chain: string } }>("/explorer/:chain", async (req, reply) =>
   }
 });
 
+// ── CoinGecko Markets Proxy (bypasses browser CORS) ──────────────────
+// Frontend screener calls /coingecko/markets?category=...&per_page=...&page=...
+// Server-side fetch avoids CORS blocks from CoinGecko on non-localhost origins.
+
+const COINGECKO_API = "https://api.coingecko.com/api/v3";
+const CG_CACHE: Record<string, { data: any; expiresAt: number }> = {};
+const CG_CACHE_TTL = 60_000; // 1 minute
+
+app.get("/coingecko/markets", async (req, reply) => {
+  const query = req.query as Record<string, string>;
+  const category = query.category || "ethereum-ecosystem";
+  const perPage = Math.min(Number(query.per_page) || 100, 250);
+  const page = Math.min(Number(query.page) || 1, 5);
+
+  // Build upstream URL
+  const url = new URL(`${COINGECKO_API}/coins/markets`);
+  url.searchParams.set("vs_currency", "usd");
+  url.searchParams.set("category", category);
+  url.searchParams.set("order", "market_cap_desc");
+  url.searchParams.set("per_page", String(perPage));
+  url.searchParams.set("page", String(page));
+  url.searchParams.set("sparkline", "false");
+  url.searchParams.set("price_change_percentage", "1h,24h");
+
+  const cacheKey = `cg:${category}:${perPage}:${page}`;
+
+  // Check cache
+  const cached = CG_CACHE[cacheKey];
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.data;
+  }
+
+  const start = Date.now();
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const res = await fetch(url.toString(), { signal: controller.signal });
+    clearTimeout(timeout);
+
+    if (res.status === 429) {
+      // Rate limited — return cached if available
+      console.log(`[CoinGecko] ${category} p${page} → 429 rate limited (${Date.now() - start}ms)`);
+      if (cached) return cached.data;
+      return reply.code(429).send({ error: "CoinGecko rate limited", cached: false });
+    }
+
+    if (!res.ok) {
+      console.log(`[CoinGecko] ${category} p${page} → HTTP ${res.status} (${Date.now() - start}ms)`);
+      if (cached) return cached.data;
+      return reply.code(502).send({ error: `CoinGecko HTTP ${res.status}` });
+    }
+
+    const data = await res.json();
+    CG_CACHE[cacheKey] = { data, expiresAt: Date.now() + CG_CACHE_TTL };
+    console.log(`[CoinGecko] ${category} p${page} → ${Array.isArray(data) ? data.length : 0} tokens (${Date.now() - start}ms)`);
+    return data;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "CoinGecko request failed";
+    console.log(`[CoinGecko] ${category} p${page} → ERROR: ${msg} (${Date.now() - start}ms)`);
+    if (cached) return cached.data;
+    return reply.code(502).send({ error: msg });
+  }
+});
+
 // Start server
 try {
   await app.listen({ port: PORT, host: "0.0.0.0" });

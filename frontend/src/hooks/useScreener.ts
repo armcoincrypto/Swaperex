@@ -66,7 +66,7 @@ export function useScreener() {
       setError(null);
 
       try {
-        const perPage = mode === 'advanced' ? 100 : 50;
+        const perPage = mode === 'advanced' ? 250 : 100;
         const result = await fetchMarketTokens(chain, perPage, ac.signal);
 
         if (ac.signal.aborted) return;
