@@ -148,12 +148,15 @@ export function SendPage() {
       // Add from address for estimation
       txRequest.from = address;
 
+      console.log('[Send] Estimating gas...', { to: resolvedAddr, isNative: selectedAsset.isNative, amount });
       const fee = await estimateTransferFee(provider, txRequest, gasMode);
+      console.log('[Send] Gas estimated:', { gasLimit: fee.gasLimit.toString(), totalFee: fee.totalFeeWei.toString() });
       setFeeEstimate(fee);
       lastEstimateRef.current = fee;
       setStatus('ready');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to estimate gas';
+      console.error('[Send] Gas estimation failed:', msg, err);
       setEstimateError(msg);
       // Keep last good estimate visible
       if (lastEstimateRef.current) {
@@ -349,7 +352,9 @@ export function SendPage() {
     if (!destinationAddress) return 'Enter Address';
     if (!isAddressValid) return 'Invalid Address';
     if (!gasAffordability.canAfford) return `Insufficient ${nativeSymbol} for Gas`;
-    if (estimateError && !feeEstimate) return 'Unable to Estimate Fee';
+    // Show clear feedback when fee estimate is missing
+    if (estimateError && !feeEstimate) return 'Retry Gas Estimate';
+    if (!feeEstimate) return 'Estimating Gas...';
     return 'Send';
   };
 
@@ -363,6 +368,8 @@ export function SendPage() {
     if (!hasAmount || insufficientBalance) return true;
     if (!isAddressValid) return true;
     if (!gasAffordability.canAfford) return true;
+    // Allow retry click when estimation failed
+    if (!feeEstimate && estimateError) return false;
     if (!feeEstimate) return true;
     return false;
   };
@@ -374,6 +381,11 @@ export function SendPage() {
     }
     if (isWrongChain && selectedAsset) {
       switchNetwork(selectedAsset.chainId).catch(() => {});
+      return;
+    }
+    // Retry gas estimation if it failed
+    if (!feeEstimate && estimateError) {
+      estimateGas();
       return;
     }
     handleSend();
