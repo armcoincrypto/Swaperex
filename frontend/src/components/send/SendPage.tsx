@@ -8,7 +8,7 @@
  * No backend required — builds transactions directly with ethers.js.
  */
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { parseEther, formatEther } from 'ethers';
 import { useWallet } from '@/hooks/useWallet';
 import { useBalanceStore } from '@/stores/balanceStore';
@@ -86,8 +86,11 @@ export function SendPage() {
   const insufficientBalance = hasAmount && selectedAsset &&
     amountNum > parseFloat(selectedAsset.balance);
 
-  // Validate address
-  const addrValidation = destinationAddress ? validateAddress(destinationAddress) : null;
+  // Validate address (memoized to prevent new object reference each render)
+  const addrValidation = useMemo(
+    () => destinationAddress ? validateAddress(destinationAddress) : null,
+    [destinationAddress],
+  );
   const isAddressValid = addrValidation?.valid ||
     (destinationAddress.endsWith('.eth') && chainId === 1);
 
@@ -166,7 +169,11 @@ export function SendPage() {
     }
   }, [provider, selectedAsset, amount, hasAmount, isAddressValid, isWrongChain, addrValidation, destinationAddress, address, gasMode, tokenAddress]);
 
-  // Debounced estimation trigger
+  // Ref to always hold latest estimateGas without resetting the timer
+  const estimateGasRef = useRef(estimateGas);
+  estimateGasRef.current = estimateGas;
+
+  // Debounced estimation trigger — deps are only the values that should re-trigger
   useEffect(() => {
     if (estimateTimerRef.current) clearTimeout(estimateTimerRef.current);
 
@@ -174,12 +181,12 @@ export function SendPage() {
       return;
     }
 
-    estimateTimerRef.current = setTimeout(estimateGas, 400);
+    estimateTimerRef.current = setTimeout(() => estimateGasRef.current(), 400);
 
     return () => {
       if (estimateTimerRef.current) clearTimeout(estimateTimerRef.current);
     };
-  }, [amount, destinationAddress, selectedAsset, gasMode, estimateGas, hasAmount, isAddressValid, isWrongChain, provider]);
+  }, [amount, destinationAddress, selectedAsset, gasMode, hasAmount, isAddressValid, isWrongChain, provider]);
 
   // ─── Amount helpers ──────────────────────────────────────────────
 
