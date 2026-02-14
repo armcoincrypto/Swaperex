@@ -14,6 +14,7 @@
 
 import { getTokenBySymbol, type Token, isNativeToken } from '@/tokens';
 import { NATIVE_TOKEN_ADDRESS, isOneInchSupported } from './oneInchQuote';
+import { fetchWithTimeout } from '@/utils/fetchWithTimeout';
 
 /**
  * 1inch API v6 base URL
@@ -123,13 +124,14 @@ export async function getOneInchRouterAddress(
   const url = `${ONEINCH_API_V6}/${chainId}/approve/spender`;
 
   try {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: getHeaders(apiKey),
-    });
+    const response = await fetchWithTimeout(
+      url,
+      { method: 'GET', headers: getHeaders(apiKey) },
+      { provider: '1inch' },
+    );
 
     if (!response.ok) {
-      throw new Error(`Failed to get router address: ${response.status}`);
+      throw new Error(`1inch: Failed to get router address (${response.status})`);
     }
 
     const data = await response.json();
@@ -197,14 +199,15 @@ export async function buildOneInchApproval(
   });
 
   try {
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      headers: getHeaders(apiKey),
-    });
+    const response = await fetchWithTimeout(
+      url.toString(),
+      { method: 'GET', headers: getHeaders(apiKey) },
+      { provider: '1inch' },
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`1inch approval API error: ${response.status} - ${errorText}`);
+      throw new Error(`1inch: Approval API error (${response.status}) - ${errorText}`);
     }
 
     const data: OneInchApproveResponse = await response.json();
@@ -244,13 +247,14 @@ export async function checkOneInchAllowance(
   url.searchParams.set('walletAddress', walletAddress);
 
   try {
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      headers: getHeaders(apiKey),
-    });
+    const response = await fetchWithTimeout(
+      url.toString(),
+      { method: 'GET', headers: getHeaders(apiKey) },
+      { provider: '1inch' },
+    );
 
     if (!response.ok) {
-      throw new Error(`Failed to check allowance: ${response.status}`);
+      throw new Error(`1inch: Failed to check allowance (${response.status})`);
     }
 
     const data = await response.json();
@@ -332,10 +336,11 @@ export async function buildOneInchSwapTx(
   }
 
   try {
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      headers: getHeaders(apiKey),
-    });
+    const response = await fetchWithTimeout(
+      url.toString(),
+      { method: 'GET', headers: getHeaders(apiKey) },
+      { provider: '1inch' },
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -346,21 +351,19 @@ export async function buildOneInchSwapTx(
         try {
           const errorData = JSON.parse(errorText);
           if (errorData.description?.includes('insufficient')) {
-            throw new Error('Insufficient balance for this swap');
+            throw new Error('1inch: Insufficient balance for this swap');
           }
           if (errorData.description?.includes('allowance')) {
-            throw new Error('Token approval required');
+            throw new Error('1inch: Token approval required');
           }
-          throw new Error(errorData.description || 'Invalid swap parameters');
-        } catch {
-          throw new Error('Invalid swap parameters. Check amounts and addresses.');
+          throw new Error(`1inch: ${errorData.description || 'Invalid swap parameters'}`);
+        } catch (parseErr) {
+          if (parseErr instanceof Error && parseErr.message.startsWith('1inch:')) throw parseErr;
+          throw new Error('1inch: Invalid swap parameters. Check amounts and addresses.');
         }
       }
-      if (response.status === 429) {
-        throw new Error('Rate limited. Please try again in a few seconds.');
-      }
 
-      throw new Error(`1inch API error: ${response.status}`);
+      throw new Error(`1inch: API error (${response.status})`);
     }
 
     const data: OneInchSwapResponse = await response.json();

@@ -13,6 +13,7 @@
  */
 
 import { getTokenBySymbol, type Token } from '@/tokens';
+import { fetchWithTimeout } from '@/utils/fetchWithTimeout';
 
 /**
  * 1inch API v6 base URL
@@ -206,26 +207,21 @@ export async function getOneInchQuote(
   url.searchParams.set('amount', amountWei);
 
   try {
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      headers: getHeaders(apiKey),
-    });
+    const response = await fetchWithTimeout(
+      url.toString(),
+      { method: 'GET', headers: getHeaders(apiKey) },
+      { provider: '1inch' },
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error('[1inch Quote] API Error:', response.status, errorText);
 
       if (response.status === 400) {
-        throw new Error('Invalid swap parameters. Check token addresses and amounts.');
-      }
-      if (response.status === 429) {
-        throw new Error('Rate limited. Please try again in a few seconds.');
-      }
-      if (response.status === 500) {
-        throw new Error('1inch API is temporarily unavailable.');
+        throw new Error('1inch: Invalid swap parameters. Check token addresses and amounts.');
       }
 
-      throw new Error(`1inch API error: ${response.status}`);
+      throw new Error(`1inch: API error (${response.status})`);
     }
 
     const data: OneInchQuoteResponse = await response.json();
