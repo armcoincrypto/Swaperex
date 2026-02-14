@@ -7,7 +7,7 @@
  * SECURITY: This service never sends transactions or signs anything.
  */
 
-import { Contract, JsonRpcProvider, formatUnits, parseUnits } from 'ethers';
+import { Contract, JsonRpcProvider, Network, formatUnits, parseUnits } from 'ethers';
 import { getTokenBySymbol } from '@/tokens';
 
 /**
@@ -118,10 +118,26 @@ function getSwapAddress(tokenAddress: string): string {
 }
 
 /**
- * Create BSC provider
+ * Cached BSC provider with static network (prevents eth_chainId spam).
+ * Re-created after 3 consecutive failures to clear stale connections.
  */
+let cachedProvider: JsonRpcProvider | null = null;
+let providerFailCount = 0;
+
 function getProvider(): JsonRpcProvider {
-  return new JsonRpcProvider(BSC_CONFIG.rpcUrl);
+  // Recreate after consecutive failures
+  if (cachedProvider && providerFailCount >= 3) {
+    cachedProvider = null;
+    providerFailCount = 0;
+  }
+
+  if (!cachedProvider) {
+    const bscNetwork = Network.from(BSC_CONFIG.chainId);
+    cachedProvider = new JsonRpcProvider(BSC_CONFIG.rpcUrl, bscNetwork, {
+      staticNetwork: bscNetwork,
+    });
+  }
+  return cachedProvider;
 }
 
 /**
@@ -181,10 +197,19 @@ export async function getPancakeQuote(
   });
 
   try {
-    // Use staticCall to simulate without sending transaction
-    const result = await quoter.quoteExactInputSingle.staticCall(params);
+    // Use staticCall with timeout to prevent hanging on slow BSC RPCs
+    const QUOTE_TIMEOUT_MS = 8000;
+    const result = await Promise.race([
+      quoter.quoteExactInputSingle.staticCall(params),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('PancakeSwap quote timeout')), QUOTE_TIMEOUT_MS)
+      ),
+    ]);
 
     const [amountOut, sqrtPriceX96After, initializedTicksCrossed, gasEstimate] = result;
+
+    // Reset fail count on success
+    providerFailCount = 0;
 
     // Format output amount
     const amountOutFormatted = formatUnits(amountOut, tokenOutData.decimals);
@@ -214,6 +239,7 @@ export async function getPancakeQuote(
       chainId: 56,
     };
   } catch (error) {
+    providerFailCount++;
     console.error('[PancakeSwap Quote] Error:', error);
 
     const errorMessage = String(error);

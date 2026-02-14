@@ -1710,7 +1710,7 @@ function QuickSwapPresets({
     56: [
       { label: 'Sell BNB', from: 'BNB', to: 'USDT', icon: '📉' },
       { label: 'Buy BNB', from: 'USDT', to: 'BNB', icon: '📈' },
-      { label: 'Exit to Stable', from: 'BNB', to: 'BUSD', icon: '🛡️' },
+      { label: 'Exit to Stable', from: 'BNB', to: 'USDC', icon: '🛡️' },
     ],
     137: [
       { label: 'Sell MATIC', from: 'MATIC', to: 'USDC', icon: '📉' },
