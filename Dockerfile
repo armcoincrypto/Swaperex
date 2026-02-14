@@ -35,8 +35,9 @@ ENV PYTHONUNBUFFERED=1
 COPY src/ src/
 COPY scripts/ scripts/
 
-# Create non-root user
+# Create non-root user and data directory for SQLite
 RUN useradd -m -s /bin/bash swaperex && \
+    mkdir -p /app/data && \
     chown -R swaperex:swaperex /app
 
 USER swaperex
