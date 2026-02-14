@@ -15,8 +15,9 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # Install Python dependencies
 COPY pyproject.toml .
+RUN mkdir -p src/swaperex && touch src/swaperex/__init__.py
 RUN pip install --upgrade pip && \
-    pip install -e . && \
+    pip install . && \
     pip install bip-utils tronpy web3
 
 # Stage 2: Runtime
