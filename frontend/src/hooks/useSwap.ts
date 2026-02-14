@@ -859,17 +859,20 @@ export function useSwap() {
     }
 
     // QUOTE EXPIRY CHECK: Block execution if quote is stale (>30 seconds old)
+    // Stay in 'previewing' state so user can click "Refresh" instead of seeing error screen
     const quoteAge = Date.now() - swapQuote.quoteTimestamp;
     if (quoteAge > QUOTE_EXPIRY_MS) {
       const expiredSeconds = Math.floor(quoteAge / 1000);
-      const error = `Quote expired (${expiredSeconds}s old). Please refresh to get a current price before swapping.`;
-      logLifecycle('previewing', 'error', { reason: 'quote_expired', quoteAge: expiredSeconds });
-      toast.error(error);
-      throw new Error(error);
+      logLifecycle('previewing', 'previewing', { reason: 'quote_expired', quoteAge: expiredSeconds });
+      toast.warning(`Quote expired (${expiredSeconds}s old). Please refresh to get a current price.`);
+      throw new Error('QUOTE_EXPIRED');
     }
 
     return executeSwap();
   }, [state.status, swapQuote, executeSwap]);
+
+  // Check if current quote is expired (for UI timer/guard)
+  const isQuoteExpired = swapQuote ? (Date.now() - swapQuote.quoteTimestamp) > QUOTE_EXPIRY_MS : false;
 
   // Cancel preview
   const cancelPreview = useCallback(() => {
@@ -886,6 +889,7 @@ export function useSwap() {
     swapQuote,
     canSwap,
     isWrongChain,
+    isQuoteExpired,
 
     // Actions
     swap,              // Initiate swap (gets quote, shows preview)
