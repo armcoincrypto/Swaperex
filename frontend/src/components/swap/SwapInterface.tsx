@@ -654,7 +654,9 @@ export function SwapInterface() {
         />
 
         {/* From Token */}
-        <div className={`relative z-10 bg-electro-bgAlt/80 rounded-glass-sm p-4 mb-2 border transition-all duration-200 ${
+        <div className={`relative bg-electro-bgAlt/80 rounded-glass-sm p-4 mb-2 border transition-all duration-200 ${
+          showFromSelector ? 'z-30' : 'z-10'
+        } ${
           insufficientBalance ? 'border-danger/50 shadow-glow-danger' : 'border-white/[0.06] hover:border-white/[0.1]'
         }`}>
           <div className="flex items-center justify-between mb-2">
@@ -733,7 +735,9 @@ export function SwapInterface() {
         </div>
 
         {/* To Token */}
-        <div className="relative z-10 bg-electro-bgAlt/80 rounded-glass-sm p-4 mt-2 border border-white/[0.06] hover:border-white/[0.1] transition-all duration-200">
+        <div className={`relative bg-electro-bgAlt/80 rounded-glass-sm p-4 mt-2 border border-white/[0.06] hover:border-white/[0.1] transition-all duration-200 ${
+          showToSelector ? 'z-30' : 'z-10'
+        }`}>
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-dark-400">You Receive</span>
             <span className="text-sm text-dark-400">
@@ -1157,7 +1161,7 @@ function TokenSelectorDropdown({
   return (
     <div
       ref={dropdownRef}
-      className="absolute top-full left-0 mt-2 w-80 bg-electro-panel/95 backdrop-blur-glass rounded-glass shadow-glass border border-white/[0.08] py-2 z-[60]"
+      className="absolute top-full left-0 mt-2 w-[min(320px,calc(100vw-2rem))] bg-electro-panel/95 backdrop-blur-glass rounded-glass shadow-glass border border-white/[0.08] py-2 z-[60]"
     >
       {/* Search Input */}
       <div className="px-3 pb-2 mb-2 border-b border-dark-700">
@@ -1275,7 +1279,7 @@ function TokenSelectorDropdown({
       )}
 
       {/* Token List */}
-      <div className="max-h-64 overflow-y-auto">
+      <div className="max-h-72 overflow-y-auto scrollbar-thin">
         {filteredAssets.length === 0 ? (
           <div className="px-4 py-3 text-center text-dark-400 text-sm">
             {isContractAddress ? 'Token not found - import above' : 'No tokens found'}
@@ -1294,11 +1298,12 @@ function TokenSelectorDropdown({
             return (
               <div
                 key={`${asset.symbol}-${asset.contract_address}`}
-                className={`w-full px-4 py-3 text-left transition-colors flex items-center gap-3 ${
+                onClick={() => !isExcluded && onSelect(asset)}
+                className={`w-full px-4 py-2.5 text-left transition-colors flex items-center gap-3 cursor-pointer ${
                   isSelected
                     ? 'bg-primary-600/20 text-primary-400'
                     : isExcluded
-                    ? 'opacity-50'
+                    ? 'opacity-50 cursor-not-allowed'
                     : 'hover:bg-dark-700'
                 }`}
               >
@@ -1314,7 +1319,7 @@ function TokenSelectorDropdown({
                         chainId: chainId,
                       });
                     }}
-                    className={`p-1 transition-colors ${
+                    className={`p-1 transition-colors flex-shrink-0 ${
                       isFav
                         ? 'text-yellow-400 hover:text-yellow-300'
                         : 'text-dark-500 hover:text-yellow-400'
@@ -1324,47 +1329,41 @@ function TokenSelectorDropdown({
                     <StarIcon filled={!!isFav} />
                   </button>
                 )}
-                <button
-                  onClick={() => !isExcluded && onSelect(asset)}
-                  disabled={isExcluded}
-                  className="flex items-center gap-3 flex-1"
-                >
-                  {asset.logo_url ? (
-                    <img
-                      src={asset.logo_url}
-                      alt={asset.symbol}
-                      className="w-8 h-8 rounded-full"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-dark-600 flex items-center justify-center text-sm font-bold">
-                      {asset.symbol[0]}
-                    </div>
-                  )}
-                  <div className="flex-1 text-left">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-medium">{asset.symbol}</span>
-                      {isFav && (
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-yellow-900/30 text-yellow-400">
-                          Favorite
-                        </span>
-                      )}
-                      {isCustom && (
-                        <span className={`text-xs px-1.5 py-0.5 rounded ${
-                          verified
-                            ? 'bg-blue-900/30 text-blue-400'
-                            : 'bg-yellow-900/30 text-yellow-400'
-                        }`}>
-                          {verified ? 'Imported' : 'Unverified'}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-xs text-dark-400">{asset.name}</div>
+                {asset.logo_url ? (
+                  <img
+                    src={asset.logo_url}
+                    alt={asset.symbol}
+                    className="w-8 h-8 rounded-full flex-shrink-0"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                      (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                    }}
+                  />
+                ) : null}
+                <div className={`w-8 h-8 rounded-full bg-dark-600 flex items-center justify-center text-sm font-bold flex-shrink-0 ${asset.logo_url ? 'hidden' : ''}`}>
+                  {asset.symbol[0]}
+                </div>
+                <div className="flex-1 min-w-0 text-left">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-medium truncate">{asset.symbol}</span>
+                    {isFav && (
+                      <span className="text-[10px] px-1 py-0.5 rounded bg-yellow-900/30 text-yellow-400 flex-shrink-0">
+                        Fav
+                      </span>
+                    )}
+                    {isCustom && (
+                      <span className={`text-[10px] px-1 py-0.5 rounded flex-shrink-0 ${
+                        verified
+                          ? 'bg-blue-900/30 text-blue-400'
+                          : 'bg-yellow-900/30 text-yellow-400'
+                      }`}>
+                        {verified ? 'Imported' : 'Unverified'}
+                      </span>
+                    )}
                   </div>
-                  {isSelected && <CheckIcon />}
-                </button>
+                  <div className="text-xs text-dark-400 truncate">{asset.name}</div>
+                </div>
+                {isSelected && <CheckIcon />}
                 {/* Remove button for custom tokens */}
                 {isCustom && onRemoveToken && chainId && (
                   <button
@@ -1372,7 +1371,7 @@ function TokenSelectorDropdown({
                       e.stopPropagation();
                       onRemoveToken(chainId, asset.contract_address || '');
                     }}
-                    className="p-1 text-dark-400 hover:text-red-400 transition-colors"
+                    className="p-1 text-dark-400 hover:text-red-400 transition-colors flex-shrink-0"
                     title="Remove token"
                   >
                     <TrashIcon />
