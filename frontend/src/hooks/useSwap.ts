@@ -382,20 +382,14 @@ export function useSwap() {
             const { Contract } = await import('ethers');
             const tokenContract = new Contract(tokenIn.address, ALLOWANCE_ABI, provider);
             const allowance = await tokenContract.allowance(address, PANCAKESWAP_V3_ADDRESSES.router);
-            const amountInWei = quote.amountIn.includes('.')
-              ? parseUnits(quote.amountIn, tokenIn.decimals)
-              : BigInt(quote.amountIn);
+            const amountInWei = BigInt(aggregatedQuote.amountIn);
             hasAllowance = allowance >= amountInWei;
           } catch {
             hasAllowance = false;
           }
         } else {
           // Check Uniswap router allowance (ETH)
-          const amountInWei = tokenIn
-            ? (quote.amountIn.includes('.')
-                ? parseUnits(quote.amountIn, tokenIn.decimals)
-                : BigInt(quote.amountIn))
-            : 0n;
+          const amountInWei = BigInt(aggregatedQuote.amountIn);
           hasAllowance = await checkAllowance(fromSymbol, amountInWei);
         }
       }
@@ -506,7 +500,7 @@ export function useSwap() {
       return null;
     }
   // Note: state.status removed from deps to prevent infinite loop - it's only used for logging
-  }, [address, fromAsset, toAsset, fromAmount, chainId, checkAllowance, setQuote]);
+  }, [address, fromAsset, toAsset, fromAmount, chainId, slippage, provider, checkAllowance, setQuote]);
 
   // Execute token approval
   const executeApproval = useCallback(async (): Promise<boolean> => {

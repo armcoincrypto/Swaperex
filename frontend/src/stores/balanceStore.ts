@@ -308,16 +308,18 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
                     token.decimals
                   );
 
-                  // Add custom tokens with isCustom flag
-                  tokenBalances.push({
-                    symbol: token.symbol,
-                    balance: tokenBalance,
-                    decimals: token.decimals,
-                    chain,
-                    name: token.name,
-                    logo_url: getTokenLogo(chain, token.symbol, token.address),
-                    isCustom: true,
-                  });
+                  // Only add custom tokens with non-zero balance
+                  if (parseFloat(tokenBalance) > 0) {
+                    tokenBalances.push({
+                      symbol: token.symbol,
+                      balance: tokenBalance,
+                      decimals: token.decimals,
+                      chain,
+                      name: token.name,
+                      logo_url: getTokenLogo(chain, token.symbol, token.address),
+                      isCustom: true,
+                    });
+                  }
                 })
               );
             }
