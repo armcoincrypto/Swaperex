@@ -178,7 +178,7 @@ const ALLOWANCE_ABI = [
 
 export function useSwap() {
   const { address, isWrongChain, chainId, getSigner, provider } = useWallet();
-  const { fromAsset, toAsset, fromAmount, slippage, setQuote, clearQuote } = useSwapStore();
+  const { fromAsset, toAsset, fromAmount, slippage, approvalMode, setQuote, clearQuote } = useSwapStore();
   const { fetchBalances } = useBalanceStore();
   const { addRecord: addSwapRecord } = useSwapHistoryStore();
   const { trackEvent } = useUsageStore();
@@ -521,26 +521,48 @@ export function useSwap() {
 
       const signer = await getSigner();
 
-      // PHASE 10 + 11: Build approval transaction based on provider
+      // Compute exact approval amount from quote (for exact approval mode)
+      const tokenIn = getTokenBySymbol(swapQuote.fromSymbol, chainId);
+      const exactAmount = tokenIn
+        ? parseUnits(
+            formatUnits(swapQuote.amountIn, tokenIn.decimals),
+            tokenIn.decimals,
+          )
+        : undefined;
+      const useExact = approvalMode === 'exact' && exactAmount !== undefined;
+
+      console.log('[Swap] Approval mode:', approvalMode, useExact ? `(${exactAmount})` : '(unlimited)');
+
+      // Build approval transaction based on provider + approval mode
       let approvalTx: { to: string; data: string; value: string };
 
       if (swapQuote.provider === '1inch') {
-        // Use 1inch approval API
+        // Use 1inch approval API — pass amount string for exact mode
         console.log('[Swap] Building 1inch approval...');
-        approvalTx = await buildOneInchApproval(swapQuote.fromSymbol, chainId);
+        const amountStr = useExact && tokenIn
+          ? formatUnits(swapQuote.amountIn, tokenIn.decimals)
+          : undefined;
+        approvalTx = await buildOneInchApproval(swapQuote.fromSymbol, chainId, amountStr);
       } else if (swapQuote.provider === 'pancakeswap-v3') {
-        // PHASE 11: Use PancakeSwap router approval (BSC)
+        // PancakeSwap router approval (BSC)
         console.log('[Swap] Building PancakeSwap approval...');
-        const pancakeApproval = buildPancakeApprovalTx(swapQuote.fromSymbol);
+        const pancakeApproval = buildPancakeApprovalTx(
+          swapQuote.fromSymbol,
+          useExact ? exactAmount : undefined,
+        );
         approvalTx = {
           to: pancakeApproval.to,
           data: pancakeApproval.data,
           value: pancakeApproval.value,
         };
       } else {
-        // Use Uniswap router approval (ETH)
+        // Uniswap router approval (ETH)
         console.log('[Swap] Building Uniswap approval...');
-        approvalTx = buildRouterApproval(swapQuote.fromSymbol, chainId);
+        approvalTx = buildRouterApproval(
+          swapQuote.fromSymbol,
+          chainId,
+          useExact ? exactAmount : undefined,
+        );
       }
 
       console.log('[Swap] Sending approval:', { provider: swapQuote.provider, ...approvalTx });
@@ -573,7 +595,7 @@ export function useSwap() {
 
       throw err;
     }
-  }, [swapQuote, chainId, getSigner, state.status]);
+  }, [swapQuote, chainId, approvalMode, getSigner, state.status]);
 
   // Execute the swap
   const executeSwap = useCallback(async (): Promise<string> => {

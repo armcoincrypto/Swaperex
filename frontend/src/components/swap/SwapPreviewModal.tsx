@@ -14,6 +14,7 @@ import { Button } from '@/components/common/Button';
 import { formatBalance } from '@/utils/format';
 import { getExplorerTxUrl } from '@/config/chains';
 import type { SwapQuote } from '@/hooks/useSwap';
+import type { ApprovalMode } from '@/stores/swapStore';
 
 // Quote expires after 30 seconds
 const QUOTE_EXPIRY_SECONDS = 30;
@@ -27,6 +28,7 @@ interface SwapPreviewModalProps {
   error: string | null;
   txHash: string | null;
   explorerUrl?: string | null;  // PHASE 9: Explorer URL from useSwap
+  approvalMode?: ApprovalMode;
   onConfirm: () => void;
   onCancel: () => void;
   onRefreshQuote: () => void;
@@ -40,6 +42,7 @@ export function SwapPreviewModal({
   error,
   txHash,
   explorerUrl,
+  approvalMode = 'exact',
   onConfirm,
   onCancel,
   onRefreshQuote,
@@ -177,6 +180,13 @@ export function SwapPreviewModal({
               label="Provider"
               value={quote.provider}
             />
+            {needsApproval && (
+              <DetailRow
+                label="Approval"
+                value={approvalMode === 'exact' ? 'Exact amount' : 'Unlimited'}
+                variant={approvalMode === 'unlimited' ? 'warning' : 'normal'}
+              />
+            )}
           </div>
 
           {/* High Impact Warning */}
@@ -205,10 +215,16 @@ export function SwapPreviewModal({
 
           {/* Approval Notice */}
           {needsApproval && step === 'preview' && (
-            <div className="flex items-center gap-2 text-blue-400 bg-blue-900/20 rounded-lg p-3 mb-4">
+            <div className={`flex items-center gap-2 rounded-lg p-3 mb-4 ${
+              approvalMode === 'unlimited'
+                ? 'text-yellow-400 bg-yellow-900/20'
+                : 'text-blue-400 bg-blue-900/20'
+            }`}>
               <InfoIcon />
               <span className="text-sm">
-                This swap requires token approval. You'll sign two transactions.
+                {approvalMode === 'unlimited'
+                  ? 'This swap requires unlimited token approval. You\'ll sign two transactions. The router will have permanent access to this token.'
+                  : 'This swap requires token approval for the exact amount. You\'ll sign two transactions.'}
               </span>
             </div>
           )}

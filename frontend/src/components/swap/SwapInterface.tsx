@@ -10,7 +10,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useWallet } from '@/hooks/useWallet';
 import { useSwap } from '@/hooks/useSwap';
-import { useSwapStore } from '@/stores/swapStore';
+import { useSwapStore, type ApprovalMode } from '@/stores/swapStore';
 import { useBalanceStore } from '@/stores/balanceStore';
 import { useCustomTokenStore, type CustomToken } from '@/stores/customTokenStore';
 import { useFavoriteTokensStore } from '@/stores/favoriteTokensStore';
@@ -127,10 +127,12 @@ export function SwapInterface() {
     toAsset,
     fromAmount,
     slippage,
+    approvalMode,
     setFromAsset,
     setToAsset,
     setFromAmount,
     setSlippage,
+    setApprovalMode,
     swapAssets,
     isQuoting,
     quoteError,
@@ -633,6 +635,8 @@ export function SwapInterface() {
             customValue={customSlippage}
             onChange={setSlippage}
             onCustomChange={handleCustomSlippage}
+            approvalMode={approvalMode}
+            onApprovalModeChange={setApprovalMode}
             onClose={() => setShowSettings(false)}
           />
         )}
@@ -977,6 +981,7 @@ export function SwapInterface() {
         error={error}
         txHash={txHash}
         explorerUrl={explorerUrl}
+        approvalMode={approvalMode}
         onConfirm={handleConfirmSwap}
         onCancel={handleCancelPreview}
         onRefreshQuote={handleRefreshQuote}
@@ -1415,12 +1420,16 @@ function SlippageSettings({
   customValue,
   onChange,
   onCustomChange,
+  approvalMode,
+  onApprovalModeChange,
   onClose,
 }: {
   value: number;
   customValue: string;
   onChange: (v: number) => void;
   onCustomChange: (v: string) => void;
+  approvalMode: ApprovalMode;
+  onApprovalModeChange: (mode: ApprovalMode) => void;
   onClose: () => void;
 }) {
   const presets = [0.1, 0.5, 1.0];
@@ -1429,63 +1438,99 @@ function SlippageSettings({
   return (
     <div className="relative z-10 mb-4 p-4 bg-electro-bgAlt/80 rounded-glass-sm border border-white/[0.06]">
       <div className="flex items-center justify-between mb-3">
-        <span className="font-medium text-white">Slippage Tolerance</span>
+        <span className="font-medium text-white">Swap Settings</span>
         <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
           <CloseIcon />
         </button>
       </div>
 
-      <div className="flex gap-2 mb-3">
-        {presets.map((opt) => (
+      {/* Slippage Tolerance */}
+      <div className="mb-4">
+        <span className="text-sm text-dark-300 mb-2 block">Slippage Tolerance</span>
+        <div className="flex gap-2 mb-2">
+          {presets.map((opt) => (
+            <button
+              key={opt}
+              onClick={() => {
+                onChange(opt);
+                onCustomChange('');
+              }}
+              className={`px-4 py-2 rounded-lg text-sm transition-all duration-200 ${
+                value === opt
+                  ? 'bg-accent text-electro-bg font-medium'
+                  : 'bg-electro-panel hover:bg-electro-panelHover border border-white/[0.06]'
+              }`}
+            >
+              {opt}%
+            </button>
+          ))}
+
+          {/* Custom Input */}
+          <div className={`flex-1 flex items-center gap-1 px-3 py-2 rounded-lg transition-all duration-200 ${
+            isCustom ? 'bg-accent/10 border border-accent/30' : 'bg-electro-panel border border-white/[0.06]'
+          }`}>
+            <input
+              id="slippage-custom"
+              name="slippage-custom"
+              type="text"
+              placeholder="Custom"
+              value={customValue}
+              onChange={(e) => onCustomChange(e.target.value)}
+              className="w-full bg-transparent text-sm outline-none"
+            />
+            <span className="text-dark-400">%</span>
+          </div>
+        </div>
+
+        {/* Slippage Warnings */}
+        {value < 0.1 && (
+          <p className="text-xs text-yellow-400">
+            Very low slippage may cause transaction to fail
+          </p>
+        )}
+        {value >= 3 && value < 10 && (
+          <p className="text-xs text-yellow-400">
+            High slippage may result in unfavorable trade
+          </p>
+        )}
+        {value >= 10 && (
+          <p className="text-xs text-red-400">
+            Very high slippage! Only use for volatile tokens
+          </p>
+        )}
+      </div>
+
+      {/* Approval Mode */}
+      <div>
+        <span className="text-sm text-dark-300 mb-2 block">Token Approval</span>
+        <div className="flex gap-2">
           <button
-            key={opt}
-            onClick={() => {
-              onChange(opt);
-              onCustomChange('');
-            }}
-            className={`px-4 py-2 rounded-lg text-sm transition-all duration-200 ${
-              value === opt
+            onClick={() => onApprovalModeChange('exact')}
+            className={`flex-1 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
+              approvalMode === 'exact'
                 ? 'bg-accent text-electro-bg font-medium'
                 : 'bg-electro-panel hover:bg-electro-panelHover border border-white/[0.06]'
             }`}
           >
-            {opt}%
+            Exact
           </button>
-        ))}
-
-        {/* Custom Input */}
-        <div className={`flex-1 flex items-center gap-1 px-3 py-2 rounded-lg transition-all duration-200 ${
-          isCustom ? 'bg-accent/10 border border-accent/30' : 'bg-electro-panel border border-white/[0.06]'
-        }`}>
-          <input
-            id="slippage-custom"
-            name="slippage-custom"
-            type="text"
-            placeholder="Custom"
-            value={customValue}
-            onChange={(e) => onCustomChange(e.target.value)}
-            className="w-full bg-transparent text-sm outline-none"
-          />
-          <span className="text-dark-400">%</span>
+          <button
+            onClick={() => onApprovalModeChange('unlimited')}
+            className={`flex-1 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
+              approvalMode === 'unlimited'
+                ? 'bg-accent text-electro-bg font-medium'
+                : 'bg-electro-panel hover:bg-electro-panelHover border border-white/[0.06]'
+            }`}
+          >
+            Unlimited
+          </button>
         </div>
+        <p className={`text-xs mt-2 ${approvalMode === 'unlimited' ? 'text-yellow-400' : 'text-dark-500'}`}>
+          {approvalMode === 'exact'
+            ? 'Approves only the exact amount needed for this swap (safer).'
+            : 'Approves unlimited spending for this token. Saves gas on future swaps but grants permanent access to the router contract.'}
+        </p>
       </div>
-
-      {/* Warnings */}
-      {value < 0.1 && (
-        <p className="text-xs text-yellow-400">
-          Very low slippage may cause transaction to fail
-        </p>
-      )}
-      {value >= 3 && value < 10 && (
-        <p className="text-xs text-yellow-400">
-          High slippage may result in unfavorable trade
-        </p>
-      )}
-      {value >= 10 && (
-        <p className="text-xs text-red-400">
-          Very high slippage! Only use for volatile tokens
-        </p>
-      )}
     </div>
   );
 }
