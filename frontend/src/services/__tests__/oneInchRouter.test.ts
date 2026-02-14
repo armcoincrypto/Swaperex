@@ -2,8 +2,11 @@ import { describe, it, expect, vi } from 'vitest';
 import { getOneInchRouterAddress } from '../oneInchTxBuilder';
 import { ONEINCH_CONFIG } from '@/config/dex';
 
-// Mock fetch to force fallback to hardcoded router map
-vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
+// Mock fetchWithTimeout to reject immediately (no retry jitter)
+vi.mock('@/utils/fetchWithTimeout', () => ({
+  fetchWithTimeout: vi.fn().mockRejectedValue(new Error('Network error')),
+  default: vi.fn().mockRejectedValue(new Error('Network error')),
+}));
 
 describe('1inch router address fallback map', () => {
   const EXPECTED_V6_ROUTER = '0x111111125421cA6dc452d289314280a0f8842A65';

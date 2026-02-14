@@ -163,6 +163,8 @@ export const useSwapStore = create<SwapState>((set, get) => ({
       toAsset: null,
       fromAmount: '',
       toAmount: '',
+      slippage: 0.5,
+      approvalMode: 'exact',
       quote: null,
       isQuoting: false,
       quoteError: null,
