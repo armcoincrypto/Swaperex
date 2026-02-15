@@ -57,10 +57,6 @@ const GAS_BUFFER_FIXED: Record<number, number> = {
 };
 const GAS_BUFFER_PERCENT = 0.05; // 5% of balance as minimum buffer
 
-// Minimum output value in USD to prevent dust swaps
-// DISABLED: We don't have USD prices for all tokens, so this check was incorrect
-// const MIN_OUTPUT_USD = 0.01;
-
 // Debounce delay for quote fetching (ms)
 const QUOTE_DEBOUNCE_MS = 500;
 
