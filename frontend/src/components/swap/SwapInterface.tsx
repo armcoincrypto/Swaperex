@@ -1007,6 +1007,30 @@ export function SwapInterface() {
   );
 }
 
+// Reusable Token Logo with graceful fallback
+function TokenLogo({ url, symbol, size = 'sm' }: { url?: string; symbol?: string; size?: 'sm' | 'md' }) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const dims = size === 'md' ? 'w-8 h-8' : 'w-6 h-6';
+  const textSize = size === 'md' ? 'text-sm' : 'text-xs';
+
+  if (url && !imgFailed) {
+    return (
+      <img
+        src={url}
+        alt={symbol || ''}
+        className={`${dims} rounded-full flex-shrink-0`}
+        onError={() => setImgFailed(true)}
+      />
+    );
+  }
+
+  return (
+    <div className={`${dims} rounded-full bg-gradient-to-br from-primary-600/40 to-dark-600 flex items-center justify-center ${textSize} font-bold flex-shrink-0`}>
+      {symbol?.[0] || '?'}
+    </div>
+  );
+}
+
 // Token Button Component
 function TokenButton({ asset, onClick }: { asset: AssetInfo | null; onClick: () => void }) {
   return (
@@ -1014,20 +1038,7 @@ function TokenButton({ asset, onClick }: { asset: AssetInfo | null; onClick: () 
       onClick={onClick}
       className="flex items-center gap-2 px-3 py-2 bg-electro-panel/80 rounded-xl hover:bg-electro-panelHover transition-all duration-200 border border-white/[0.06] hover:border-white/[0.1]"
     >
-      {asset?.logo_url ? (
-        <img
-          src={asset.logo_url}
-          alt={asset.symbol}
-          className="w-6 h-6 rounded-full"
-          onError={(e) => {
-            (e.target as HTMLImageElement).style.display = 'none';
-            (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
-          }}
-        />
-      ) : null}
-      <div className={`w-6 h-6 rounded-full bg-dark-500 flex items-center justify-center text-xs font-bold ${asset?.logo_url ? 'hidden' : ''}`}>
-        {asset?.symbol?.[0] || '?'}
-      </div>
+      <TokenLogo url={asset?.logo_url} symbol={asset?.symbol} size="sm" />
       <span className="font-medium">{asset?.symbol || 'Select'}</span>
       <ChevronDownIcon />
     </button>
@@ -1329,20 +1340,7 @@ function TokenSelectorDropdown({
                     <StarIcon filled={!!isFav} />
                   </button>
                 )}
-                {asset.logo_url ? (
-                  <img
-                    src={asset.logo_url}
-                    alt={asset.symbol}
-                    className="w-8 h-8 rounded-full flex-shrink-0"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                      (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
-                    }}
-                  />
-                ) : null}
-                <div className={`w-8 h-8 rounded-full bg-dark-600 flex items-center justify-center text-sm font-bold flex-shrink-0 ${asset.logo_url ? 'hidden' : ''}`}>
-                  {asset.symbol[0]}
-                </div>
+                <TokenLogo url={asset.logo_url} symbol={asset.symbol} size="md" />
                 <div className="flex-1 min-w-0 text-left">
                   <div className="flex items-center gap-1.5">
                     <span className="font-medium truncate">{asset.symbol}</span>

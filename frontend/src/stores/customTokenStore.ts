@@ -2,7 +2,7 @@
  * Custom Token Store
  *
  * Manages user-imported tokens with localStorage persistence.
- * Supports ETH (chain 1) and BSC (chain 56).
+ * Supports all 9 EVM chains.
  */
 
 import { create } from 'zustand';
@@ -39,8 +39,15 @@ export const useCustomTokenStore = create<CustomTokenState>()(
   persist(
     (set, get) => ({
       tokens: {
-        1: [],   // Ethereum
-        56: [],  // BSC
+        1: [],      // Ethereum
+        56: [],     // BSC
+        137: [],    // Polygon
+        42161: [],  // Arbitrum
+        10: [],     // Optimism
+        43114: [],  // Avalanche
+        100: [],    // Gnosis
+        250: [],    // Fantom
+        8453: [],   // Base
       },
 
       addToken: (token: CustomToken) => {
@@ -102,6 +109,13 @@ export const useCustomTokenStore = create<CustomTokenState>()(
           tokens: {
             1: [],
             56: [],
+            137: [],
+            42161: [],
+            10: [],
+            43114: [],
+            100: [],
+            250: [],
+            8453: [],
           },
         });
       },

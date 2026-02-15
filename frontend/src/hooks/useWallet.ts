@@ -88,7 +88,7 @@ export function useWallet() {
           }
 
           // Fetch balances
-          fetchBalances(accounts[0], ['ethereum', 'bsc', 'polygon']).catch(() => {
+          fetchBalances(accounts[0], ['ethereum', 'bsc', 'polygon', 'arbitrum', 'optimism', 'avalanche', 'gnosis', 'fantom', 'base']).catch(() => {
             // Silent: balance fetch is non-critical for connection
           });
         }
@@ -138,7 +138,7 @@ export function useWallet() {
       await connect(accounts[0], currentChainId, 'injected');
 
       // Fetch balances (non-blocking - connection succeeds even if balances fail)
-      fetchBalances(accounts[0], ['ethereum', 'bsc', 'polygon']).catch(() => {
+      fetchBalances(accounts[0], ['ethereum', 'bsc', 'polygon', 'arbitrum', 'optimism', 'avalanche', 'gnosis', 'fantom', 'base']).catch(() => {
         // Silent: balance fetch is non-critical for connection
       });
     } catch (err) {
@@ -175,7 +175,7 @@ export function useWallet() {
     setReadOnlyAddress(viewAddress);
 
     // Fetch balances for read-only address
-    fetchBalances(viewAddress, ['ethereum', 'bsc', 'polygon']);
+    fetchBalances(viewAddress, ['ethereum', 'bsc', 'polygon', 'arbitrum', 'optimism', 'avalanche', 'gnosis', 'fantom', 'base']);
     return true;
   }, [setReadOnlyAddress, fetchBalances]);
 
