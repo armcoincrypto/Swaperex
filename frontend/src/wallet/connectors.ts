@@ -122,12 +122,29 @@ export async function connectWalletConnect(): Promise<{
   // This opens the QR modal and waits for user to scan/approve
   await provider.connect();
 
-  const accounts = provider.accounts;
+  // provider.accounts may not be populated immediately after connect()
+  // in WalletConnect v2 — extract from session namespaces as fallback
+  let accounts = provider.accounts;
   if (!accounts || accounts.length === 0) {
-    throw new Error('No accounts returned from WalletConnect session.');
+    // Try extracting accounts from session namespaces (eip155)
+    const session = provider.session;
+    if (session?.namespaces?.eip155) {
+      const allAccounts = session.namespaces.eip155.accounts || [];
+      // Format is "eip155:<chainId>:<address>" — extract unique addresses
+      accounts = [...new Set(allAccounts.map((a: string) => a.split(':').pop()!))];
+    }
+  }
+  if (!accounts || accounts.length === 0) {
+    // Last resort: request accounts directly via JSON-RPC
+    try {
+      accounts = (await provider.request({ method: 'eth_accounts' })) as string[];
+    } catch { /* noop */ }
+  }
+  if (!accounts || accounts.length === 0) {
+    throw new Error('No accounts returned from WalletConnect session. Please try again.');
   }
 
-  const chainId = provider.chainId;
+  const chainId = provider.chainId || DEFAULT_CHAIN_ID;
 
   saveLastConnector('walletconnect');
 
