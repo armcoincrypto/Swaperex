@@ -8,6 +8,8 @@ import { create } from 'zustand';
 import type { SwapQuoteResponse, AssetInfo } from '@/types/api';
 import { swapsApi } from '@/api';
 
+export type ApprovalMode = 'exact' | 'unlimited';
+
 interface SwapState {
   // Form state
   fromAsset: AssetInfo | null;
@@ -15,6 +17,7 @@ interface SwapState {
   fromAmount: string;
   toAmount: string;
   slippage: number;
+  approvalMode: ApprovalMode;
 
   // Quote state
   quote: SwapQuoteResponse | null;
@@ -30,6 +33,7 @@ interface SwapState {
   setToAsset: (asset: AssetInfo | null) => void;
   setFromAmount: (amount: string) => void;
   setSlippage: (slippage: number) => void;
+  setApprovalMode: (mode: ApprovalMode) => void;
   swapAssets: () => void;
   fetchQuote: (fromAddress: string) => Promise<void>;
   clearQuote: () => void;
@@ -46,6 +50,7 @@ export const useSwapStore = create<SwapState>((set, get) => ({
   fromAmount: '',
   toAmount: '',
   slippage: 0.5, // 0.5% default slippage
+  approvalMode: 'exact', // 'exact' = approve only needed amount (safer default)
   quote: null,
   isQuoting: false,
   quoteError: null,
@@ -70,6 +75,11 @@ export const useSwapStore = create<SwapState>((set, get) => ({
   // Set slippage - RULE 1: Clear quote since minAmountOut depends on slippage
   setSlippage: (slippage) => {
     set({ slippage, quote: null, toAmount: '', quoteError: null });
+  },
+
+  // Set approval mode (exact vs unlimited)
+  setApprovalMode: (mode) => {
+    set({ approvalMode: mode });
   },
 
   // Swap from/to assets - RULE 1: Clear derived state
@@ -153,6 +163,8 @@ export const useSwapStore = create<SwapState>((set, get) => ({
       toAsset: null,
       fromAmount: '',
       toAmount: '',
+      slippage: 0.5,
+      approvalMode: 'exact',
       quote: null,
       isQuoting: false,
       quoteError: null,

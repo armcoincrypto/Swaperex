@@ -7,7 +7,7 @@
  * SECURITY: Read-only operations, no signing.
  */
 
-import { Contract, JsonRpcProvider } from 'ethers';
+import { Contract, JsonRpcProvider, Network } from 'ethers';
 import {
   type PortfolioChain,
   type TokenBalance,
@@ -31,13 +31,18 @@ const ERC20_BALANCE_ABI = [
 ];
 
 /**
- * RPC endpoints by chain
+ * RPC proxy base URL (backend-signals proxies to bypass browser CORS)
+ */
+const RPC_PROXY = import.meta.env.VITE_SIGNALS_API_URL || 'http://207.180.212.142:4001';
+
+/**
+ * RPC endpoints by chain (ETH/Polygon/Arbitrum via proxy; BSC direct)
  */
 const RPC_ENDPOINTS: Record<string, string> = {
-  ethereum: 'https://eth.llamarpc.com',
+  ethereum: `${RPC_PROXY}/rpc/eth`,
   bsc: 'https://bsc-dataseed.binance.org',
-  polygon: 'https://polygon-rpc.com',
-  arbitrum: 'https://arb1.arbitrum.io/rpc',
+  polygon: `${RPC_PROXY}/rpc/polygon`,
+  arbitrum: `${RPC_PROXY}/rpc/arbitrum`,
 };
 
 /**
@@ -51,13 +56,13 @@ const CHAIN_IDS: Record<string, number> = {
 };
 
 /**
- * Native token info by chain
+ * Native token info by chain (includes logo URLs from token list)
  */
-const NATIVE_TOKENS: Record<string, { symbol: string; name: string; decimals: number }> = {
-  ethereum: { symbol: 'ETH', name: 'Ethereum', decimals: 18 },
-  bsc: { symbol: 'BNB', name: 'BNB', decimals: 18 },
-  polygon: { symbol: 'MATIC', name: 'Polygon', decimals: 18 },
-  arbitrum: { symbol: 'ETH', name: 'Ethereum', decimals: 18 },
+const NATIVE_TOKENS: Record<string, { symbol: string; name: string; decimals: number; logoUrl: string }> = {
+  ethereum: { symbol: 'ETH', name: 'Ethereum', decimals: 18, logoUrl: 'https://tokens.1inch.io/0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee.png' },
+  bsc: { symbol: 'BNB', name: 'BNB', decimals: 18, logoUrl: 'https://tokens.1inch.io/0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c.png' },
+  polygon: { symbol: 'MATIC', name: 'Polygon', decimals: 18, logoUrl: 'https://tokens.1inch.io/0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0.png' },
+  arbitrum: { symbol: 'ETH', name: 'Ethereum', decimals: 18, logoUrl: 'https://tokens.1inch.io/0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee.png' },
 };
 
 /**
@@ -66,14 +71,41 @@ const NATIVE_TOKENS: Record<string, { symbol: string; name: string; decimals: nu
 const NATIVE_ADDRESS = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
 
 /**
- * Create provider for chain
+ * Singleton provider cache — reuses providers across calls to prevent
+ * connection exhaustion. staticNetwork skips eth_chainId detection,
+ * eliminating the infinite "retry in 1s" loop on network errors.
  */
+const providerCache: Record<string, JsonRpcProvider> = {};
+const providerFailCount: Record<string, number> = {};
+
 function getProvider(chain: string): JsonRpcProvider {
   const rpc = RPC_ENDPOINTS[chain];
   if (!rpc) {
     throw new Error(`Unsupported chain: ${chain}`);
   }
-  return new JsonRpcProvider(rpc);
+
+  // Recreate provider after 3 consecutive failures (clears stale connections)
+  if (providerCache[chain] && (providerFailCount[chain] || 0) >= 3) {
+    delete providerCache[chain];
+    providerFailCount[chain] = 0;
+  }
+
+  if (!providerCache[chain]) {
+    const chainId = CHAIN_IDS[chain];
+    const network = Network.from(chainId);
+    providerCache[chain] = new JsonRpcProvider(rpc, network, { staticNetwork: network });
+  }
+  return providerCache[chain];
+}
+
+/** Record provider success — reset failure count */
+function recordProviderSuccess(chain: string): void {
+  providerFailCount[chain] = 0;
+}
+
+/** Record provider failure — increment count for cache clearing */
+function recordProviderFailure(chain: string): void {
+  providerFailCount[chain] = (providerFailCount[chain] || 0) + 1;
 }
 
 /**
@@ -100,6 +132,7 @@ async function fetchNativeBalance(
     balanceFormatted: formatBalance(balance, nativeInfo.decimals),
     usdValue: null,
     usdPrice: null,
+    logoUrl: nativeInfo.logoUrl,
     isNative: true,
     chain: chain as PortfolioChain,
   };
@@ -141,9 +174,9 @@ async function fetchTokenBalance(
       isNative: false,
       chain: chain as PortfolioChain,
     };
-  } catch (error) {
-    // Token may not exist or contract call failed
-    console.warn(`[EVMBalance] Failed to fetch ${token.symbol}:`, error);
+  } catch {
+    // Expected: token may not exist on-chain or user holds zero
+    // Silent in production — not an error condition
     return null;
   }
 }
@@ -188,6 +221,8 @@ export async function fetchEvmChainBalance(
       tokenCount: tokenBalances.length,
     });
 
+    recordProviderSuccess(chain);
+
     return {
       chain: chain as PortfolioChain,
       chainId,
@@ -197,6 +232,7 @@ export async function fetchEvmChainBalance(
       lastUpdated: Date.now(),
     };
   } catch (error) {
+    recordProviderFailure(chain);
     const message = error instanceof Error ? error.message : 'Failed to fetch balances';
     logPortfolioLifecycle('EVM balance error', { chain, error: message });
 
@@ -213,6 +249,7 @@ export async function fetchEvmChainBalance(
         balanceFormatted: '0',
         usdValue: null,
         usdPrice: null,
+        logoUrl: NATIVE_TOKENS[chain]?.logoUrl,
         isNative: true,
         chain: chain as PortfolioChain,
       },

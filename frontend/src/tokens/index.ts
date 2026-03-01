@@ -4,13 +4,18 @@
  * Provides typed access to token lists per chain.
  * Supports multi-chain for 1inch aggregator.
  *
- * Chains: Ethereum, BSC, Polygon, Arbitrum, Optimism, Base
+ * Chains: Ethereum, BSC, Polygon, Arbitrum, Optimism, Avalanche, Gnosis, Fantom, Base
  */
 
 import ethereumTokens from './ethereum.json';
 import bscTokens from './bsc.json';
 import polygonTokens from './polygon.json';
 import arbitrumTokens from './arbitrum.json';
+import optimismTokens from './optimism.json';
+import avalancheTokens from './avalanche.json';
+import gnosisTokens from './gnosis.json';
+import fantomTokens from './fantom.json';
+import baseTokens from './base.json';
 
 /**
  * Token interface matching Uniswap token list standard
@@ -40,6 +45,11 @@ export const ETHEREUM_TOKENS: TokenList = ethereumTokens as TokenList;
 export const BSC_TOKENS: TokenList = bscTokens as TokenList;
 export const POLYGON_TOKENS: TokenList = polygonTokens as TokenList;
 export const ARBITRUM_TOKENS: TokenList = arbitrumTokens as TokenList;
+export const OPTIMISM_TOKENS: TokenList = optimismTokens as TokenList;
+export const AVALANCHE_TOKENS: TokenList = avalancheTokens as TokenList;
+export const GNOSIS_TOKENS: TokenList = gnosisTokens as TokenList;
+export const FANTOM_TOKENS: TokenList = fantomTokens as TokenList;
+export const BASE_TOKENS: TokenList = baseTokens as TokenList;
 
 /**
  * All token lists by chain ID
@@ -49,6 +59,11 @@ export const TOKEN_LISTS: Record<number, TokenList> = {
   56: BSC_TOKENS,
   137: POLYGON_TOKENS,
   42161: ARBITRUM_TOKENS,
+  10: OPTIMISM_TOKENS,
+  43114: AVALANCHE_TOKENS,
+  100: GNOSIS_TOKENS,
+  250: FANTOM_TOKENS,
+  8453: BASE_TOKENS,
 };
 
 /**
@@ -66,6 +81,9 @@ export const WRAPPED_NATIVE_ADDRESSES: Record<number, string> = {
   137: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270',    // WMATIC
   42161: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1',  // WETH (Arbitrum)
   10: '0x4200000000000000000000000000000000000006',     // WETH (Optimism)
+  43114: '0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7', // WAVAX (Avalanche)
+  100: '0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d',   // WXDAI (Gnosis)
+  250: '0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83',   // WFTM (Fantom)
   8453: '0x4200000000000000000000000000000000000006',   // WETH (Base)
 };
 
@@ -85,6 +103,8 @@ export const NATIVE_SYMBOLS: Record<number, string> = {
   10: 'ETH',
   8453: 'ETH',
   43114: 'AVAX',
+  100: 'xDAI',
+  250: 'FTM',
 };
 
 /**

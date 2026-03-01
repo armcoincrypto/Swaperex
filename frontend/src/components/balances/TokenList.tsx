@@ -137,7 +137,7 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 animate-fadeIn">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">Your Tokens</h2>
@@ -145,6 +145,8 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
           {/* Hide Zero Toggle */}
           <label className="flex items-center gap-2 text-sm text-dark-400 cursor-pointer">
             <input
+              id="hide-zero-balances"
+              name="hide-zero-balances"
               type="checkbox"
               checked={hideZeroBalances}
               onChange={(e) => setHideZeroBalances(e.target.checked)}

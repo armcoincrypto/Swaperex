@@ -89,6 +89,8 @@ export function AlertSettings({ className = '' }: AlertSettingsProps) {
           <div className="flex items-center gap-2 text-[10px]">
             <span className="text-dark-600">From</span>
             <input
+              id="quiet-hours-start"
+              name="quiet-hours-start"
               type="time"
               value={prefs.quietStart}
               onChange={(e) => setPrefs({ quietStart: e.target.value })}
@@ -96,6 +98,8 @@ export function AlertSettings({ className = '' }: AlertSettingsProps) {
             />
             <span className="text-dark-600">to</span>
             <input
+              id="quiet-hours-end"
+              name="quiet-hours-end"
               type="time"
               value={prefs.quietEnd}
               onChange={(e) => setPrefs({ quietEnd: e.target.value })}

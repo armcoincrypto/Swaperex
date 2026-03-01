@@ -46,8 +46,8 @@ interface RiskDebug {
 }
 
 interface SignalDebugData {
-  liquidity: LiquidityDebug;
-  risk: RiskDebug;
+  liquidity: LiquidityDebug | null;
+  risk: RiskDebug | null;
   evaluatedAt: number;
   version: string;
 }
@@ -120,6 +120,7 @@ export function SignalDebugPanel({ debug, loading, error }: SignalDebugPanelProp
       {expanded && debug && (
         <div className="px-4 pb-4 space-y-4 font-mono text-xs">
           {/* Liquidity Check */}
+          {debug.liquidity ? (
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-dark-300">
               <StatusIcon passed={debug.liquidity.check.passed} />
@@ -147,8 +148,12 @@ export function SignalDebugPanel({ debug, loading, error }: SignalDebugPanelProp
               </div>
             </div>
           </div>
+          ) : (
+          <div className="text-dark-500 text-xs">Liquidity: unavailable</div>
+          )}
 
           {/* Risk Check */}
+          {debug.risk ? (
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-dark-300">
               <StatusIcon passed={debug.risk.check.passed} />
@@ -185,6 +190,9 @@ export function SignalDebugPanel({ debug, loading, error }: SignalDebugPanelProp
               </div>
             </div>
           </div>
+          ) : (
+          <div className="text-dark-500 text-xs">Risk: unavailable</div>
+          )}
 
           {/* Meta */}
           <div className="pt-2 border-t border-dark-800 text-dark-600 flex items-center justify-between">

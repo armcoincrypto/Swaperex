@@ -85,16 +85,30 @@ function getCachedPrice(key: string): number | null {
 }
 
 /**
- * Set price in cache
+ * Set price in cache, purging expired entries periodically
  */
+let lastPurge = 0;
+const PURGE_INTERVAL = 5 * 60_000; // 5 minutes
+
 function setCachedPrice(key: string, price: number): void {
   priceCache[key] = { price, timestamp: Date.now() };
+
+  // Purge expired entries every 5 minutes to prevent memory leak
+  if (Date.now() - lastPurge > PURGE_INTERVAL) {
+    lastPurge = Date.now();
+    const now = Date.now();
+    for (const k of Object.keys(priceCache)) {
+      if (now - priceCache[k].timestamp > CACHE_TTL) {
+        delete priceCache[k];
+      }
+    }
+  }
 }
 
 /**
  * Fetch prices from CoinGecko for multiple tokens
  */
-async function fetchCoinGeckoPrices(
+export async function fetchCoinGeckoPrices(
   symbols: string[]
 ): Promise<Record<string, number>> {
   const prices: Record<string, number> = {};
@@ -121,7 +135,7 @@ async function fetchCoinGeckoPrices(
     );
 
     if (!response.ok) {
-      console.warn('[PriceService] CoinGecko rate limited or error:', response.status);
+      // Rate limit or server error — use cached prices, stay silent
       return prices;
     }
 
@@ -140,8 +154,8 @@ async function fetchCoinGeckoPrices(
       requested: toFetch.length,
       received: Object.keys(prices).length,
     });
-  } catch (error) {
-    console.warn('[PriceService] CoinGecko fetch failed:', error);
+  } catch {
+    // Network/CORS failure — silent, will retry on next cycle
   }
 
   return prices;
@@ -175,7 +189,6 @@ async function fetchJupiterPrices(
     const response = await fetch(`${JUPITER_PRICE_API}?ids=${ids}`);
 
     if (!response.ok) {
-      console.warn('[PriceService] Jupiter price error:', response.status);
       return prices;
     }
 
@@ -193,8 +206,8 @@ async function fetchJupiterPrices(
       requested: toFetch.length,
       received: Object.keys(prices).length,
     });
-  } catch (error) {
-    console.warn('[PriceService] Jupiter fetch failed:', error);
+  } catch {
+    // Network/CORS failure — silent, will retry on next cycle
   }
 
   return prices;

@@ -22,6 +22,8 @@ export interface SwapRecord {
   status: 'success' | 'failed' | 'pending';
   provider: string;
   slippage: number;
+  /** Destination address for transfers */
+  toAddress?: string;
 }
 
 interface SwapHistoryState {

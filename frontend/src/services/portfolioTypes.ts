@@ -139,6 +139,7 @@ export function logPortfolioLifecycle(
   action: string,
   details?: Record<string, unknown>
 ): void {
+  if (!import.meta.env.DEV) return;
   const timestamp = new Date().toISOString();
   console.log(`[Portfolio] ${timestamp} | ${action}`, details || '');
 }
@@ -150,6 +151,7 @@ export function logTxHistoryLifecycle(
   action: string,
   details?: Record<string, unknown>
 ): void {
+  if (!import.meta.env.DEV) return;
   const timestamp = new Date().toISOString();
   console.log(`[TxHistory] ${timestamp} | ${action}`, details || '');
 }

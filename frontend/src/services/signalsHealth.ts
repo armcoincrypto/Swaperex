@@ -1,7 +1,8 @@
 /**
  * Signals Health Checker
  *
- * Simple health check for the backend signals service.
+ * HTTP client layer for the backend signals service.
+ * Supports v2 schema (providers, overallSeverity) with v1 fallback.
  * Silent failure by design - never throws, never retries.
  */
 
@@ -69,9 +70,17 @@ export async function getSignalsHealthDetails(): Promise<SignalsHealthResponse |
   }
 }
 
-/**
- * Signal debug data types
- */
+// ── Types ──────────────────────────────────────────────────────────
+
+export type ProviderStatus = 'ok' | 'unavailable' | 'timeout' | 'error';
+export type OverallSeverity = 'critical' | 'danger' | 'warning' | 'safe' | 'unknown';
+
+export interface ProviderInfo {
+  status: ProviderStatus;
+  latencyMs: number;
+  error?: string;
+}
+
 export interface SignalDebugData {
   liquidity: {
     check: {
@@ -89,7 +98,7 @@ export interface SignalDebugData {
       expiresAt: number | null;
       lastSeverity: string | null;
     };
-  };
+  } | null;
   risk: {
     check: {
       passed: boolean;
@@ -105,35 +114,23 @@ export interface SignalDebugData {
       expiresAt: number | null;
       lastSeverity: string | null;
     };
-  };
+  } | null;
   evaluatedAt: number;
   version: string;
 }
 
-/**
- * Impact score returned by backend
- */
 export interface ImpactScore {
   score: number;
   level: 'high' | 'medium' | 'low';
   reason: string;
 }
 
-/**
- * Recurrence info returned by backend (Priority 10.3)
- */
 export interface RecurrenceInfo {
-  /** Number of occurrences in last 24h (including current) */
   occurrences24h: number;
-  /** Timestamp of last occurrence (before current) */
   lastSeen: number | null;
-  /** Is this a repeat signal? */
   isRepeat: boolean;
-  /** Trend direction based on impact score delta */
   trend: 'increasing' | 'decreasing' | 'stable' | 'new';
-  /** Previous impact score (if available) */
   previousImpact: number | null;
-  /** Time since last occurrence in seconds */
   timeSinceLastSeconds: number | null;
 }
 
@@ -158,18 +155,70 @@ export interface SignalsResponse {
     escalated?: boolean;
     previous?: string;
   };
+  overallSeverity?: OverallSeverity;
   timestamp: number;
+  providers?: {
+    dexscreener: ProviderInfo;
+    goplus: ProviderInfo;
+  };
   debug?: SignalDebugData;
+}
+
+// ── Fetch Functions ─────────────────────────────────────────────
+
+/** In-flight request deduplication */
+const inflight = new Map<string, Promise<SignalsResponse | null>>();
+
+/** Response cache with TTL */
+const responseCache = new Map<string, { data: SignalsResponse; expiresAt: number }>();
+const CACHE_TTL_MS = 30_000; // 30 seconds
+
+function getCacheKey(chainId: number, token: string): string {
+  return `${chainId}:${token.toLowerCase()}`;
 }
 
 /**
  * Fetch signals for a token with optional debug data.
+ * Includes deduplication and short-lived cache.
  * Returns null on failure.
  */
 export async function fetchSignals(
   chainId: number,
   token: string,
   includeDebug: boolean = false
+): Promise<SignalsResponse | null> {
+  const key = getCacheKey(chainId, token);
+
+  // Check response cache
+  const cached = responseCache.get(key);
+  if (cached && Date.now() < cached.expiresAt && !includeDebug) {
+    return cached.data;
+  }
+
+  // Dedup concurrent requests
+  const inflightKey = `${key}:${includeDebug ? 'd' : 'n'}`;
+  const existing = inflight.get(inflightKey);
+  if (existing) return existing;
+
+  const promise = _doFetch(chainId, token, includeDebug);
+  inflight.set(inflightKey, promise);
+
+  try {
+    const result = await promise;
+    // Cache successful responses
+    if (result) {
+      responseCache.set(key, { data: result, expiresAt: Date.now() + CACHE_TTL_MS });
+    }
+    return result;
+  } finally {
+    inflight.delete(inflightKey);
+  }
+}
+
+async function _doFetch(
+  chainId: number,
+  token: string,
+  includeDebug: boolean
 ): Promise<SignalsResponse | null> {
   try {
     const controller = new AbortController();
@@ -189,10 +238,40 @@ export async function fetchSignals(
 
     if (!res.ok) return null;
 
-    return await res.json();
+    const data: SignalsResponse = await res.json();
+
+    // Backwards compat: if no overallSeverity (v1), compute it client-side
+    if (!data.overallSeverity) {
+      data.overallSeverity = computeClientSeverity(data);
+    }
+
+    // Backwards compat: if no providers (v1), mark as unknown
+    if (!data.providers) {
+      data.providers = {
+        dexscreener: { status: 'ok', latencyMs: 0 },
+        goplus: { status: 'ok', latencyMs: 0 },
+      };
+    }
+
+    return data;
   } catch {
     return null;
   }
+}
+
+/**
+ * Client-side severity computation (v1 fallback)
+ */
+function computeClientSeverity(response: SignalsResponse): OverallSeverity {
+  const severities: string[] = [];
+  if (response.liquidity) severities.push(response.liquidity.severity);
+  if (response.risk) severities.push(response.risk.severity);
+
+  if (severities.length === 0) return 'safe';
+  if (severities.includes('critical')) return 'critical';
+  if (severities.includes('danger')) return 'danger';
+  if (severities.includes('warning')) return 'warning';
+  return 'safe';
 }
 
 /**
@@ -221,10 +300,10 @@ export async function fetchSignalsWithHistory(
       type: 'liquidity',
       severity: response.liquidity.severity as 'warning' | 'danger' | 'critical',
       confidence: response.liquidity.confidence,
-      reason: response.debug?.liquidity.check.reason || `Liquidity dropped ${response.liquidity.dropPct}%`,
+      reason: response.debug?.liquidity?.check.reason || `Liquidity dropped ${response.liquidity.dropPct}%`,
       impact: response.liquidity.impact,
       recurrence: response.liquidity.recurrence,
-      debugSnapshot: response.debug ? {
+      debugSnapshot: response.debug?.liquidity ? {
         liquidity: {
           currentLiquidity: response.debug.liquidity.check.currentLiquidity,
           dropPct: response.debug.liquidity.check.dropPct,
@@ -249,10 +328,10 @@ export async function fetchSignalsWithHistory(
       type: 'risk',
       severity: response.risk.severity as 'warning' | 'danger' | 'critical',
       confidence: response.risk.confidence,
-      reason: response.debug?.risk.check.reason || `${response.risk.riskFactors.length} risk factors detected`,
+      reason: response.debug?.risk?.check.reason || `${response.risk.riskFactors.length} risk factors detected`,
       impact: response.risk.impact,
       recurrence: response.risk.recurrence,
-      debugSnapshot: response.debug ? {
+      debugSnapshot: response.debug?.risk ? {
         risk: {
           riskFactorCount: response.debug.risk.check.riskFactorCount,
           riskFactors: response.debug.risk.check.riskFactors,
@@ -269,6 +348,13 @@ export async function fetchSignalsWithHistory(
   }
 
   return response;
+}
+
+/**
+ * Clear the response cache (e.g., when user wants fresh data)
+ */
+export function clearSignalsCache(): void {
+  responseCache.clear();
 }
 
 /**
@@ -303,3 +389,34 @@ export interface SignalHistoryCapture {
   escalated?: boolean;
   previousSeverity?: string;
 }
+
+// ── Human-readable explanations ─────────────────────────────────
+
+export const SEVERITY_EXPLANATIONS: Record<string, string> = {
+  critical: 'This token shows critical risk indicators. Trading may result in total loss of funds. Avoid interacting with this contract.',
+  danger: 'Multiple risk factors detected. Exercise extreme caution. Verify the project thoroughly before interacting.',
+  warning: 'Some risk indicators found. This is common for newer tokens. Research the project before investing.',
+  safe: 'No active risk signals detected. This does not guarantee safety - always do your own research.',
+};
+
+export const RISK_FACTOR_EXPLANATIONS: Record<string, string> = {
+  honeypot: 'This token cannot be sold after purchase. Your funds will be permanently locked.',
+  blacklisted: 'The contract has a blacklist function that can freeze your tokens.',
+  proxy_contract: 'The contract logic can be changed by the owner at any time.',
+  ownership_takeback: 'The previous owner can reclaim control of the contract.',
+  owner_can_modify_balance: 'The contract owner can change token balances directly.',
+  hidden_owner: 'The contract has a hidden owner address that can execute privileged functions.',
+  can_selfdestruct: 'The contract can be destroyed, making all tokens worthless.',
+  external_calls: 'The contract makes external calls that could be exploited.',
+  mintable: 'New tokens can be minted, potentially diluting your holdings.',
+  transfer_pausable: 'Token transfers can be paused by the contract owner.',
+  trading_cooldown: 'There is a mandatory waiting period between trades.',
+  cannot_sell_all: 'You cannot sell your entire balance in a single transaction.',
+  slippage_modifiable: 'The contract owner can change the buy/sell tax at any time.',
+};
+
+export const LIQUIDITY_EXPLANATIONS: Record<string, string> = {
+  critical: 'Liquidity dropped severely. This often indicates a rug pull in progress. Exit immediately if possible.',
+  danger: 'Major liquidity decrease detected. The trading pair is becoming unstable.',
+  warning: 'Noticeable liquidity drop. Monitor closely for further changes.',
+};

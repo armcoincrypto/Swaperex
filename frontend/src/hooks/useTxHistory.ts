@@ -30,13 +30,18 @@ import {
 } from '@/services/portfolioErrorHandler';
 
 /**
- * RPC endpoints by chain
+ * RPC proxy base URL (backend-signals proxies to bypass browser CORS)
+ */
+const RPC_PROXY = import.meta.env.VITE_SIGNALS_API_URL || 'http://207.180.212.142:4001';
+
+/**
+ * RPC endpoints by chain (ETH/Polygon/Arbitrum via proxy; BSC direct)
  */
 const RPC_ENDPOINTS: Record<string, string> = {
-  ethereum: 'https://eth.llamarpc.com',
+  ethereum: `${RPC_PROXY}/rpc/eth`,
   bsc: 'https://bsc-dataseed.binance.org',
-  polygon: 'https://polygon-rpc.com',
-  arbitrum: 'https://arb1.arbitrum.io/rpc',
+  polygon: `${RPC_PROXY}/rpc/polygon`,
+  arbitrum: `${RPC_PROXY}/rpc/arbitrum`,
 };
 
 /**

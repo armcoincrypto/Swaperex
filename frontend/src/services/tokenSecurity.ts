@@ -108,7 +108,6 @@ export async function fetchTokenSecurity(
 ): Promise<TokenSecurityData | null> {
   const goPlusChainId = GOPLUS_CHAIN_IDS[chainId];
   if (!goPlusChainId) {
-    console.warn('[TokenSecurity] Unsupported chain:', chainId);
     return null;
   }
 
@@ -117,14 +116,12 @@ export async function fetchTokenSecurity(
     const response = await fetch(url);
 
     if (!response.ok) {
-      console.error('[TokenSecurity] API error:', response.status);
       return null;
     }
 
     const data: GoPlusResponse = await response.json();
 
     if (data.code !== 1 || !data.result) {
-      console.warn('[TokenSecurity] No data for token');
       return null;
     }
 
@@ -134,8 +131,7 @@ export async function fetchTokenSecurity(
     }
 
     return parseSecurityData(tokenData);
-  } catch (error) {
-    console.error('[TokenSecurity] Fetch error:', error);
+  } catch {
     return null;
   }
 }

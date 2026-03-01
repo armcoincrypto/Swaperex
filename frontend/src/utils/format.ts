@@ -2,6 +2,8 @@
  * Formatting utilities
  */
 
+import { getExplorerTxUrl, getChainById } from '@/config/chains';
+
 /**
  * Shorten an Ethereum address
  */
@@ -66,22 +68,13 @@ export function formatTxHash(hash: string, chars: number = 8): string {
 
 /**
  * Get explorer URL for a transaction
+ * Uses chain config as single source of truth
  */
 export function getExplorerUrl(
   chainId: number,
   txHash: string
 ): string {
-  const explorers: Record<number, string> = {
-    1: 'https://etherscan.io',
-    56: 'https://bscscan.com',
-    137: 'https://polygonscan.com',
-    42161: 'https://arbiscan.io',
-    10: 'https://optimistic.etherscan.io',
-    43114: 'https://snowtrace.io',
-  };
-
-  const baseUrl = explorers[chainId] || 'https://etherscan.io';
-  return `${baseUrl}/tx/${txHash}`;
+  return getExplorerTxUrl(chainId, txHash) || `https://etherscan.io/tx/${txHash}`;
 }
 
 /**
@@ -94,18 +87,10 @@ export function parseDecimal(value: string): number {
 }
 
 /**
- * Get chain name from chain ID
+ * Get chain name from chain ID - uses chain config as single source of truth
  */
 export function getChainName(chainId: number): string {
-  const chainNames: Record<number, string> = {
-    1: 'Ethereum',
-    56: 'BNB Chain',
-    137: 'Polygon',
-    42161: 'Arbitrum',
-    10: 'Optimism',
-    43114: 'Avalanche',
-  };
-  return chainNames[chainId] || `Chain ${chainId}`;
+  return getChainById(chainId)?.name || `Chain ${chainId}`;
 }
 
 /**
@@ -119,6 +104,9 @@ export function getChainIcon(chainId: number): string {
     42161: '/assets/chains/arbitrum.svg',
     10: '/assets/chains/optimism.svg',
     43114: '/assets/chains/avalanche.svg',
+    100: '/assets/chains/gnosis.svg',
+    250: '/assets/chains/fantom.svg',
+    8453: '/assets/chains/base.svg',
   };
   return chainIcons[chainId] || '/assets/chains/default.svg';
 }

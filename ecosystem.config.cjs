@@ -11,7 +11,7 @@ module.exports = {
       name: "frontend",
       cwd: "/root/Swaperex/frontend",
       script: "./node_modules/.bin/serve",
-      args: "-s dist -l 3000",
+      args: "-s dist -l tcp://0.0.0.0:3000",
       env: {
         NODE_ENV: "production"
       },
@@ -30,7 +30,13 @@ module.exports = {
       cwd: "/root/Swaperex/backend-signals",
       script: "dist/index.js",
       env: {
-        NODE_ENV: "production"
+        NODE_ENV: "production",
+        // Etherscan V2 API key (free tier — register at etherscan.io/apis)
+        // ONE key covers ETH, Polygon, Arbitrum via unified V2 endpoint
+        // ETHERSCAN_API_KEY: "your-key-from-etherscan.io/apis",
+        // BSCScan API key (free tier — register at bscscan.com/apis)
+        // BSC needs its own key because Etherscan V2 free tier doesn't cover BSC
+        // BSCSCAN_API_KEY: "your-key-from-bscscan.com/apis",
       },
       // Restart policy
       max_restarts: 10,

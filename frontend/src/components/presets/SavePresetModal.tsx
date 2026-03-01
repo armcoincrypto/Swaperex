@@ -153,6 +153,8 @@ export function SavePresetModal({
           <div>
             <label className="block text-sm text-dark-400 mb-2">Preset Name</label>
             <input
+              id="preset-name"
+              name="preset-name"
               type="text"
               value={name}
               onChange={(e) => {
@@ -271,6 +273,8 @@ export function SavePresetModal({
                       {/* Safety Score */}
                       <div className="flex items-center gap-3 p-2 bg-dark-800 rounded-lg">
                         <input
+                          id="preset-use-safety"
+                          name="preset-use-safety"
                           type="checkbox"
                           checked={useSafetyScore}
                           onChange={(e) => setUseSafetyScore(e.target.checked)}
@@ -280,6 +284,8 @@ export function SavePresetModal({
                           <span className="text-sm">Safety Score ≥</span>
                         </div>
                         <input
+                          id="preset-min-safety"
+                          name="preset-min-safety"
                           type="number"
                           value={minSafetyScore}
                           onChange={(e) => setMinSafetyScore(e.target.value)}
@@ -293,6 +299,8 @@ export function SavePresetModal({
                       {/* Price Impact */}
                       <div className="flex items-center gap-3 p-2 bg-dark-800 rounded-lg">
                         <input
+                          id="preset-use-impact"
+                          name="preset-use-impact"
                           type="checkbox"
                           checked={usePriceImpact}
                           onChange={(e) => setUsePriceImpact(e.target.checked)}
@@ -303,6 +311,8 @@ export function SavePresetModal({
                         </div>
                         <div className="flex items-center gap-1">
                           <input
+                            id="preset-max-impact"
+                            name="preset-max-impact"
                             type="number"
                             value={maxPriceImpact}
                             onChange={(e) => setMaxPriceImpact(e.target.value)}
@@ -319,6 +329,8 @@ export function SavePresetModal({
                       {/* Liquidity */}
                       <div className="flex items-center gap-3 p-2 bg-dark-800 rounded-lg">
                         <input
+                          id="preset-use-liquidity"
+                          name="preset-use-liquidity"
                           type="checkbox"
                           checked={useLiquidity}
                           onChange={(e) => setUseLiquidity(e.target.checked)}
@@ -330,6 +342,8 @@ export function SavePresetModal({
                         <div className="flex items-center gap-1">
                           <span className="text-dark-400 text-sm">$</span>
                           <input
+                            id="preset-min-liquidity"
+                            name="preset-min-liquidity"
                             type="number"
                             value={minLiquidity}
                             onChange={(e) => setMinLiquidity(e.target.value)}

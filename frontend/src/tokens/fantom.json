@@ -1,0 +1,90 @@
+{
+  "name": "Fantom Tokens",
+  "chainId": 250,
+  "tokens": [
+    {
+      "symbol": "FTM",
+      "name": "Fantom",
+      "address": "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0x4e15361fd6b4bb609fa63c81a2be19d873717870.png"
+    },
+    {
+      "symbol": "WFTM",
+      "name": "Wrapped Fantom",
+      "address": "0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0x21be370d5312f44cb42ce377bc9b8a0cef1a4c83.png"
+    },
+    {
+      "symbol": "USDC",
+      "name": "USD Coin",
+      "address": "0x04068DA6C83AFCFA0e13ba15A6696662335D5B75",
+      "decimals": 6,
+      "logoURI": "https://tokens.1inch.io/0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.png"
+    },
+    {
+      "symbol": "USDT",
+      "name": "Tether USD",
+      "address": "0x049d68029688eAbF473097a2fC38ef61633A3C7A",
+      "decimals": 6,
+      "logoURI": "https://tokens.1inch.io/0xdac17f958d2ee523a2206206994597c13d831ec7.png"
+    },
+    {
+      "symbol": "DAI",
+      "name": "Dai Stablecoin",
+      "address": "0x8D11eC38a3EB5E956B052f67Da8Bdc9bef8Abf3E",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0x6b175474e89094c44da98b954eedcdecd5be3830.png"
+    },
+    {
+      "symbol": "WETH",
+      "name": "Wrapped Ether",
+      "address": "0x74b23882a30290451A17c44f4F05243b6b58C76d",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2.png"
+    },
+    {
+      "symbol": "WBTC",
+      "name": "Wrapped Bitcoin",
+      "address": "0x321162Cd933E2Be498Cd2267a90534A804051b11",
+      "decimals": 8,
+      "logoURI": "https://tokens.1inch.io/0x2260fac5e5542a773aa44fbcfedf7c193bc2c599.png"
+    },
+    {
+      "symbol": "BOO",
+      "name": "SpookyToken",
+      "address": "0x841FAD6EAe12c286d1Fd18d1d525DFfA75C7EFFE",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0x841fad6eae12c286d1fd18d1d525dffa75c7effe.png"
+    },
+    {
+      "symbol": "LINK",
+      "name": "ChainLink",
+      "address": "0xb3654dc3D10Ea7645f8319668E8F54d2574FBdC8",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0x514910771af9ca656af840dff83e8264ecf986ca.png"
+    },
+    {
+      "symbol": "CRV",
+      "name": "Curve DAO Token",
+      "address": "0x1E4F97b9f9F913c46F1632781732927B9019C68b",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0xd533a949740bb3306d119cc777fa900ba034cd52.png"
+    },
+    {
+      "symbol": "AAVE",
+      "name": "Aave Token",
+      "address": "0x6a07A792ab2965C72a5B8088d3a069A7aC3a993B",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9.png"
+    },
+    {
+      "symbol": "SUSHI",
+      "name": "SushiToken",
+      "address": "0xae75A438b2E0cB8Bb01Ec1E1e376De11D44477CC",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0x6b3595068778dd592e39a122f4f5a5cf09c90fe2.png"
+    }
+  ]
+}

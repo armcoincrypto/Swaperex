@@ -57,7 +57,7 @@ export function RadarIntroCard({ className = '' }: RadarIntroCardProps) {
         </li>
         <li className="flex items-start gap-2">
           <span className="text-dark-500 mt-0.5">•</span>
-          <span>Review safety signals in Signal History (last 24h)</span>
+          <span>Review safety signals in Activity Timeline</span>
         </li>
       </ul>
 

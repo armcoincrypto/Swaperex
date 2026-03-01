@@ -30,7 +30,7 @@
  */
 
 import { useCallback, useState, useEffect, useRef } from 'react';
-import { formatUnits } from 'ethers';
+import { formatUnits, parseUnits } from 'ethers';
 import { useWallet } from './useWallet';
 import { useSwapStore } from '@/stores/swapStore';
 import { useBalanceStore } from '@/stores/balanceStore';
@@ -76,6 +76,7 @@ import {
   buildPancakeSwapTx,
   buildPancakeApprovalTx,
 } from '@/services/pancakeSwapTxBuilder';
+import { PANCAKESWAP_V3_ADDRESSES } from '@/services/pancakeSwapQuote';
 import { getTokenBySymbol, isNativeToken } from '@/tokens';
 import { getUniswapV3Addresses, getExplorerTxUrl } from '@/config';
 
@@ -131,8 +132,21 @@ const DEFAULT_SLIPPAGE = 0.5;
 // Quote expires after 30 seconds
 const QUOTE_EXPIRY_MS = 30000;
 
-// PHASE 11: Supported chain IDs (ETH = 1, BSC = 56)
-const SUPPORTED_CHAIN_IDS = [1, 56] as const;
+// Supported chain IDs for swap (all chains with 1inch support)
+const SUPPORTED_CHAIN_IDS = [1, 56, 137, 42161, 10, 43114, 100, 250, 8453] as const;
+
+// Chain ID to balance store network name mapping
+const CHAIN_ID_TO_NETWORK: Record<number, string> = {
+  1: 'ethereum',
+  56: 'bsc',
+  137: 'polygon',
+  42161: 'arbitrum',
+  10: 'optimism',
+  43114: 'avalanche',
+  100: 'gnosis',
+  250: 'fantom',
+  8453: 'base',
+};
 
 /**
  * Log swap lifecycle state transitions
@@ -164,7 +178,7 @@ const ALLOWANCE_ABI = [
 
 export function useSwap() {
   const { address, isWrongChain, chainId, getSigner, provider } = useWallet();
-  const { fromAsset, toAsset, fromAmount, slippage, setQuote, clearQuote } = useSwapStore();
+  const { fromAsset, toAsset, fromAmount, slippage, approvalMode, setQuote, clearQuote } = useSwapStore();
   const { fetchBalances } = useBalanceStore();
   const { addRecord: addSwapRecord } = useSwapHistoryStore();
   const { trackEvent } = useUsageStore();
@@ -362,13 +376,20 @@ export function useSwap() {
           const allowance = await checkOneInchAllowance(fromSymbol, address, chainId || 1);
           const amountInWei = BigInt(aggregatedQuote.amountIn);
           hasAllowance = allowance === 'unlimited' || BigInt(allowance) >= amountInWei;
+        } else if (aggregatedQuote.provider === 'pancakeswap-v3') {
+          // Check PancakeSwap router allowance (BSC)
+          try {
+            const { Contract } = await import('ethers');
+            const tokenContract = new Contract(tokenIn.address, ALLOWANCE_ABI, provider);
+            const allowance = await tokenContract.allowance(address, PANCAKESWAP_V3_ADDRESSES.router);
+            const amountInWei = BigInt(aggregatedQuote.amountIn);
+            hasAllowance = allowance >= amountInWei;
+          } catch {
+            hasAllowance = false;
+          }
         } else {
-          // Check Uniswap router allowance
-          const amountInWei = tokenIn
-            ? BigInt(quote.amountIn.includes('.')
-                ? (parseFloat(quote.amountIn) * 10 ** tokenIn.decimals).toString()
-                : quote.amountIn)
-            : 0n;
+          // Check Uniswap router allowance (ETH)
+          const amountInWei = BigInt(aggregatedQuote.amountIn);
           hasAllowance = await checkAllowance(fromSymbol, amountInWei);
         }
       }
@@ -479,7 +500,7 @@ export function useSwap() {
       return null;
     }
   // Note: state.status removed from deps to prevent infinite loop - it's only used for logging
-  }, [address, fromAsset, toAsset, fromAmount, chainId, checkAllowance, setQuote]);
+  }, [address, fromAsset, toAsset, fromAmount, chainId, slippage, provider, checkAllowance, setQuote]);
 
   // Execute token approval
   const executeApproval = useCallback(async (): Promise<boolean> => {
@@ -494,26 +515,48 @@ export function useSwap() {
 
       const signer = await getSigner();
 
-      // PHASE 10 + 11: Build approval transaction based on provider
+      // Compute exact approval amount from quote (for exact approval mode)
+      const tokenIn = getTokenBySymbol(swapQuote.fromSymbol, chainId);
+      const exactAmount = tokenIn
+        ? parseUnits(
+            formatUnits(swapQuote.amountIn, tokenIn.decimals),
+            tokenIn.decimals,
+          )
+        : undefined;
+      const useExact = approvalMode === 'exact' && exactAmount !== undefined;
+
+      console.log('[Swap] Approval mode:', approvalMode, useExact ? `(${exactAmount})` : '(unlimited)');
+
+      // Build approval transaction based on provider + approval mode
       let approvalTx: { to: string; data: string; value: string };
 
       if (swapQuote.provider === '1inch') {
-        // Use 1inch approval API
+        // Use 1inch approval API — pass amount string for exact mode
         console.log('[Swap] Building 1inch approval...');
-        approvalTx = await buildOneInchApproval(swapQuote.fromSymbol, chainId);
+        const amountStr = useExact && tokenIn
+          ? formatUnits(swapQuote.amountIn, tokenIn.decimals)
+          : undefined;
+        approvalTx = await buildOneInchApproval(swapQuote.fromSymbol, chainId, amountStr);
       } else if (swapQuote.provider === 'pancakeswap-v3') {
-        // PHASE 11: Use PancakeSwap router approval (BSC)
+        // PancakeSwap router approval (BSC)
         console.log('[Swap] Building PancakeSwap approval...');
-        const pancakeApproval = buildPancakeApprovalTx(swapQuote.fromSymbol);
+        const pancakeApproval = buildPancakeApprovalTx(
+          swapQuote.fromSymbol,
+          useExact ? exactAmount : undefined,
+        );
         approvalTx = {
           to: pancakeApproval.to,
           data: pancakeApproval.data,
           value: pancakeApproval.value,
         };
       } else {
-        // Use Uniswap router approval (ETH)
+        // Uniswap router approval (ETH)
         console.log('[Swap] Building Uniswap approval...');
-        approvalTx = buildRouterApproval(swapQuote.fromSymbol, chainId);
+        approvalTx = buildRouterApproval(
+          swapQuote.fromSymbol,
+          chainId,
+          useExact ? exactAmount : undefined,
+        );
       }
 
       console.log('[Swap] Sending approval:', { provider: swapQuote.provider, ...approvalTx });
@@ -546,7 +589,7 @@ export function useSwap() {
 
       throw err;
     }
-  }, [swapQuote, chainId, getSigner, state.status]);
+  }, [swapQuote, chainId, approvalMode, getSigner, state.status]);
 
   // Execute the swap
   const executeSwap = useCallback(async (): Promise<string> => {
@@ -681,7 +724,7 @@ export function useSwap() {
         trackEvent('swap_completed');
 
         // Refresh balances for the current chain
-        const chainNetwork = chainId === 56 ? 'bsc' : 'ethereum';
+        const chainNetwork = CHAIN_ID_TO_NETWORK[chainId] || 'ethereum';
         await fetchBalances(address, [chainNetwork]);
 
         return tx.hash;
@@ -752,7 +795,7 @@ export function useSwap() {
     // VALIDATION 2: Network guard - Block swap on wrong chain
     // PHASE 11: Allow ETH (1) and BSC (56)
     if (!SUPPORTED_CHAIN_IDS.includes(chainId as typeof SUPPORTED_CHAIN_IDS[number])) {
-      const error = `Network mismatch: Please switch to Ethereum or BSC. Supported: ${SUPPORTED_CHAIN_IDS.join(', ')}. Current: ${chainId}`;
+      const error = `Network mismatch: Please switch to a supported chain. Supported chain IDs: ${SUPPORTED_CHAIN_IDS.join(', ')}. Current: ${chainId}`;
       logLifecycle(null, 'error', { reason: 'wrong_chain', currentChainId: chainId, supportedChains: [...SUPPORTED_CHAIN_IDS] });
       logError('Swap Validation - NETWORK GUARD', new Error(error));
       toast.error(error);
@@ -832,17 +875,20 @@ export function useSwap() {
     }
 
     // QUOTE EXPIRY CHECK: Block execution if quote is stale (>30 seconds old)
+    // Stay in 'previewing' state so user can click "Refresh" instead of seeing error screen
     const quoteAge = Date.now() - swapQuote.quoteTimestamp;
     if (quoteAge > QUOTE_EXPIRY_MS) {
       const expiredSeconds = Math.floor(quoteAge / 1000);
-      const error = `Quote expired (${expiredSeconds}s old). Please refresh to get a current price before swapping.`;
-      logLifecycle('previewing', 'error', { reason: 'quote_expired', quoteAge: expiredSeconds });
-      toast.error(error);
-      throw new Error(error);
+      logLifecycle('previewing', 'previewing', { reason: 'quote_expired', quoteAge: expiredSeconds });
+      toast.warning(`Quote expired (${expiredSeconds}s old). Please refresh to get a current price.`);
+      throw new Error('QUOTE_EXPIRED');
     }
 
     return executeSwap();
   }, [state.status, swapQuote, executeSwap]);
+
+  // Check if current quote is expired (for UI timer/guard)
+  const isQuoteExpired = swapQuote ? (Date.now() - swapQuote.quoteTimestamp) > QUOTE_EXPIRY_MS : false;
 
   // Cancel preview
   const cancelPreview = useCallback(() => {
@@ -859,6 +905,7 @@ export function useSwap() {
     swapQuote,
     canSwap,
     isWrongChain,
+    isQuoteExpired,
 
     // Actions
     swap,              // Initiate swap (gets quote, shows preview)

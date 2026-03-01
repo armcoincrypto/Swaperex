@@ -1,0 +1,146 @@
+{
+  "name": "Optimism Tokens",
+  "chainId": 10,
+  "tokens": [
+    {
+      "symbol": "ETH",
+      "name": "Ether",
+      "address": "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee.png"
+    },
+    {
+      "symbol": "WETH",
+      "name": "Wrapped Ether",
+      "address": "0x4200000000000000000000000000000000000006",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0x4200000000000000000000000000000000000006.png"
+    },
+    {
+      "symbol": "USDT",
+      "name": "Tether USD",
+      "address": "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58",
+      "decimals": 6,
+      "logoURI": "https://tokens.1inch.io/0x94b008aa00579c1307b0ef2c499ad98a8ce58e58.png"
+    },
+    {
+      "symbol": "USDC",
+      "name": "USD Coin",
+      "address": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+      "decimals": 6,
+      "logoURI": "https://tokens.1inch.io/0x0b2c639c533813f4aa9d7837caf62653d097ff85.png"
+    },
+    {
+      "symbol": "USDC.e",
+      "name": "Bridged USD Coin",
+      "address": "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
+      "decimals": 6,
+      "logoURI": "https://tokens.1inch.io/0x7f5c764cbc14f9669b88837ca1490cca17c31607.png"
+    },
+    {
+      "symbol": "DAI",
+      "name": "Dai Stablecoin",
+      "address": "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0xda10009cbd5d07dd0cecc66161fc93d7c9000da1.png"
+    },
+    {
+      "symbol": "WBTC",
+      "name": "Wrapped BTC",
+      "address": "0x68f180fcCe6836688e9084f035309E29Bf0A2095",
+      "decimals": 8,
+      "logoURI": "https://tokens.1inch.io/0x68f180fcce6836688e9084f035309e29bf0a2095.png"
+    },
+    {
+      "symbol": "OP",
+      "name": "Optimism",
+      "address": "0x4200000000000000000000000000000000000042",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0x4200000000000000000000000000000000000042.png"
+    },
+    {
+      "symbol": "LINK",
+      "name": "Chainlink Token",
+      "address": "0x350a791Bfc2C21F9Ed5d10980Dad2e2638ffa7f6",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0x350a791bfc2c21f9ed5d10980dad2e2638ffa7f6.png"
+    },
+    {
+      "symbol": "SNX",
+      "name": "Synthetix Network Token",
+      "address": "0x8700dAec35aF8Ff88c16BdF0418774CB3D7599B4",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0x8700daec35af8ff88c16bdf0418774cb3d7599b4.png"
+    },
+    {
+      "symbol": "wstETH",
+      "name": "Wrapped liquid staked Ether 2.0",
+      "address": "0x1F32b1c2345538c0c6f582fCB022739c4A194Ebb",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0x1f32b1c2345538c0c6f582fcb022739c4a194ebb.png"
+    },
+    {
+      "symbol": "rETH",
+      "name": "Rocket Pool ETH",
+      "address": "0x9Bcef72be871e61ED4fBbc7630889beE758eb81D",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0x9bcef72be871e61ed4fbbc7630889bee758eb81d.png"
+    },
+    {
+      "symbol": "AAVE",
+      "name": "Aave Token",
+      "address": "0x76FB31fb4af56892A25e32cFC43De717950c9278",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0x76fb31fb4af56892a25e32cfc43de717950c9278.png"
+    },
+    {
+      "symbol": "CRV",
+      "name": "Curve DAO Token",
+      "address": "0x0994206dfE8De6Ec6920FF4D779B0d950605Fb53",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0x0994206dfe8de6ec6920ff4d779b0d950605fb53.png"
+    },
+    {
+      "symbol": "FRAX",
+      "name": "Frax",
+      "address": "0x2E3D870790dC77A83DD1d18184Acc7439A53f475",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0x2e3d870790dc77a83dd1d18184acc7439a53f475.png"
+    },
+    {
+      "symbol": "sUSD",
+      "name": "Synth sUSD",
+      "address": "0x8c6f28f2F1A3C87F0f938b96d27520d9751ec8d9",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0x8c6f28f2f1a3c87f0f938b96d27520d9751ec8d9.png"
+    },
+    {
+      "symbol": "LUSD",
+      "name": "Liquity USD",
+      "address": "0xc40F949F8a4e094D1b49a23ea9241D289B7b2819",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0xc40f949f8a4e094d1b49a23ea9241d289b7b2819.png"
+    },
+    {
+      "symbol": "UNI",
+      "name": "Uniswap",
+      "address": "0x6fd9d7AD17242c41f7131d257212c54A0e816691",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0x6fd9d7ad17242c41f7131d257212c54a0e816691.png"
+    },
+    {
+      "symbol": "LDO",
+      "name": "Lido DAO Token",
+      "address": "0xFdb794692724153d1488CcdBE0C56c252596735F",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0xfdb794692724153d1488ccdbe0c56c252596735f.png"
+    },
+    {
+      "symbol": "PERP",
+      "name": "Perpetual Protocol",
+      "address": "0x9e1028F5F1D5eDE59748FFceE5532509976840E0",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0x9e1028f5f1d5ede59748ffcee5532509976840e0.png"
+    }
+  ]
+}

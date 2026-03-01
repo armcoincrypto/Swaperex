@@ -140,7 +140,6 @@ export const useSignalHistoryStore = create<SignalHistoryState>()(
           );
 
           if (isDuplicate || isFallbackDuplicate) {
-            console.log('[SignalHistory] Duplicate entry ignored (hash:', stateHash, ')');
             return state;
           }
 
@@ -149,8 +148,6 @@ export const useSignalHistoryStore = create<SignalHistoryState>()(
 
           // Trim to max entries
           const trimmedEntries = newEntries.slice(0, MAX_ENTRIES);
-
-          console.log('[SignalHistory] New entry added:', entry.type, entry.token, 'hash:', stateHash);
 
           return {
             entries: trimmedEntries,
@@ -161,7 +158,6 @@ export const useSignalHistoryStore = create<SignalHistoryState>()(
 
       clearHistory: () => {
         set({ entries: [], lastUpdated: Date.now() });
-        console.log('[SignalHistory] History cleared');
       },
 
       getRecentEntries: (limit = 10) => {
@@ -285,4 +281,111 @@ export function formatRecurrenceText(recurrence: SignalRecurrence): string {
     : 'stable';
 
   return `${count}× in 24h (${trendText})`;
+}
+
+// ── Grouping helpers for Activity Timeline ──────────────────────
+
+/** Key used to group entries: (chainId, token, type, severity) */
+export function getGroupKey(entry: SignalHistoryEntry): string {
+  return `${entry.chainId}:${entry.token.toLowerCase()}:${entry.type}:${entry.severity}`;
+}
+
+export interface SignalGroup {
+  key: string;
+  chainId: number;
+  token: string;
+  tokenSymbol?: string;
+  type: 'liquidity' | 'risk';
+  severity: 'warning' | 'danger' | 'critical';
+  /** Highest confidence across occurrences */
+  maxConfidence: number;
+  /** Impact from most recent occurrence */
+  latestImpact?: SignalImpact;
+  /** Most recent entry (for display) */
+  latest: SignalHistoryEntry;
+  /** All entries in this group (newest first) */
+  entries: SignalHistoryEntry[];
+  /** Total count */
+  count: number;
+  /** First occurrence timestamp */
+  firstSeenAt: number;
+  /** Last occurrence timestamp */
+  lastSeenAt: number;
+}
+
+/**
+ * Group signal entries by (chainId, token, type, severity).
+ * Returns groups sorted by most recent activity.
+ */
+export function groupSignalEntries(entries: SignalHistoryEntry[]): SignalGroup[] {
+  const groupMap = new Map<string, SignalGroup>();
+
+  for (const entry of entries) {
+    const key = getGroupKey(entry);
+    const existing = groupMap.get(key);
+
+    if (existing) {
+      existing.entries.push(entry);
+      existing.count++;
+      existing.maxConfidence = Math.max(existing.maxConfidence, entry.confidence);
+      if (entry.timestamp < existing.firstSeenAt) existing.firstSeenAt = entry.timestamp;
+      if (entry.timestamp > existing.lastSeenAt) {
+        existing.lastSeenAt = entry.timestamp;
+        existing.latest = entry;
+        existing.latestImpact = entry.impact;
+        existing.tokenSymbol = entry.tokenSymbol || existing.tokenSymbol;
+      }
+    } else {
+      groupMap.set(key, {
+        key,
+        chainId: entry.chainId,
+        token: entry.token,
+        tokenSymbol: entry.tokenSymbol,
+        type: entry.type,
+        severity: entry.severity,
+        maxConfidence: entry.confidence,
+        latestImpact: entry.impact,
+        latest: entry,
+        entries: [entry],
+        count: 1,
+        firstSeenAt: entry.timestamp,
+        lastSeenAt: entry.timestamp,
+      });
+    }
+  }
+
+  // Sort groups by most recent first
+  return Array.from(groupMap.values()).sort((a, b) => b.lastSeenAt - a.lastSeenAt);
+}
+
+/** Human-readable severity label */
+export function getSeverityLabel(severity: string): string {
+  switch (severity) {
+    case 'critical': return 'Critical';
+    case 'danger': return 'High Risk';
+    case 'warning': return 'Caution';
+    default: return 'Unknown';
+  }
+}
+
+/** Chain name by ID */
+export function getChainLabel(chainId: number): string {
+  switch (chainId) {
+    case 1: return 'ETH';
+    case 56: return 'BSC';
+    case 8453: return 'Base';
+    case 42161: return 'ARB';
+    default: return `Chain ${chainId}`;
+  }
+}
+
+/** Time range filter helpers */
+export type TimeRange = '1h' | '6h' | '24h';
+
+export function getTimeRangeMs(range: TimeRange): number {
+  switch (range) {
+    case '1h': return 60 * 60 * 1000;
+    case '6h': return 6 * 60 * 60 * 1000;
+    case '24h': return 24 * 60 * 60 * 1000;
+  }
 }

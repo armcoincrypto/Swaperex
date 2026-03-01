@@ -12,7 +12,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { Modal } from '@/components/common/Modal';
 import { Button } from '@/components/common/Button';
 import { formatBalance } from '@/utils/format';
+import { getExplorerTxUrl } from '@/config/chains';
 import type { SwapQuote } from '@/hooks/useSwap';
+import type { ApprovalMode } from '@/stores/swapStore';
 
 // Quote expires after 30 seconds
 const QUOTE_EXPIRY_SECONDS = 30;
@@ -26,6 +28,7 @@ interface SwapPreviewModalProps {
   error: string | null;
   txHash: string | null;
   explorerUrl?: string | null;  // PHASE 9: Explorer URL from useSwap
+  approvalMode?: ApprovalMode;
   onConfirm: () => void;
   onCancel: () => void;
   onRefreshQuote: () => void;
@@ -39,6 +42,7 @@ export function SwapPreviewModal({
   error,
   txHash,
   explorerUrl,
+  approvalMode = 'exact',
   onConfirm,
   onCancel,
   onRefreshQuote,
@@ -47,11 +51,13 @@ export function SwapPreviewModal({
   const [secondsRemaining, setSecondsRemaining] = useState(QUOTE_EXPIRY_SECONDS);
   const [isExpired, setIsExpired] = useState(false);
 
-  // Reset timer when quote changes or modal opens
+  // Compute remaining time from actual quoteTimestamp (not just reset to 30s)
   useEffect(() => {
     if (isOpen && quote) {
-      setSecondsRemaining(QUOTE_EXPIRY_SECONDS);
-      setIsExpired(false);
+      const elapsed = Math.floor((Date.now() - quote.quoteTimestamp) / 1000);
+      const remaining = Math.max(0, QUOTE_EXPIRY_SECONDS - elapsed);
+      setSecondsRemaining(remaining);
+      setIsExpired(remaining <= 0);
     }
   }, [isOpen, quote]);
 
@@ -174,6 +180,13 @@ export function SwapPreviewModal({
               label="Provider"
               value={quote.provider}
             />
+            {needsApproval && (
+              <DetailRow
+                label="Approval"
+                value={approvalMode === 'exact' ? 'Exact amount' : 'Unlimited'}
+                variant={approvalMode === 'unlimited' ? 'warning' : 'normal'}
+              />
+            )}
           </div>
 
           {/* High Impact Warning */}
@@ -202,10 +215,16 @@ export function SwapPreviewModal({
 
           {/* Approval Notice */}
           {needsApproval && step === 'preview' && (
-            <div className="flex items-center gap-2 text-blue-400 bg-blue-900/20 rounded-lg p-3 mb-4">
+            <div className={`flex items-center gap-2 rounded-lg p-3 mb-4 ${
+              approvalMode === 'unlimited'
+                ? 'text-yellow-400 bg-yellow-900/20'
+                : 'text-blue-400 bg-blue-900/20'
+            }`}>
               <InfoIcon />
               <span className="text-sm">
-                This swap requires token approval. You'll sign two transactions.
+                {approvalMode === 'unlimited'
+                  ? 'This swap requires unlimited token approval. You\'ll sign two transactions. The router will have permanent access to this token.'
+                  : 'This swap requires token approval for the exact amount. You\'ll sign two transactions.'}
               </span>
             </div>
           )}
@@ -364,7 +383,7 @@ function SuccessContent({
   onClose: () => void;
 }) {
   const [copied, setCopied] = useState(false);
-  const explorerUrl = providedExplorerUrl || getExplorerUrl(1, txHash || '');
+  const explorerUrl = providedExplorerUrl || getExplorerTxUrl(1, txHash || '');
   const timestamp = new Date().toLocaleString();
 
   const handleCopyTxHash = async () => {
@@ -694,18 +713,6 @@ function getLoadingText(step: SwapStep): string {
     default:
       return 'Processing...';
   }
-}
-
-function getExplorerUrl(chainId: number, txHash: string): string {
-  const explorers: Record<number, string> = {
-    1: 'https://etherscan.io/tx/',
-    56: 'https://bscscan.com/tx/',
-    137: 'https://polygonscan.com/tx/',
-    42161: 'https://arbiscan.io/tx/',
-    10: 'https://optimistic.etherscan.io/tx/',
-    43114: 'https://snowtrace.io/tx/',
-  };
-  return `${explorers[chainId] || 'https://etherscan.io/tx/'}${txHash}`;
 }
 
 // Icons

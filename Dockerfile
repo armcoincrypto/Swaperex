@@ -15,8 +15,9 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # Install Python dependencies
 COPY pyproject.toml .
+RUN mkdir -p src/swaperex && touch src/swaperex/__init__.py
 RUN pip install --upgrade pip && \
-    pip install -e . && \
+    pip install . && \
     pip install bip-utils tronpy web3
 
 # Stage 2: Runtime
@@ -34,8 +35,9 @@ ENV PYTHONUNBUFFERED=1
 COPY src/ src/
 COPY scripts/ scripts/
 
-# Create non-root user
+# Create non-root user and data directory for SQLite
 RUN useradd -m -s /bin/bash swaperex && \
+    mkdir -p /app/data && \
     chown -R swaperex:swaperex /app
 
 USER swaperex

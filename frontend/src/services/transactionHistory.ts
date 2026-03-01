@@ -1,25 +1,21 @@
 /**
  * Transaction History Service
  *
- * Fetches recent transactions from blockchain explorers (Etherscan/BSCScan).
- * READ-ONLY: No backend needed, uses public APIs.
+ * Fetches recent transactions via backend-signals explorer proxy.
+ * The proxy forwards to Etherscan/BSCScan/PolygonScan server-side,
+ * bypassing browser CORS restrictions and rate limits.
  *
- * PRODUCTION: Simple, reliable, no analytics.
- * Improved swap detection and error handling.
+ * READ-ONLY: No signing, no state changes.
  */
 
-// Explorer API endpoints
-const EXPLORER_APIS: Record<number, { api: string; explorer: string; name: string }> = {
-  1: {
-    api: 'https://api.etherscan.io/api',
-    explorer: 'https://etherscan.io',
-    name: 'Etherscan',
-  },
-  56: {
-    api: 'https://api.bscscan.com/api',
-    explorer: 'https://bscscan.com',
-    name: 'BscScan',
-  },
+// Backend-signals explorer proxy base URL
+const EXPLORER_PROXY = import.meta.env.VITE_SIGNALS_API_URL || 'http://207.180.212.142:4001';
+
+// Chain ID → proxy chain key + explorer base URL (for tx links)
+const EXPLORER_CHAINS: Record<number, { proxyChain: string; explorer: string; name: string }> = {
+  1: { proxyChain: 'eth', explorer: 'https://etherscan.io', name: 'Etherscan' },
+  56: { proxyChain: 'bsc', explorer: 'https://bscscan.com', name: 'BscScan' },
+  137: { proxyChain: 'polygon', explorer: 'https://polygonscan.com', name: 'PolygonScan' },
 };
 
 // Known DEX router addresses for swap detection (lowercase)
@@ -101,6 +97,14 @@ function isSwapTransaction(to: string, inputData: string): { isSwap: boolean; ro
 }
 
 /**
+ * Simple result cache — explorer data changes slowly, 5-min TTL avoids
+ * rate limits and CORS errors from re-fetching every 30s refresh.
+ */
+const txCache: Record<string, { data: Transaction[]; expiresAt: number }> = {};
+const TX_CACHE_TTL = 5 * 60 * 1000; // 5 minutes (success)
+const TX_CACHE_TTL_EMPTY = 30 * 1000; // 30 seconds (rate-limited/empty → retry sooner)
+
+/**
  * Fetch recent transactions for an address
  * Returns empty array on error (does not throw)
  */
@@ -109,15 +113,21 @@ export async function getRecentTransactions(
   chainId: number,
   limit: number = 10
 ): Promise<Transaction[]> {
-  const explorerConfig = EXPLORER_APIS[chainId];
-  if (!explorerConfig) {
-    console.warn(`[TxHistory] No explorer API for chain ${chainId}`);
+  const chainConfig = EXPLORER_CHAINS[chainId];
+  if (!chainConfig) {
     return [];
   }
 
+  // Check cache — avoids hitting APIs every 30s
+  const cacheKey = `${address}:${chainId}:${limit}`;
+  const cached = txCache[cacheKey];
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.data;
+  }
+
   try {
-    // Fetch normal transactions
-    const url = new URL(explorerConfig.api);
+    // Use backend-signals proxy (server-side → no CORS, no browser rate limits)
+    const url = new URL(`${EXPLORER_PROXY}/explorer/${chainConfig.proxyChain}`);
     url.searchParams.set('module', 'account');
     url.searchParams.set('action', 'txlist');
     url.searchParams.set('address', address);
@@ -127,10 +137,8 @@ export async function getRecentTransactions(
     url.searchParams.set('offset', String(limit));
     url.searchParams.set('sort', 'desc');
 
-    console.log('[TxHistory] Fetching from:', explorerConfig.name);
-
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     const response = await fetch(url.toString(), { signal: controller.signal });
     clearTimeout(timeoutId);
@@ -138,12 +146,14 @@ export async function getRecentTransactions(
     const data = await response.json();
 
     if (data.status !== '1' || !Array.isArray(data.result)) {
-      // API returned error or no results - not a failure, just no data
-      console.log('[TxHistory] No transactions found or API limit:', data.message || 'no results');
+      console.log(`[TxHistory] ${chainConfig.proxyChain} → status=${data.status}, msg=${data.message}, error=${typeof data.result === 'string' ? data.result : 'N/A'}`);
+      // Short cache on failure/rate-limit — retry sooner
+      txCache[cacheKey] = { data: [], expiresAt: Date.now() + TX_CACHE_TTL_EMPTY };
       return [];
     }
 
-    // Parse transactions
+    console.log(`[TxHistory] ${chainConfig.proxyChain} → OK, ${data.result.length} transactions`);
+
     const transactions: Transaction[] = data.result.map((tx: any) => {
       const { isSwap, router } = isSwapTransaction(tx.to, tx.input);
 
@@ -158,23 +168,17 @@ export async function getRecentTransactions(
         isSwap,
         swapRouter: router,
         status: tx.isError === '0' ? 'success' : 'failed',
-        explorerUrl: `${explorerConfig.explorer}/tx/${tx.hash}`,
+        explorerUrl: `${chainConfig.explorer}/tx/${tx.hash}`,
         chainId,
         methodId: tx.input?.slice(0, 10),
       };
     });
 
-    console.log('[TxHistory] Found', transactions.length, 'transactions,',
-      transactions.filter(t => t.isSwap).length, 'swaps');
+    txCache[cacheKey] = { data: transactions, expiresAt: Date.now() + TX_CACHE_TTL };
     return transactions;
-  } catch (error) {
-    // Log but don't throw - return empty array
-    if ((error as Error).name === 'AbortError') {
-      console.warn('[TxHistory] Request timed out for chain', chainId);
-    } else {
-      console.warn('[TxHistory] Fetch failed for chain', chainId, ':', (error as Error).message);
-    }
-    return [];
+  } catch {
+    // Silent failure — return stale cache if available, else empty
+    return cached?.data || [];
   }
 }
 
@@ -203,21 +207,43 @@ export async function getMultiChainSwaps(
   limitPerChain: number = 10
 ): Promise<Transaction[]> {
   const results = await Promise.allSettled(
-    chainIds.map(chainId => getRecentSwaps(address, chainId, limitPerChain))
+    chainIds.map((chainId) => getRecentSwaps(address, chainId, limitPerChain))
   );
 
-  // Combine successful results
   const allSwaps: Transaction[] = [];
-  results.forEach((result, index) => {
+  for (const result of results) {
     if (result.status === 'fulfilled') {
       allSwaps.push(...result.value);
-    } else {
-      console.warn(`[TxHistory] Failed to fetch swaps for chain ${chainIds[index]}`);
     }
-  });
+  }
 
-  // Sort by timestamp descending
   return allSwaps.sort((a, b) => b.timestamp - a.timestamp);
+}
+
+/**
+ * Get ALL transactions across multiple chains (swaps + transfers + approvals)
+ * For the Activity panel which shows all activity types.
+ *
+ * Parallel: backend proxy uses API keys (5 req/sec), so no need for stagger.
+ * Individual chain failures are silently ignored.
+ */
+export async function getMultiChainTransactions(
+  address: string,
+  chainIds: number[],
+  limitPerChain: number = 10
+): Promise<Transaction[]> {
+  const results = await Promise.allSettled(
+    chainIds.map((chainId) => getRecentTransactions(address, chainId, limitPerChain))
+  );
+
+  const allTxs: Transaction[] = [];
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      allTxs.push(...result.value);
+    }
+  }
+
+  return allTxs.sort((a, b) => b.timestamp - a.timestamp);
 }
 
 /**
@@ -231,7 +257,7 @@ function formatValue(weiValue: string, chainId: number): string {
     if (ether === 0) return '0';
     if (ether < 0.0001) return '< 0.0001';
 
-    const symbol = chainId === 56 ? 'BNB' : 'ETH';
+    const symbol = chainId === 56 ? 'BNB' : chainId === 137 ? 'MATIC' : 'ETH';
     return `${ether.toFixed(4)} ${symbol}`;
   } catch {
     return '0';
@@ -261,7 +287,7 @@ export function formatTimeAgo(timestamp: number): string {
  * Get explorer URL for a transaction
  */
 export function getExplorerUrl(hash: string, chainId: number): string {
-  const config = EXPLORER_APIS[chainId];
+  const config = EXPLORER_CHAINS[chainId];
   if (!config) return '#';
   return `${config.explorer}/tx/${hash}`;
 }

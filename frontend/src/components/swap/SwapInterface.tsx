@@ -10,7 +10,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useWallet } from '@/hooks/useWallet';
 import { useSwap } from '@/hooks/useSwap';
-import { useSwapStore } from '@/stores/swapStore';
+import { useSwapStore, type ApprovalMode } from '@/stores/swapStore';
 import { useBalanceStore } from '@/stores/balanceStore';
 import { useCustomTokenStore, type CustomToken } from '@/stores/customTokenStore';
 import { useFavoriteTokensStore } from '@/stores/favoriteTokensStore';
@@ -35,20 +35,27 @@ const CHAIN_NAMES: Record<number, string> = {
   56: 'bsc',
   137: 'polygon',
   42161: 'arbitrum',
+  10: 'optimism',
+  43114: 'avalanche',
+  100: 'gnosis',
+  250: 'fantom',
+  8453: 'base',
 };
 
 // Gas buffer for native tokens (to leave enough for transaction fees)
 // Use smaller of: fixed buffer OR 5% of balance
 const GAS_BUFFER_FIXED: Record<number, number> = {
-  1: 0.005,   // ETH - leave max 0.005 ETH for gas
-  56: 0.002,  // BNB - leave max 0.002 BNB for gas
-  137: 0.5,   // MATIC - leave max 0.5 MATIC for gas
+  1: 0.005,      // ETH - leave max 0.005 ETH for gas
+  56: 0.002,     // BNB - leave max 0.002 BNB for gas
+  137: 0.5,      // MATIC - leave max 0.5 MATIC for gas
+  42161: 0.0005, // Arbitrum ETH - L2 cheap gas
+  10: 0.0005,    // Optimism ETH - L2 cheap gas
+  43114: 0.05,   // AVAX - leave max 0.05 AVAX for gas
+  100: 0.1,      // xDAI - leave max 0.1 xDAI for gas
+  250: 0.5,      // FTM - leave max 0.5 FTM for gas
+  8453: 0.0005,  // Base ETH - L2 cheap gas
 };
 const GAS_BUFFER_PERCENT = 0.05; // 5% of balance as minimum buffer
-
-// Minimum output value in USD to prevent dust swaps
-// DISABLED: We don't have USD prices for all tokens, so this check was incorrect
-// const MIN_OUTPUT_USD = 0.01;
 
 // Debounce delay for quote fetching (ms)
 const QUOTE_DEBOUNCE_MS = 500;
@@ -116,10 +123,12 @@ export function SwapInterface() {
     toAsset,
     fromAmount,
     slippage,
+    approvalMode,
     setFromAsset,
     setToAsset,
     setFromAmount,
     setSlippage,
+    setApprovalMode,
     swapAssets,
     isQuoting,
     quoteError,
@@ -622,6 +631,8 @@ export function SwapInterface() {
             customValue={customSlippage}
             onChange={setSlippage}
             onCustomChange={handleCustomSlippage}
+            approvalMode={approvalMode}
+            onApprovalModeChange={setApprovalMode}
             onClose={() => setShowSettings(false)}
           />
         )}
@@ -639,7 +650,9 @@ export function SwapInterface() {
         />
 
         {/* From Token */}
-        <div className={`relative z-10 bg-electro-bgAlt/80 rounded-glass-sm p-4 mb-2 border transition-all duration-200 ${
+        <div className={`relative bg-electro-bgAlt/80 rounded-glass-sm p-4 mb-2 border transition-all duration-200 ${
+          showFromSelector ? 'z-30' : 'z-10'
+        } ${
           insufficientBalance ? 'border-danger/50 shadow-glow-danger' : 'border-white/[0.06] hover:border-white/[0.1]'
         }`}>
           <div className="flex items-center justify-between mb-2">
@@ -687,6 +700,8 @@ export function SwapInterface() {
               )}
             </div>
             <input
+              id="swap-from-amount"
+              name="swap-from-amount"
               type="text"
               placeholder="0.0"
               value={fromAmount}
@@ -716,7 +731,9 @@ export function SwapInterface() {
         </div>
 
         {/* To Token */}
-        <div className="relative z-10 bg-electro-bgAlt/80 rounded-glass-sm p-4 mt-2 border border-white/[0.06] hover:border-white/[0.1] transition-all duration-200">
+        <div className={`relative bg-electro-bgAlt/80 rounded-glass-sm p-4 mt-2 border border-white/[0.06] hover:border-white/[0.1] transition-all duration-200 ${
+          showToSelector ? 'z-30' : 'z-10'
+        }`}>
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-dark-400">You Receive</span>
             <span className="text-sm text-dark-400">
@@ -747,9 +764,10 @@ export function SwapInterface() {
                 />
               )}
             </div>
-            <div className="flex-1 text-right">
+            {/* Fixed height prevents layout shift when toggling between states */}
+            <div className="flex-1 text-right h-9 flex items-center justify-end">
               {showSpinner ? (
-                <div className="flex items-center justify-end gap-2">
+                <div className="flex items-center gap-2">
                   <LoadingSpinner />
                   <span className="text-dark-400">Getting quote...</span>
                 </div>
@@ -758,9 +776,7 @@ export function SwapInterface() {
                   {formatBalance(swapQuote.amountOutFormatted, 6)}
                 </span>
               ) : fromAmount && parseFloat(fromAmount) > 0 && !insufficientBalance ? (
-                <div className="flex items-center justify-end gap-2">
-                  <span className="text-2xl font-medium text-dark-500">~</span>
-                </div>
+                <span className="text-2xl font-medium text-dark-500">~</span>
               ) : (
                 <span className="text-2xl font-medium text-dark-500">0.0</span>
               )}
@@ -965,6 +981,7 @@ export function SwapInterface() {
         error={error}
         txHash={txHash}
         explorerUrl={explorerUrl}
+        approvalMode={approvalMode}
         onConfirm={handleConfirmSwap}
         onCancel={handleCancelPreview}
         onRefreshQuote={handleRefreshQuote}
@@ -986,6 +1003,30 @@ export function SwapInterface() {
   );
 }
 
+// Reusable Token Logo with graceful fallback
+function TokenLogo({ url, symbol, size = 'sm' }: { url?: string; symbol?: string; size?: 'sm' | 'md' }) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const dims = size === 'md' ? 'w-8 h-8' : 'w-6 h-6';
+  const textSize = size === 'md' ? 'text-sm' : 'text-xs';
+
+  if (url && !imgFailed) {
+    return (
+      <img
+        src={url}
+        alt={symbol || ''}
+        className={`${dims} rounded-full flex-shrink-0`}
+        onError={() => setImgFailed(true)}
+      />
+    );
+  }
+
+  return (
+    <div className={`${dims} rounded-full bg-gradient-to-br from-primary-600/40 to-dark-600 flex items-center justify-center ${textSize} font-bold flex-shrink-0`}>
+      {symbol?.[0] || '?'}
+    </div>
+  );
+}
+
 // Token Button Component
 function TokenButton({ asset, onClick }: { asset: AssetInfo | null; onClick: () => void }) {
   return (
@@ -993,20 +1034,7 @@ function TokenButton({ asset, onClick }: { asset: AssetInfo | null; onClick: () 
       onClick={onClick}
       className="flex items-center gap-2 px-3 py-2 bg-electro-panel/80 rounded-xl hover:bg-electro-panelHover transition-all duration-200 border border-white/[0.06] hover:border-white/[0.1]"
     >
-      {asset?.logo_url ? (
-        <img
-          src={asset.logo_url}
-          alt={asset.symbol}
-          className="w-6 h-6 rounded-full"
-          onError={(e) => {
-            (e.target as HTMLImageElement).style.display = 'none';
-            (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
-          }}
-        />
-      ) : null}
-      <div className={`w-6 h-6 rounded-full bg-dark-500 flex items-center justify-center text-xs font-bold ${asset?.logo_url ? 'hidden' : ''}`}>
-        {asset?.symbol?.[0] || '?'}
-      </div>
+      <TokenLogo url={asset?.logo_url} symbol={asset?.symbol} size="sm" />
       <span className="font-medium">{asset?.symbol || 'Select'}</span>
       <ChevronDownIcon />
     </button>
@@ -1140,11 +1168,13 @@ function TokenSelectorDropdown({
   return (
     <div
       ref={dropdownRef}
-      className="absolute top-full left-0 mt-2 w-80 bg-electro-panel/95 backdrop-blur-glass rounded-glass shadow-glass border border-white/[0.08] py-2 z-[60]"
+      className="absolute top-full left-0 mt-2 w-[min(320px,calc(100vw-2rem))] bg-electro-panel/95 backdrop-blur-glass rounded-glass shadow-glass border border-white/[0.08] py-2 z-[60]"
     >
       {/* Search Input */}
       <div className="px-3 pb-2 mb-2 border-b border-dark-700">
         <input
+          id="token-search"
+          name="token-search"
           type="text"
           placeholder="Search or paste contract address..."
           value={searchQuery}
@@ -1256,7 +1286,7 @@ function TokenSelectorDropdown({
       )}
 
       {/* Token List */}
-      <div className="max-h-64 overflow-y-auto">
+      <div className="max-h-72 overflow-y-auto scrollbar-thin">
         {filteredAssets.length === 0 ? (
           <div className="px-4 py-3 text-center text-dark-400 text-sm">
             {isContractAddress ? 'Token not found - import above' : 'No tokens found'}
@@ -1275,11 +1305,12 @@ function TokenSelectorDropdown({
             return (
               <div
                 key={`${asset.symbol}-${asset.contract_address}`}
-                className={`w-full px-4 py-3 text-left transition-colors flex items-center gap-3 ${
+                onClick={() => !isExcluded && onSelect(asset)}
+                className={`w-full px-4 py-2.5 text-left transition-colors flex items-center gap-3 cursor-pointer ${
                   isSelected
                     ? 'bg-primary-600/20 text-primary-400'
                     : isExcluded
-                    ? 'opacity-50'
+                    ? 'opacity-50 cursor-not-allowed'
                     : 'hover:bg-dark-700'
                 }`}
               >
@@ -1295,7 +1326,7 @@ function TokenSelectorDropdown({
                         chainId: chainId,
                       });
                     }}
-                    className={`p-1 transition-colors ${
+                    className={`p-1 transition-colors flex-shrink-0 ${
                       isFav
                         ? 'text-yellow-400 hover:text-yellow-300'
                         : 'text-dark-500 hover:text-yellow-400'
@@ -1305,47 +1336,28 @@ function TokenSelectorDropdown({
                     <StarIcon filled={!!isFav} />
                   </button>
                 )}
-                <button
-                  onClick={() => !isExcluded && onSelect(asset)}
-                  disabled={isExcluded}
-                  className="flex items-center gap-3 flex-1"
-                >
-                  {asset.logo_url ? (
-                    <img
-                      src={asset.logo_url}
-                      alt={asset.symbol}
-                      className="w-8 h-8 rounded-full"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-dark-600 flex items-center justify-center text-sm font-bold">
-                      {asset.symbol[0]}
-                    </div>
-                  )}
-                  <div className="flex-1 text-left">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-medium">{asset.symbol}</span>
-                      {isFav && (
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-yellow-900/30 text-yellow-400">
-                          Favorite
-                        </span>
-                      )}
-                      {isCustom && (
-                        <span className={`text-xs px-1.5 py-0.5 rounded ${
-                          verified
-                            ? 'bg-blue-900/30 text-blue-400'
-                            : 'bg-yellow-900/30 text-yellow-400'
-                        }`}>
-                          {verified ? 'Imported' : 'Unverified'}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-xs text-dark-400">{asset.name}</div>
+                <TokenLogo url={asset.logo_url} symbol={asset.symbol} size="md" />
+                <div className="flex-1 min-w-0 text-left">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-medium truncate">{asset.symbol}</span>
+                    {isFav && (
+                      <span className="text-[10px] px-1 py-0.5 rounded bg-yellow-900/30 text-yellow-400 flex-shrink-0">
+                        Fav
+                      </span>
+                    )}
+                    {isCustom && (
+                      <span className={`text-[10px] px-1 py-0.5 rounded flex-shrink-0 ${
+                        verified
+                          ? 'bg-blue-900/30 text-blue-400'
+                          : 'bg-yellow-900/30 text-yellow-400'
+                      }`}>
+                        {verified ? 'Imported' : 'Unverified'}
+                      </span>
+                    )}
                   </div>
-                  {isSelected && <CheckIcon />}
-                </button>
+                  <div className="text-xs text-dark-400 truncate">{asset.name}</div>
+                </div>
+                {isSelected && <CheckIcon />}
                 {/* Remove button for custom tokens */}
                 {isCustom && onRemoveToken && chainId && (
                   <button
@@ -1353,7 +1365,7 @@ function TokenSelectorDropdown({
                       e.stopPropagation();
                       onRemoveToken(chainId, asset.contract_address || '');
                     }}
-                    className="p-1 text-dark-400 hover:text-red-400 transition-colors"
+                    className="p-1 text-dark-400 hover:text-red-400 transition-colors flex-shrink-0"
                     title="Remove token"
                   >
                     <TrashIcon />
@@ -1401,12 +1413,16 @@ function SlippageSettings({
   customValue,
   onChange,
   onCustomChange,
+  approvalMode,
+  onApprovalModeChange,
   onClose,
 }: {
   value: number;
   customValue: string;
   onChange: (v: number) => void;
   onCustomChange: (v: string) => void;
+  approvalMode: ApprovalMode;
+  onApprovalModeChange: (mode: ApprovalMode) => void;
   onClose: () => void;
 }) {
   const presets = [0.1, 0.5, 1.0];
@@ -1415,61 +1431,99 @@ function SlippageSettings({
   return (
     <div className="relative z-10 mb-4 p-4 bg-electro-bgAlt/80 rounded-glass-sm border border-white/[0.06]">
       <div className="flex items-center justify-between mb-3">
-        <span className="font-medium text-white">Slippage Tolerance</span>
+        <span className="font-medium text-white">Swap Settings</span>
         <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
           <CloseIcon />
         </button>
       </div>
 
-      <div className="flex gap-2 mb-3">
-        {presets.map((opt) => (
+      {/* Slippage Tolerance */}
+      <div className="mb-4">
+        <span className="text-sm text-dark-300 mb-2 block">Slippage Tolerance</span>
+        <div className="flex gap-2 mb-2">
+          {presets.map((opt) => (
+            <button
+              key={opt}
+              onClick={() => {
+                onChange(opt);
+                onCustomChange('');
+              }}
+              className={`px-4 py-2 rounded-lg text-sm transition-all duration-200 ${
+                value === opt
+                  ? 'bg-accent text-electro-bg font-medium'
+                  : 'bg-electro-panel hover:bg-electro-panelHover border border-white/[0.06]'
+              }`}
+            >
+              {opt}%
+            </button>
+          ))}
+
+          {/* Custom Input */}
+          <div className={`flex-1 flex items-center gap-1 px-3 py-2 rounded-lg transition-all duration-200 ${
+            isCustom ? 'bg-accent/10 border border-accent/30' : 'bg-electro-panel border border-white/[0.06]'
+          }`}>
+            <input
+              id="slippage-custom"
+              name="slippage-custom"
+              type="text"
+              placeholder="Custom"
+              value={customValue}
+              onChange={(e) => onCustomChange(e.target.value)}
+              className="w-full bg-transparent text-sm outline-none"
+            />
+            <span className="text-dark-400">%</span>
+          </div>
+        </div>
+
+        {/* Slippage Warnings */}
+        {value < 0.1 && (
+          <p className="text-xs text-yellow-400">
+            Very low slippage may cause transaction to fail
+          </p>
+        )}
+        {value >= 3 && value < 10 && (
+          <p className="text-xs text-yellow-400">
+            High slippage may result in unfavorable trade
+          </p>
+        )}
+        {value >= 10 && (
+          <p className="text-xs text-red-400">
+            Very high slippage! Only use for volatile tokens
+          </p>
+        )}
+      </div>
+
+      {/* Approval Mode */}
+      <div>
+        <span className="text-sm text-dark-300 mb-2 block">Token Approval</span>
+        <div className="flex gap-2">
           <button
-            key={opt}
-            onClick={() => {
-              onChange(opt);
-              onCustomChange('');
-            }}
-            className={`px-4 py-2 rounded-lg text-sm transition-all duration-200 ${
-              value === opt
+            onClick={() => onApprovalModeChange('exact')}
+            className={`flex-1 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
+              approvalMode === 'exact'
                 ? 'bg-accent text-electro-bg font-medium'
                 : 'bg-electro-panel hover:bg-electro-panelHover border border-white/[0.06]'
             }`}
           >
-            {opt}%
+            Exact
           </button>
-        ))}
-
-        {/* Custom Input */}
-        <div className={`flex-1 flex items-center gap-1 px-3 py-2 rounded-lg transition-all duration-200 ${
-          isCustom ? 'bg-accent/10 border border-accent/30' : 'bg-electro-panel border border-white/[0.06]'
-        }`}>
-          <input
-            type="text"
-            placeholder="Custom"
-            value={customValue}
-            onChange={(e) => onCustomChange(e.target.value)}
-            className="w-full bg-transparent text-sm outline-none"
-          />
-          <span className="text-dark-400">%</span>
+          <button
+            onClick={() => onApprovalModeChange('unlimited')}
+            className={`flex-1 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
+              approvalMode === 'unlimited'
+                ? 'bg-accent text-electro-bg font-medium'
+                : 'bg-electro-panel hover:bg-electro-panelHover border border-white/[0.06]'
+            }`}
+          >
+            Unlimited
+          </button>
         </div>
+        <p className={`text-xs mt-2 ${approvalMode === 'unlimited' ? 'text-yellow-400' : 'text-dark-500'}`}>
+          {approvalMode === 'exact'
+            ? 'Approves only the exact amount needed for this swap (safer).'
+            : 'Approves unlimited spending for this token. Saves gas on future swaps but grants permanent access to the router contract.'}
+        </p>
       </div>
-
-      {/* Warnings */}
-      {value < 0.1 && (
-        <p className="text-xs text-yellow-400">
-          Very low slippage may cause transaction to fail
-        </p>
-      )}
-      {value >= 3 && value < 10 && (
-        <p className="text-xs text-yellow-400">
-          High slippage may result in unfavorable trade
-        </p>
-      )}
-      {value >= 10 && (
-        <p className="text-xs text-red-400">
-          Very high slippage! Only use for volatile tokens
-        </p>
-      )}
     </div>
   );
 }
@@ -1639,18 +1693,54 @@ function QuickSwapPresets({
   tokens: AssetInfo[];
   onSelect: (from: string, to: string) => void;
 }) {
-  // Define presets per chain
-  const presets = chainId === 56
-    ? [
-        { label: 'Sell BNB', from: 'BNB', to: 'USDT', icon: '📉' },
-        { label: 'Buy BNB', from: 'USDT', to: 'BNB', icon: '📈' },
-        { label: 'Exit to Stable', from: 'BNB', to: 'BUSD', icon: '🛡️' },
-      ]
-    : [
-        { label: 'Sell ETH', from: 'ETH', to: 'USDT', icon: '📉' },
-        { label: 'Buy ETH', from: 'USDT', to: 'ETH', icon: '📈' },
-        { label: 'Exit to Stable', from: 'ETH', to: 'USDC', icon: '🛡️' },
-      ];
+  // Define presets per chain (native token + major stablecoins)
+  const CHAIN_PRESETS: Record<number, { label: string; from: string; to: string; icon: string }[]> = {
+    1: [
+      { label: 'Sell ETH', from: 'ETH', to: 'USDT', icon: '📉' },
+      { label: 'Buy ETH', from: 'USDT', to: 'ETH', icon: '📈' },
+      { label: 'Exit to Stable', from: 'ETH', to: 'USDC', icon: '🛡️' },
+    ],
+    56: [
+      { label: 'Sell BNB', from: 'BNB', to: 'USDT', icon: '📉' },
+      { label: 'Buy BNB', from: 'USDT', to: 'BNB', icon: '📈' },
+      { label: 'Exit to Stable', from: 'BNB', to: 'USDC', icon: '🛡️' },
+    ],
+    137: [
+      { label: 'Sell MATIC', from: 'MATIC', to: 'USDC', icon: '📉' },
+      { label: 'Buy MATIC', from: 'USDC', to: 'MATIC', icon: '📈' },
+      { label: 'Exit to Stable', from: 'MATIC', to: 'USDT', icon: '🛡️' },
+    ],
+    42161: [
+      { label: 'Sell ETH', from: 'ETH', to: 'USDC', icon: '📉' },
+      { label: 'Buy ETH', from: 'USDC', to: 'ETH', icon: '📈' },
+      { label: 'Exit to Stable', from: 'ETH', to: 'USDT', icon: '🛡️' },
+    ],
+    10: [
+      { label: 'Sell ETH', from: 'ETH', to: 'USDC', icon: '📉' },
+      { label: 'Buy ETH', from: 'USDC', to: 'ETH', icon: '📈' },
+      { label: 'Exit to Stable', from: 'ETH', to: 'USDT', icon: '🛡️' },
+    ],
+    43114: [
+      { label: 'Sell AVAX', from: 'AVAX', to: 'USDC', icon: '📉' },
+      { label: 'Buy AVAX', from: 'USDC', to: 'AVAX', icon: '📈' },
+      { label: 'Exit to Stable', from: 'AVAX', to: 'USDT', icon: '🛡️' },
+    ],
+    100: [
+      { label: 'Sell xDAI', from: 'xDAI', to: 'USDC', icon: '📉' },
+      { label: 'Buy GNO', from: 'xDAI', to: 'GNO', icon: '📈' },
+    ],
+    250: [
+      { label: 'Sell FTM', from: 'FTM', to: 'USDC', icon: '📉' },
+      { label: 'Buy FTM', from: 'USDC', to: 'FTM', icon: '📈' },
+      { label: 'Exit to Stable', from: 'FTM', to: 'DAI', icon: '🛡️' },
+    ],
+    8453: [
+      { label: 'Sell ETH', from: 'ETH', to: 'USDC', icon: '📉' },
+      { label: 'Buy ETH', from: 'USDC', to: 'ETH', icon: '📈' },
+    ],
+  };
+
+  const presets = CHAIN_PRESETS[chainId] || CHAIN_PRESETS[1];
 
   // Only show presets if tokens are available
   const hasTokens = presets.every(
