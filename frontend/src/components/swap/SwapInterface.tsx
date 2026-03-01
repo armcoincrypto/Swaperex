@@ -13,12 +13,19 @@ import { useSwap } from '@/hooks/useSwap';
 import { useSwapStore } from '@/stores/swapStore';
 import { useBalanceStore } from '@/stores/balanceStore';
 import { useCustomTokenStore, type CustomToken } from '@/stores/customTokenStore';
-import { Button } from '@/components/common/Button';
+import { useFavoriteTokensStore } from '@/stores/favoriteTokensStore';
+import { usePresetStore, type SwapPreset, type GuardEvaluation } from '@/stores/presetStore';
+import { PresetDropdown } from '@/components/presets/PresetDropdown';
+import { SavePresetModal } from '@/components/presets/SavePresetModal';
+import { GuardWarningPanel } from '@/components/presets/GuardWarningPanel';
+import { SwapIntelligencePanel } from '@/components/swap/intelligence';
+import { evaluatePresetGuards } from '@/services/presetGuardService';
 import { TokenSafetyBadges } from '@/components/common/TokenSafetyBadges';
 import { SwapPreviewModal, SwapStep } from './SwapPreviewModal';
 import { formatBalance, formatPercent } from '@/utils/format';
 import { getPopularTokens, isNativeToken, isStaticToken, type Token } from '@/tokens';
 import { validateToken } from '@/services/tokenValidation';
+import { analyzeSwapFromContext, type SwapIntelligence } from '@/services/dex';
 import type { AssetInfo } from '@/types/api';
 import { isAddress } from 'ethers';
 
@@ -31,11 +38,13 @@ const CHAIN_NAMES: Record<number, string> = {
 };
 
 // Gas buffer for native tokens (to leave enough for transaction fees)
-const GAS_BUFFER: Record<number, number> = {
-  1: 0.01,    // ETH - leave 0.01 ETH for gas
-  56: 0.005,  // BNB - leave 0.005 BNB for gas
-  137: 1,     // MATIC - leave 1 MATIC for gas
+// Use smaller of: fixed buffer OR 5% of balance
+const GAS_BUFFER_FIXED: Record<number, number> = {
+  1: 0.005,   // ETH - leave max 0.005 ETH for gas
+  56: 0.002,  // BNB - leave max 0.002 BNB for gas
+  137: 0.5,   // MATIC - leave max 0.5 MATIC for gas
 };
+const GAS_BUFFER_PERCENT = 0.05; // 5% of balance as minimum buffer
 
 // Minimum output value in USD to prevent dust swaps
 // DISABLED: We don't have USD prices for all tokens, so this check was incorrect
@@ -123,6 +132,17 @@ export function SwapInterface() {
   const [showFromSelector, setShowFromSelector] = useState(false);
   const [showToSelector, setShowToSelector] = useState(false);
   const [customSlippage, setCustomSlippage] = useState('');
+  const [showSavePreset, setShowSavePreset] = useState(false);
+  const [skipConfirmationActive, setSkipConfirmationActive] = useState(false);
+  const [swapIntelligence, setSwapIntelligence] = useState<SwapIntelligence | null>(null);
+
+  // Active preset for guard evaluation
+  const [activePreset, setActivePreset] = useState<SwapPreset | null>(null);
+  const [guardEvaluation, setGuardEvaluation] = useState<GuardEvaluation | null>(null);
+  const [guardsDismissed, setGuardsDismissed] = useState(false);
+
+  // Preset store
+  const { markPresetUsed } = usePresetStore();
 
   // Quote expiry countdown (30 second TTL)
   const QUOTE_EXPIRY_SECONDS = 30;
@@ -224,6 +244,41 @@ export function SwapInterface() {
     return () => clearInterval(intervalId);
   }, [swapQuote?.quoteTimestamp, status]);
 
+  // Compute swap intelligence when quote is available
+  useEffect(() => {
+    // Clear intelligence if no quote
+    if (!swapQuote || !fromAsset || !toAsset) {
+      setSwapIntelligence(null);
+      return;
+    }
+
+    // Only compute when previewing
+    if (status !== 'previewing') {
+      return;
+    }
+
+    // Compute intelligence
+    const computeIntelligence = async () => {
+      try {
+        const intelligence = await analyzeSwapFromContext(
+          fromAsset,
+          toAsset,
+          fromAmount,
+          swapQuote.amountOutFormatted,
+          parseFloat(swapQuote.price_impact || '0'),
+          currentChainId,
+          slippage
+        );
+        setSwapIntelligence(intelligence);
+      } catch (err) {
+        console.warn('[Intelligence] Failed to analyze swap:', err);
+        // Don't block the swap if intelligence fails
+      }
+    };
+
+    computeIntelligence();
+  }, [swapQuote, fromAsset, toAsset, fromAmount, status, currentChainId, slippage]);
+
   // Get balance for selected asset
   const getBalance = useCallback((asset: AssetInfo | null): string => {
     if (!asset || !address) return '0.00';
@@ -244,10 +299,16 @@ export function SwapInterface() {
 
     // If sending native token, subtract gas buffer
     if (fromAsset?.is_native) {
-      const gasBuffer = GAS_BUFFER[currentChainId] || 0.01;
-      const maxAmount = Math.max(0, balance - gasBuffer);
+      // Use smaller of: fixed buffer OR 5% of balance
+      const fixedBuffer = GAS_BUFFER_FIXED[currentChainId] || 0.005;
+      const percentBuffer = balance * GAS_BUFFER_PERCENT;
+      const gasBuffer = Math.min(fixedBuffer, percentBuffer);
+
+      // Ensure we leave at least something for gas, but use 90% if balance is tiny
+      const maxAmount = balance > gasBuffer ? balance - gasBuffer : balance * 0.9;
+
       // Format to reasonable precision (avoid scientific notation)
-      return maxAmount > 0 ? maxAmount.toFixed(6).replace(/\.?0+$/, '') : '0';
+      return maxAmount > 0 ? maxAmount.toFixed(8).replace(/\.?0+$/, '') : '0';
     }
 
     // For ERC20 tokens, use full balance
@@ -267,14 +328,20 @@ export function SwapInterface() {
     // RULE 2: If amount is empty or zero, clear everything and return to idle
     const amount = parseFloat(fromAmount || '0');
     if (!fromAmount || isNaN(amount) || amount <= 0) {
-      // Immediately clear quote and output - no delay
-      clearQuote();
-      reset();
+      // Only clear if we're not in a swap flow
+      if (status === 'idle' || status === 'fetching_quote') {
+        clearQuote();
+      }
       return;
     }
 
     // Don't fetch if other conditions not met
     if (!isConnected || !fromAsset || !toAsset) {
+      return;
+    }
+
+    // Don't auto-refresh if user is already previewing/swapping - let them see the price
+    if (status === 'previewing' || status === 'approving' || status === 'swapping' || status === 'confirming' || status === 'success') {
       return;
     }
 
@@ -293,7 +360,9 @@ export function SwapInterface() {
         quoteTimeoutRef.current = null;
       }
     };
-  }, [fromAmount, fromAsset, toAsset, isConnected, fetchSwapQuote, clearQuote, reset]);
+  // Note: status removed from deps to prevent infinite loop - we check it inside the effect
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromAmount, fromAsset, toAsset, isConnected, fetchSwapQuote, clearQuote]);
 
   // Token selection handlers
   const handleFromTokenSelect = useCallback((asset: AssetInfo) => {
@@ -322,6 +391,27 @@ export function SwapInterface() {
     }
     setCustomSlippage(value);
   };
+
+  // Skip confirmation - auto-execute when preset with skipConfirmation is loaded
+  useEffect(() => {
+    if (!skipConfirmationActive) return;
+    if (!swapQuote || !swapQuote.amountOutFormatted) return;
+    if (status !== 'previewing') return;
+
+    // Reset the skip confirmation flag
+    setSkipConfirmationActive(false);
+
+    // Auto-execute the swap
+    console.log('[Swap] Skip confirmation active - auto-executing swap');
+    swap()
+      .then(() => {
+        // Directly confirm without showing preview
+        confirmSwap();
+      })
+      .catch((err) => {
+        console.warn('[Swap] Auto-execute failed:', err);
+      });
+  }, [skipConfirmationActive, swapQuote, status, swap, confirmSwap]);
 
   // Open preview modal - ONLY if quote is valid and fresh
   const handlePreviewSwap = async () => {
@@ -384,6 +474,51 @@ export function SwapInterface() {
     }
   };
 
+  // Handle preset selection - prefill swap form
+  const handlePresetSelect = useCallback((preset: SwapPreset) => {
+    // Prefill assets
+    setFromAsset(preset.fromAsset);
+    setToAsset(preset.toAsset);
+
+    // Prefill amount and slippage
+    setFromAmount(preset.fromAmount);
+    setSlippage(preset.slippage);
+
+    // Mark preset as used
+    markPresetUsed(preset.id);
+
+    // Store active preset for guard evaluation
+    setActivePreset(preset);
+    setGuardEvaluation(null);
+    setGuardsDismissed(false);
+
+    // If skip confirmation is enabled, set flag for immediate execution
+    // (but only if guards are not enabled or in soft mode)
+    if (preset.skipConfirmation && (!preset.guards?.enabled || preset.guards.mode === 'soft')) {
+      setSkipConfirmationActive(true);
+    }
+  }, [setFromAsset, setToAsset, setFromAmount, setSlippage, markPresetUsed]);
+
+  // Evaluate guards when intelligence changes
+  useEffect(() => {
+    if (!activePreset?.guards?.enabled) {
+      setGuardEvaluation(null);
+      return;
+    }
+
+    // Evaluate guards against current intelligence
+    const evaluation = evaluatePresetGuards(activePreset.guards, swapIntelligence);
+    setGuardEvaluation(evaluation);
+
+    // If blocked in hard mode, disable skip confirmation
+    if (evaluation.blocked) {
+      setSkipConfirmationActive(false);
+    }
+  }, [activePreset, swapIntelligence]);
+
+  // Check if we can save a preset (have valid swap setup)
+  const canSavePreset = fromAsset && toAsset && fromAmount && parseFloat(fromAmount) > 0;
+
   // Map swap status to modal step
   const getModalStep = (): SwapStep => {
     switch (status) {
@@ -411,6 +546,8 @@ export function SwapInterface() {
     if (isQuoting || status === 'fetching_quote') return 'Getting Quote...';
     if (quoteError) return 'Quote Error - Try Again';
     if (!swapQuote && fromAmount && parseFloat(fromAmount) > 0) return 'Getting Quote...';
+    // Show blocked state if hard guards fail
+    if (guardEvaluation?.blocked && !guardsDismissed) return 'Blocked by Protection';
     return 'Preview Swap';
   };
 
@@ -424,6 +561,8 @@ export function SwapInterface() {
     if (quoteError) return true;
     // Must have a quote to proceed
     if (!swapQuote) return true;
+    // Block if hard guards fail
+    if (guardEvaluation?.blocked && !guardsDismissed) return true;
     return false;
   };
 
@@ -438,20 +577,42 @@ export function SwapInterface() {
     return tiers[feeTier] || `${(feeTier / 10000).toFixed(2)}%`;
   };
 
+  // Check if swap is ready (for glow effect)
+  const isSwapReady = !isButtonDisabled() && swapQuote && status === 'previewing';
+
   // Render swap form
   return (
     <>
-      <div className="w-full max-w-md mx-auto bg-dark-900 rounded-2xl p-4 border border-dark-800">
+      <div className="w-full max-w-md mx-auto bg-electro-panel/90 backdrop-blur-glass rounded-glass p-4 border border-white/[0.08] shadow-glass relative overflow-hidden">
+        {/* Subtle gradient overlay */}
+        <div className="absolute inset-0 bg-glass-gradient pointer-events-none" />
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold">Swap</h2>
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className="p-2 rounded-lg hover:bg-dark-800 transition-colors"
-            title="Settings"
-          >
-            <SettingsIcon />
-          </button>
+        <div className="relative z-10 flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-white">Swap</h2>
+          <div className="flex items-center gap-2">
+            {/* Preset Dropdown */}
+            {isConnected && (
+              <PresetDropdown onSelectPreset={handlePresetSelect} />
+            )}
+            {/* Save Preset Button */}
+            {isConnected && canSavePreset && (
+              <button
+                onClick={() => setShowSavePreset(true)}
+                className="p-2 rounded-lg hover:bg-dark-800 transition-colors text-dark-400 hover:text-primary-400"
+                title="Save as preset"
+              >
+                <SaveIcon />
+              </button>
+            )}
+            {/* Settings Button */}
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className="p-2 rounded-lg hover:bg-dark-800 transition-colors"
+              title="Settings"
+            >
+              <SettingsIcon />
+            </button>
+          </div>
         </div>
 
         {/* Settings Panel */}
@@ -478,8 +639,8 @@ export function SwapInterface() {
         />
 
         {/* From Token */}
-        <div className={`bg-dark-800 rounded-xl p-4 mb-2 ${
-          insufficientBalance ? 'border border-red-800' : ''
+        <div className={`relative z-10 bg-electro-bgAlt/80 rounded-glass-sm p-4 mb-2 border transition-all duration-200 ${
+          insufficientBalance ? 'border-danger/50 shadow-glow-danger' : 'border-white/[0.06] hover:border-white/[0.1]'
         }`}>
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-dark-400">You Pay</span>
@@ -494,7 +655,7 @@ export function SwapInterface() {
                     }
                   }}
                   className="ml-2 text-primary-400 hover:text-primary-300"
-                  title={fromAsset?.is_native ? `Max minus ${GAS_BUFFER[currentChainId] || 0.01} for gas` : 'Use full balance'}
+                  title={fromAsset?.is_native ? 'Max (leaves small amount for gas)' : 'Use full balance'}
                 >
                   MAX
                 </button>
@@ -521,6 +682,7 @@ export function SwapInterface() {
                   provider={provider}
                   onAddToken={addCustomToken}
                   onRemoveToken={removeCustomToken}
+                  showFavorites={true}
                 />
               )}
             </div>
@@ -541,18 +703,20 @@ export function SwapInterface() {
         </div>
 
         {/* Swap Direction Button */}
-        <div className="flex justify-center -my-2 relative z-10">
+        <div className="flex justify-center -my-2 relative z-20">
           <button
             onClick={swapAssets}
-            className="p-2 bg-dark-700 rounded-lg hover:bg-dark-600 transition-colors border-4 border-dark-900"
+            className="p-2.5 bg-electro-panel rounded-xl hover:bg-electro-panelHover transition-all duration-200 border-4 border-electro-bg hover:border-accent/20 group"
             title="Swap direction"
           >
-            <SwapIcon />
+            <div className="text-gray-400 group-hover:text-accent transition-colors">
+              <SwapIcon />
+            </div>
           </button>
         </div>
 
         {/* To Token */}
-        <div className="bg-dark-800 rounded-xl p-4 mt-2">
+        <div className="relative z-10 bg-electro-bgAlt/80 rounded-glass-sm p-4 mt-2 border border-white/[0.06] hover:border-white/[0.1] transition-all duration-200">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-dark-400">You Receive</span>
             <span className="text-sm text-dark-400">
@@ -579,6 +743,7 @@ export function SwapInterface() {
                   provider={provider}
                   onAddToken={addCustomToken}
                   onRemoveToken={removeCustomToken}
+                  showFavorites={true}
                 />
               )}
             </div>
@@ -603,9 +768,27 @@ export function SwapInterface() {
           </div>
         </div>
 
+        {/* Swap Intelligence Panel (when quote available) */}
+        {swapIntelligence && status === 'previewing' && !showPreview && (
+          <div className="mt-4">
+            <SwapIntelligencePanel intelligence={swapIntelligence} compact />
+          </div>
+        )}
+
+        {/* Guard Warning Panel (when preset has guards and they fail) */}
+        {guardEvaluation && !guardEvaluation.passed && !guardsDismissed && status === 'previewing' && !showPreview && (
+          <div className="mt-4">
+            <GuardWarningPanel
+              evaluation={guardEvaluation}
+              onDismiss={() => setGuardsDismissed(true)}
+              onProceedAnyway={() => setGuardsDismissed(true)}
+            />
+          </div>
+        )}
+
         {/* Quote Details (when quote available) */}
         {swapQuote && status === 'previewing' && !showPreview && (
-          <div className="mt-4 p-4 bg-dark-800 rounded-xl text-sm space-y-2">
+          <div className="relative z-10 mt-4 p-4 bg-electro-bgAlt/60 rounded-glass-sm text-sm space-y-2 border border-white/[0.06]">
             {/* Best Route Banner with Countdown */}
             <div className="flex items-center justify-between pb-2 mb-2 border-b border-dark-700">
               <div className="flex items-center gap-2">
@@ -736,22 +919,38 @@ export function SwapInterface() {
         )}
 
         {/* Swap Button */}
-        <Button
-          onClick={handlePreviewSwap}
-          disabled={isButtonDisabled()}
-          loading={showSpinner}
-          fullWidth
-          className="mt-4"
-          size="lg"
-        >
-          {getButtonText()}
-        </Button>
+        <div className="relative z-10 mt-4">
+          <button
+            onClick={handlePreviewSwap}
+            disabled={isButtonDisabled()}
+            className={`
+              w-full py-3.5 rounded-glass-sm font-semibold text-base
+              transition-all duration-200
+              disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none
+              ${isSwapReady
+                ? 'bg-accent text-electro-bg shadow-glow-accent hover:brightness-110'
+                : showSpinner
+                  ? 'bg-electro-panel text-gray-400 border border-white/[0.1]'
+                  : 'bg-electro-panel text-gray-400 border border-white/[0.1] hover:bg-electro-panelHover hover:border-white/[0.15]'
+              }
+            `}
+          >
+            {showSpinner ? (
+              <span className="flex items-center justify-center gap-2">
+                <LoadingSpinner />
+                <span>Getting Quote...</span>
+              </span>
+            ) : (
+              getButtonText()
+            )}
+          </button>
+        </div>
 
         {/* Security Footer */}
         {isConnected && (
-          <div className="flex items-center justify-center gap-2 mt-3">
+          <div className="relative z-10 flex items-center justify-center gap-2 mt-3">
             <ShieldIcon />
-            <p className="text-xs text-dark-500">
+            <p className="text-xs text-gray-500">
               All transactions are signed locally in your wallet
             </p>
           </div>
@@ -771,6 +970,18 @@ export function SwapInterface() {
         onRefreshQuote={handleRefreshQuote}
         isRefreshing={isRefreshingQuote}
       />
+
+      {/* Save Preset Modal */}
+      {fromAsset && toAsset && (
+        <SavePresetModal
+          isOpen={showSavePreset}
+          onClose={() => setShowSavePreset(false)}
+          fromAsset={fromAsset}
+          toAsset={toAsset}
+          fromAmount={fromAmount}
+          slippage={slippage}
+        />
+      )}
     </>
   );
 }
@@ -780,7 +991,7 @@ function TokenButton({ asset, onClick }: { asset: AssetInfo | null; onClick: () 
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-2 px-3 py-2 bg-dark-700 rounded-xl hover:bg-dark-600 transition-colors"
+      className="flex items-center gap-2 px-3 py-2 bg-electro-panel/80 rounded-xl hover:bg-electro-panelHover transition-all duration-200 border border-white/[0.06] hover:border-white/[0.1]"
     >
       {asset?.logo_url ? (
         <img
@@ -820,6 +1031,7 @@ function TokenSelectorDropdown({
   provider,
   onAddToken,
   onRemoveToken,
+  showFavorites = false,
 }: {
   assets: ExtendedAssetInfo[];
   selectedAsset: AssetInfo | null;
@@ -830,7 +1042,9 @@ function TokenSelectorDropdown({
   provider?: unknown;
   onAddToken?: (token: CustomToken) => void;
   onRemoveToken?: (chainId: number, address: string) => void;
+  showFavorites?: boolean;
 }) {
+  const { isFavorite, toggleFavorite } = useFavoriteTokensStore();
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isImporting, setIsImporting] = useState(false);
@@ -902,16 +1116,31 @@ function TokenSelectorDropdown({
   };
 
   // Filter tokens by search query
-  const filteredAssets = assets.filter((asset) =>
-    asset.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    asset.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    asset.contract_address?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredAssets = useMemo(() => {
+    let result = assets.filter((asset) =>
+      asset.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      asset.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      asset.contract_address?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    // Sort favorites first if enabled
+    if (showFavorites && chainId) {
+      result = [...result].sort((a, b) => {
+        const aFav = isFavorite(chainId, a.contract_address || '');
+        const bFav = isFavorite(chainId, b.contract_address || '');
+        if (aFav && !bFav) return -1;
+        if (!aFav && bFav) return 1;
+        return 0;
+      });
+    }
+
+    return result;
+  }, [assets, searchQuery, showFavorites, chainId, isFavorite]);
 
   return (
     <div
       ref={dropdownRef}
-      className="absolute top-full left-0 mt-2 w-80 bg-dark-800 rounded-xl shadow-lg border border-dark-700 py-2 z-[60]"
+      className="absolute top-full left-0 mt-2 w-80 bg-electro-panel/95 backdrop-blur-glass rounded-glass shadow-glass border border-white/[0.08] py-2 z-[60]"
     >
       {/* Search Input */}
       <div className="px-3 pb-2 mb-2 border-b border-dark-700">
@@ -1041,6 +1270,8 @@ function TokenSelectorDropdown({
             const isCustom = (asset as ExtendedAssetInfo).isCustom;
             const verified = (asset as ExtendedAssetInfo).verified;
 
+            const isFav = showFavorites && chainId && isFavorite(chainId, asset.contract_address || '');
+
             return (
               <div
                 key={`${asset.symbol}-${asset.contract_address}`}
@@ -1052,6 +1283,28 @@ function TokenSelectorDropdown({
                     : 'hover:bg-dark-700'
                 }`}
               >
+                {/* Favorite Star Button */}
+                {showFavorites && chainId && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFavorite({
+                        symbol: asset.symbol,
+                        address: asset.contract_address || '',
+                        name: asset.name,
+                        chainId: chainId,
+                      });
+                    }}
+                    className={`p-1 transition-colors ${
+                      isFav
+                        ? 'text-yellow-400 hover:text-yellow-300'
+                        : 'text-dark-500 hover:text-yellow-400'
+                    }`}
+                    title={isFav ? 'Remove from favorites' : 'Add to favorites'}
+                  >
+                    <StarIcon filled={!!isFav} />
+                  </button>
+                )}
                 <button
                   onClick={() => !isExcluded && onSelect(asset)}
                   disabled={isExcluded}
@@ -1074,6 +1327,11 @@ function TokenSelectorDropdown({
                   <div className="flex-1 text-left">
                     <div className="flex items-center gap-1.5">
                       <span className="font-medium">{asset.symbol}</span>
+                      {isFav && (
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-yellow-900/30 text-yellow-400">
+                          Favorite
+                        </span>
+                      )}
                       {isCustom && (
                         <span className={`text-xs px-1.5 py-0.5 rounded ${
                           verified
@@ -1128,6 +1386,15 @@ function TrashIcon() {
   );
 }
 
+// Star Icon for favorites
+function StarIcon({ filled = false }: { filled?: boolean }) {
+  return (
+    <svg className="w-4 h-4" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+    </svg>
+  );
+}
+
 // Slippage Settings Component
 function SlippageSettings({
   value,
@@ -1146,10 +1413,10 @@ function SlippageSettings({
   const isCustom = !presets.includes(value);
 
   return (
-    <div className="mb-4 p-4 bg-dark-800 rounded-xl">
+    <div className="relative z-10 mb-4 p-4 bg-electro-bgAlt/80 rounded-glass-sm border border-white/[0.06]">
       <div className="flex items-center justify-between mb-3">
-        <span className="font-medium">Slippage Tolerance</span>
-        <button onClick={onClose} className="text-dark-400 hover:text-white">
+        <span className="font-medium text-white">Slippage Tolerance</span>
+        <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
           <CloseIcon />
         </button>
       </div>
@@ -1162,10 +1429,10 @@ function SlippageSettings({
               onChange(opt);
               onCustomChange('');
             }}
-            className={`px-4 py-2 rounded-lg text-sm transition-colors ${
+            className={`px-4 py-2 rounded-lg text-sm transition-all duration-200 ${
               value === opt
-                ? 'bg-primary-600 text-white'
-                : 'bg-dark-700 hover:bg-dark-600'
+                ? 'bg-accent text-electro-bg font-medium'
+                : 'bg-electro-panel hover:bg-electro-panelHover border border-white/[0.06]'
             }`}
           >
             {opt}%
@@ -1173,8 +1440,8 @@ function SlippageSettings({
         ))}
 
         {/* Custom Input */}
-        <div className={`flex-1 flex items-center gap-1 px-3 py-2 rounded-lg ${
-          isCustom ? 'bg-primary-600/20 border border-primary-600' : 'bg-dark-700'
+        <div className={`flex-1 flex items-center gap-1 px-3 py-2 rounded-lg transition-all duration-200 ${
+          isCustom ? 'bg-accent/10 border border-accent/30' : 'bg-electro-panel border border-white/[0.06]'
         }`}>
           <input
             type="text"
@@ -1218,6 +1485,14 @@ function LoadingSpinner() {
 }
 
 // Icons
+function SaveIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+    </svg>
+  );
+}
+
 function SettingsIcon() {
   return (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1385,16 +1660,16 @@ function QuickSwapPresets({
   if (!hasTokens) return null;
 
   return (
-    <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
+    <div className="relative z-10 flex gap-2 mb-4 overflow-x-auto pb-1">
       {presets.map((preset) => (
         <button
           key={preset.label}
           onClick={() => onSelect(preset.from, preset.to)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-dark-800 hover:bg-dark-700 rounded-lg text-sm font-medium transition-colors whitespace-nowrap border border-dark-700 hover:border-dark-600"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-electro-bgAlt/60 hover:bg-electro-panel rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap border border-white/[0.04] hover:border-white/[0.08]"
           title={`${preset.from} → ${preset.to}`}
         >
           <span>{preset.icon}</span>
-          <span className="text-dark-300">{preset.label}</span>
+          <span className="text-gray-400">{preset.label}</span>
         </button>
       ))}
     </div>

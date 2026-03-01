@@ -36,6 +36,9 @@ import { useSwapStore } from '@/stores/swapStore';
 import { useBalanceStore } from '@/stores/balanceStore';
 import { toast } from '@/stores/toastStore';
 import { walletEvents, getWalletEventMessage } from '@/services/walletEvents';
+import { processQuoteForSignals } from '@/services/radarService';
+import { useSwapHistoryStore } from '@/stores/swapHistoryStore';
+import { useUsageStore } from '@/stores/usageStore';
 import {
   isUserRejection,
   parseTransactionError,
@@ -163,6 +166,8 @@ export function useSwap() {
   const { address, isWrongChain, chainId, getSigner, provider } = useWallet();
   const { fromAsset, toAsset, fromAmount, slippage, setQuote, clearQuote } = useSwapStore();
   const { fetchBalances } = useBalanceStore();
+  const { addRecord: addSwapRecord } = useSwapHistoryStore();
+  const { trackEvent } = useUsageStore();
 
   const [state, setState] = useState<SwapState>({
     status: 'idle',
@@ -228,7 +233,10 @@ export function useSwap() {
     setState({ status: 'idle', quote: null, txHash: null, explorerUrl: null, error: null });
     setSwapQuote(null);
     clearQuote();
-  }, [clearQuote, state.status]);
+  // Note: state.status removed from deps to prevent reset identity from changing
+  // when status changes, which would cause infinite loops in consuming components
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clearQuote]);
 
   // Check if can swap
   const canSwap = address && fromAsset && toAsset && fromAmount && !isWrongChain;
@@ -431,6 +439,30 @@ export function useSwap() {
         },
       });
 
+      // RADAR: Process quote for price movement signals
+      try {
+        const toToken = getTokenBySymbol(toSymbol, chainId || 1);
+        processQuoteForSignals(
+          {
+            address: tokenIn?.address || '',
+            symbol: fromSymbol,
+          },
+          {
+            address: toToken?.address || '',
+            symbol: toSymbol,
+          },
+          chainId || 1,
+          {
+            rate: parseFloat(rate),
+            amountOut: parseFloat(aggregatedQuote.amountOutFormatted),
+            provider: aggregatedQuote.provider,
+          }
+        );
+      } catch (radarErr) {
+        // Radar errors should never block swaps
+        console.warn('[Radar] Signal processing failed:', radarErr);
+      }
+
       return extendedQuote;
     } catch (err) {
       // Check if this request is still valid before showing error
@@ -627,6 +659,26 @@ export function useSwap() {
         });
         setState((s) => ({ ...s, status: 'success', txHash: tx.hash, explorerUrl }));
         toast.success(`Swap completed! View on explorer: ${explorerUrl}`);
+
+        // Record swap to local history for Quick Repeat
+        if (fromAsset && toAsset && swapQuote) {
+          addSwapRecord({
+            timestamp: Date.now(),
+            chainId: chainId || 1,
+            fromAsset,
+            toAsset,
+            fromAmount,
+            toAmount: swapQuote.amountOutFormatted,
+            txHash: tx.hash,
+            explorerUrl,
+            status: 'success',
+            provider: swapQuote.provider,
+            slippage,
+          });
+        }
+
+        // Track usage for analytics (local only, no personal data)
+        trackEvent('swap_completed');
 
         // Refresh balances for the current chain
         const chainNetwork = chainId === 56 ? 'bsc' : 'ethereum';

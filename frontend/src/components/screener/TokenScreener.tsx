@@ -10,6 +10,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getTokens } from '@/tokens';
 import { formatBalance } from '@/utils/format';
+import { useUsageStore } from '@/stores/usageStore';
+import { TierBadge } from '@/components/common/TierBadge';
 
 // CoinGecko API
 const COINGECKO_API = 'https://api.coingecko.com/api/v3';
@@ -71,6 +73,7 @@ export function TokenScreener({ onSwapSelect }: TokenScreenerProps) {
   const [error, setError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'price' | 'change24h' | 'volume24h'>('volume24h');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const { trackEvent } = useUsageStore();
 
   // Get tokens for selected chain
   const chainTokens = useMemo(() => {
@@ -170,6 +173,7 @@ export function TokenScreener({ onSwapSelect }: TokenScreenerProps) {
   const handleSwapClick = (token: TokenData) => {
     const stablecoin = chain === 1 ? 'USDT' : 'USDT';
     onSwapSelect?.(token.symbol, stablecoin, token.chainId);
+    trackEvent('screener_used');
   };
 
   // Format volume
@@ -185,7 +189,10 @@ export function TokenScreener({ onSwapSelect }: TokenScreenerProps) {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-bold">Token Screener</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-2xl font-bold">Token Screener</h2>
+            <TierBadge tier="advanced" />
+          </div>
           <p className="text-dark-400 text-sm mt-1">Top tokens by volume</p>
         </div>
 

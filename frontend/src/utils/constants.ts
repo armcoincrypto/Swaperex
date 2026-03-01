@@ -1,61 +1,28 @@
 /**
  * Application constants
+ *
+ * Chain config is now centralized in @/wallet/chains.ts.
+ * Re-exported here for backwards compatibility.
  */
 
-// Chain configurations
+import {
+  CHAINS as WALLET_CHAINS,
+  SUPPORTED_CHAIN_IDS as WALLET_SUPPORTED_CHAIN_IDS,
+} from '@/wallet';
+
+// Re-export chain config from wallet module (single source of truth)
+// Legacy shape kept for backwards compat with components that use CHAINS.ethereum.rpcUrl etc.
 export const CHAINS = {
-  ethereum: {
-    id: 1,
-    name: 'Ethereum',
-    nativeSymbol: 'ETH',
-    rpcUrl: 'https://eth.llamarpc.com',
-    explorer: 'https://etherscan.io',
-    logo: '/assets/chains/ethereum.svg',
-  },
-  bsc: {
-    id: 56,
-    name: 'BNB Chain',
-    nativeSymbol: 'BNB',
-    rpcUrl: 'https://bsc-dataseed.binance.org/',
-    explorer: 'https://bscscan.com',
-    logo: '/assets/chains/bnb.svg',
-  },
-  polygon: {
-    id: 137,
-    name: 'Polygon',
-    nativeSymbol: 'MATIC',
-    rpcUrl: 'https://polygon-rpc.com/',
-    explorer: 'https://polygonscan.com',
-    logo: '/assets/chains/polygon.svg',
-  },
-  arbitrum: {
-    id: 42161,
-    name: 'Arbitrum',
-    nativeSymbol: 'ETH',
-    rpcUrl: 'https://arb1.arbitrum.io/rpc',
-    explorer: 'https://arbiscan.io',
-    logo: '/assets/chains/arbitrum.svg',
-  },
-  optimism: {
-    id: 10,
-    name: 'Optimism',
-    nativeSymbol: 'ETH',
-    rpcUrl: 'https://mainnet.optimism.io',
-    explorer: 'https://optimistic.etherscan.io',
-    logo: '/assets/chains/optimism.svg',
-  },
-  avalanche: {
-    id: 43114,
-    name: 'Avalanche',
-    nativeSymbol: 'AVAX',
-    rpcUrl: 'https://api.avax.network/ext/bc/C/rpc',
-    explorer: 'https://snowtrace.io',
-    logo: '/assets/chains/avalanche.svg',
-  },
+  ethereum:  WALLET_CHAINS.find((c) => c.id === 1)!,
+  bsc:       WALLET_CHAINS.find((c) => c.id === 56)!,
+  polygon:   WALLET_CHAINS.find((c) => c.id === 137)!,
+  arbitrum:  WALLET_CHAINS.find((c) => c.id === 42161)!,
+  optimism:  WALLET_CHAINS.find((c) => c.id === 10)!,
+  avalanche: WALLET_CHAINS.find((c) => c.id === 43114)!,
 } as const;
 
 // Supported chain IDs
-export const SUPPORTED_CHAIN_IDS: number[] = [1, 56, 137, 42161, 10, 43114];
+export const SUPPORTED_CHAIN_IDS: number[] = WALLET_SUPPORTED_CHAIN_IDS;
 
 // Default slippage options
 export const SLIPPAGE_OPTIONS = [0.1, 0.5, 1.0, 3.0];

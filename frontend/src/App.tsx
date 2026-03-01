@@ -5,7 +5,7 @@
  * SECURITY: All signing happens client-side via connected wallet.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { WalletConnect } from '@/components/wallet/WalletConnect';
 import { SwapInterface } from '@/components/swap/SwapInterface';
 import { WithdrawalInterface } from '@/components/withdrawal/WithdrawalInterface';
@@ -16,20 +16,49 @@ import { GlobalErrorDisplay } from '@/components/common/GlobalErrorDisplay';
 import { NetworkSelector } from '@/components/common/NetworkSelector';
 import { SwapHistory } from '@/components/history/SwapHistory';
 import { TokenScreener } from '@/components/screener/TokenScreener';
+import { RadarPanel } from '@/components/radar/RadarPanel';
 import { AboutPage, TermsPage, PrivacyPage, DisclaimerPage } from '@/components/pages/StaticPages';
+import { SystemStatusIndicator } from '@/components/common/SystemStatusIndicator';
 import { useWallet } from '@/hooks/useWallet';
 import { useSwapStore } from '@/stores/swapStore';
 import { useToastStore } from '@/stores/toastStore';
+import { useRadarStore, type RadarSignal } from '@/stores/radarStore';
+import { useSignalsHealthStore } from '@/stores/signalsHealthStore';
+import { useSystemStatusStore } from '@/stores/systemStatusStore';
+import { type SwapRecord } from '@/stores/swapHistoryStore';
 import { getTokenBySymbol } from '@/tokens';
+import { startWatchlistMonitor } from '@/services/watchlistMonitor';
 
-type Page = 'swap' | 'send' | 'portfolio' | 'screener' | 'about' | 'terms' | 'privacy' | 'disclaimer';
+type Page = 'swap' | 'send' | 'portfolio' | 'radar' | 'screener' | 'about' | 'terms' | 'privacy' | 'disclaimer';
 
 export function App() {
   const [currentPage, setCurrentPage] = useState<Page>('swap');
   const { isConnected, isWrongChain, isReadOnly, chainId, switchNetwork } = useWallet();
-  const { setFromAsset, setToAsset } = useSwapStore();
+  const { setFromAsset, setToAsset, setFromAmount } = useSwapStore();
   const { toasts, removeToast } = useToastStore();
+  const { getUnreadCount } = useRadarStore();
   const [bannerDismissed, setBannerDismissed] = useState(false);
+
+  const radarUnreadCount = getUnreadCount();
+
+  // Health checks
+  const refreshSignalsHealth = useSignalsHealthStore((s) => s.refresh);
+  const refreshSystemStatus = useSystemStatusStore((s) => s.refresh);
+
+  // Auto-check health on mount and every 60 seconds
+  useEffect(() => {
+    refreshSignalsHealth();
+    refreshSystemStatus();
+
+    // Start watchlist monitor (singleton - safe to call multiple times)
+    startWatchlistMonitor();
+
+    const intervalId = setInterval(() => {
+      refreshSignalsHealth();
+      refreshSystemStatus();
+    }, 60_000);
+    return () => clearInterval(intervalId);
+  }, [refreshSignalsHealth, refreshSystemStatus]);
 
   // Handle chain switch from banner
   const handleBannerSwitch = async () => {
@@ -114,14 +143,74 @@ export function App() {
     setCurrentPage('swap');
   };
 
+  // Handle radar signal click - navigate to swap with token prefilled
+  const handleRadarSignalClick = (signal: RadarSignal) => {
+    // Try to find the token in our known tokens
+    const token = getTokenBySymbol(signal.tokenSymbol, signal.chainId);
+
+    if (token) {
+      setFromAsset({
+        symbol: token.symbol,
+        name: token.name,
+        chain: signal.chainId === 56 ? 'bsc' : signal.chainId === 137 ? 'polygon' : 'ethereum',
+        decimals: token.decimals,
+        is_native: signal.tokenSymbol === 'ETH' || signal.tokenSymbol === 'BNB' || signal.tokenSymbol === 'MATIC',
+        contract_address: token.address,
+        logo_url: token.logoURI,
+      });
+    } else {
+      // For custom tokens, create asset from signal data
+      setFromAsset({
+        symbol: signal.tokenSymbol,
+        name: signal.tokenSymbol,
+        chain: signal.chainId === 56 ? 'bsc' : signal.chainId === 137 ? 'polygon' : 'ethereum',
+        decimals: 18,
+        is_native: false,
+        contract_address: signal.tokenAddress,
+      });
+    }
+
+    // Set stablecoin as "to" token
+    const stablecoin = getTokenBySymbol('USDT', signal.chainId);
+    if (stablecoin) {
+      setToAsset({
+        symbol: stablecoin.symbol,
+        name: stablecoin.name,
+        chain: signal.chainId === 56 ? 'bsc' : signal.chainId === 137 ? 'polygon' : 'ethereum',
+        decimals: stablecoin.decimals,
+        is_native: false,
+        contract_address: stablecoin.address,
+        logo_url: stablecoin.logoURI,
+      });
+    }
+
+    // Navigate to swap
+    setCurrentPage('swap');
+  };
+
+  // Handle Quick Repeat from swap history
+  const handleRepeatSwap = (record: SwapRecord) => {
+    // Prefill from asset
+    setFromAsset(record.fromAsset);
+
+    // Prefill to asset
+    setToAsset(record.toAsset);
+
+    // Prefill amount
+    setFromAmount(record.fromAmount);
+
+    // Navigate to swap page
+    setCurrentPage('swap');
+  };
+
   return (
-    <div className="min-h-screen bg-dark-950">
+    <div className="min-h-screen bg-electro-bg bg-bg-mesh">
       {/* Header */}
-      <header className="border-b border-dark-800">
+      <header className="border-b border-white/[0.06] backdrop-blur-sm bg-electro-bg/80 sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-8">
             {/* Logo */}
-            <h1 className="text-xl font-bold text-primary-400">Swaperex</h1>
+            <h1 className="text-xl font-bold text-accent">Swaperex</h1>
 
             {/* Navigation */}
             <nav className="flex gap-1">
@@ -142,6 +231,13 @@ export function App() {
                 onClick={() => setCurrentPage('portfolio')}
               >
                 Portfolio
+              </NavButton>
+              <NavButton
+                active={currentPage === 'radar'}
+                onClick={() => setCurrentPage('radar')}
+                badge={radarUnreadCount > 0 ? radarUnreadCount : undefined}
+              >
+                Radar
               </NavButton>
               <NavButton
                 active={currentPage === 'screener'}
@@ -222,7 +318,7 @@ export function App() {
                   showSwapButtons={true}
                 />
                 <div className="mt-8">
-                  <SwapHistory />
+                  <SwapHistory onRepeatSwap={handleRepeatSwap} />
                 </div>
               </>
             ) : (
@@ -237,6 +333,10 @@ export function App() {
           </div>
         )}
 
+        {currentPage === 'radar' && (
+          <RadarPanel onSignalClick={handleRadarSignalClick} />
+        )}
+
         {currentPage === 'screener' && (
           <TokenScreener onSwapSelect={handleScreenerSwapSelect} />
         )}
@@ -249,8 +349,8 @@ export function App() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-dark-800 mt-auto">
-        <div className="max-w-6xl mx-auto px-4 py-6 text-center text-sm text-dark-400">
+      <footer className="border-t border-white/[0.06] mt-auto">
+        <div className="max-w-6xl mx-auto px-4 py-6 text-center text-sm text-gray-500">
           <p>Swaperex - Web3 Non-Custodial Swap Platform</p>
           <p className="mt-1">All transactions are signed locally in your wallet.</p>
           <div className="mt-3 flex justify-center gap-4">
@@ -279,6 +379,11 @@ export function App() {
               Disclaimer
             </button>
           </div>
+
+          {/* System Status Indicator */}
+          <div className="mt-4 pt-3 border-t border-white/[0.04]">
+            <SystemStatusIndicator />
+          </div>
         </div>
       </footer>
 
@@ -295,21 +400,28 @@ function NavButton({
   active,
   onClick,
   children,
+  badge,
 }: {
   active: boolean;
   onClick: () => void;
   children: React.ReactNode;
+  badge?: number;
 }) {
   return (
     <button
       onClick={onClick}
-      className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+      className={`relative px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
         active
-          ? 'bg-dark-800 text-white'
-          : 'text-dark-400 hover:text-white hover:bg-dark-800/50'
+          ? 'bg-electro-panel text-white border border-white/[0.08]'
+          : 'text-gray-400 hover:text-white hover:bg-electro-panel/50'
       }`}
     >
       {children}
+      {badge !== undefined && badge > 0 && (
+        <span className="absolute -top-1 -right-1 px-1.5 py-0.5 bg-accent text-electro-bg text-xs font-bold rounded-full min-w-[18px] text-center">
+          {badge > 9 ? '9+' : badge}
+        </span>
+      )}
     </button>
   );
 }

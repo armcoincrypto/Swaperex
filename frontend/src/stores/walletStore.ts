@@ -11,7 +11,7 @@
 import { create } from 'zustand';
 import type { WalletSession, WalletType, ChainInfo } from '@/types/api';
 import { walletApi } from '@/api';
-import { SUPPORTED_CHAIN_IDS } from '@/utils/constants';
+import { SUPPORTED_CHAIN_IDS } from '@/wallet';
 
 interface WalletState {
   // Connection state
