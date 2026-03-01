@@ -29,20 +29,25 @@ import { analyzeSwapFromContext, type SwapIntelligence } from '@/services/dex';
 import type { AssetInfo } from '@/types/api';
 import { isAddress } from 'ethers';
 
-// Chain ID to chain name mapping
+// Chain ID to chain name mapping (all 6 supported chains)
 const CHAIN_NAMES: Record<number, string> = {
   1: 'ethereum',
   56: 'bsc',
   137: 'polygon',
   42161: 'arbitrum',
+  10: 'optimism',
+  43114: 'avalanche',
 };
 
 // Gas buffer for native tokens (to leave enough for transaction fees)
 // Use smaller of: fixed buffer OR 5% of balance
 const GAS_BUFFER_FIXED: Record<number, number> = {
-  1: 0.005,   // ETH - leave max 0.005 ETH for gas
-  56: 0.002,  // BNB - leave max 0.002 BNB for gas
-  137: 0.5,   // MATIC - leave max 0.5 MATIC for gas
+  1: 0.005,      // ETH
+  56: 0.002,    // BNB
+  137: 0.5,     // MATIC
+  42161: 0.001, // ETH (Arbitrum)
+  10: 0.001,    // ETH (Optimism)
+  43114: 0.1,   // AVAX
 };
 const GAS_BUFFER_PERCENT = 0.05; // 5% of balance as minimum buffer
 

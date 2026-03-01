@@ -26,7 +26,7 @@ import { Button } from '@/components/common/Button';
 import { shortenAddress } from '@/utils/format';
 import { SUPPORTED_CHAIN_IDS } from '@/utils/constants';
 
-type WalletOption = 'metamask' | 'walletconnect' | 'readonly';
+type WalletOption = 'metamask' | 'readonly';
 
 export function WalletConnect() {
   const {
@@ -84,10 +84,6 @@ export function WalletConnect() {
       } catch {
         // Error handled in hook, shown in UI
       }
-    } else if (option === 'walletconnect') {
-      // WalletConnect not yet implemented - show message
-      alert('WalletConnect coming soon!');
-      setSelectedWallet(null);
     } else if (option === 'readonly') {
       setShowReadOnlyInput(true);
     }
@@ -377,17 +373,7 @@ export function WalletConnect() {
             </a>
           )}
 
-          {/* WalletConnect Option */}
-          <button
-            onClick={() => handleWalletSelect('walletconnect')}
-            className="w-full px-4 py-3 text-left hover:bg-dark-700 transition-colors flex items-center gap-3"
-          >
-            <WalletConnectIcon />
-            <div>
-              <div className="font-medium">WalletConnect</div>
-              <div className="text-xs text-dark-400">Scan with mobile wallet</div>
-            </div>
-          </button>
+          {/* WalletConnect hidden until implemented - no dead clickable feature */}
 
           {/* Divider */}
           <div className="my-2 border-t border-dark-700" />
@@ -506,16 +492,6 @@ function MetaMaskIcon() {
         <path d="M21.3 3L13.3 9.3l1.5-3.5L21.3 3z" />
         <path d="M2.7 3l7.9 6.4-1.4-3.5L2.7 3zm15.5 13.1l-2.1 3.2 4.5 1.2 1.3-4.4-3.7 0zm-15.2 0l1.3 4.4 4.5-1.2-2.1-3.2-3.7 0z" />
         <path d="M9.1 10.4l-1.3 1.9 4.5.2-.2-4.9-3 2.8zm5.8 0l-3-2.9-.1 5 4.5-.2-1.4-1.9zM6.6 19.3l2.7-1.3-2.3-1.8-.4 3.1zm5.4-1.3l2.7 1.3-.4-3.1-2.3 1.8z" />
-      </svg>
-    </div>
-  );
-}
-
-function WalletConnectIcon() {
-  return (
-    <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
-      <svg className="w-5 h-5 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.5 9.5C8 7 16 7 18.5 9.5M7.5 12c2-2 7-2 9 0" />
       </svg>
     </div>
   );

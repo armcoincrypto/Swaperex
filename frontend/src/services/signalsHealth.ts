@@ -3,10 +3,10 @@
  *
  * Simple health check for the backend signals service.
  * Silent failure by design - never throws, never retries.
+ * Frontend must work when backend-signals (4001) is down.
  */
 
-// Use environment variable or default to production URL
-const SIGNALS_API_URL = import.meta.env.VITE_SIGNALS_API_URL || 'http://207.180.212.142:4001';
+import { joinSignalsUrl } from '@/utils/constants';
 
 export interface SignalsHealthResponse {
   status: string;
@@ -26,7 +26,7 @@ export async function checkSignalsHealth(): Promise<boolean> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
 
-    const res = await fetch(`${SIGNALS_API_URL}/health`, {
+    const res = await fetch(joinSignalsUrl('health'), {
       method: 'GET',
       cache: 'no-store',
       signal: controller.signal,
@@ -53,7 +53,7 @@ export async function getSignalsHealthDetails(): Promise<SignalsHealthResponse |
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-    const res = await fetch(`${SIGNALS_API_URL}/health`, {
+    const res = await fetch(joinSignalsUrl('health'), {
       method: 'GET',
       cache: 'no-store',
       signal: controller.signal,
@@ -177,7 +177,7 @@ export async function fetchSignals(
 
     const debugParam = includeDebug ? '&debug=1' : '';
     const res = await fetch(
-      `${SIGNALS_API_URL}/api/v1/signals?chainId=${chainId}&token=${token}${debugParam}`,
+      `${joinSignalsUrl('api/v1/signals')}?chainId=${chainId}&token=${encodeURIComponent(token)}${debugParam}`,
       {
         method: 'GET',
         cache: 'no-store',

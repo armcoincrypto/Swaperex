@@ -19,6 +19,46 @@ import { getTokenBySymbol, type Token } from '@/tokens';
  */
 const ONEINCH_API_V6 = 'https://api.1inch.dev/swap/v6.0';
 
+const FETCH_TIMEOUT_MS = 10_000;
+const RETRY_DELAYS_MS = [500, 1200, 2500];
+
+/**
+ * Fetch with timeout. Throws on timeout or non-2xx.
+ */
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number = FETCH_TIMEOUT_MS
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    return res;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof Error) {
+      if (err.name === 'AbortError') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      throw err;
+    }
+    throw new Error('Failed to fetch quote from 1inch');
+  }
+}
+
+/**
+ * Sleep helper for retry backoff
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
  * Supported chain IDs for 1inch
  */
@@ -205,73 +245,90 @@ export async function getOneInchQuote(
   url.searchParams.set('dst', dstAddress);
   url.searchParams.set('amount', amountWei);
 
-  try {
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      headers: getHeaders(apiKey),
-    });
+  const urlStr = url.toString();
+  const headers = getHeaders(apiKey);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[1inch Quote] API Error:', response.status, errorText);
-
-      if (response.status === 400) {
-        throw new Error('Invalid swap parameters. Check token addresses and amounts.');
-      }
-      if (response.status === 429) {
-        throw new Error('Rate limited. Please try again in a few seconds.');
-      }
-      if (response.status === 500) {
-        throw new Error('1inch API is temporarily unavailable.');
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      if (attempt > 0) {
+        await sleep(RETRY_DELAYS_MS[attempt - 1]);
       }
 
-      throw new Error(`1inch API error: ${response.status}`);
+      const response = await fetchWithTimeout(
+        urlStr,
+        { method: 'GET', headers },
+        FETCH_TIMEOUT_MS
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[1inch Quote] API Error:', response.status, errorText);
+
+        if (response.status === 400) {
+          throw new Error('Invalid swap parameters. Check token addresses and amounts.');
+        }
+        if (response.status === 429) {
+          throw new Error('Rate limited. Please try again in a few seconds.');
+        }
+        if (response.status >= 500) {
+          lastError = new Error('1inch API is temporarily unavailable.');
+          if (attempt < RETRY_DELAYS_MS.length) continue;
+          throw lastError;
+        }
+
+        throw new Error(`1inch API error: ${response.status}`);
+      }
+
+      const data: OneInchQuoteResponse = await response.json();
+
+      // Format output amount
+      const dstAmountFormatted = formatAmountFromWei(data.dstAmount, tokenOutData.decimals);
+
+      // Calculate approximate price impact (simplified)
+      const inputValue = parseFloat(amountIn);
+      const outputValue = parseFloat(dstAmountFormatted);
+      let priceImpact = '0';
+
+      // For stablecoin pairs, calculate impact from 1:1
+      const stablecoins = ['USDT', 'USDC', 'DAI', 'BUSD', 'FDUSD'];
+      if (stablecoins.includes(tokenIn.toUpperCase()) && stablecoins.includes(tokenOut.toUpperCase())) {
+        priceImpact = (Math.abs(1 - outputValue / inputValue) * 100).toFixed(2);
+      }
+
+      console.log('[1inch Quote] Result:', {
+        dstAmount: dstAmountFormatted,
+        gas: data.gas,
+        protocols: data.protocols?.length || 0,
+      });
+
+      return {
+        srcToken: srcAddress,
+        dstToken: dstAddress,
+        srcAmount: amountWei,
+        dstAmount: data.dstAmount,
+        dstAmountFormatted,
+        protocols: data.protocols || [],
+        gas: data.gas || 200000,
+        gasPrice: '0', // Will be determined by wallet
+        priceImpact,
+        provider: '1inch',
+        chainId,
+      };
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error('Failed to fetch quote from 1inch');
+      if (attempt < RETRY_DELAYS_MS.length && lastError.message.includes('temporarily unavailable')) {
+        continue;
+      }
+      if (attempt < RETRY_DELAYS_MS.length && lastError.message.includes('timed out')) {
+        continue;
+      }
+      console.error('[1inch Quote] Error:', lastError);
+      throw lastError;
     }
-
-    const data: OneInchQuoteResponse = await response.json();
-
-    // Format output amount
-    const dstAmountFormatted = formatAmountFromWei(data.dstAmount, tokenOutData.decimals);
-
-    // Calculate approximate price impact (simplified)
-    const inputValue = parseFloat(amountIn);
-    const outputValue = parseFloat(dstAmountFormatted);
-    let priceImpact = '0';
-
-    // For stablecoin pairs, calculate impact from 1:1
-    const stablecoins = ['USDT', 'USDC', 'DAI', 'BUSD', 'FDUSD'];
-    if (stablecoins.includes(tokenIn.toUpperCase()) && stablecoins.includes(tokenOut.toUpperCase())) {
-      priceImpact = (Math.abs(1 - outputValue / inputValue) * 100).toFixed(2);
-    }
-
-    console.log('[1inch Quote] Result:', {
-      dstAmount: dstAmountFormatted,
-      gas: data.gas,
-      protocols: data.protocols?.length || 0,
-    });
-
-    return {
-      srcToken: srcAddress,
-      dstToken: dstAddress,
-      srcAmount: amountWei,
-      dstAmount: data.dstAmount,
-      dstAmountFormatted,
-      protocols: data.protocols || [],
-      gas: data.gas || 200000,
-      gasPrice: '0', // Will be determined by wallet
-      priceImpact,
-      provider: '1inch',
-      chainId,
-    };
-  } catch (error) {
-    console.error('[1inch Quote] Error:', error);
-
-    if (error instanceof Error) {
-      throw error;
-    }
-
-    throw new Error('Failed to fetch quote from 1inch');
   }
+
+  throw lastError ?? new Error('Failed to fetch quote from 1inch');
 }
 
 /**

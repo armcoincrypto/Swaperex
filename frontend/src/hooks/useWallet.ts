@@ -11,6 +11,7 @@ import { useWalletStore } from '@/stores/walletStore';
 import { useBalanceStore } from '@/stores/balanceStore';
 import { parseWalletError } from '@/utils/errors';
 import { walletEvents } from '@/services/walletEvents';
+import { BALANCE_CHAIN_KEYS } from '@/utils/constants';
 
 declare global {
   interface Window {
@@ -82,8 +83,8 @@ export function useWallet() {
           // Connect to store
           await connect(accounts[0], currentChainId, 'injected');
 
-          // Fetch balances
-          fetchBalances(accounts[0], ['ethereum', 'bsc', 'polygon']).catch((err) => {
+          // Fetch balances for all 6 supported chains (non-blocking)
+          fetchBalances(accounts[0], BALANCE_CHAIN_KEYS).catch((err) => {
             console.warn('[Wallet] Auto-reconnect balance fetch failed:', err.message);
           });
         }
@@ -132,8 +133,8 @@ export function useWallet() {
       // Connect to backend
       await connect(accounts[0], currentChainId, 'injected');
 
-      // Fetch balances (non-blocking - connection succeeds even if balances fail)
-      fetchBalances(accounts[0], ['ethereum', 'bsc', 'polygon']).catch((err) => {
+      // Fetch balances for all 6 supported chains (non-blocking)
+      fetchBalances(accounts[0], BALANCE_CHAIN_KEYS).catch((err) => {
         console.warn('[Wallet] Balance fetch failed (non-critical):', err.message);
       });
     } catch (err) {
@@ -169,8 +170,8 @@ export function useWallet() {
 
     setReadOnlyAddress(viewAddress);
 
-    // Fetch balances for read-only address
-    fetchBalances(viewAddress, ['ethereum', 'bsc', 'polygon']);
+    // Fetch balances for read-only address (all 6 supported chains)
+    fetchBalances(viewAddress, BALANCE_CHAIN_KEYS);
     return true;
   }, [setReadOnlyAddress, fetchBalances]);
 

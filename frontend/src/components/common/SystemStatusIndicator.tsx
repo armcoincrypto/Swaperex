@@ -9,7 +9,7 @@
  * Priority 9.0.4 - Trust Mode UI
  */
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   useSystemStatusStore,
   useSystemStatus,
@@ -18,6 +18,8 @@ import {
   getStatusIndicator,
   type SystemStatus,
 } from '@/stores/systemStatusStore';
+import { useSignalsHealthStore } from '@/stores/signalsHealthStore';
+import { SIGNALS_API_URL } from '@/utils/constants';
 
 interface SystemStatusIndicatorProps {
   /** Show detailed breakdown (default false) */
@@ -31,6 +33,9 @@ export function SystemStatusIndicator({ detailed = false, className = '' }: Syst
   const services = useServicesStatus();
   const refresh = useSystemStatusStore((s) => s.refresh);
   const lastCheck = useSystemStatusStore((s) => s.lastCheck);
+  const lastError = useSystemStatusStore((s) => s.lastError);
+  const signalsOnline = useSignalsHealthStore((s) => s.online);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   // Auto-refresh on mount and every 60 seconds
   useEffect(() => {
@@ -65,6 +70,27 @@ export function SystemStatusIndicator({ detailed = false, className = '' }: Syst
         <span className="text-[10px] text-dark-600 ml-1">
           ({formatLastCheck(lastCheck)})
         </span>
+      )}
+
+      {detailed && (
+        <span
+          className="text-[10px] text-dark-500 cursor-help select-none hover:text-dark-400"
+          onClick={() => setShowDiagnostics((d) => !d)}
+          title="Signals diagnostics"
+        >
+          | Signals
+        </span>
+      )}
+
+      {detailed && showDiagnostics && (
+        <div className="w-full mt-1 text-[10px] text-dark-500 font-mono space-y-0.5 border-t border-dark-700 pt-1">
+          <div>API: {SIGNALS_API_URL.replace(/^https?:\/\//, '').slice(0, 36)}…</div>
+          <div>Last OK: {lastCheck ? formatLastCheck(lastCheck) : '—'}</div>
+          {lastError && <div className="text-yellow-500">Err: {lastError}</div>}
+          <div className={status === 'unavailable' || !signalsOnline ? 'text-red-400' : 'text-green-500'}>
+            {status === 'unavailable' || !signalsOnline ? 'Offline' : 'Online'}
+          </div>
+        </div>
       )}
     </div>
   );

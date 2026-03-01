@@ -12,6 +12,7 @@ import { getTokens } from '@/tokens';
 import { formatBalance } from '@/utils/format';
 import { useUsageStore } from '@/stores/usageStore';
 import { TierBadge } from '@/components/common/TierBadge';
+import { SUPPORTED_CHAIN_IDS, CHAINS } from '@/utils/constants';
 
 // CoinGecko API
 const COINGECKO_API = 'https://api.coingecko.com/api/v3';
@@ -21,6 +22,10 @@ const COINGECKO_IDS: Record<string, string> = {
   // Native tokens
   ETH: 'ethereum',
   BNB: 'binancecoin',
+  MATIC: 'matic-network',
+  AVAX: 'avalanche-2',
+  OP: 'optimism',
+  ARB: 'arbitrum',
   // Stablecoins
   USDT: 'tether',
   USDC: 'usd-coin',
@@ -30,6 +35,8 @@ const COINGECKO_IDS: Record<string, string> = {
   // Wrapped tokens
   WETH: 'weth',
   WBNB: 'wbnb',
+  WMATIC: 'wmatic',
+  WAVAX: 'wrapped-avax',
   WBTC: 'wrapped-bitcoin',
   BTCB: 'bitcoin-bep2',
   // ETH Blue-chip
@@ -67,7 +74,7 @@ interface TokenScreenerProps {
 }
 
 export function TokenScreener({ onSwapSelect }: TokenScreenerProps) {
-  const [chain, setChain] = useState<1 | 56>(1); // ETH or BSC
+  const [chain, setChain] = useState<number>(1); // Any of 6 supported chains
   const [tokens, setTokens] = useState<TokenData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -196,28 +203,26 @@ export function TokenScreener({ onSwapSelect }: TokenScreenerProps) {
           <p className="text-dark-400 text-sm mt-1">Top tokens by volume</p>
         </div>
 
-        {/* Chain Selector */}
-        <div className="flex gap-2">
-          <button
-            onClick={() => setChain(1)}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              chain === 1
-                ? 'bg-primary-600 text-white'
-                : 'bg-dark-800 text-dark-400 hover:text-white'
-            }`}
-          >
-            Ethereum
-          </button>
-          <button
-            onClick={() => setChain(56)}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              chain === 56
-                ? 'bg-yellow-500 text-black'
-                : 'bg-dark-800 text-dark-400 hover:text-white'
-            }`}
-          >
-            BSC
-          </button>
+        {/* Chain Selector - all 6 supported chains */}
+        <div className="flex flex-wrap gap-2">
+          {SUPPORTED_CHAIN_IDS.map((chainId) => {
+            const chainInfo = Object.values(CHAINS).find((c) => c.id === chainId);
+            const label = chainInfo?.name ?? `Chain ${chainId}`;
+            const isSelected = chain === chainId;
+            return (
+              <button
+                key={chainId}
+                onClick={() => setChain(chainId)}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  isSelected
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-dark-800 text-dark-400 hover:text-white'
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
       </div>
 

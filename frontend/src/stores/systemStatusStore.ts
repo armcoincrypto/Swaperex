@@ -5,12 +5,11 @@
  * and external service status. Provides trust indicators for UI.
  *
  * Priority 9.0.1 - Global Health Check
+ * Backend-down: graceful degradation, no unhandled errors.
  */
 
 import { create } from 'zustand';
-
-// Use environment variable or default to production URL
-const SIGNALS_API_URL = import.meta.env.VITE_SIGNALS_API_URL || 'http://207.180.212.142:4001';
+import { joinSignalsUrl, SIGNALS_API_URL } from '@/utils/constants';
 
 export type SystemStatus = 'stable' | 'degraded' | 'unavailable';
 
@@ -39,6 +38,10 @@ interface SystemStatusState {
   uptime: number | null;
   /** Last successful check timestamp */
   lastCheck: number | null;
+  /** Last failure timestamp (for backoff) */
+  lastFailureAt: number | null;
+  /** Sanitized last error message (for diagnostics) */
+  lastError: string | null;
   /** Is currently checking */
   checking: boolean;
   /** Number of consecutive failures */
@@ -56,19 +59,26 @@ export const useSystemStatusStore = create<SystemStatusState>((set, get) => ({
   version: null,
   uptime: null,
   lastCheck: null,
+  lastFailureAt: null,
+  lastError: null,
   checking: false,
   failureCount: 0,
 
   refresh: async () => {
-    // Prevent concurrent checks
     if (get().checking) return;
+    const state = get();
+    // Backoff: after failures, wait 2 min before retry to avoid spam
+    const BACKOFF_MS = 2 * 60 * 1000;
+    if (state.failureCount >= 1 && state.lastFailureAt && Date.now() - state.lastFailureAt < BACKOFF_MS) {
+      return;
+    }
     set({ checking: true });
 
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-      const res = await fetch(`${SIGNALS_API_URL}/api/v1/health`, {
+      const res = await fetch(joinSignalsUrl('api/v1/health'), {
         method: 'GET',
         cache: 'no-store',
         signal: controller.signal,
@@ -97,25 +107,28 @@ export const useSystemStatusStore = create<SystemStatusState>((set, get) => ({
         version: data.version,
         uptime: data.uptime,
         lastCheck: Date.now(),
+        lastFailureAt: null,
+        lastError: null,
         checking: false,
         failureCount: 0,
       });
 
     } catch (err) {
       const currentFailures = get().failureCount;
-
-      // After 2 consecutive failures, mark as unavailable
-      const newStatus: SystemStatus = currentFailures >= 1 ? 'unavailable' : get().status;
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      const sanitized = errMsg.length > 80 ? errMsg.slice(0, 77) + '...' : errMsg;
 
       set({
-        status: newStatus,
+        status: currentFailures >= 1 ? 'unavailable' : get().status,
         signalsEngine: null,
         services: null,
+        lastFailureAt: Date.now(),
+        lastError: sanitized,
         checking: false,
         failureCount: currentFailures + 1,
       });
 
-      console.log(`[SystemStatus] Check failed (${currentFailures + 1}):`, err);
+      console.warn(`[SystemStatus] Check failed (${currentFailures + 1}):`, errMsg);
     }
   },
 
@@ -127,6 +140,8 @@ export const useSystemStatusStore = create<SystemStatusState>((set, get) => ({
       version: null,
       uptime: null,
       lastCheck: null,
+      lastFailureAt: null,
+      lastError: null,
       checking: false,
       failureCount: 0,
     });

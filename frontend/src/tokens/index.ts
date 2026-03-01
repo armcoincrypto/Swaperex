@@ -11,6 +11,8 @@ import ethereumTokens from './ethereum.json';
 import bscTokens from './bsc.json';
 import polygonTokens from './polygon.json';
 import arbitrumTokens from './arbitrum.json';
+import optimismTokens from './optimism.json';
+import avalancheTokens from './avalanche.json';
 
 /**
  * Token interface matching Uniswap token list standard
@@ -40,6 +42,8 @@ export const ETHEREUM_TOKENS: TokenList = ethereumTokens as TokenList;
 export const BSC_TOKENS: TokenList = bscTokens as TokenList;
 export const POLYGON_TOKENS: TokenList = polygonTokens as TokenList;
 export const ARBITRUM_TOKENS: TokenList = arbitrumTokens as TokenList;
+export const OPTIMISM_TOKENS: TokenList = optimismTokens as TokenList;
+export const AVALANCHE_TOKENS: TokenList = avalancheTokens as TokenList;
 
 /**
  * All token lists by chain ID
@@ -49,6 +53,8 @@ export const TOKEN_LISTS: Record<number, TokenList> = {
   56: BSC_TOKENS,
   137: POLYGON_TOKENS,
   42161: ARBITRUM_TOKENS,
+  10: OPTIMISM_TOKENS,
+  43114: AVALANCHE_TOKENS,
 };
 
 /**
@@ -191,33 +197,75 @@ export function getSupportedChainIds(): number[] {
 }
 
 /**
- * Default tokens for swap UI (Ethereum)
+ * Minimal placeholder token (never throws)
  */
-export const DEFAULT_FROM_TOKEN = getTokenBySymbol('ETH')!;
-export const DEFAULT_TO_TOKEN = getTokenBySymbol('USDC')!;
+const PLACEHOLDER_TOKEN: Token = {
+  symbol: 'ETH',
+  name: 'Native Token',
+  address: NATIVE_TOKEN_ADDRESS,
+  decimals: 18,
+};
+
+/**
+ * Safe default FROM token for a chain.
+ * Prefer: native token → first in list → placeholder. Never throws.
+ */
+export function getDefaultFromToken(chainId: number = 1): Token {
+  const native = getTokenBySymbol(getNativeSymbol(chainId), chainId) ||
+    getTokenBySymbol('ETH', chainId) || getTokenBySymbol('WETH', chainId);
+  if (native) return native;
+
+  const tokens = getTokens(chainId);
+  const first = tokens[0];
+  if (first) return first;
+
+  return { ...PLACEHOLDER_TOKEN, symbol: getNativeSymbol(chainId) };
+}
+
+/**
+ * Safe default TO token for a chain.
+ * Prefer: stablecoin (USDT/USDC/DAI) → second token → first token. Never throws.
+ */
+export function getDefaultToToken(chainId: number = 1): Token {
+  const stable = getTokenBySymbol('USDT', chainId) ||
+    getTokenBySymbol('USDC', chainId) || getTokenBySymbol('DAI', chainId);
+  if (stable) return stable;
+
+  const tokens = getTokens(chainId);
+  if (tokens.length > 1) return tokens[1];
+  if (tokens[0]) return tokens[0];
+
+  return { ...PLACEHOLDER_TOKEN, symbol: 'USDC', name: 'USD Coin' };
+}
+
+/** @deprecated Use getDefaultFromToken(chainId) - safe per-chain default */
+export const DEFAULT_FROM_TOKEN = getDefaultFromToken(1);
+
+/** @deprecated Use getDefaultToToken(chainId) - safe per-chain default */
+export const DEFAULT_TO_TOKEN = getDefaultToToken(1);
 
 /**
  * Stablecoins for quick selection (Ethereum)
  */
 export const STABLECOINS = [
-  getTokenBySymbol('USDT')!,
-  getTokenBySymbol('USDC')!,
-  getTokenBySymbol('DAI')!,
-].filter(Boolean);
+  getTokenBySymbol('USDT'),
+  getTokenBySymbol('USDC'),
+  getTokenBySymbol('DAI'),
+].filter((t): t is Token => !!t);
 
 /**
  * Popular tokens for quick selection (Ethereum)
  */
 export const POPULAR_TOKENS = [
-  getTokenBySymbol('ETH')!,
-  getTokenBySymbol('WBTC')!,
-  getTokenBySymbol('USDT')!,
-  getTokenBySymbol('USDC')!,
-  getTokenBySymbol('DAI')!,
-  getTokenBySymbol('UNI')!,
-  getTokenBySymbol('AAVE')!,
-  getTokenBySymbol('LINK')!,
-].filter(Boolean);
+  getTokenBySymbol('ETH'),
+  getTokenBySymbol('WBTC'),
+  getTokenBySymbol('USDT'),
+  getTokenBySymbol('USDC'),
+  getTokenBySymbol('DAI'),
+  getTokenBySymbol('UNI'),
+  getTokenBySymbol('AAVE'),
+  getTokenBySymbol('LINK'),
+].filter((t): t is Token => !!t);
 
 /**
  * Get popular tokens for a specific chain

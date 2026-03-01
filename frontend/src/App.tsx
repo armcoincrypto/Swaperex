@@ -5,19 +5,21 @@
  * SECURITY: All signing happens client-side via connected wallet.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { WalletConnect } from '@/components/wallet/WalletConnect';
-import { SwapInterface } from '@/components/swap/SwapInterface';
-import { WithdrawalInterface } from '@/components/withdrawal/WithdrawalInterface';
-import { TokenList } from '@/components/balances/TokenList';
 import { ChainWarningBanner } from '@/components/chain/ChainWarning';
 import { ToastContainer } from '@/components/common/Toast';
 import { GlobalErrorDisplay } from '@/components/common/GlobalErrorDisplay';
 import { NetworkSelector } from '@/components/common/NetworkSelector';
-import { SwapHistory } from '@/components/history/SwapHistory';
-import { TokenScreener } from '@/components/screener/TokenScreener';
-import { RadarPanel } from '@/components/radar/RadarPanel';
 import { AboutPage, TermsPage, PrivacyPage, DisclaimerPage } from '@/components/pages/StaticPages';
+
+// Lazy-load heavy screens (code-split by route)
+const SwapInterface = lazy(() => import('@/components/swap/SwapInterface'));
+const WithdrawalInterface = lazy(() => import('@/components/withdrawal/WithdrawalInterface'));
+const TokenList = lazy(() => import('@/components/balances/TokenList'));
+const SwapHistory = lazy(() => import('@/components/history/SwapHistory'));
+const TokenScreener = lazy(() => import('@/components/screener/TokenScreener'));
+const RadarPanel = lazy(() => import('@/components/radar/RadarPanel'));
 import { SystemStatusIndicator } from '@/components/common/SystemStatusIndicator';
 import { useWallet } from '@/hooks/useWallet';
 import { useSwapStore } from '@/stores/swapStore';
@@ -28,6 +30,20 @@ import { useSystemStatusStore } from '@/stores/systemStatusStore';
 import { type SwapRecord } from '@/stores/swapHistoryStore';
 import { getTokenBySymbol } from '@/tokens';
 import { startWatchlistMonitor } from '@/services/watchlistMonitor';
+
+/** Chain ID → asset chain key (used by swap store, screener, portfolio) */
+const CHAIN_ID_TO_KEY: Record<number, string> = {
+  1: 'ethereum',
+  56: 'bsc',
+  137: 'polygon',
+  42161: 'arbitrum',
+  10: 'optimism',
+  43114: 'avalanche',
+};
+
+function getChainKey(chainId: number): string {
+  return CHAIN_ID_TO_KEY[chainId] ?? 'ethereum';
+}
 
 type Page = 'swap' | 'send' | 'portfolio' | 'radar' | 'screener' | 'about' | 'terms' | 'privacy' | 'disclaimer';
 
@@ -85,13 +101,14 @@ export function App() {
     const fromToken = getTokenBySymbol(fromSymbol, targetChainId);
     const toToken = getTokenBySymbol(toSymbol, targetChainId);
 
+    const chainKey = getChainKey(targetChainId);
     if (fromToken) {
       setFromAsset({
         symbol: fromToken.symbol,
         name: fromToken.name,
-        chain: targetChainId === 56 ? 'bsc' : 'ethereum',
+        chain: chainKey,
         decimals: fromToken.decimals,
-        is_native: fromSymbol === 'ETH' || fromSymbol === 'BNB',
+        is_native: fromSymbol === 'ETH' || fromSymbol === 'BNB' || fromSymbol === 'MATIC' || fromSymbol === 'AVAX',
         contract_address: fromToken.address,
         logo_url: fromToken.logoURI,
       });
@@ -101,9 +118,9 @@ export function App() {
       setToAsset({
         symbol: toToken.symbol,
         name: toToken.name,
-        chain: targetChainId === 56 ? 'bsc' : 'ethereum',
+        chain: chainKey,
         decimals: toToken.decimals,
-        is_native: toSymbol === 'ETH' || toSymbol === 'BNB',
+        is_native: toSymbol === 'ETH' || toSymbol === 'BNB' || toSymbol === 'MATIC' || toSymbol === 'AVAX',
         contract_address: toToken.address,
         logo_url: toToken.logoURI,
       });
@@ -115,24 +132,25 @@ export function App() {
 
   // Handle swap from portfolio - prefill from token and go to swap
   const handlePortfolioSwap = (symbol: string) => {
-    const token = getTokenBySymbol(symbol, chainId || 1);
+    const cid = chainId || 1;
+    const chainKey = getChainKey(cid);
+    const token = getTokenBySymbol(symbol, cid);
     if (token) {
       setFromAsset({
         symbol: token.symbol,
         name: token.name,
-        chain: chainId === 56 ? 'bsc' : 'ethereum',
+        chain: chainKey,
         decimals: token.decimals,
-        is_native: symbol === 'ETH' || symbol === 'BNB',
+        is_native: symbol === 'ETH' || symbol === 'BNB' || symbol === 'MATIC' || symbol === 'AVAX',
         contract_address: token.address,
         logo_url: token.logoURI,
       });
-      // Set USDT as default "to" token
-      const stablecoin = getTokenBySymbol('USDT', chainId || 1);
+      const stablecoin = getTokenBySymbol('USDT', cid) || getTokenBySymbol('USDC', cid);
       if (stablecoin && stablecoin.symbol !== symbol) {
         setToAsset({
           symbol: stablecoin.symbol,
           name: stablecoin.name,
-          chain: chainId === 56 ? 'bsc' : 'ethereum',
+          chain: chainKey,
           decimals: stablecoin.decimals,
           is_native: false,
           contract_address: stablecoin.address,
@@ -145,38 +163,36 @@ export function App() {
 
   // Handle radar signal click - navigate to swap with token prefilled
   const handleRadarSignalClick = (signal: RadarSignal) => {
-    // Try to find the token in our known tokens
+    const chainKey = getChainKey(signal.chainId);
     const token = getTokenBySymbol(signal.tokenSymbol, signal.chainId);
 
     if (token) {
       setFromAsset({
         symbol: token.symbol,
         name: token.name,
-        chain: signal.chainId === 56 ? 'bsc' : signal.chainId === 137 ? 'polygon' : 'ethereum',
+        chain: chainKey,
         decimals: token.decimals,
-        is_native: signal.tokenSymbol === 'ETH' || signal.tokenSymbol === 'BNB' || signal.tokenSymbol === 'MATIC',
+        is_native: signal.tokenSymbol === 'ETH' || signal.tokenSymbol === 'BNB' || signal.tokenSymbol === 'MATIC' || signal.tokenSymbol === 'AVAX',
         contract_address: token.address,
         logo_url: token.logoURI,
       });
     } else {
-      // For custom tokens, create asset from signal data
       setFromAsset({
         symbol: signal.tokenSymbol,
         name: signal.tokenSymbol,
-        chain: signal.chainId === 56 ? 'bsc' : signal.chainId === 137 ? 'polygon' : 'ethereum',
+        chain: chainKey,
         decimals: 18,
         is_native: false,
         contract_address: signal.tokenAddress,
       });
     }
 
-    // Set stablecoin as "to" token
-    const stablecoin = getTokenBySymbol('USDT', signal.chainId);
+    const stablecoin = getTokenBySymbol('USDT', signal.chainId) || getTokenBySymbol('USDC', signal.chainId);
     if (stablecoin) {
       setToAsset({
         symbol: stablecoin.symbol,
         name: stablecoin.name,
-        chain: signal.chainId === 56 ? 'bsc' : signal.chainId === 137 ? 'polygon' : 'ethereum',
+        chain: chainKey,
         decimals: stablecoin.decimals,
         is_native: false,
         contract_address: stablecoin.address,
@@ -184,7 +200,6 @@ export function App() {
       });
     }
 
-    // Navigate to swap
     setCurrentPage('swap');
   };
 
@@ -267,6 +282,7 @@ export function App() {
 
       {/* Main Content */}
       <main className="max-w-6xl mx-auto px-4 py-8">
+        <Suspense fallback={<div className="flex justify-center py-16"><div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" /></div>}>
         {currentPage === 'swap' && (
           <div className="flex flex-col lg:flex-row gap-8">
             {/* Swap Panel */}
@@ -346,6 +362,7 @@ export function App() {
         {currentPage === 'terms' && <TermsPage onBack={() => setCurrentPage('swap')} />}
         {currentPage === 'privacy' && <PrivacyPage onBack={() => setCurrentPage('swap')} />}
         {currentPage === 'disclaimer' && <DisclaimerPage onBack={() => setCurrentPage('swap')} />}
+        </Suspense>
       </main>
 
       {/* Footer */}
@@ -382,7 +399,7 @@ export function App() {
 
           {/* System Status Indicator */}
           <div className="mt-4 pt-3 border-t border-white/[0.04]">
-            <SystemStatusIndicator />
+            <SystemStatusIndicator detailed />
           </div>
         </div>
       </footer>

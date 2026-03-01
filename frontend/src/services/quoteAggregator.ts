@@ -37,10 +37,7 @@ import {
   type PancakeQuoteResult,
 } from './pancakeSwapQuote';
 import { getTokenBySymbol } from '@/tokens';
-
-// PHASE 11: Supported chain IDs
-const SUPPORTED_CHAINS = [1, 56] as const;
-type SupportedChainId = (typeof SUPPORTED_CHAINS)[number];
+import { SUPPORTED_CHAIN_IDS } from '@/utils/constants';
 
 /**
  * PHASE 11: Provider types for multi-chain support
@@ -228,9 +225,9 @@ export async function getAggregatedQuote(
   chainId: number = 1,
   slippage: number = 0.5
 ): Promise<AggregatedQuote> {
-  // PHASE 11: Support ETH and BSC
-  if (!SUPPORTED_CHAINS.includes(chainId as SupportedChainId)) {
-    throw new Error(`Quote aggregator only supports chains: ${SUPPORTED_CHAINS.join(', ')}`);
+  // Support all 6 chains: 1, 56, 137, 42161, 10, 43114
+  if (!SUPPORTED_CHAIN_IDS.includes(chainId)) {
+    throw new Error(`Unsupported chain. Supported: ${SUPPORTED_CHAIN_IDS.join(', ')}. Current: ${chainId}`);
   }
 
   const tokenOutData = getTokenBySymbol(tokenOut, chainId);
@@ -247,6 +244,8 @@ export async function getAggregatedQuote(
     return getEthereumQuote(tokenIn, tokenOut, amountIn, slippage, tokenOutData.decimals, apiKey);
   } else if (chainId === 56) {
     return getBscQuote(tokenIn, tokenOut, amountIn, slippage, tokenOutData.decimals, apiKey);
+  } else if ([137, 42161, 10, 43114].includes(chainId)) {
+    return get1inchOnlyQuote(tokenIn, tokenOut, amountIn, chainId, slippage, tokenOutData.decimals, apiKey);
   }
 
   throw new Error(`Unsupported chain: ${chainId}`);
@@ -338,6 +337,25 @@ async function getBscQuote(
   console.log('[Aggregator] Selected:', comparison.best.provider, '|', comparison.reason);
 
   return comparison.best;
+}
+
+/**
+ * Get quote for L2 chains via 1inch only (Polygon, Arbitrum, Optimism, Avalanche)
+ */
+async function get1inchOnlyQuote(
+  tokenIn: string,
+  tokenOut: string,
+  amountIn: string,
+  chainId: number,
+  slippage: number,
+  tokenOutDecimals: number,
+  apiKey?: string
+): Promise<AggregatedQuote> {
+  const quote = await getBestOneInchQuote(tokenIn, tokenOut, amountIn, chainId, apiKey);
+  if (!quote) {
+    throw new Error(`1inch quote failed for chain ${chainId}. This chain may not be supported by the provider.`);
+  }
+  return normalizeOneInchQuote(quote, slippage, tokenOutDecimals, chainId);
 }
 
 /**

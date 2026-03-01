@@ -7,6 +7,7 @@
 
 import { useState } from 'react';
 import { useWallet } from '@/hooks/useWallet';
+import { CHAINS } from '@/utils/constants';
 
 interface NetworkInfo {
   chainId: number;
@@ -17,32 +18,27 @@ interface NetworkInfo {
   explorerUrl: string;
 }
 
-const SUPPORTED_NETWORKS: NetworkInfo[] = [
-  {
-    chainId: 1,
-    name: 'Ethereum',
-    symbol: 'ETH',
-    icon: '⟠',
-    rpcUrl: 'https://eth.llamarpc.com',
-    explorerUrl: 'https://etherscan.io',
-  },
-  {
-    chainId: 56,
-    name: 'BNB Chain',
-    symbol: 'BNB',
-    icon: '⬡',
-    rpcUrl: 'https://bsc-dataseed.binance.org',
-    explorerUrl: 'https://bscscan.com',
-  },
-  {
-    chainId: 137,
-    name: 'Polygon',
-    symbol: 'MATIC',
-    icon: '⬡',
-    rpcUrl: 'https://polygon-rpc.com',
-    explorerUrl: 'https://polygonscan.com',
-  },
-];
+// Icons per chain (simple Unicode fallbacks)
+const CHAIN_ICONS: Record<string, string> = {
+  ethereum: '⟠',
+  bsc: '⬡',
+  polygon: '⬡',
+  arbitrum: '⬡',
+  optimism: '⬡',
+  avalanche: '🔺',
+};
+
+// Build SUPPORTED_NETWORKS from CHAINS (single source of truth)
+const SUPPORTED_NETWORKS: NetworkInfo[] = (Object.keys(CHAINS) as (keyof typeof CHAINS)[]).map(
+  (key) => ({
+    chainId: CHAINS[key].id,
+    name: CHAINS[key].name,
+    symbol: CHAINS[key].nativeSymbol,
+    icon: CHAIN_ICONS[key] ?? '⬡',
+    rpcUrl: CHAINS[key].rpcUrl,
+    explorerUrl: CHAINS[key].explorer,
+  })
+);
 
 export function NetworkSelector() {
   const { chainId, isConnected, switchNetwork } = useWallet();

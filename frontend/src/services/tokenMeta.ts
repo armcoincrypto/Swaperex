@@ -9,8 +9,10 @@
 
 import { useTokenMetaStore, type TokenMeta } from '@/stores/tokenMetaStore';
 
-// DexScreener API endpoint
-const DEXSCREENER_API = 'https://api.dexscreener.com/latest/dex';
+// DexScreener API - token-pairs endpoint includes chainId for correct routing
+const DEXSCREENER_API = 'https://api.dexscreener.com';
+const DEXSCREENER_TIMEOUT_MS = 10_000;
+const DEXSCREENER_MAX_RETRIES = 3;
 
 // Chain ID to DexScreener chain name mapping
 const CHAIN_ID_TO_NAME: Record<number, string> = {
@@ -29,7 +31,8 @@ function generateFallbackLogo(address: string): string {
 }
 
 /**
- * DexScreener pair response type
+ * DexScreener token-pairs response (v1)
+ * GET /token-pairs/v1/{chainId}/{tokenAddress}
  */
 interface DexScreenerPair {
   chainId: string;
@@ -39,26 +42,27 @@ interface DexScreenerPair {
     name: string;
     symbol: string;
   };
-  priceUsd: string;
-  priceChange: {
+  priceUsd?: string;
+  priceChange?: {
     h24: number;
   };
-  liquidity: {
+  liquidity?: {
     usd: number;
   };
-  fdv: number;
   info?: {
     imageUrl?: string;
   };
 }
 
-interface DexScreenerResponse {
-  schemaVersion: string;
+interface DexScreenerTokenPairsResponse {
+  schemaVersion?: string;
   pairs: DexScreenerPair[] | null;
 }
 
 /**
  * Fetch token metadata from DexScreener
+ * Uses /token-pairs/v1/{chainId}/{tokenAddress} - chainId required for correct routing.
+ * Timeout 10s, 3 retries with exponential backoff. Does not throw if API is down.
  */
 async function fetchFromDexScreener(
   chainId: number,
@@ -70,60 +74,75 @@ async function fetchFromDexScreener(
     return null;
   }
 
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
+  const url = `${DEXSCREENER_API}/token-pairs/v1/${chainName}/${address}`;
+  let lastError: unknown = null;
 
-    const res = await fetch(
-      `${DEXSCREENER_API}/tokens/${address}`,
-      {
+  for (let attempt = 0; attempt < DEXSCREENER_MAX_RETRIES; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), DEXSCREENER_TIMEOUT_MS);
+
+      const res = await fetch(url, {
         method: 'GET',
         signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        lastError = new Error(`DexScreener returned ${res.status}`);
+        if (attempt < DEXSCREENER_MAX_RETRIES - 1) {
+          await new Promise((r) => setTimeout(r, 500 * Math.pow(2, attempt)));
+          continue;
+        }
+        console.warn(`[TokenMeta] DexScreener failed after ${DEXSCREENER_MAX_RETRIES} retries`);
+        return null;
       }
-    );
 
-    clearTimeout(timeoutId);
+      const data: DexScreenerTokenPairsResponse = await res.json();
 
-    if (!res.ok) {
-      console.warn(`[TokenMeta] DexScreener returned ${res.status}`);
-      return null;
+      if (!data.pairs || data.pairs.length === 0) {
+        return null;
+      }
+
+      // Pick pair with best liquidity (or first)
+      const pair = data.pairs.reduce((best, p) => {
+        const liq = p.liquidity?.usd ?? 0;
+        const bestLiq = best.liquidity?.usd ?? 0;
+        return liq > bestLiq ? p : best;
+      }, data.pairs[0]);
+
+      return {
+        chainId,
+        address: address.toLowerCase(),
+        name: pair.baseToken.name,
+        symbol: pair.baseToken.symbol,
+        logoUrl: pair.info?.imageUrl || null,
+        priceUsd: pair.priceUsd ? parseFloat(pair.priceUsd) : null,
+        priceChange24h: pair.priceChange?.h24 ?? null,
+      };
+    } catch (err) {
+      lastError = err;
+      if (attempt < DEXSCREENER_MAX_RETRIES - 1) {
+        await new Promise((r) => setTimeout(r, 500 * Math.pow(2, attempt)));
+      }
     }
-
-    const data: DexScreenerResponse = await res.json();
-
-    if (!data.pairs || data.pairs.length === 0) {
-      console.log(`[TokenMeta] No pairs found for ${address}`);
-      return null;
-    }
-
-    // Find pair matching our chain
-    const pair = data.pairs.find(
-      (p) => p.chainId.toLowerCase() === chainName.toLowerCase()
-    ) || data.pairs[0]; // Fallback to first pair
-
-    return {
-      chainId,
-      address: address.toLowerCase(),
-      name: pair.baseToken.name,
-      symbol: pair.baseToken.symbol,
-      logoUrl: pair.info?.imageUrl || null,
-      priceUsd: pair.priceUsd ? parseFloat(pair.priceUsd) : null,
-      priceChange24h: pair.priceChange?.h24 ?? null,
-    };
-  } catch (error) {
-    console.warn(`[TokenMeta] Failed to fetch from DexScreener:`, error);
-    return null;
   }
+
+  console.warn(`[TokenMeta] DexScreener failed:`, lastError);
+  return null;
 }
 
 /**
  * Get token metadata with caching
- * Returns cached data if available and not expired, otherwise fetches fresh
+ * Returns cached data if available and not expired, otherwise fetches fresh.
+ * Fallback order for logo: 1) knownLogoUrl (token list), 2) DexScreener, 3) identicon.
  */
 export async function getTokenMeta(
   chainId: number,
   address: string,
-  knownSymbol?: string
+  knownSymbol?: string,
+  knownLogoUrl?: string | null
 ): Promise<TokenMeta> {
   const store = useTokenMetaStore.getState();
   const normalizedAddress = address.toLowerCase();
@@ -134,7 +153,7 @@ export async function getTokenMeta(
     return cached;
   }
 
-  // Fetch fresh data
+  // Fetch fresh data (no throw if DexScreener down)
   const fetched = await fetchFromDexScreener(chainId, normalizedAddress);
 
   // Create metadata object (with fallbacks)
@@ -143,7 +162,7 @@ export async function getTokenMeta(
     address: normalizedAddress,
     name: fetched?.name || knownSymbol || shortenAddress(normalizedAddress),
     symbol: fetched?.symbol || knownSymbol || shortenAddress(normalizedAddress),
-    logoUrl: fetched?.logoUrl || generateFallbackLogo(normalizedAddress),
+    logoUrl: knownLogoUrl || fetched?.logoUrl || generateFallbackLogo(normalizedAddress),
     priceUsd: fetched?.priceUsd ?? null,
     priceChange24h: fetched?.priceChange24h ?? null,
     fetchedAt: Date.now(),

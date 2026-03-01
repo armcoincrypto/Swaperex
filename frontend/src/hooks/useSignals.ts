@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { joinSignalsUrl } from '@/utils/constants';
 
 // Types matching backend
 export interface LiquidityDropSignal {
@@ -48,8 +49,7 @@ export interface UseSignalsResult {
   lastUpdated: number | null;
 }
 
-// Backend API URL - configurable via env
-const SIGNALS_API_URL = import.meta.env.VITE_SIGNALS_API_URL || 'http://localhost:3001';
+const SIGNALS_FETCH_TIMEOUT_MS = 5000;
 
 /**
  * Hook to fetch token signals from the backend
@@ -74,14 +74,18 @@ export function useSignals(
     setIsLoading(true);
     setError(null);
 
+    const url = `${joinSignalsUrl('api/v1/signals')}?chainId=${chainId}&token=${encodeURIComponent(tokenAddress)}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), SIGNALS_FETCH_TIMEOUT_MS);
+
     try {
-      const url = `${SIGNALS_API_URL}/api/signals?chainId=${chainId}&token=${tokenAddress}`;
       const response = await fetch(url, {
         method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        },
+        headers: { Accept: 'application/json' },
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error(`Signals API error: ${response.status}`);
@@ -98,7 +102,7 @@ export function useSignals(
     } catch (err) {
       console.warn('[useSignals] Fetch error:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch signals');
-      // Don't clear existing signals on error - show stale data
+      // Never throw - UI degrades gracefully. Don't clear stale data.
     } finally {
       setIsLoading(false);
     }

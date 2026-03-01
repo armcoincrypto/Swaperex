@@ -15,6 +15,8 @@ interface SignalsHealthState {
   checked: boolean;
   /** Last time we checked (timestamp) */
   lastCheck: number | null;
+  /** Last failure timestamp (for backoff) */
+  lastFailureAt: number | null;
   /** Number of consecutive failures */
   failureCount: number;
 
@@ -28,22 +30,29 @@ export const useSignalsHealthStore = create<SignalsHealthState>((set, get) => ({
   online: true, // Assume online until proven otherwise
   checked: false,
   lastCheck: null,
+  lastFailureAt: null,
   failureCount: 0,
 
   refresh: async () => {
+    const state = get();
+    // Backoff: when offline, wait 2 min before retry to avoid spam
+    const BACKOFF_MS = 2 * 60 * 1000;
+    if (!state.online && state.lastFailureAt && Date.now() - state.lastFailureAt < BACKOFF_MS) {
+      return;
+    }
+
     const ok = await checkSignalsHealth();
-    const currentFailures = get().failureCount;
+    const currentFailures = state.failureCount;
 
     set({
       online: ok,
       checked: true,
-      lastCheck: Date.now(),
-      // Track consecutive failures for potential future use
+      lastCheck: ok ? Date.now() : state.lastCheck,
+      lastFailureAt: ok ? null : Date.now(),
       failureCount: ok ? 0 : currentFailures + 1,
     });
 
-    // Log status change for debugging (only on state change)
-    const wasOnline = get().online;
+    const wasOnline = state.online;
     if (wasOnline !== ok) {
       console.log(`[SignalsHealth] Status changed: ${ok ? 'ONLINE' : 'OFFLINE'}`);
     }
@@ -54,6 +63,7 @@ export const useSignalsHealthStore = create<SignalsHealthState>((set, get) => ({
       online: true,
       checked: false,
       lastCheck: null,
+      lastFailureAt: null,
       failureCount: 0,
     });
   },

@@ -57,6 +57,9 @@ export const CHAINS = {
 // Supported chain IDs
 export const SUPPORTED_CHAIN_IDS: number[] = [1, 56, 137, 42161, 10, 43114];
 
+// Chain keys for balance fetch (matches CHAINS object keys, used by balanceStore)
+export const BALANCE_CHAIN_KEYS = Object.keys(CHAINS) as (keyof typeof CHAINS)[];
+
 // Default slippage options
 export const SLIPPAGE_OPTIONS = [0.1, 0.5, 1.0, 3.0];
 
@@ -72,3 +75,16 @@ export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:80
 
 // WalletConnect project ID
 export const WALLETCONNECT_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '';
+
+// Backend signals API (port 4001). Env first, then localhost fallback. No hardcoded IPs.
+export const SIGNALS_API_URL = import.meta.env.VITE_SIGNALS_API_URL || 'http://localhost:4001';
+
+/**
+ * Safely join base URL + path without double slashes.
+ * Use for all signals API calls.
+ */
+export function joinSignalsUrl(path: string): string {
+  const base = SIGNALS_API_URL.replace(/\/+$/, '');
+  const p = path.replace(/^\/+/, '');
+  return p ? `${base}/${p}` : base;
+}

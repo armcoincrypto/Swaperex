@@ -30,7 +30,7 @@
  */
 
 import { useCallback, useState, useEffect, useRef } from 'react';
-import { formatUnits } from 'ethers';
+import { formatUnits, Contract } from 'ethers';
 import { useWallet } from './useWallet';
 import { useSwapStore } from '@/stores/swapStore';
 import { useBalanceStore } from '@/stores/balanceStore';
@@ -78,6 +78,7 @@ import {
 } from '@/services/pancakeSwapTxBuilder';
 import { getTokenBySymbol, isNativeToken } from '@/tokens';
 import { getUniswapV3Addresses, getExplorerTxUrl } from '@/config';
+import { SUPPORTED_CHAIN_IDS } from '@/utils/constants';
 
 export type SwapStatus =
   | 'idle'
@@ -131,8 +132,15 @@ const DEFAULT_SLIPPAGE = 0.5;
 // Quote expires after 30 seconds
 const QUOTE_EXPIRY_MS = 30000;
 
-// PHASE 11: Supported chain IDs (ETH = 1, BSC = 56)
-const SUPPORTED_CHAIN_IDS = [1, 56] as const;
+// Chain ID → balanceStore chain key (for refresh after swap)
+const CHAIN_ID_TO_KEY: Record<number, string> = {
+  1: 'ethereum',
+  56: 'bsc',
+  137: 'polygon',
+  42161: 'arbitrum',
+  10: 'optimism',
+  43114: 'avalanche',
+};
 
 /**
  * Log swap lifecycle state transitions
@@ -265,7 +273,6 @@ export function useSwap() {
       if (!uniswapAddresses) return false;
 
       try {
-        const { Contract } = await import('ethers');
         const tokenContract = new Contract(token.address, ALLOWANCE_ABI, provider);
         const allowance = await tokenContract.allowance(address, uniswapAddresses.router);
         return allowance >= amount;
@@ -680,9 +687,11 @@ export function useSwap() {
         // Track usage for analytics (local only, no personal data)
         trackEvent('swap_completed');
 
-        // Refresh balances for the current chain
-        const chainNetwork = chainId === 56 ? 'bsc' : 'ethereum';
-        await fetchBalances(address, [chainNetwork]);
+        // Refresh balances for the current chain (all 6 supported)
+        const chainKey = CHAIN_ID_TO_KEY[chainId];
+        if (chainKey) {
+          await fetchBalances(address, [chainKey]);
+        }
 
         return tx.hash;
       } else {
@@ -751,8 +760,8 @@ export function useSwap() {
 
     // VALIDATION 2: Network guard - Block swap on wrong chain
     // PHASE 11: Allow ETH (1) and BSC (56)
-    if (!SUPPORTED_CHAIN_IDS.includes(chainId as typeof SUPPORTED_CHAIN_IDS[number])) {
-      const error = `Network mismatch: Please switch to Ethereum or BSC. Supported: ${SUPPORTED_CHAIN_IDS.join(', ')}. Current: ${chainId}`;
+    if (!SUPPORTED_CHAIN_IDS.includes(chainId)) {
+      const error = `Network mismatch: Please switch to a supported chain. Supported: ${SUPPORTED_CHAIN_IDS.join(', ')}. Current: ${chainId}`;
       logLifecycle(null, 'error', { reason: 'wrong_chain', currentChainId: chainId, supportedChains: [...SUPPORTED_CHAIN_IDS] });
       logError('Swap Validation - NETWORK GUARD', new Error(error));
       toast.error(error);

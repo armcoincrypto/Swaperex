@@ -10,11 +10,14 @@ import { create } from 'zustand';
 import { JsonRpcProvider, Contract, formatUnits, formatEther } from 'ethers';
 import { useCustomTokenStore } from './customTokenStore';
 
-// Chain RPC endpoints
+// Chain RPC endpoints (6 supported chains)
 const RPC_URLS: Record<string, string> = {
   ethereum: 'https://eth.llamarpc.com',
   bsc: 'https://bsc-dataseed.binance.org',
   polygon: 'https://polygon-rpc.com',
+  arbitrum: 'https://arb1.arbitrum.io/rpc',
+  optimism: 'https://mainnet.optimism.io',
+  avalanche: 'https://api.avax.network/ext/bc/C/rpc',
 };
 
 // Chain name to ID mapping (for custom token lookup)
@@ -22,6 +25,9 @@ const CHAIN_NAME_TO_ID: Record<string, number> = {
   ethereum: 1,
   bsc: 56,
   polygon: 137,
+  arbitrum: 42161,
+  optimism: 10,
+  avalanche: 43114,
 };
 
 // Chain native token info
@@ -29,6 +35,9 @@ const NATIVE_TOKENS: Record<string, { symbol: string; decimals: number }> = {
   ethereum: { symbol: 'ETH', decimals: 18 },
   bsc: { symbol: 'BNB', decimals: 18 },
   polygon: { symbol: 'MATIC', decimals: 18 },
+  arbitrum: { symbol: 'ETH', decimals: 18 },
+  optimism: { symbol: 'ETH', decimals: 18 },
+  avalanche: { symbol: 'AVAX', decimals: 18 },
 };
 
 // Popular ERC20 tokens to fetch per chain (high-liquidity only)
@@ -67,6 +76,21 @@ const ERC20_TOKENS: Record<string, Array<{ symbol: string; address: string; deci
     { symbol: 'USDT', address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F', decimals: 6, name: 'Tether USD' },
     { symbol: 'USDC', address: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', decimals: 6, name: 'USD Coin' },
     { symbol: 'WMATIC', address: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270', decimals: 18, name: 'Wrapped Matic' },
+  ],
+  arbitrum: [
+    { symbol: 'USDT', address: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9', decimals: 6, name: 'Tether USD' },
+    { symbol: 'USDC', address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', decimals: 6, name: 'USD Coin' },
+    { symbol: 'WETH', address: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1', decimals: 18, name: 'Wrapped Ether' },
+  ],
+  optimism: [
+    { symbol: 'USDT', address: '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58', decimals: 6, name: 'Tether USD' },
+    { symbol: 'USDC', address: '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85', decimals: 6, name: 'USD Coin' },
+    { symbol: 'WETH', address: '0x4200000000000000000000000000000000000006', decimals: 18, name: 'Wrapped Ether' },
+  ],
+  avalanche: [
+    { symbol: 'USDT', address: '0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7', decimals: 6, name: 'Tether USD' },
+    { symbol: 'USDC', address: '0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E', decimals: 6, name: 'USD Coin' },
+    { symbol: 'WAVAX', address: '0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7', decimals: 18, name: 'Wrapped AVAX' },
   ],
 };
 
