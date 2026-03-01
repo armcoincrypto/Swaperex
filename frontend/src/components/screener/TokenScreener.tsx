@@ -45,7 +45,6 @@ const COINGECKO_IDS: Record<string, string> = {
   AAVE: 'aave',
   MKR: 'maker',
   LDO: 'lido-dao',
-  ARB: 'arbitrum',
   CRV: 'curve-dao-token',
   // BSC Blue-chip
   CAKE: 'pancakeswap-token',

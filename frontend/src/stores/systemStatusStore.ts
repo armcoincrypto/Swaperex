@@ -9,7 +9,7 @@
  */
 
 import { create } from 'zustand';
-import { joinSignalsUrl, SIGNALS_API_URL } from '@/utils/constants';
+import { joinSignalsUrl } from '@/utils/constants';
 
 export type SystemStatus = 'stable' | 'degraded' | 'unavailable';
 
