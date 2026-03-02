@@ -30,7 +30,7 @@ echo "== HTTP checks =="
 code_root="$(curl -s -o /dev/null -w '%{http_code}' "$BASE")"
 code_js="$(curl -s -o /dev/null -w '%{http_code}' "$BASE$JS_PATH")"
 code_api="$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/health")"
-code_v1="$(curl -s -o /dev/null -w '%{htt}' "$BASE/api/v1/health" || true)"
+code_v1="$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/v1/health" || true)"
 
 echo "/                 $code_root"
 echo "$JS_PATH  $code_js"
