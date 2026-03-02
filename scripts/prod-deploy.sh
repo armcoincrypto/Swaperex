@@ -17,7 +17,7 @@ command -v curl >/dev/null
 BRANCH="$(git branch --show-current)"
 echo "== Current branch: $BRANCH =="
 
-if [ -n "$(git status --porcelain)" ]; then
+if [ -n "$(git status --porcelain | grep -vE '^\?\? scripts/.*\.bak\.')" ]; then
   echo "❌ Working tree is not clean. Commit/stash first:"
   git status --porcelain
   exit 2
