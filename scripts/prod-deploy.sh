@@ -44,7 +44,7 @@ cd "$ROOT"
 
 # ---- deploy
 echo "== Deploy dist -> /var/www/swaperex =="
-sudo rsynca --delete frontend/dist/ /var/www/swaperex/
+sudo rsync -a --delete frontend/dist/ /var/www/swaperex/
 
 echo "== Nginx reload =="
 sudo nginx -t
