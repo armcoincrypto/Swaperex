@@ -1,4 +1,15 @@
-#!/usr/bin/env bash
+#!/bin/bash
+# Compare local build asset with deployed asset (run on VPS)
+# Reads actual asset paths from index.html, compares basenames.
+# Usage: from repo root: ./scripts/audit/deploy-match.sh
+
+set -euo pipefail
+
+#!/bin/bash
+# Compare local build asset with deployed asset (run on VPS)
+# Reads actual asset paths from index.html, compares basenames.
+# Usage: from repo root: ./scripts/audit/deploy-match.sh
+
 set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
