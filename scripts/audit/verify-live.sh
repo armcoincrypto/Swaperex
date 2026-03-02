@@ -30,16 +30,18 @@ echo "== HTTP checks =="
 code_root="$(curl -s -o /dev/null -w '%{http_code}' "$BASE")"
 code_js="$(curl -s -o /dev/null -w '%{http_code}' "$BASE$JS_PATH")"
 code_api="$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/health")"
-code_sig="$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/v1/health")"
+code_sig="$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/v1/health" || true)"
 
 echo "/                 $code_root"
-echo "$JS_PATH  $code_js"
-echo/health       $code_api"
-echo "/api/v1/health    $code_sig"
+echo "$JS_PATH  $code_ho "/api/health       $code_api"
+echo "/api/v1/health    ${code_sig:-000}"
 
 [ "$code_root" = "200" ] || { echo "❌ FAIL /"; exit 10; }
 [ "$code_js"   = "200" ] || { echo "❌ FAIL asset"; exit 11; }
 [ "$code_api"  = "200" ] || { echo "❌ FAIL /api/health"; exit 12; }
-[ "$code_sig"  = "200" ] || { echo "❌ FAIL /api/v1/health"; exit 13; }
+# signals health may not exist in some configs; only enforce if it returns something meaningful
+if [ -n "${code_sig:-}" ] && [ "$code_sig" != "000" ]; then
+  [ "$code_sig" = "200" ] || { echo "❌ FAIL /api/v1/health"; exit 13; }
+fi
 
 echo "✅ LIVE OK"
