@@ -66,3 +66,6 @@ node_modules/
 frontend/node_modules/
 frontend/dist/
 *.tsbuildinfo
+
+# Deploy script backups
+scripts/*.bak.*
