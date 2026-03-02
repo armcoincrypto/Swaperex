@@ -6,10 +6,10 @@
  * bypassing browser CORS restrictions and rate limits.
  *
  * READ-ONLY: No signing, no state changes.
+ * Uses central config - no HTTP fallbacks.
  */
 
-// Backend-signals explorer proxy base URL
-const EXPLORER_PROXY = import.meta.env.VITE_SIGNALS_API_URL || 'http://207.180.212.142:4001';
+import { EXPLORER_PROXY_BASE } from '@/config/api';
 
 // Chain ID → proxy chain key + explorer base URL (for tx links)
 const EXPLORER_CHAINS: Record<number, { proxyChain: string; explorer: string; name: string }> = {
@@ -127,7 +127,7 @@ export async function getRecentTransactions(
 
   try {
     // Use backend-signals proxy (server-side → no CORS, no browser rate limits)
-    const url = new URL(`${EXPLORER_PROXY}/explorer/${chainConfig.proxyChain}`);
+    const url = new URL(`${EXPLORER_PROXY_BASE}/${chainConfig.proxyChain}`);
     url.searchParams.set('module', 'account');
     url.searchParams.set('action', 'txlist');
     url.searchParams.set('address', address);

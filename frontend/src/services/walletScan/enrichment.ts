@@ -11,7 +11,7 @@
 import type { ScannedToken, ScanChainName, RiskLevel, RiskFactor } from './types';
 import { SCAN_CHAIN_IDS } from './types';
 
-const BACKEND_URL = import.meta.env.VITE_SIGNALS_URL || import.meta.env.VITE_SIGNALS_API_URL || 'http://localhost:4001';
+import { joinSignalsUrl } from '@/config/api';
 const ENRICHMENT_TIMEOUT = 8000;
 
 /** In-memory risk cache with TTL */
@@ -154,7 +154,7 @@ export async function fetchEnrichment(
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), ENRICHMENT_TIMEOUT);
 
-    const res = await fetch(`${BACKEND_URL}/api/v1/wallet/scan-summary`, {
+    const res = await fetch(joinSignalsUrl('wallet/scan-summary'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

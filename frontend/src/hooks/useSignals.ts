@@ -48,8 +48,8 @@ export interface UseSignalsResult {
   lastUpdated: number | null;
 }
 
-// Backend API URL - configurable via env
-const SIGNALS_API_URL = import.meta.env.VITE_SIGNALS_API_URL || 'http://207.180.212.142:4001';
+// Backend API URL - use central config (no HTTP fallbacks)
+import { joinSignalsUrl } from '@/config/api';
 
 /**
  * Hook to fetch token signals from the backend
@@ -75,7 +75,7 @@ export function useSignals(
     setError(null);
 
     try {
-      const url = `${SIGNALS_API_URL}/api/signals?chainId=${chainId}&token=${tokenAddress}`;
+      const url = `${joinSignalsUrl('signals')}?chainId=${chainId}&token=${tokenAddress}`;
       const response = await fetch(url, {
         method: 'GET',
         headers: {

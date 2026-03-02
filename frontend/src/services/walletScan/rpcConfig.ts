@@ -14,23 +14,23 @@ export interface RpcEndpoint {
   timeout: number;
 }
 
-/** RPC proxy base URL (backend-signals proxies to bypass browser CORS) */
-const RPC_PROXY = import.meta.env.VITE_SIGNALS_API_URL || 'http://207.180.212.142:4001';
+/** RPC proxy - use central config (no HTTP fallbacks) */
+import { RPC_PROXY_BASE } from '@/config/api';
 
 /** RPC endpoints per chain, ordered by priority (proxy first, direct fallbacks) */
 const RPC_CONFIG: Record<ScanChainName, RpcEndpoint[]> = {
   ethereum: [
-    { url: `${RPC_PROXY}/rpc/eth`, name: 'Proxy', timeout: 12000 },
+    { url: `${RPC_PROXY_BASE}/eth`, name: 'Proxy', timeout: 12000 },
     { url: 'https://ethereum-rpc.publicnode.com', name: 'PublicNode', timeout: 10000 },
     { url: 'https://1rpc.io/eth', name: '1RPC', timeout: 10000 },
   ],
   bsc: [
     { url: 'https://bsc-dataseed.binance.org', name: 'Binance', timeout: 8000 },
     { url: 'https://bsc-dataseed1.defibit.io', name: 'DeFiBit', timeout: 8000 },
-    { url: `${RPC_PROXY}/rpc/bsc`, name: 'Proxy', timeout: 12000 },
+    { url: `${RPC_PROXY_BASE}/bsc`, name: 'Proxy', timeout: 12000 },
   ],
   polygon: [
-    { url: `${RPC_PROXY}/rpc/polygon`, name: 'Proxy', timeout: 12000 },
+    { url: `${RPC_PROXY_BASE}/polygon`, name: 'Proxy', timeout: 12000 },
     { url: 'https://polygon-bor-rpc.publicnode.com', name: 'PublicNode', timeout: 10000 },
     { url: 'https://1rpc.io/matic', name: '1RPC', timeout: 12000 },
   ],

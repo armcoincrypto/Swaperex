@@ -10,7 +10,7 @@
 import { create } from 'zustand';
 
 // Use environment variable or default to production URL
-const SIGNALS_API_URL = import.meta.env.VITE_SIGNALS_API_URL || 'http://207.180.212.142:4001';
+import { joinSignalsUrl } from '@/config/api';
 
 export type SystemStatus = 'stable' | 'degraded' | 'unavailable';
 
@@ -68,7 +68,7 @@ export const useSystemStatusStore = create<SystemStatusState>((set, get) => ({
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-      const res = await fetch(`${SIGNALS_API_URL}/api/v1/health`, {
+      const res = await fetch(joinSignalsUrl('health'), {
         method: 'GET',
         cache: 'no-store',
         signal: controller.signal,

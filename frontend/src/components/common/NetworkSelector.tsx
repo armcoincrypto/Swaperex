@@ -110,19 +110,19 @@ export function NetworkSelector() {
       >
         {isSwitching ? (
           <>
-            <span className="animate-spin">\u27F3</span>
+            <span className="animate-spin">{'\u27F3'}</span>
             <span className="text-sm">Switching...</span>
           </>
         ) : isUnsupportedNetwork ? (
           <>
-            <span>\u26A0\uFE0F</span>
+            <span>{'\u26A0\uFE0F'}</span>
             <span className="text-sm">Wrong Network</span>
           </>
         ) : (
           <>
             <span className="text-lg">{currentNetwork?.icon}</span>
             <span className="text-sm font-medium">{currentNetwork?.name}</span>
-            <span className="text-xs text-gray-400">\u25BC</span>
+            <span className="text-xs text-gray-400">{'\u25BC'}</span>
           </>
         )}
       </button>
@@ -157,7 +157,7 @@ export function NetworkSelector() {
                   <div className="text-xs text-gray-400">{network.symbol}</div>
                 </div>
                 {network.chainId === chainId && (
-                  <span className="text-green-400 text-sm">\u2713</span>
+                  <span className="text-green-400 text-sm">{'\u2713'}</span>
                 )}
               </button>
             ))}

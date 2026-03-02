@@ -6,13 +6,13 @@
  * Uses two-layer caching. On 429, returns cached data with a warning.
  *
  * READ-ONLY: No auth required (free tier).
+ * Uses central config (COINGECKO_PROXY_BASE) - no HTTP fallbacks.
  */
 
 import { cacheGet, cacheSet } from './cache';
 import type { ScreenerToken, ScreenerChainId } from './types';
+import { COINGECKO_PROXY_BASE } from '@/config/api';
 
-// Backend-signals proxy (server-side CoinGecko fetch → no CORS)
-const PROXY_BASE = import.meta.env.VITE_SIGNALS_API_URL || 'http://207.180.212.142:4001';
 const CACHE_TTL = 60_000; // 1 minute success
 
 // CoinGecko category IDs per chain
@@ -57,7 +57,7 @@ export async function fetchMarketTokens(
 
   try {
     const category = CHAIN_CATEGORIES[chainId];
-    const url = `${PROXY_BASE}/coingecko/markets?category=${category}&per_page=${perPage}&page=1`;
+    const url = `${COINGECKO_PROXY_BASE}/markets?category=${category}&per_page=${perPage}&page=1`;
 
     const res = await fetch(url, { signal });
 

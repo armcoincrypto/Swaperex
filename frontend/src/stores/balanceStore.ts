@@ -11,14 +11,14 @@ import { JsonRpcProvider, Contract, formatUnits, formatEther, Network } from 'et
 import { useCustomTokenStore } from './customTokenStore';
 import { getTokens, NATIVE_TOKEN_ADDRESS } from '@/tokens';
 
-// RPC proxy base URL (backend-signals proxies to bypass browser CORS)
-const RPC_PROXY = import.meta.env.VITE_SIGNALS_API_URL || 'http://207.180.212.142:4001';
+// RPC proxy - use central config (no HTTP fallbacks)
+import { RPC_PROXY_BASE } from '@/config/api';
 
 // Chain RPC endpoints (ETH/Polygon via proxy; BSC direct — Binance has permissive CORS)
 const RPC_URLS: Record<string, string> = {
-  ethereum: `${RPC_PROXY}/rpc/eth`,
+  ethereum: `${RPC_PROXY_BASE}/eth`,
   bsc: 'https://bsc-dataseed.binance.org',
-  polygon: `${RPC_PROXY}/rpc/polygon`,
+  polygon: `${RPC_PROXY_BASE}/polygon`,
   arbitrum: 'https://arb1.arbitrum.io/rpc',
   optimism: 'https://mainnet.optimism.io',
   avalanche: 'https://api.avax.network/ext/bc/C/rpc',

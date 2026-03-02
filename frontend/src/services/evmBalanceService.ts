@@ -31,18 +31,18 @@ const ERC20_BALANCE_ABI = [
 ];
 
 /**
- * RPC proxy base URL (backend-signals proxies to bypass browser CORS)
+ * RPC proxy - use central config (no HTTP fallbacks)
  */
-const RPC_PROXY = import.meta.env.VITE_SIGNALS_API_URL || 'http://207.180.212.142:4001';
+import { RPC_PROXY_BASE } from '@/config/api';
 
 /**
  * RPC endpoints by chain (ETH/Polygon/Arbitrum via proxy; BSC direct)
  */
 const RPC_ENDPOINTS: Record<string, string> = {
-  ethereum: `${RPC_PROXY}/rpc/eth`,
+  ethereum: `${RPC_PROXY_BASE}/eth`,
   bsc: 'https://bsc-dataseed.binance.org',
-  polygon: `${RPC_PROXY}/rpc/polygon`,
-  arbitrum: `${RPC_PROXY}/rpc/arbitrum`,
+  polygon: `${RPC_PROXY_BASE}/polygon`,
+  arbitrum: `${RPC_PROXY_BASE}/arbitrum`,
 };
 
 /**
