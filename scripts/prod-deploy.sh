@@ -39,6 +39,12 @@ if [ -n "$(git status --porcelain)" ]; then
   die "Working tree not clean. Commit/stash changes before deploy."
 fi
 
+# Safety: prevent deploying commits that are not pushed to origin/main
+AHEAD="$(git rev-list --count origin/main..HEAD || echo 0)"
+if [ "${AHEAD:-0}" -ne 0 ]; then
+  die "HEAD is ahead of origin/main by $AHEAD commit(s). Push first, then deploy."
+fi
+
 echo "== Update main =="
 git fetch --prune origin
 git checkout main
