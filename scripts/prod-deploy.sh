@@ -1,69 +1,75 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$ROOT"
+ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_DIR="$ROOT_DIR"
+FRONTEND_DIR="$REPO_DIR/frontend"
+DIST_DIR="$FRONTEND_DIR/dist"
+DEPLOY_DIR="/var/www/swaperex"
+LIVE_URL="https://dex.kobbex.com"
 
-echo "== Swaperex PROD deploy =="
+LOG_DIR="$REPO_DIR/scripts/logs"
+mkdir -p "$LOG_DIR"
+TS="$(date +%F_%H%M%S)"
+LOG_FILE="$LOG_DIR/prod-deploy.$TS.log"
 
-# ---- preflight: tools
-command -v git >/dev/null
-command -v npm >/dev/null
-command -v rsync >/dev/null
-command -v nginx >/dev/null
-command -v curl >/dev/null
+die(){ echo "ERROR: $*" >&2; exit 1; }
+need(){ command -v "$1" >/dev/null 2>&1 || die "Missing required tool: $1"; }
 
-# ---- preflight: repo state
-BRANCH="$(git branch --show-current)"
-echo "== Current branch: $BRANCH =="
+need git
+need npm
+need rsync
+need nginx
+need curl
+need sha256sum
 
-if [ -n "$(git status --porcelain | grep -vE '^\?\? scripts/.*\.bak\.')" ]; then
-  echo "❌ Working tree is not clean. Commit/stash first:"
-  git status --porcelain
-  exit 2
+cd "$REPO_DIR"
+
+exec > >(tee -a "$LOG_FILE") 2>&1
+echo "== Swaperex prod deploy: $TS =="
+echo "Repo:   $REPO_DIR"
+echo "Deploy: $DEPLOY_DIR"
+echo "Live:   $LIVE_URL"
+echo "Log:    $LOG_FILE"
+echo
+
+echo "== Clean tree check =="
+if [ -n "$(git status --porcelain)" ]; then
+  git status -sb || true
+  die "Working tree not clean. Commit/stash changes before deploy."
 fi
 
-echo "== Fetch + checkout main =="
-git fetch origin --prune
-
-# switch to main (safe even if already on main)
+echo "== Update main =="
+git fetch --prune origin
 git checkout main
+git pull --ff-only origin main
 
-echo "== Pull latest main =="
-git pull --ff-only
-
-echo "== Deployed commit =="
-git log -1 --oneline --decorate
-
-# ---- build
-echo "== Frontend install/build =="
-cd frontend
+echo
+echo "== Build frontend =="
+cd "$FRONTEND_DIR"
 npm ci
 npm run build
-cd "$ROOT"
+[ -d "$DIST_DIR" ] || die "Build did not produce dist dir: $DIST_DIR"
+[ -f "$DIST_DIR/index.html" ] || die "Missing dist/index.html"
 
-# ---- deploy
-echo "== Deploy dist -> /var/www/swaperex =="
-sudo rsync -a --delete frontend/dist/ /var/www/swaperex/
+echo
+echo "== Deploy assets (rsync) =="
+[ -d "$DEPLOY_DIR" ] || die "Deploy dir missing: $DEPLOY_DIR"
+rsync -a --delete --human-readable --info=stats2 "$DIST_DIR/" "$DEPLOY_DIR/"
 
+echo
 echo "== Nginx reload =="
-sudo nginx -t
-sudo systemctl reload nginx
+nginx -t
+systemctl reload nginx
 
-# ---- verify deployed matches build (local dist vs /var/www)
-if [ -x scripts/audit/deploy-match.sh ]; then
-  echo "== Verify deploy matches local build =="
-  bash scripts/audit/deploy-match.sh
-else
-  echo "WARN: scripts/audit/deploy-match.sh not found, skipping"
-fi
+echo
+echo "== Post-deploy verification =="
+cd "$REPO_DIR"
+bash -n scripts/audit/deploy-match.sh
+bash -n scripts/audit/verify-live.sh
+scripts/audit/deploy-match.sh
+scripts/audit/verify-live.sh
 
-# ---- verify live
-if [ -x scripts/audit/verify-live.sh ]; then
-  echo "== Verify live site =="
-  bash scripts/audit/verify-live.sh
-else
-  echo "WARN: scripts/audit/verify-live.sh not found, skipping"
-fi
-
-echo "✅ DONE: build + deploy + verify"
+echo
+echo "== Done =="
+echo "Log saved: $LOG_FILE"
