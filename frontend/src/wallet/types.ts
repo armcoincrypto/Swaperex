@@ -51,8 +51,5 @@ export interface EIP1193Provider {
   disconnect?: () => Promise<void>;
 }
 
-declare global {
-  interface Window {
-    ethereum?: EIP1193Provider;
-  }
-}
+// Note: Window.ethereum may be declared by deps (e.g. @reown) as Record<string, unknown>.
+// Cast to EIP1193Provider when calling .request(), .on(), etc.

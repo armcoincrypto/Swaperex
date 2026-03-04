@@ -13,11 +13,12 @@ import {
   logPortfolioLifecycle,
 } from './portfolioTypes';
 import { JUPITER_CONFIG } from '@/config/dex';
+import { COINGECKO_PROXY_BASE } from '@/config/api';
 
 /**
- * CoinGecko API base URL (free tier)
+ * CoinGecko via backend proxy (avoids CORS from browser)
  */
-const COINGECKO_API = 'https://api.coingecko.com/api/v3';
+const COINGECKO_BASE = COINGECKO_PROXY_BASE;
 
 /**
  * Jupiter Price API
@@ -131,7 +132,7 @@ export async function fetchCoinGeckoPrices(
   try {
     const ids = toFetch.map((s) => COINGECKO_IDS[s]).join(',');
     const response = await fetch(
-      `${COINGECKO_API}/simple/price?ids=${ids}&vs_currencies=usd`
+      `${COINGECKO_BASE}/simple/price?ids=${ids}&vs_currencies=usd`
     );
 
     if (!response.ok) {

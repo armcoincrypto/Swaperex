@@ -15,10 +15,10 @@
   "dependencies": {
     "@headlessui/react": "^1.7.17",
     "@heroicons/react": "^2.1.1",
+    "@reown/appkit": "^1.8.18",
+    "@reown/appkit-adapter-ethers": "^1.8.18",
     "@solana/web3.js": "^1.98.4",
     "@walletconnect/ethereum-provider": "^2.23.5",
-    "@walletconnect/modal": "^2.7.0",
-    "@web3modal/ethers": "^3.5.0",
     "axios": "^1.6.0",
     "bs58": "^5.0.0",
     "clsx": "^2.0.0",

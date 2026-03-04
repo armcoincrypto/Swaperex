@@ -135,7 +135,7 @@ export function WalletConnect() {
     if (selectedWallet === 'injected') {
       connectInjected().catch(() => {});
     } else if (selectedWallet === 'walletconnect') {
-      connectWalletConnect().catch(() => {});
+      connectWalletConnect();
     } else {
       setShowWalletOptions(true);
     }
@@ -188,7 +188,7 @@ export function WalletConnect() {
             className={`w-2 h-2 rounded-full ${
               isReadOnly ? 'bg-yellow-500'
               : isUnsupported ? 'bg-red-500'
-              : 'bg-green-500'
+                : 'bg-green-500'
             }`}
           />
 

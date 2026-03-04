@@ -5,9 +5,9 @@ interface ImportMetaEnv {
   readonly VITE_API_URL: string
   readonly VITE_SIGNALS_API_URL?: string
 
-  // WalletConnect / Web3Modal (support both names so old + new code can compile)
-  readonly VITE_WALLETCONNECT_PROJECT_ID?: string
+  // WalletConnect Cloud project ID — required for QR/mobile wallets (get at cloud.walletconnect.com)
   readonly VITE_WC_PROJECT_ID?: string
+  readonly VITE_WALLETCONNECT_PROJECT_ID?: string  // legacy alias
 
   // Optional metadata for WalletConnect
   readonly VITE_APP_URL?: string

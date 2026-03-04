@@ -22,6 +22,7 @@ import {
   calculateNextRetry,
   isStaleDataValid,
   CHAIN_LABELS,
+  CHAIN_FULL_NAMES,
 } from '@/utils/chainHealth';
 
 export type SortMode = 'value' | 'balance' | 'alpha' | 'chain';
@@ -54,6 +55,7 @@ export interface PortfolioStoreState {
   sortMode: SortMode;
   hideSmallBalances: boolean;
   smallBalanceThreshold: number;
+  hideZeroBalances: boolean;
   privacyMode: boolean;
   searchQuery: string;
 
@@ -99,6 +101,7 @@ export interface PortfolioStoreState {
   setSortMode: (mode: SortMode) => void;
   setHideSmallBalances: (hide: boolean) => void;
   setSmallBalanceThreshold: (threshold: number) => void;
+  setHideZeroBalances: (hide: boolean) => void;
   setPrivacyMode: (privacy: boolean) => void;
   setSearchQuery: (query: string) => void;
   clear: () => void;
@@ -131,6 +134,7 @@ export const usePortfolioStore = create<PortfolioStoreState>()(
       sortMode: 'value',
       hideSmallBalances: false,
       smallBalanceThreshold: 1,
+      hideZeroBalances: true,
       privacyMode: false,
       searchQuery: '',
 
@@ -279,6 +283,7 @@ export const usePortfolioStore = create<PortfolioStoreState>()(
       setSortMode: (mode) => set({ sortMode: mode }),
       setHideSmallBalances: (hide) => set({ hideSmallBalances: hide }),
       setSmallBalanceThreshold: (threshold) => set({ smallBalanceThreshold: threshold }),
+      setHideZeroBalances: (hide) => set({ hideZeroBalances: hide }),
       setPrivacyMode: (privacy) => set({ privacyMode: privacy }),
       setSearchQuery: (query) => set({ searchQuery: query }),
 
@@ -297,13 +302,14 @@ export const usePortfolioStore = create<PortfolioStoreState>()(
     }),
     {
       name: 'swaperex-portfolio',
-      version: 2,
+      version: 3,
       partialize: (state) => ({
         snapshot: state.snapshot,
         snapshotAt: state.snapshotAt,
         sortMode: state.sortMode,
         hideSmallBalances: state.hideSmallBalances,
         smallBalanceThreshold: state.smallBalanceThreshold,
+        hideZeroBalances: state.hideZeroBalances,
         privacyMode: state.privacyMode,
       }),
     }
@@ -363,9 +369,9 @@ export function filterTokensBySearch(
   const q = query.toLowerCase();
   return tokens.filter(
     (t) =>
-      t.symbol.toLowerCase().includes(q) ||
-      t.name.toLowerCase().includes(q) ||
-      t.address.toLowerCase().includes(q)
+      (t.symbol || '').toLowerCase().includes(q) ||
+      (t.name || '').toLowerCase().includes(q) ||
+      (t.address || '').toLowerCase().includes(q)
   );
 }
 
@@ -380,6 +386,15 @@ export function filterSmallBalances(
     const val = parseFloat(t.usdValue || '0');
     return val >= threshold || t.isNative;
   });
+}
+
+/** Filter out zero-balance tokens */
+export function filterZeroBalances(
+  tokens: TokenBalance[],
+  hide: boolean
+): TokenBalance[] {
+  if (!hide) return tokens;
+  return tokens.filter((t) => parseFloat(t.balanceFormatted || '0') > 0);
 }
 
 /** Calculate per-chain totals */
@@ -414,4 +429,11 @@ export function formatUsdPrivate(value: string | number, privacyMode: boolean): 
 /** Get chain label from PortfolioChain */
 export function getPortfolioChainLabel(chain: PortfolioChain): string {
   return CHAIN_LABELS[chain] || chain;
+}
+
+/** Get chain badge label (use full name when symbol would duplicate, e.g. ETH on Ethereum) */
+export function getPortfolioChainBadgeLabel(chain: PortfolioChain, tokenSymbol: string): string {
+  const short = CHAIN_LABELS[chain] || chain;
+  const full = CHAIN_FULL_NAMES[chain] || chain;
+  return short.toUpperCase() === tokenSymbol.toUpperCase() ? full : short;
 }

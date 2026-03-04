@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { WalletConnect } from '@/components/wallet/WalletConnect';
+import { AppKitBridge } from '@/components/wallet/AppKitBridge';
 import { SwapInterface } from '@/components/swap/SwapInterface';
 import { SendPage } from '@/components/send/SendPage';
 import { TokenList } from '@/components/balances/TokenList';
@@ -205,6 +206,7 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-electro-bg bg-bg-mesh">
+      <AppKitBridge />
       {/* Header */}
       <header className="border-b border-white/[0.06] backdrop-blur-sm bg-electro-bg/80 sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">

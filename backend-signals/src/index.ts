@@ -610,6 +610,49 @@ app.get("/coingecko/markets", async (req, reply) => {
   }
 });
 
+// CoinGecko simple/price proxy (portfolio prices — bypasses CORS)
+app.get("/coingecko/simple/price", async (req, reply) => {
+  const query = req.query as Record<string, string>;
+  const ids = query.ids || "";
+  const vsCurrencies = query.vs_currencies || "usd";
+
+  const url = new URL(`${COINGECKO_API}/simple/price`);
+  url.searchParams.set("ids", ids);
+  url.searchParams.set("vs_currencies", vsCurrencies);
+
+  const cacheKey = `cg:simple:${ids}`;
+  const cached = CG_CACHE[cacheKey];
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.data;
+  }
+
+  const start = Date.now();
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    const res = await fetch(url.toString(), { signal: controller.signal });
+    clearTimeout(timeout);
+
+    if (res.status === 429) {
+      if (cached) return cached.data;
+      return reply.code(429).send({ error: "CoinGecko rate limited" });
+    }
+
+    if (!res.ok) {
+      if (cached) return cached.data;
+      return reply.code(502).send({ error: `CoinGecko HTTP ${res.status}` });
+    }
+
+    const data = await res.json();
+    CG_CACHE[cacheKey] = { data, expiresAt: Date.now() + CG_CACHE_TTL };
+    return data;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "CoinGecko request failed";
+    if (cached) return cached.data;
+    return reply.code(502).send({ error: msg });
+  }
+});
+
 // Start server
 try {
   await app.listen({ port: PORT, host: "0.0.0.0" });

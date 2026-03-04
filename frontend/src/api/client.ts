@@ -3,11 +3,11 @@
  *
  * All requests go to the WEB_NON_CUSTODIAL endpoints.
  * No signing or broadcasting happens server-side.
+ * Uses centralized config: prod = /api/v1 (relative), dev = localhost:8000.
  */
 
 import axios, { AxiosInstance, AxiosError } from 'axios';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { API_BASE_URL } from '@/config/api';
 
 /**
  * Error types for better handling
@@ -72,7 +72,7 @@ function getErrorType(statusCode: number): ApiErrorType {
 
 function createClient(): AxiosInstance {
   const client = axios.create({
-    baseURL: API_URL,
+    baseURL: API_BASE_URL,
     timeout: 30000,
     headers: {
       'Content-Type': 'application/json',

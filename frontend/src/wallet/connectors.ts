@@ -12,7 +12,11 @@ import EthereumProvider from '@walletconnect/ethereum-provider';
 import type { EIP1193Provider, ConnectorId, WalletInfo } from './types';
 import { SUPPORTED_CHAIN_IDS, RPC_MAP, DEFAULT_CHAIN_ID } from './chains';
 
-const WC_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '';
+/** WalletConnect Cloud project ID. Required for QR/mobile wallets. Get one at https://cloud.walletconnect.com */
+const WC_PROJECT_ID =
+  (import.meta.env.VITE_WC_PROJECT_ID || import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '').trim();
+const WC_PROJECT_ID_IS_PLACEHOLDER =
+  !WC_PROJECT_ID || WC_PROJECT_ID === 'PASTE_YOUR_PROJECT_ID_HERE';
 
 // Persist last connector for auto-reconnect
 const CONNECTOR_KEY = 'swaperex_last_connector';
@@ -52,8 +56,8 @@ export async function connectInjected(): Promise<{
   provider: EIP1193Provider;
   info: WalletInfo;
 }> {
-  const eth = window.ethereum;
-  if (!eth) {
+  const eth = window.ethereum as EIP1193Provider | undefined;
+  if (!eth || typeof eth.request !== 'function') {
     throw new Error('No browser wallet detected. Please install MetaMask or another wallet extension.');
   }
 
@@ -90,9 +94,9 @@ export async function connectWalletConnect(): Promise<{
   provider: EIP1193Provider;
   info: WalletInfo;
 }> {
-  if (!WC_PROJECT_ID) {
+  if (WC_PROJECT_ID_IS_PLACEHOLDER) {
     throw new Error(
-      'WalletConnect Project ID not configured. Set VITE_WALLETCONNECT_PROJECT_ID in your .env file. ' +
+      'WalletConnect Project ID not configured. Set VITE_WC_PROJECT_ID in .env and rebuild. ' +
       'Get one free at https://cloud.walletconnect.com',
     );
   }
@@ -160,8 +164,8 @@ export async function autoReconnect(): Promise<{
   const lastConnector = getLastConnector();
 
   if (lastConnector === 'injected') {
-    const eth = window.ethereum;
-    if (!eth) return null;
+    const eth = window.ethereum as EIP1193Provider | undefined;
+    if (!eth || typeof eth.request !== 'function') return null;
 
     try {
       // eth_accounts doesn't prompt — returns [] if not connected
@@ -181,7 +185,7 @@ export async function autoReconnect(): Promise<{
     }
   }
 
-  if (lastConnector === 'walletconnect' && WC_PROJECT_ID) {
+  if (lastConnector === 'walletconnect' && !WC_PROJECT_ID_IS_PLACEHOLDER) {
     try {
       const provider = await EthereumProvider.init({
         projectId: WC_PROJECT_ID,

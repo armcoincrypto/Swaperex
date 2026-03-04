@@ -10,10 +10,10 @@
 
 const isDev = import.meta.env.DEV;
 
-/** Main backend API base. Proxy /api to 8000 in production. */
+/** Main backend API base. Prod: /api/v1 (relative). Dev: localhost:8000. */
 export const API_BASE_URL: string =
   import.meta.env.VITE_API_URL ??
-  (isDev ? 'http://localhost:8000' : '/api');
+  (isDev ? 'http://localhost:8000' : '/api/v1');
 
 /** Signals backend API base. Proxy /api/v1 to 4001 in production. */
 export const SIGNALS_API_URL: string =

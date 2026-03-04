@@ -14,13 +14,14 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BrowserProvider, JsonRpcSigner, isAddress } from 'ethers';
+import { useAppKit, useDisconnect } from '@reown/appkit/react';
 import { useWalletStore } from '@/stores/walletStore';
 import { useBalanceStore } from '@/stores/balanceStore';
 import { parseWalletError } from '@/utils/errors';
 import { walletEvents } from '@/services/walletEvents';
+import { appKitProviderRef } from '@/components/wallet/AppKitBridge';
 import {
   connectInjected as doConnectInjected,
-  connectWalletConnect as doConnectWalletConnect,
   autoReconnect,
   disconnectAll,
   detectInjectedWallet,
@@ -62,6 +63,8 @@ export function useWallet() {
 
   // Check if an injected wallet is available
   const { available: hasInjectedWallet, label: injectedLabel } = detectInjectedWallet();
+  const { open: openAppKit } = useAppKit();
+  const { disconnect: appKitDisconnect } = useDisconnect();
 
   // ─── Helper: wrap raw provider into ethers ─────────────────
 
@@ -144,40 +147,29 @@ export function useWallet() {
     }
   }, [connect, safeFetchBalances, setConnecting, setConnectionError, clearError, setupEthersProvider]);
 
-  // ─── Connect: WalletConnect ───────────────────────────────
+  // ─── Connect: WalletConnect (via AppKit modal) ──────────────
 
-  const connectWalletConnect = useCallback(async () => {
-    setConnecting(true);
+  const connectWalletConnect = useCallback(() => {
     clearError();
-
-    try {
-      const result = await doConnectWalletConnect();
-
-      await setupEthersProvider(result.provider);
-      connectorIdRef.current = 'walletconnect';
-      setConnectorLabel('WalletConnect');
-
-      await connect(result.info.address, result.info.chainId, 'walletconnect');
-      safeFetchBalances(result.info.address);
-    } catch (err) {
-      // User closing the QR modal fires an error — treat as cancellation
-      const msg = (err as Error)?.message?.toLowerCase() || '';
-      if (msg.includes('user rejected') || msg.includes('connection request reset') || msg.includes('expired')) {
-        setConnectionError('Connection cancelled');
-      } else {
-        const parsed = parseWalletError(err);
-        setConnectionError(parsed.message);
-      }
-      throw err;
-    } finally {
-      setConnecting(false);
-    }
-  }, [connect, safeFetchBalances, setConnecting, setConnectionError, clearError, setupEthersProvider]);
+    connectorIdRef.current = 'walletconnect';
+    setConnectorLabel('WalletConnect');
+    openAppKit({ view: 'Connect', namespace: 'eip155' });
+    // AppKitBridge will sync connection to store when user connects in modal
+  }, [openAppKit, clearError]);
 
   // ─── Disconnect ───────────────────────────────────────────
 
   const disconnectWallet = useCallback(async () => {
     const previousAddress = address;
+
+    if (connectorIdRef.current === 'walletconnect') {
+      try {
+        await appKitDisconnect({ namespace: 'eip155' });
+      } catch {
+        // Ignore
+      }
+      appKitProviderRef.current = null;
+    }
 
     await disconnectAll();
     await disconnect();
@@ -189,7 +181,7 @@ export function useWallet() {
     setConnectorLabel('');
 
     walletEvents.emit('disconnect', { previousAddress: previousAddress || undefined });
-  }, [disconnect, clearBalances, address]);
+  }, [disconnect, clearBalances, address, appKitDisconnect]);
 
   // ─── Read-only mode ───────────────────────────────────────
 
@@ -215,7 +207,7 @@ export function useWallet() {
 
   const switchNetwork = useCallback(
     async (targetChainId: number) => {
-      const raw = rawProviderRef.current || window.ethereum;
+      const raw = (rawProviderRef.current || appKitProviderRef.current || window.ethereum) as EIP1193Provider | undefined;
       if (!raw) throw new Error('No wallet detected');
       if (isReadOnly) throw new Error('Cannot switch network in view-only mode');
 
@@ -252,6 +244,18 @@ export function useWallet() {
     [switchChain, isReadOnly],
   );
 
+  // ─── Sync provider from AppKit when connected via WalletConnect ───
+
+  useEffect(() => {
+    if (!isConnected || !address || walletType !== 'walletconnect') return;
+
+    const appKitProvider = appKitProviderRef.current as EIP1193Provider | null;
+    if (appKitProvider && !rawProviderRef.current) {
+      setupEthersProvider(appKitProvider);
+      rawProviderRef.current = appKitProvider;
+    }
+  }, [isConnected, address, walletType, setupEthersProvider]);
+
   // ─── Get signer ───────────────────────────────────────────
 
   const getSigner = useCallback(async () => {
@@ -259,10 +263,9 @@ export function useWallet() {
       return provider.getSigner();
     }
 
-    // Recreate from raw provider
-    const raw = rawProviderRef.current || window.ethereum;
+    // Recreate from raw provider or AppKit provider
+    const raw = (rawProviderRef.current || appKitProviderRef.current || window.ethereum) as EIP1193Provider | undefined;
     if (raw && address) {
-      console.log('[Wallet] Recreating provider from raw provider');
       const browserProvider = new BrowserProvider(raw);
       const walletSigner = await browserProvider.getSigner();
       setProvider(browserProvider);
@@ -276,7 +279,7 @@ export function useWallet() {
   // ─── Event listeners: accountsChanged + chainChanged ──────
 
   useEffect(() => {
-    const raw = rawProviderRef.current || window.ethereum;
+    const raw = (rawProviderRef.current || appKitProviderRef.current || window.ethereum) as EIP1193Provider | undefined;
     if (!raw) return;
 
     const handleAccountsChanged = async (accounts: unknown) => {
@@ -311,8 +314,14 @@ export function useWallet() {
       updateChainId(newChainId);
     };
 
-    raw.on('accountsChanged', handleAccountsChanged);
-    raw.on('chainChanged', handleChainChanged);
+    // EIP-1193 providers (MetaMask, etc.) have .on(); AppKit social/embedded providers may not
+    const hasOn = typeof (raw as { on?: unknown }).on === 'function';
+    const hasRemoveListener = typeof (raw as { removeListener?: unknown }).removeListener === 'function';
+
+    if (hasOn) {
+      raw.on('accountsChanged', handleAccountsChanged);
+      raw.on('chainChanged', handleChainChanged);
+    }
 
     // WalletConnect-specific: session_delete
     const wcProvider = getWcProvider();
@@ -321,14 +330,16 @@ export function useWallet() {
       disconnectWallet();
     };
 
-    if (wcProvider && connectorIdRef.current === 'walletconnect') {
+    if (wcProvider && connectorIdRef.current === 'walletconnect' && typeof wcProvider.on === 'function') {
       wcProvider.on('session_delete', handleWcDisconnect);
     }
 
     return () => {
-      raw.removeListener('accountsChanged', handleAccountsChanged);
-      raw.removeListener('chainChanged', handleChainChanged);
-      if (wcProvider) {
+      if (hasRemoveListener) {
+        raw.removeListener('accountsChanged', handleAccountsChanged);
+        raw.removeListener('chainChanged', handleChainChanged);
+      }
+      if (wcProvider && typeof wcProvider.removeListener === 'function') {
         wcProvider.removeListener('session_delete', handleWcDisconnect);
       }
     };

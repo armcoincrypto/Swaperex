@@ -60,9 +60,9 @@ export function NetworkSelector() {
     } catch (error) {
       console.error('[NetworkSelector] Failed to switch network:', error);
       // If network doesn't exist in MetaMask, try to add it
-      if (window.ethereum) {
+      if (window.ethereum && typeof (window.ethereum as { request?: unknown }).request === 'function') {
         try {
-          await window.ethereum.request({
+          await (window.ethereum as { request: (args: unknown) => Promise<unknown> }).request({
             method: 'wallet_addEthereumChain',
             params: [
               {

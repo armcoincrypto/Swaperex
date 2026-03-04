@@ -62,8 +62,8 @@ export function TokenScreener({ onSwapSelect }: TokenScreenerProps) {
   const handleSwap = useCallback(
     (token: ScreenerToken) => {
       const stablecoin = 'USDT';
-      onSwapSelect?.(token.symbol, stablecoin, token.chainId);
-      trackEvent('screener_used');
+    onSwapSelect?.(token.symbol, stablecoin, token.chainId);
+    trackEvent('screener_used');
     },
     [onSwapSelect, trackEvent],
   );
@@ -90,13 +90,13 @@ export function TokenScreener({ onSwapSelect }: TokenScreenerProps) {
         <div className="flex items-center gap-3">
           {/* Mode toggle */}
           <div className="flex bg-dark-800 rounded-lg overflow-hidden text-sm">
-            <button
+          <button
               onClick={() => setMode('basic')}
               className={`px-3 py-1.5 transition-colors ${mode === 'basic' ? 'bg-primary-600 text-white' : 'text-dark-400 hover:text-white'}`}
             >
               Basic
-            </button>
-            <button
+          </button>
+          <button
               onClick={() => setMode('advanced')}
               className={`px-3 py-1.5 transition-colors ${mode === 'advanced' ? 'bg-primary-600 text-white' : 'text-dark-400 hover:text-white'}`}
             >
@@ -113,11 +113,11 @@ export function TokenScreener({ onSwapSelect }: TokenScreenerProps) {
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                   chainId === cid
                     ? CHAIN_STYLES[cid].active
-                    : 'bg-dark-800 text-dark-400 hover:text-white'
-                }`}
-              >
+                : 'bg-dark-800 text-dark-400 hover:text-white'
+            }`}
+          >
                 {CHAIN_LABELS[cid]}
-              </button>
+          </button>
             ))}
           </div>
         </div>
@@ -210,8 +210,8 @@ export function TokenScreener({ onSwapSelect }: TokenScreenerProps) {
           <span className="text-xs text-dark-500" title="Composite score from volume + momentum + liquidity">
             {sortField === 'trendingScore' && 'Composite score from volume + momentum + market cap'}
           </span>
-        </div>
-      )}
+          </div>
+        )}
 
       {/* Table */}
       <ScreenerTable
