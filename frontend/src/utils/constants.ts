@@ -40,3 +40,4 @@ export { API_BASE_URL } from '@/config/api';
 // WalletConnect Cloud project ID (compile-time, from Vite env)
 export const WALLETCONNECT_PROJECT_ID =
   (import.meta.env.VITE_WC_PROJECT_ID || import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '').trim();
+export const HAS_WALLETCONNECT_PROJECT_ID = WALLETCONNECT_PROJECT_ID.length > 0;

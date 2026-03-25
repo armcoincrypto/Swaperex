@@ -11,12 +11,14 @@
 import EthereumProvider from '@walletconnect/ethereum-provider';
 import type { EIP1193Provider, ConnectorId, WalletInfo } from './types';
 import { SUPPORTED_CHAIN_IDS, RPC_MAP, DEFAULT_CHAIN_ID } from './chains';
+import { WALLETCONNECT_PROJECT_ID } from '@/utils/constants';
 
 /** WalletConnect Cloud project ID. Required for QR/mobile wallets. Get one at https://cloud.walletconnect.com */
-const WC_PROJECT_ID =
-  (import.meta.env.VITE_WC_PROJECT_ID || import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '').trim();
+const WC_PROJECT_ID = WALLETCONNECT_PROJECT_ID;
 const WC_PROJECT_ID_IS_PLACEHOLDER =
-  !WC_PROJECT_ID || WC_PROJECT_ID === 'PASTE_YOUR_PROJECT_ID_HERE';
+  !WC_PROJECT_ID ||
+  WC_PROJECT_ID === 'PASTE_YOUR_PROJECT_ID_HERE' ||
+  WC_PROJECT_ID === 'your_project_id_here';
 
 // Persist last connector for auto-reconnect
 const CONNECTOR_KEY = 'swaperex_last_connector';
