@@ -776,7 +776,7 @@ export function SwapInterface() {
                   {formatBalance(swapQuote.amountOutFormatted, 6)}
                 </span>
               ) : fromAmount && parseFloat(fromAmount) > 0 && !insufficientBalance ? (
-                  <span className="text-2xl font-medium text-dark-500">~</span>
+                <span className="text-2xl font-medium text-dark-500">~</span>
               ) : (
                 <span className="text-2xl font-medium text-dark-500">0.0</span>
               )}
@@ -1338,26 +1338,26 @@ function TokenSelectorDropdown({
                 )}
                 <TokenLogo url={asset.logo_url} symbol={asset.symbol} size="md" />
                 <div className="flex-1 min-w-0 text-left">
-                    <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5">
                     <span className="font-medium truncate">{asset.symbol}</span>
-                      {isFav && (
+                    {isFav && (
                       <span className="text-[10px] px-1 py-0.5 rounded bg-yellow-900/30 text-yellow-400 flex-shrink-0">
                         Fav
-                        </span>
-                      )}
-                      {isCustom && (
+                      </span>
+                    )}
+                    {isCustom && (
                       <span className={`text-[10px] px-1 py-0.5 rounded flex-shrink-0 ${
-                          verified
-                            ? 'bg-blue-900/30 text-blue-400'
-                            : 'bg-yellow-900/30 text-yellow-400'
-                        }`}>
-                          {verified ? 'Imported' : 'Unverified'}
-                        </span>
-                      )}
-                    </div>
-                  <div className="text-xs text-dark-400 truncate">{asset.name}</div>
+                        verified
+                          ? 'bg-blue-900/30 text-blue-400'
+                          : 'bg-yellow-900/30 text-yellow-400'
+                      }`}>
+                        {verified ? 'Imported' : 'Unverified'}
+                      </span>
+                    )}
                   </div>
-                  {isSelected && <CheckIcon />}
+                  <div className="text-xs text-dark-400 truncate">{asset.name}</div>
+                </div>
+                {isSelected && <CheckIcon />}
                 {/* Remove button for custom tokens */}
                 {isCustom && onRemoveToken && chainId && (
                   <button
@@ -1441,56 +1441,56 @@ function SlippageSettings({
       <div className="mb-4">
         <span className="text-sm text-dark-300 mb-2 block">Slippage Tolerance</span>
         <div className="flex gap-2 mb-2">
-        {presets.map((opt) => (
-          <button
-            key={opt}
-            onClick={() => {
-              onChange(opt);
-              onCustomChange('');
-            }}
-            className={`px-4 py-2 rounded-lg text-sm transition-all duration-200 ${
-              value === opt
-                ? 'bg-accent text-electro-bg font-medium'
-                : 'bg-electro-panel hover:bg-electro-panelHover border border-white/[0.06]'
-            }`}
-          >
-            {opt}%
-          </button>
-        ))}
+          {presets.map((opt) => (
+            <button
+              key={opt}
+              onClick={() => {
+                onChange(opt);
+                onCustomChange('');
+              }}
+              className={`px-4 py-2 rounded-lg text-sm transition-all duration-200 ${
+                value === opt
+                  ? 'bg-accent text-electro-bg font-medium'
+                  : 'bg-electro-panel hover:bg-electro-panelHover border border-white/[0.06]'
+              }`}
+            >
+              {opt}%
+            </button>
+          ))}
 
-        {/* Custom Input */}
-        <div className={`flex-1 flex items-center gap-1 px-3 py-2 rounded-lg transition-all duration-200 ${
-          isCustom ? 'bg-accent/10 border border-accent/30' : 'bg-electro-panel border border-white/[0.06]'
-        }`}>
-          <input
+          {/* Custom Input */}
+          <div className={`flex-1 flex items-center gap-1 px-3 py-2 rounded-lg transition-all duration-200 ${
+            isCustom ? 'bg-accent/10 border border-accent/30' : 'bg-electro-panel border border-white/[0.06]'
+          }`}>
+            <input
               id="slippage-custom"
               name="slippage-custom"
-            type="text"
-            placeholder="Custom"
-            value={customValue}
-            onChange={(e) => onCustomChange(e.target.value)}
-            className="w-full bg-transparent text-sm outline-none"
-          />
-          <span className="text-dark-400">%</span>
+              type="text"
+              placeholder="Custom"
+              value={customValue}
+              onChange={(e) => onCustomChange(e.target.value)}
+              className="w-full bg-transparent text-sm outline-none"
+            />
+            <span className="text-dark-400">%</span>
+          </div>
         </div>
-      </div>
 
         {/* Slippage Warnings */}
-      {value < 0.1 && (
-        <p className="text-xs text-yellow-400">
-          Very low slippage may cause transaction to fail
-        </p>
-      )}
-      {value >= 3 && value < 10 && (
-        <p className="text-xs text-yellow-400">
-          High slippage may result in unfavorable trade
-        </p>
-      )}
-      {value >= 10 && (
-        <p className="text-xs text-red-400">
-          Very high slippage! Only use for volatile tokens
-        </p>
-      )}
+        {value < 0.1 && (
+          <p className="text-xs text-yellow-400">
+            Very low slippage may cause transaction to fail
+          </p>
+        )}
+        {value >= 3 && value < 10 && (
+          <p className="text-xs text-yellow-400">
+            High slippage may result in unfavorable trade
+          </p>
+        )}
+        {value >= 10 && (
+          <p className="text-xs text-red-400">
+            Very high slippage! Only use for volatile tokens
+          </p>
+        )}
       </div>
 
       {/* Approval Mode */}
@@ -1696,9 +1696,9 @@ function QuickSwapPresets({
   // Define presets per chain (native token + major stablecoins)
   const CHAIN_PRESETS: Record<number, { label: string; from: string; to: string; icon: string }[]> = {
     1: [
-        { label: 'Sell ETH', from: 'ETH', to: 'USDT', icon: '📉' },
-        { label: 'Buy ETH', from: 'USDT', to: 'ETH', icon: '📈' },
-        { label: 'Exit to Stable', from: 'ETH', to: 'USDC', icon: '🛡️' },
+      { label: 'Sell ETH', from: 'ETH', to: 'USDT', icon: '📉' },
+      { label: 'Buy ETH', from: 'USDT', to: 'ETH', icon: '📈' },
+      { label: 'Exit to Stable', from: 'ETH', to: 'USDC', icon: '🛡️' },
     ],
     56: [
       { label: 'Sell BNB', from: 'BNB', to: 'USDT', icon: '📉' },

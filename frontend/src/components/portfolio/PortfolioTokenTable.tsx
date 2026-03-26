@@ -6,16 +6,15 @@
  * Shows token logo, symbol, name, chain badge, balance, USD value, actions.
  */
 
-import { useMemo, useCallback, useState } from 'react';
+import { useMemo, useCallback } from 'react';
 import {
   usePortfolioStore,
   flattenPortfolioTokens,
   sortTokens,
   filterTokensBySearch,
   filterSmallBalances,
-  filterZeroBalances,
   formatUsdPrivate,
-  getPortfolioChainBadgeLabel,
+  getPortfolioChainLabel,
   type SortMode,
 } from '@/stores/portfolioStore';
 import { useWatchlistStore } from '@/stores/watchlistStore';
@@ -36,19 +35,16 @@ export function PortfolioTokenTable({ onSwapToken, className = '' }: PortfolioTo
   const setSearchQuery = usePortfolioStore((s) => s.setSearchQuery);
   const hideSmallBalances = usePortfolioStore((s) => s.hideSmallBalances);
   const smallBalanceThreshold = usePortfolioStore((s) => s.smallBalanceThreshold);
-  const hideZeroBalances = usePortfolioStore((s) => s.hideZeroBalances);
-  const setHideZeroBalances = usePortfolioStore((s) => s.setHideZeroBalances);
   const privacyMode = usePortfolioStore((s) => s.privacyMode);
 
   // Flatten, filter, sort
   const displayTokens = useMemo(() => {
     let tokens = flattenPortfolioTokens(portfolio);
     tokens = filterTokensBySearch(tokens, searchQuery);
-    tokens = filterZeroBalances(tokens, hideZeroBalances);
     tokens = filterSmallBalances(tokens, smallBalanceThreshold, hideSmallBalances);
     tokens = sortTokens(tokens, sortMode);
     return tokens;
-  }, [portfolio, searchQuery, hideSmallBalances, smallBalanceThreshold, hideZeroBalances, sortMode]);
+  }, [portfolio, searchQuery, hideSmallBalances, smallBalanceThreshold, sortMode]);
 
   // Loading skeleton
   if (loading && !portfolio) {
@@ -80,8 +76,6 @@ export function PortfolioTokenTable({ onSwapToken, className = '' }: PortfolioTo
           <p className="text-dark-400 text-sm">
             {searchQuery
               ? `No tokens match "${searchQuery}"`
-              : hideZeroBalances
-              ? 'No tokens with non-zero balance'
               : hideSmallBalances
               ? 'No tokens above threshold'
               : 'No tokens found across chains'}
@@ -92,39 +86,46 @@ export function PortfolioTokenTable({ onSwapToken, className = '' }: PortfolioTo
   }
 
   return (
-    <div className={`space-y-2 animate-fadeIn ${className}`}>
-      {/* Header: title + search + sort + hide zero */}
-      <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-lg font-bold">Your Tokens</h2>
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search..."
-          className="w-28 sm:w-36 px-2 py-1 bg-dark-800 border border-dark-700 rounded text-xs focus:outline-none focus:border-primary-500"
-        />
-        <select
-          value={sortMode}
-          onChange={(e) => setSortMode(e.target.value as SortMode)}
-          className="px-2 py-1 bg-dark-800 border border-dark-700 rounded text-xs focus:outline-none focus:border-primary-500"
-        >
-          <option value="value">By Value</option>
-          <option value="balance">By Balance</option>
-          <option value="alpha">A–Z</option>
-          <option value="chain">By Chain</option>
-        </select>
-        <label className="flex items-center gap-1.5 text-xs text-dark-400 cursor-pointer">
+    <div className={`space-y-3 animate-fadeIn ${className}`}>
+      {/* Header with search + sort */}
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-lg font-bold whitespace-nowrap">Your Tokens</h2>
+
+        <div className="flex items-center gap-2 flex-1 justify-end">
+          {/* Search */}
           <input
-            type="checkbox"
-            checked={hideZeroBalances}
-            onChange={(e) => setHideZeroBalances(e.target.checked)}
-            className="w-3.5 h-3.5 rounded border-dark-600 bg-dark-700 text-primary-500"
+            id="portfolio-search"
+            name="portfolio-search"
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search..."
+            className="w-32 sm:w-40 px-2.5 py-1.5 bg-dark-800 border border-dark-700 rounded-lg text-xs text-dark-200 placeholder-dark-500 focus:outline-none focus:border-primary-500"
           />
-          Hide zero
-        </label>
+
+          {/* Sort */}
+          <select
+            id="portfolio-sort"
+            name="portfolio-sort"
+            value={sortMode}
+            onChange={(e) => setSortMode(e.target.value as SortMode)}
+            className="px-2 py-1.5 bg-dark-800 border border-dark-700 rounded-lg text-xs text-dark-200 focus:outline-none focus:border-primary-500"
+          >
+            <option value="value">By Value</option>
+            <option value="balance">By Balance</option>
+            <option value="alpha">A-Z</option>
+            <option value="chain">By Chain</option>
+          </select>
+        </div>
       </div>
 
-      {/* Token list */}
+      {/* Token count */}
+      <div className="text-[11px] text-dark-500">
+        {displayTokens.length} token{displayTokens.length !== 1 ? 's' : ''} across{' '}
+        {(() => { const c = new Set(displayTokens.map((t) => t.chain)).size; return `${c} chain${c !== 1 ? 's' : ''}`; })()}
+      </div>
+
+      {/* Token rows */}
       <div className="space-y-1.5">
         {displayTokens.map((token, i) => (
           <PortfolioTokenRow
@@ -150,7 +151,6 @@ function PortfolioTokenRow({
   privacyMode: boolean;
   onSwap?: (symbol: string, chainId: number) => void;
 }) {
-  const [logoError, setLogoError] = useState(false);
   const addToWatchlist = useWatchlistStore((s) => s.addToken);
   const hasInWatchlist = useWatchlistStore((s) => s.hasToken);
   const chainId = typeof PORTFOLIO_CHAIN_IDS[token.chain] === 'number'
@@ -181,70 +181,108 @@ function PortfolioTokenRow({
 
   const explorerBase = getExplorerBase(chainId);
 
-  const badge = getPortfolioChainBadgeLabel(token.chain, token.symbol);
-  const showName = (() => {
-    const name = token.name?.trim();
-    if (!name) return false;
-    const sameAsSymbol = name.toLowerCase() === token.symbol.toLowerCase();
-    const sameAsBadge = badge && name.toLowerCase() === badge.toLowerCase();
-    return !sameAsSymbol && !sameAsBadge;
-  })();
-
-  const usdDisplay = token.usdValue ? formatUsdPrivate(token.usdValue, privacyMode) : parseFloat(token.balanceFormatted) === 0 ? formatUsdPrivate(0, privacyMode) : '—';
-  const priceSuffix = token.usdPrice && !privacyMode ? ` @$${parseFloat(token.usdPrice).toFixed(parseFloat(token.usdPrice) < 1 ? 4 : 2)}` : '';
-
   return (
-    <div
-      className="grid gap-3 py-2 px-3 bg-dark-800 rounded-lg hover:bg-dark-700/50 transition-colors group items-center"
-      style={{ gridTemplateColumns: 'auto minmax(0, 1fr) auto auto' }}
-    >
-      {/* Col 1: Logo — fixed width */}
-      <div className="w-8 h-8 rounded-full bg-dark-700 flex items-center justify-center overflow-hidden shrink-0">
-        {token.logoUrl && !logoError ? (
-          <img src={token.logoUrl} alt="" role="presentation" className="w-8 h-8 rounded-full object-cover" onError={() => setLogoError(true)} />
-        ) : (
-          <span className="text-[10px] font-bold text-dark-400">{token.symbol.slice(0, 2)}</span>
-        )}
-      </div>
-
-      {/* Col 2: Symbol + badge + name — truncates, never pushes value */}
-      <div className="min-w-0 overflow-hidden">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className="font-medium text-sm shrink-0">{token.symbol}</span>
-          <span className="px-1.5 py-0.5 bg-dark-700 text-dark-400 text-[9px] font-medium rounded shrink-0">{badge}</span>
+    <div className="flex items-center justify-between p-3 bg-dark-800 rounded-xl hover:bg-dark-700/50 transition-colors group">
+      {/* Left: logo + symbol + chain */}
+      <div className="flex items-center gap-3 min-w-0 flex-1">
+        {/* Token Logo */}
+        <div className="w-8 h-8 rounded-full bg-dark-700 flex items-center justify-center overflow-hidden flex-shrink-0">
+          {token.logoUrl ? (
+            <img
+              src={token.logoUrl}
+              alt={token.symbol}
+              className="w-8 h-8 rounded-full"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          ) : (
+            <span className="text-xs font-bold text-dark-400">
+              {token.symbol.slice(0, 2)}
+            </span>
+          )}
         </div>
-        {showName && <div className="text-[11px] text-dark-500 truncate">{token.name}</div>}
+
+        {/* Symbol + Name + Chain */}
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="font-medium text-sm truncate">{token.symbol}</span>
+            <span className="px-1.5 py-0.5 bg-dark-700 text-dark-400 text-[9px] font-medium rounded">
+              {getPortfolioChainLabel(token.chain)}
+            </span>
+          </div>
+          <div className="text-[11px] text-dark-500 truncate">{token.name}</div>
+        </div>
       </div>
 
-      {/* Col 3: Balance + USD — single line, NEVER wrap; explicit flex-row + nowrap */}
-      <div className="flex flex-row items-baseline gap-2 whitespace-nowrap flex-nowrap justify-end min-w-[160px] shrink-0">
-        <span className="inline-flex whitespace-nowrap text-sm font-medium">{privacyMode ? '****' : formatTokenBalance(token.balanceFormatted)}</span>
-        <span className="inline-flex whitespace-nowrap text-[11px] text-dark-400">{usdDisplay}{priceSuffix}</span>
+      {/* Middle: balance + USD */}
+      <div className="text-right mx-3 flex-shrink-0">
+        <div className="text-sm font-medium">
+          {privacyMode ? '****' : formatTokenBalance(token.balanceFormatted)}
+        </div>
+        <div className="text-[11px] text-dark-400">
+          {token.usdValue
+            ? formatUsdPrivate(token.usdValue, privacyMode)
+            : parseFloat(token.balanceFormatted) === 0
+            ? formatUsdPrivate(0, privacyMode)
+            : <span className="text-dark-600" title="Price unavailable">—</span>}
+          {token.usdPrice && !privacyMode && (
+            <span className="text-dark-600 ml-1">
+              @${parseFloat(token.usdPrice).toFixed(
+                parseFloat(token.usdPrice) < 1 ? 4 : 2
+              )}
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Col 4: Swap + secondary actions */}
-      <div className="flex items-center gap-1 shrink-0">
-        {onSwap && parseFloat(token.balanceFormatted || '0') > 0 && (
-          <button onClick={handleSwap} className="px-2 py-1 bg-primary-600/20 text-primary-400 rounded text-[11px] font-medium hover:bg-primary-600/30 shrink-0">
+      {/* Right: actions (visible on hover) */}
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+        {onSwap && (
+          <button
+            onClick={handleSwap}
+            className="px-2 py-1 bg-primary-600/20 text-primary-400 rounded text-[11px] font-medium hover:bg-primary-600/30 transition-colors"
+            title="Swap"
+          >
             Swap
           </button>
         )}
         {!token.isNative && (
-          <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-            <button onClick={handleCopyAddress} className="p-1 text-dark-500 hover:text-dark-300" title="Copy address">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+          <>
+            <button
+              onClick={handleCopyAddress}
+              className="p-1.5 text-dark-500 hover:text-dark-300 transition-colors"
+              title="Copy contract address"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
             </button>
             {explorerBase && (
-              <a href={`${explorerBase}/token/${token.address}`} target="_blank" rel="noopener noreferrer" className="p-1 text-dark-500 hover:text-dark-300" title="Explorer">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+              <a
+                href={`${explorerBase}/token/${token.address}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-1.5 text-dark-500 hover:text-dark-300 transition-colors"
+                title="View on explorer"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
               </a>
             )}
             {!isWatched && (
-              <button onClick={handleWatchlist} className="p-1 text-dark-500 hover:text-yellow-400" title="Watchlist">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
+              <button
+                onClick={handleWatchlist}
+                className="p-1.5 text-dark-500 hover:text-yellow-400 transition-colors"
+                title="Add to watchlist"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                </svg>
               </button>
             )}
-          </div>
+          </>
         )}
       </div>
     </div>

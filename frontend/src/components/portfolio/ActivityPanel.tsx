@@ -181,11 +181,6 @@ export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelPro
           <p className="text-dark-500 text-xs mt-1">
             Your completed swaps will appear here for easy reference and quick repeat.
           </p>
-          {import.meta.env.DEV && (
-            <p className="text-dark-600 text-[11px] mt-2 max-w-xs mx-auto">
-              Local: Add Etherscan, Polygonscan, BSCScan API keys to backend for tx history.
-            </p>
-          )}
         </div>
       )}
 
