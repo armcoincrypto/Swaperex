@@ -197,7 +197,7 @@ export function SwapPreviewModal({
             )}
             {quote.runnerUpAggregatedQuote ? (
               <DetailRow
-                label={`Not selected · ${swapAggregatorProviderLabel(quote.runnerUpAggregatedQuote.provider)}`}
+                label={`Runner-up (not selected) · ${swapAggregatorProviderLabel(quote.runnerUpAggregatedQuote.provider)}`}
                 value={`${formatBalance(quote.runnerUpAggregatedQuote.amountOut)} ${quote.to_asset}`}
               />
             ) : null}
@@ -463,7 +463,7 @@ function SuccessContent({
           </div>
           <div className="flex justify-between">
             <span className="text-dark-400">Provider</span>
-            <span className="text-primary-400">{quote.provider}</span>
+            <span className="text-primary-400">{swapAggregatorProviderLabel(quote.provider)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-dark-400">Slippage</span>

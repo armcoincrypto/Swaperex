@@ -116,6 +116,9 @@ export function SwapIntelligencePanel({ intelligence, compact = false }: SwapInt
 
       {/* Content */}
       <div className="p-4 space-y-3">
+        <p className="text-[11px] text-dark-500 leading-snug -mt-1">
+          Estimates below use price impact and liquidity heuristics. Execution venue and amounts always follow the quote card and review modal.
+        </p>
         {/* Signals Offline Warning (compact) */}
         <SignalsStatusBadge compact />
 
