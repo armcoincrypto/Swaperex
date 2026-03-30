@@ -16,10 +16,14 @@ export interface SwapRecord {
   fromAsset: AssetInfo;
   toAsset: AssetInfo;
   fromAmount: string;
+  /** Quoted output at preview / send time; final settlement may differ slightly */
   toAmount: string;
+  /** Minimum output implied by slippage at send time (not parsed from receipt) */
+  minimumToAmount?: string;
   txHash: string;
   explorerUrl: string;
-  status: 'success' | 'failed' | 'pending';
+  /** Local truth from this app; “uncertain” = verify on explorer before retrying */
+  status: 'success' | 'failed' | 'pending' | 'uncertain';
   provider: string;
   slippage: number;
   /** Destination address for transfers */
@@ -46,18 +50,19 @@ export const useSwapHistoryStore = create<SwapHistoryState>()(
       records: [],
 
       addRecord: (record) => {
-        const id = `${record.txHash}-${record.timestamp}`;
-
-        // Check if already exists (by txHash)
-        const existing = get().records.find((r) => r.txHash === record.txHash);
-        if (existing) return;
-
-        set((state) => ({
-          records: [
-            { ...record, id },
-            ...state.records,
-          ].slice(0, MAX_RECORDS), // Keep only most recent
-        }));
+        set((state) => {
+          const idx = state.records.findIndex((r) => r.txHash === record.txHash);
+          if (idx >= 0) {
+            const prev = state.records[idx];
+            const merged: SwapRecord = { ...prev, ...record, id: prev.id };
+            const rest = state.records.filter((_, i) => i !== idx);
+            return { records: [merged, ...rest].slice(0, MAX_RECORDS) };
+          }
+          const id = `${record.txHash}-${record.timestamp}`;
+          return {
+            records: [{ ...record, id }, ...state.records].slice(0, MAX_RECORDS),
+          };
+        });
       },
 
       updateRecordStatus: (txHash, status) => {
@@ -82,7 +87,8 @@ export const useSwapHistoryStore = create<SwapHistoryState>()(
     }),
     {
       name: 'swaperex-swap-history',
-      version: 1,
+      version: 2,
+      migrate: (persisted) => persisted as SwapHistoryState,
     }
   )
 );
