@@ -279,7 +279,8 @@ export function SwapInterface() {
           swapQuote.amountOutFormatted,
           parseFloat(swapQuote.price_impact || '0'),
           currentChainId,
-          slippage
+          slippage,
+          swapAggregatorProviderLabel(swapQuote.provider)
         );
         setSwapIntelligence(intelligence);
       } catch (err) {
@@ -851,7 +852,14 @@ export function SwapInterface() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <span className="text-green-400 font-medium">
+                <span
+                  className="text-green-400 font-medium"
+                  title={
+                    swapQuote.runnerUpAggregatedQuote
+                      ? 'We compared two executable quotes and selected the better output for this size.'
+                      : 'One configured pricing source was used for this chain and size; amounts are still valid for ~30s.'
+                  }
+                >
                   {swapQuote.runnerUpAggregatedQuote ? 'Best execution quote' : 'Quoted for this trade'}
                 </span>
                 <RouteTooltip provider={swapQuote.provider} />
@@ -890,14 +898,14 @@ export function SwapInterface() {
             {swapQuote.quoteSelectionReason && (
               <div className="rounded-lg bg-dark-800/40 border border-white/[0.05] px-3 py-2 space-y-2">
                 <div className="flex justify-between gap-2 items-start text-xs">
-                  <span className="text-dark-400 shrink-0">Selection</span>
+                  <span className="text-dark-400 shrink-0">Quote selection</span>
                   <span className="text-dark-200 text-right leading-snug">{swapQuote.quoteSelectionReason}</span>
                 </div>
                 {swapQuote.runnerUpAggregatedQuote ? (
                   <>
                     <div className="flex justify-between text-xs gap-2">
                       <span className="text-dark-400">
-                        Selected · {swapAggregatorProviderLabel(swapQuote.provider)}
+                        Selected venue · {swapAggregatorProviderLabel(swapQuote.provider)}
                       </span>
                       <span className="text-primary-400 font-medium tabular-nums">
                         {formatBalance(swapQuote.amountOutFormatted, 6)} {toAsset?.symbol}
@@ -905,7 +913,7 @@ export function SwapInterface() {
                     </div>
                     <div className="flex justify-between text-xs gap-2 text-dark-400">
                       <span>
-                        vs {swapAggregatorProviderLabel(swapQuote.runnerUpAggregatedQuote.provider)}
+                        Runner-up · {swapAggregatorProviderLabel(swapQuote.runnerUpAggregatedQuote.provider)}
                       </span>
                       <span className="tabular-nums">
                         {formatBalance(swapQuote.runnerUpAggregatedQuote.amountOut, 6)}{' '}

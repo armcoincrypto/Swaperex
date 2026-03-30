@@ -124,7 +124,8 @@ function calculateSafetyFactors(
   priceImpact: PriceImpactLevel,
   liquidityUSD: number,
   slippage: number,
-  routeSavings?: number
+  routeSavings?: number,
+  comparedAgainstAlternative = false
 ): SafetyFactor[] {
   const factors: SafetyFactor[] = [];
 
@@ -171,15 +172,24 @@ function calculateSafetyFactors(
 
   // Factor 4: Route Quality (0-25 points)
   let routeScore = 20; // Base score
-  if (routeSavings !== undefined && routeSavings > 0) {
-    routeScore = 25; // Best route selected
+  if (comparedAgainstAlternative && routeSavings !== undefined && routeSavings > 0) {
+    routeScore = 25;
+  }
+
+  let routeDescription: string;
+  if (comparedAgainstAlternative && routeSavings !== undefined && routeSavings > 0) {
+    routeDescription = `${routeSavings.toFixed(2)}% more output vs other venue`;
+  } else if (comparedAgainstAlternative) {
+    routeDescription = 'Two venues compared for this size';
+  } else {
+    routeDescription = 'Single quoted execution path';
   }
 
   factors.push({
     name: 'Route',
     score: routeScore,
     status: routeScore >= 20 ? 'good' : 'warning',
-    description: routeSavings ? `${routeSavings.toFixed(2)}% better` : 'Best available',
+    description: routeDescription,
   });
 
   return factors;
@@ -228,7 +238,8 @@ export function analyzeSwap(
     priceImpact,
     liquidityUSD,
     slippage,
-    routeComparison.savingsPercent
+    routeComparison.savingsPercent,
+    !!alternativeRoute
   );
 
   // Calculate overall safety score
@@ -305,7 +316,9 @@ export async function analyzeSwapFromContext(
   toAmount: string,
   priceImpactPercent: number,
   chainId: number,
-  slippage: number = 0.5
+  slippage: number = 0.5,
+  /** Display label for the execution venue (matches swap card / aggregator). */
+  executionVenueLabel?: string
 ): Promise<SwapIntelligence> {
   // Import liquidity service dynamically to avoid circular deps
   const { getSwapPairLiquidity, estimateLiquidityFromQuote } = await import('./dexLiquidityService');
@@ -324,10 +337,12 @@ export async function analyzeSwapFromContext(
     liquidityUSD = estimateLiquidityFromQuote(parseFloat(toAmount));
   }
 
-  // Build route quote from current swap
+  const venue = executionVenueLabel?.trim() || 'Quoted execution';
+
+  // Build route quote from current swap (aligned with live quote, not a second routing engine)
   const bestRoute: RouteQuote = {
-    provider: 'best-route',
-    dexName: 'Best Route',
+    provider: 'quoted-execution',
+    dexName: venue,
     amountOut: toAmount,
     amountOutFormatted: toAmount,
     outputAmount: toAmount,
