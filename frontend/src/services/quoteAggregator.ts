@@ -77,12 +77,12 @@ export interface AggregatedQuote {
 }
 
 /**
- * Quote comparison result
+ * Full aggregator output: executable best quote plus runner-up (when compared) and selection rationale.
  */
-interface QuoteComparison {
+export interface AggregatedQuoteResult {
   best: AggregatedQuote;
   alternative: AggregatedQuote | null;
-  reason: string;
+  selectionReason: string;
 }
 
 /**
@@ -224,7 +224,7 @@ export async function getAggregatedQuote(
   amountIn: string,
   chainId: number = 1,
   slippage: number = 0.5
-): Promise<AggregatedQuote> {
+): Promise<AggregatedQuoteResult> {
   // Support all 6 chains: 1, 56, 137, 42161, 10, 43114
   if (!SUPPORTED_CHAIN_IDS.includes(chainId)) {
     throw new Error(`Unsupported chain. Supported: ${SUPPORTED_CHAIN_IDS.join(', ')}. Current: ${chainId}`);
@@ -261,7 +261,7 @@ async function getEthereumQuote(
   slippage: number,
   tokenOutDecimals: number,
   apiKey?: string
-): Promise<AggregatedQuote> {
+): Promise<AggregatedQuoteResult> {
   // Fetch both quotes in parallel
   const [oneInchResult, uniswapResult] = await Promise.allSettled([
     getBestOneInchQuote(tokenIn, tokenOut, amountIn, 1, apiKey),
@@ -289,9 +289,9 @@ async function getEthereumQuote(
   // Select best quote
   const comparison = selectBestQuote(oneInchQuote, directQuote, 'Uniswap');
 
-  console.log('[Aggregator] Selected:', comparison.best.provider, '|', comparison.reason);
+  console.log('[Aggregator] Selected:', comparison.best.provider, '|', comparison.selectionReason);
 
-  return comparison.best;
+  return comparison;
 }
 
 /**
@@ -304,7 +304,7 @@ async function getBscQuote(
   slippage: number,
   tokenOutDecimals: number,
   apiKey?: string
-): Promise<AggregatedQuote> {
+): Promise<AggregatedQuoteResult> {
   console.log('[Aggregator] BSC quote request:', { tokenIn, tokenOut, amountIn });
 
   // Fetch both quotes in parallel
@@ -334,9 +334,9 @@ async function getBscQuote(
   // Select best quote
   const comparison = selectBestQuote(oneInchQuote, directQuote, 'PancakeSwap');
 
-  console.log('[Aggregator] Selected:', comparison.best.provider, '|', comparison.reason);
+  console.log('[Aggregator] Selected:', comparison.best.provider, '|', comparison.selectionReason);
 
-  return comparison.best;
+  return comparison;
 }
 
 /**
@@ -350,12 +350,17 @@ async function get1inchOnlyQuote(
   slippage: number,
   tokenOutDecimals: number,
   apiKey?: string
-): Promise<AggregatedQuote> {
+): Promise<AggregatedQuoteResult> {
   const quote = await getBestOneInchQuote(tokenIn, tokenOut, amountIn, chainId, apiKey);
   if (!quote) {
     throw new Error(`1inch quote failed for chain ${chainId}. This chain may not be supported by the provider.`);
   }
-  return normalizeOneInchQuote(quote, slippage, tokenOutDecimals, chainId);
+  const best = normalizeOneInchQuote(quote, slippage, tokenOutDecimals, chainId);
+  return {
+    best,
+    alternative: null,
+    selectionReason: '1inch (only configured source for this chain)',
+  };
 }
 
 /**
@@ -366,13 +371,13 @@ function selectBestQuote(
   oneInchQuote: AggregatedQuote | null,
   directQuote: AggregatedQuote | null,
   fallbackName: string = 'Direct'
-): QuoteComparison {
+): AggregatedQuoteResult {
   // If only one quote available, use it
   if (oneInchQuote && !directQuote) {
     return {
       best: oneInchQuote,
       alternative: null,
-      reason: `1inch only (${fallbackName} unavailable)`,
+      selectionReason: `1inch only (${fallbackName} unavailable)`,
     };
   }
 
@@ -380,7 +385,7 @@ function selectBestQuote(
     return {
       best: directQuote,
       alternative: null,
-      reason: `${fallbackName} fallback (1inch unavailable)`,
+      selectionReason: `${fallbackName} fallback (1inch unavailable)`,
     };
   }
 
@@ -399,13 +404,13 @@ function selectBestQuote(
     return {
       best: oneInchQuote!,
       alternative: directQuote!,
-      reason: `1inch better by ${Math.abs(diff).toFixed(2)}%`,
+      selectionReason: `1inch better by ${Math.abs(diff).toFixed(2)}%`,
     };
   } else {
     return {
       best: directQuote!,
       alternative: oneInchQuote!,
-      reason: `${fallbackName} better by ${Math.abs(diff).toFixed(2)}%`,
+      selectionReason: `${fallbackName} better by ${Math.abs(diff).toFixed(2)}%`,
     };
   }
 }

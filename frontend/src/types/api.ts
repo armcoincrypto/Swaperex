@@ -203,6 +203,10 @@ export interface SwapRouteMetadata {
   price_impact: string;
   minimum_received: string;
   expires_at: string;
+  /** Client aggregator (useSwap + quoteAggregator); optional for legacy server quotes */
+  aggregator_selection_reason?: string;
+  runner_up_provider?: string;
+  runner_up_to_amount?: string;
 }
 
 export interface UnsignedSwapTransaction {

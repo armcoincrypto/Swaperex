@@ -78,7 +78,7 @@ export function SwapIntelligencePanel({ intelligence, compact = false }: SwapInt
             <PriceImpactBadge impact={intelligence.priceImpact} compact />
             <LiquidityWarning liquidity={intelligence.liquidity} compact />
 
-            {intelligence.routes.length > 0 && (
+            {intelligence.routes.length > 1 && (
               <RouteComparison routes={intelligence.routes} compact />
             )}
           </div>
@@ -132,8 +132,8 @@ export function SwapIntelligencePanel({ intelligence, compact = false }: SwapInt
           <LiquidityWarning liquidity={intelligence.liquidity} />
         </div>
 
-        {/* Route Comparison */}
-        {intelligence.routes.length > 0 && (
+        {/* Route comparison only when multiple real routes exist (see swap card for aggregator quotes) */}
+        {intelligence.routes.length > 1 && (
           <RouteComparison routes={intelligence.routes} />
         )}
 

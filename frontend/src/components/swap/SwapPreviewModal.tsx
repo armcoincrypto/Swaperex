@@ -11,7 +11,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Modal } from '@/components/common/Modal';
 import { Button } from '@/components/common/Button';
-import { formatBalance } from '@/utils/format';
+import { formatBalance, formatGasLimitUnits, getPriceImpactUi, swapAggregatorProviderLabel } from '@/utils/format';
 import type { SwapQuote } from '@/hooks/useSwap';
 
 // Quote expires after 30 seconds
@@ -82,8 +82,16 @@ export function SwapPreviewModal({
   if (!quote) return null;
 
   const priceImpact = parseFloat(quote.price_impact || '0');
+  const priceImpactUi = getPriceImpactUi(quote.price_impact);
+  const priceImpactRowVariant =
+    priceImpactUi.severity === 'critical' || priceImpactUi.severity === 'high'
+      ? 'danger'
+      : priceImpactUi.severity === 'medium'
+      ? 'warning'
+      : 'normal';
   const isHighImpact = priceImpact > 3;
   const isVeryHighImpact = priceImpact > 10;
+  const gasUnitsDisplay = formatGasLimitUnits(quote.gasEstimate);
   const isLoading = step === 'approving' || step === 'swapping' || step === 'broadcasting';
   const needsApproval = quote.needsApproval;
 
@@ -162,9 +170,10 @@ export function SwapPreviewModal({
               value={`${formatBalance(quote.minimum_received)} ${quote.to_asset}`}
             />
             <DetailRow
-              label="Price Impact"
-              value={`${quote.price_impact}%`}
-              variant={isVeryHighImpact ? 'danger' : isHighImpact ? 'warning' : 'normal'}
+              label="Price impact"
+              value={priceImpactUi.label}
+              variant={priceImpactRowVariant}
+              title="Estimated vs. mid price before fees — not your slippage setting"
             />
             <DetailRow
               label="Slippage Tolerance"
@@ -172,8 +181,20 @@ export function SwapPreviewModal({
             />
             <DetailRow
               label="Provider"
-              value={quote.provider}
+              value={swapAggregatorProviderLabel(quote.provider)}
             />
+            {quote.quoteSelectionReason && (
+              <DetailRow
+                label="Quote selection"
+                value={quote.quoteSelectionReason}
+              />
+            )}
+            {quote.runnerUpAggregatedQuote ? (
+              <DetailRow
+                label={`Not selected · ${swapAggregatorProviderLabel(quote.runnerUpAggregatedQuote.provider)}`}
+                value={`${formatBalance(quote.runnerUpAggregatedQuote.amountOut)} ${quote.to_asset}`}
+              />
+            ) : null}
           </div>
 
           {/* High Impact Warning */}
@@ -192,12 +213,19 @@ export function SwapPreviewModal({
             </div>
           )}
 
-          {/* Gas Estimate Note */}
-          <div className="bg-dark-800/50 rounded-lg p-3 mb-4">
-            <div className="flex justify-between text-sm">
-              <span className="text-dark-400">Network Fee</span>
-              <span className="text-dark-400">Estimated by wallet</span>
+          {/* Gas limit (quote) + fee note */}
+          <div className="bg-dark-800/50 rounded-lg p-3 mb-4 space-y-1">
+            <div className="flex justify-between text-sm gap-2">
+              <span className="text-dark-400 shrink-0">Est. gas (units)</span>
+              <span className="text-dark-300 font-mono text-right">{gasUnitsDisplay ?? '—'}</span>
             </div>
+            <div className="flex justify-between text-sm gap-2">
+              <span className="text-dark-400 shrink-0">Network fee</span>
+              <span className="text-dark-400 text-right">Set by wallet at signing</span>
+            </div>
+            <p className="text-[11px] text-dark-500 leading-snug pt-1">
+              The limit above is from the quote simulation; gas price and total fee are finalized in your wallet.
+            </p>
           </div>
 
           {/* Approval Notice */}
@@ -660,11 +688,13 @@ function DetailRow({
   value,
   variant = 'normal',
   mono = false,
+  title,
 }: {
   label: string;
   value: string;
   variant?: 'normal' | 'warning' | 'danger';
   mono?: boolean;
+  title?: string;
 }) {
   const valueClass = {
     normal: '',
@@ -673,9 +703,9 @@ function DetailRow({
   }[variant];
 
   return (
-    <div className="flex justify-between items-center">
-      <span className="text-dark-400">{label}</span>
-      <span className={`${valueClass} ${mono ? 'font-mono' : ''}`}>
+    <div className="flex justify-between items-center gap-2">
+      <span className="text-dark-400 shrink-0">{label}</span>
+      <span className={`${valueClass} ${mono ? 'font-mono' : ''} text-right`} title={title}>
         {value}
       </span>
     </div>
@@ -686,13 +716,13 @@ function DetailRow({
 function getLoadingText(step: SwapStep): string {
   switch (step) {
     case 'approving':
-      return 'Approving...';
+      return 'Confirm approval in wallet…';
     case 'swapping':
-      return 'Confirm in Wallet...';
+      return 'Confirm swap in wallet…';
     case 'broadcasting':
-      return 'Broadcasting...';
+      return 'Waiting for on-chain confirmation…';
     default:
-      return 'Processing...';
+      return 'Processing…';
   }
 }
 
