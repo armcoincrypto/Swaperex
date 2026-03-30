@@ -29,7 +29,7 @@
  * Each state transition is logged with [Swap Lifecycle] prefix.
  */
 
-import { useCallback, useState, useEffect, useRef } from 'react';
+import { useCallback, useState, useEffect, useRef, useMemo } from 'react';
 import { formatUnits, parseUnits } from 'ethers';
 import { useWallet } from './useWallet';
 import { useSwapStore } from '@/stores/swapStore';
@@ -80,6 +80,13 @@ import {
 import { PANCAKESWAP_V3_ADDRESSES } from '@/services/pancakeSwapQuote';
 import { getTokenBySymbol, isNativeToken } from '@/tokens';
 import { getUniswapV3Addresses, getExplorerTxUrl } from '@/config';
+import {
+  clearPendingSwap,
+  getPendingSwapForAccount,
+  markPendingSwapOutcomeUncertain,
+  readPendingSwap,
+  writePendingSwap,
+} from '@/utils/pendingSwapStorage';
 
 export type SwapStatus =
   | 'idle'
@@ -192,7 +199,7 @@ export function useSwap() {
   const { address, isWrongChain, chainId, getSigner, provider } = useWallet();
   const { fromAsset, toAsset, fromAmount, slippage, approvalMode, setQuote, clearQuote } = useSwapStore();
   const { fetchBalances } = useBalanceStore();
-  const { addRecord: addSwapRecord } = useSwapHistoryStore();
+  const { addRecord: addSwapRecord, updateRecordStatus } = useSwapHistoryStore();
   const { trackEvent } = useUsageStore();
 
   const [state, setState] = useState<SwapState>({
@@ -210,6 +217,9 @@ export function useSwap() {
 
   // Quote request ID counter - prevents stale responses from updating UI
   const quoteRequestIdRef = useRef(0);
+
+  /** Prevents double confirm / overlapping executeSwap when state updates lag one frame. */
+  const swapExecutionLockRef = useRef(false);
 
   // PHASE 14: Handle wallet events (disconnect, chain change, account change)
   useEffect(() => {
@@ -628,6 +638,8 @@ export function useSwap() {
       throw new Error('No quote available. Please enter an amount and wait for a quote before proceeding.');
     }
 
+    let broadcastTx: { hash: string } | null = null;
+
     try {
       // Handle approval if needed
       if (swapQuote.needsApproval) {
@@ -715,17 +727,50 @@ export function useSwap() {
         gasLimit: swapTx.gasLimit ? BigInt(swapTx.gasLimit) : undefined,
       });
 
+      broadcastTx = tx;
+
       // PHASE 9: Generate explorer URL for this transaction
       const explorerUrl = getExplorerTxUrl(chainId, tx.hash);
 
       logLifecycle('swapping', 'confirming', { txHash: tx.hash, explorerUrl });
       setState((s) => ({ ...s, status: 'confirming', txHash: tx.hash, explorerUrl }));
+
+      writePendingSwap({
+        chainId,
+        fromAddress: address.toLowerCase(),
+        txHash: tx.hash,
+        explorerUrl,
+        submittedAt: Date.now(),
+        fromSymbol: swapQuote.fromSymbol,
+        toSymbol: swapQuote.toSymbol,
+        fromAmount,
+        toAmount: swapQuote.amountOutFormatted,
+      });
+
+      if (fromAsset && toAsset && swapQuote) {
+        addSwapRecord({
+          timestamp: Date.now(),
+          chainId: chainId || 1,
+          fromAsset,
+          toAsset,
+          fromAmount,
+          toAmount: swapQuote.amountOutFormatted,
+          minimumToAmount: swapQuote.minimum_received,
+          txHash: tx.hash,
+          explorerUrl,
+          status: 'pending',
+          provider: swapQuote.provider,
+          slippage,
+        });
+      }
+
       toast.info('Waiting for confirmation...');
 
       // Wait for confirmation
       const receipt = await tx.wait();
 
       if (receipt?.status === 1) {
+        clearPendingSwap();
         logLifecycle('confirming', 'success', {
           txHash: tx.hash,
           explorerUrl,
@@ -743,6 +788,7 @@ export function useSwap() {
             toAsset,
             fromAmount,
             toAmount: swapQuote.amountOutFormatted,
+            minimumToAmount: swapQuote.minimum_received,
             txHash: tx.hash,
             explorerUrl,
             status: 'success',
@@ -760,6 +806,7 @@ export function useSwap() {
 
         return tx.hash;
       } else {
+        updateRecordStatus(tx.hash, 'failed');
         throw new Error('Transaction was not successful. The blockchain rejected the swap. Check your transaction on the explorer for details.');
       }
     } catch (err) {
@@ -779,6 +826,10 @@ export function useSwap() {
         toast.warning('Swap cancelled. No funds were moved.');
         console.log('[Swap] User rejected transaction');
       } else {
+        if (broadcastTx) {
+          markPendingSwapOutcomeUncertain();
+          updateRecordStatus(broadcastTx.hash, 'uncertain');
+        }
         logLifecycle(state.status, 'error', {
           error: parsed.message,
           category: parsed.category,
@@ -790,7 +841,7 @@ export function useSwap() {
 
       throw err;
     }
-  }, [swapQuote, address, chainId, getSigner, executeApproval, fetchBalances, state.status]);
+  }, [swapQuote, address, chainId, getSigner, executeApproval, fetchBalances, state.status, fromAmount, fromAsset, toAsset, addSwapRecord, updateRecordStatus, slippage, trackEvent]);
 
   // Full swap flow: fetch quote → preview → execute
   // PHASE 7: Comprehensive validation before any action
@@ -901,7 +952,16 @@ export function useSwap() {
 
   // Confirm and execute after preview
   const confirmSwap = useCallback(async (): Promise<string> => {
-    if (state.status !== 'previewing' || !swapQuote) {
+    if (!swapQuote) {
+      throw new Error('No active swap to confirm. Please get a new quote and try again.');
+    }
+
+    if (state.status === 'approving' || state.status === 'swapping' || state.status === 'confirming') {
+      console.warn('[Swap] confirmSwap ignored — execution already in progress');
+      return '';
+    }
+
+    if (state.status !== 'previewing') {
       throw new Error('No active swap to confirm. Please get a new quote and try again.');
     }
 
@@ -915,11 +975,180 @@ export function useSwap() {
       throw new Error('QUOTE_EXPIRED');
     }
 
-    return executeSwap();
+    if (swapExecutionLockRef.current) {
+      console.warn('[Swap] confirmSwap ignored — execution lock held');
+      return '';
+    }
+
+    swapExecutionLockRef.current = true;
+    try {
+      return await executeSwap();
+    } finally {
+      swapExecutionLockRef.current = false;
+    }
   }, [state.status, swapQuote, executeSwap]);
 
   // Check if current quote is expired (for UI timer/guard)
   const isQuoteExpired = swapQuote ? (Date.now() - swapQuote.quoteTimestamp) > QUOTE_EXPIRY_MS : false;
+
+  const pendingSubmittedSwap = useMemo(() => {
+    if (!chainId || !address) return null;
+    return getPendingSwapForAccount(chainId, address);
+  }, [chainId, address, state.status, state.txHash, state.error]);
+
+  const dismissPendingSubmitted = useCallback(() => {
+    const p =
+      chainId && address
+        ? getPendingSwapForAccount(chainId, address)
+        : readPendingSwap();
+    clearPendingSwap();
+    if (p?.txHash) {
+      updateRecordStatus(p.txHash, 'uncertain');
+    }
+    quoteRequestIdRef.current += 1;
+    setState({
+      status: 'idle',
+      quote: null,
+      txHash: null,
+      explorerUrl: null,
+      error: null,
+    });
+    setSwapQuote(null);
+    clearQuote();
+  }, [chainId, address, clearQuote, updateRecordStatus]);
+
+  /** After refresh: reconcile stored pending tx with chain; resume confirming if still pending. */
+  useEffect(() => {
+    if (!provider || !chainId || !address) return;
+
+    const pending = getPendingSwapForAccount(chainId, address);
+    if (!pending) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const receipt = await provider.getTransactionReceipt(pending.txHash);
+        if (cancelled) return;
+
+        if (receipt !== null) {
+          clearPendingSwap();
+          updateRecordStatus(pending.txHash, receipt.status === 1 ? 'success' : 'failed');
+          const chainNetwork = CHAIN_ID_TO_NETWORK[chainId] || 'ethereum';
+          if (receipt.status === 1) {
+            toast.success(
+              'An earlier swap completed on-chain. Verify balances in your wallet; refresh the quote if needed.'
+            );
+            await fetchBalances(address, [chainNetwork]);
+          } else {
+            toast.warning('An earlier swap transaction reverted on-chain.');
+          }
+          setState((s) => {
+            if (s.txHash === pending.txHash && (s.status === 'confirming' || s.status === 'error')) {
+              return { ...s, status: 'idle', quote: null, txHash: null, explorerUrl: null, error: null };
+            }
+            return s;
+          });
+          return;
+        }
+
+        setState((s) => {
+          if (s.txHash === pending.txHash && s.status === 'confirming') return s;
+          return {
+            ...s,
+            status: 'confirming',
+            txHash: pending.txHash,
+            explorerUrl: pending.explorerUrl,
+            error: null,
+          };
+        });
+      } catch {
+        if (cancelled) return;
+        setState((s) => {
+          if (s.txHash === pending.txHash && s.status === 'confirming') return s;
+          return {
+            ...s,
+            status: 'confirming',
+            txHash: pending.txHash,
+            explorerUrl: pending.explorerUrl,
+            error: null,
+          };
+        });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [provider, chainId, address, fetchBalances, updateRecordStatus]);
+
+  /**
+   * Refresh recovery: no in-memory quote but swap tx was already broadcast — wait for receipt here
+   * (executeSwap already awaits when swapQuote is still present).
+   */
+  useEffect(() => {
+    const hash = state.txHash;
+    if (state.status !== 'confirming' || !hash || !provider || !chainId || !address) return;
+    if (swapQuote) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const receipt = await provider.waitForTransaction(hash);
+        if (cancelled) return;
+
+        clearPendingSwap();
+        const chainNetwork = CHAIN_ID_TO_NETWORK[chainId] || 'ethereum';
+        const explorerUrlResolved = getExplorerTxUrl(chainId, hash);
+
+        if (receipt?.status === 1) {
+          updateRecordStatus(hash, 'success');
+          toast.success('Swap confirmed on-chain. Balances may take a moment to update.');
+          await fetchBalances(address, [chainNetwork]);
+          setState((s) => ({
+            ...s,
+            status: 'idle',
+            quote: null,
+            txHash: null,
+            explorerUrl: null,
+            error: null,
+          }));
+          setSwapQuote(null);
+          clearQuote();
+          return;
+        }
+
+        toast.warning('This swap reverted on-chain.');
+        updateRecordStatus(hash, 'failed');
+        setState((s) => ({
+          ...s,
+          status: 'error',
+          error: 'Transaction reverted on-chain. Check the explorer for details.',
+          txHash: hash,
+          explorerUrl: explorerUrlResolved,
+        }));
+      } catch {
+        if (cancelled) return;
+        markPendingSwapOutcomeUncertain();
+        updateRecordStatus(hash, 'uncertain');
+        const explorerUrlResolved = getExplorerTxUrl(chainId, hash);
+        setState((s) => ({
+          ...s,
+          status: 'error',
+          error:
+            'Could not confirm this transaction from this session. Check the explorer — it may still be pending or may have succeeded.',
+          txHash: hash,
+          explorerUrl: explorerUrlResolved,
+        }));
+        toast.warning('Connection dropped while waiting. Verify the explorer before retrying a new swap.');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [state.status, state.txHash, swapQuote, provider, chainId, address, fetchBalances, clearQuote, updateRecordStatus]);
 
   // Cancel preview
   const cancelPreview = useCallback(() => {
@@ -937,6 +1166,8 @@ export function useSwap() {
     canSwap,
     isWrongChain,
     isQuoteExpired,
+    pendingSubmittedSwap,
+    dismissPendingSubmitted,
 
     // Actions
     swap,              // Initiate swap (gets quote, shows preview)

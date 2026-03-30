@@ -21,6 +21,15 @@ const QUOTE_EXPIRY_SECONDS = 30;
 
 export type SwapStep = 'preview' | 'approving' | 'swapping' | 'broadcasting' | 'success' | 'error';
 
+/** Session recovery when quote is no longer in memory but a swap tx was already sent */
+export type RecoveredSwapTrace = {
+  fromSymbol: string;
+  toSymbol: string;
+  fromAmount: string;
+  toAmount: string;
+  outcomeUncertain?: boolean;
+};
+
 interface SwapPreviewModalProps {
   isOpen: boolean;
   quote: SwapQuote | null;
@@ -29,6 +38,10 @@ interface SwapPreviewModalProps {
   txHash: string | null;
   explorerUrl?: string | null;  // PHASE 9: Explorer URL from useSwap
   approvalMode?: ApprovalMode;
+  /** Refresh/reopen after page reload with only chain + tx trace */
+  recoveredTrace?: RecoveredSwapTrace | null;
+  /** Clears persisted pending swap after user verifies on explorer (conservative retry) */
+  onClearPendingSwap?: () => void;
   onConfirm: () => void;
   onCancel: () => void;
   onRefreshQuote: () => void;
@@ -43,6 +56,8 @@ export function SwapPreviewModal({
   txHash,
   explorerUrl,
   approvalMode = 'exact',
+  recoveredTrace = null,
+  onClearPendingSwap,
   onConfirm,
   onCancel,
   onRefreshQuote,
@@ -85,6 +100,39 @@ export function SwapPreviewModal({
     setIsExpired(false);
   }, [onRefreshQuote]);
 
+  const recoveredOnly =
+    !quote &&
+    recoveredTrace &&
+    isOpen &&
+    (step === 'broadcasting' || step === 'error');
+
+  if (recoveredOnly && recoveredTrace) {
+    const title =
+      step === 'error' && recoveredTrace.outcomeUncertain
+        ? 'Outcome unclear'
+        : step === 'error'
+          ? 'Swap failed'
+          : 'Confirming swap';
+    return (
+      <Modal
+        isOpen={isOpen}
+        onClose={step === 'error' ? onCancel : () => {}}
+        title={title}
+        size="md"
+      >
+        <RecoveredSwapTraceBody
+          trace={recoveredTrace}
+          step={step}
+          error={error}
+          txHash={txHash}
+          explorerUrl={explorerUrl}
+          onClose={onCancel}
+          onClearPendingSwap={onClearPendingSwap}
+        />
+      </Modal>
+    );
+  }
+
   if (!quote) return null;
 
   const priceImpact = parseFloat(quote.price_impact || '0');
@@ -103,22 +151,50 @@ export function SwapPreviewModal({
 
   // Determine step number for multi-step display
   const getStepDisplay = () => {
+    if (step === 'broadcasting') {
+      return needsApproval ? 'Step 2/2: Confirming on-chain' : 'Step 1/1: Confirming on-chain';
+    }
     if (!needsApproval) {
-      if (step === 'swapping') return 'Step 1/1: Confirm Swap';
+      if (step === 'swapping') return 'Step 1/1: Confirm in wallet';
       return null;
     }
-    if (step === 'approving') return 'Step 1/2: Approve Token';
-    if (step === 'swapping') return 'Step 2/2: Confirm Swap';
+    if (step === 'approving') return 'Step 1/2: Approve in wallet';
+    if (step === 'swapping') return 'Step 2/2: Confirm swap in wallet';
     return null;
   };
 
   const stepDisplay = getStepDisplay();
 
+  const walletNotice =
+    step === 'broadcasting'
+      ? {
+          boxClass: 'text-blue-300 bg-blue-900/20 border border-blue-800/40',
+          text:
+            txHash && explorerUrl
+              ? 'Submitted to the network. Waiting for confirmations — often under a minute, longer when the chain is busy.'
+              : 'Waiting for on-chain confirmation…',
+        }
+      : step === 'approving' || step === 'swapping'
+        ? {
+            boxClass: 'text-yellow-400 bg-yellow-900/20',
+            text: 'Check your wallet and approve this request.',
+          }
+        : {
+            boxClass: 'text-yellow-400 bg-yellow-900/20',
+            text: 'Your wallet will open to confirm this transaction.',
+          };
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={step === 'preview' || step === 'error' ? onCancel : () => {}}
-      title={step === 'success' ? 'Swap Completed' : 'Review Swap'}
+      title={
+        step === 'success'
+          ? 'Swap Completed'
+          : step === 'broadcasting'
+            ? 'Confirming swap'
+            : 'Review Swap'
+      }
       size="md"
     >
       {/* Success State */}
@@ -135,6 +211,8 @@ export function SwapPreviewModal({
       {step === 'error' && (
         <ErrorContent
           error={error}
+          txHash={txHash}
+          explorerUrl={explorerUrl}
           onTryAgain={handleRefresh}
           onCancel={onCancel}
         />
@@ -257,15 +335,27 @@ export function SwapPreviewModal({
             </div>
           )}
 
-          {/* Wallet Notice */}
-          <div className="flex items-center gap-2 text-yellow-400 bg-yellow-900/20 rounded-lg p-3 mb-4">
+          {/* Wallet / confirmation notice */}
+          <div className={`flex items-start gap-2 rounded-lg p-3 mb-4 ${walletNotice.boxClass}`}>
             <WalletIcon />
-            <span className="text-sm">
-              {isLoading
-                ? 'Waiting for wallet confirmation...'
-                : 'Your wallet will open to confirm this transaction'}
-            </span>
+            <span className="text-sm leading-snug">{walletNotice.text}</span>
           </div>
+
+          {step === 'broadcasting' && txHash && explorerUrl && (
+            <div className="bg-dark-800 rounded-lg p-3 mb-4 space-y-2">
+              <div className="text-xs text-dark-400">Transaction hash</div>
+              <div className="font-mono text-xs text-dark-300 break-all">{txHash}</div>
+              <a
+                href={explorerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm text-primary-400 hover:text-primary-300"
+              >
+                View on block explorer
+                <ExternalLinkIcon />
+              </a>
+            </div>
+          )}
 
           {/* Security Notice */}
           <div className="flex items-center gap-2 text-dark-400 text-xs mb-4">
@@ -301,6 +391,91 @@ export function SwapPreviewModal({
         </>
       )}
     </Modal>
+  );
+}
+
+function RecoveredSwapTraceBody({
+  trace,
+  step,
+  error,
+  txHash,
+  explorerUrl,
+  onClose,
+  onClearPendingSwap,
+}: {
+  trace: RecoveredSwapTrace;
+  step: SwapStep;
+  error: string | null;
+  txHash: string | null;
+  explorerUrl?: string | null;
+  onClose: () => void;
+  onClearPendingSwap?: () => void;
+}) {
+  const isBroadcasting = step === 'broadcasting';
+
+  return (
+    <div className="text-left">
+      <div className="bg-dark-800 rounded-xl p-4 mb-4">
+        <p className="text-sm text-dark-400 mb-2">Swap in progress (recovered from this browser)</p>
+        <p className="text-center text-lg font-semibold text-white">
+          {formatBalance(trace.fromAmount)} {trace.fromSymbol}
+          <span className="text-dark-500 mx-2">→</span>
+          <span className="text-primary-400">{formatBalance(trace.toAmount)} {trace.toSymbol}</span>
+        </p>
+        <p className="text-xs text-dark-500 mt-2 text-center">
+          Amounts are from when you confirmed; final balances depend on on-chain execution.
+        </p>
+      </div>
+
+      {trace.outcomeUncertain && (
+        <div className="bg-amber-900/15 border border-amber-800/40 rounded-lg p-3 mb-4 text-sm text-dark-300 leading-snug">
+          This device could not finish waiting for confirmation. The explorer is the source of truth — do not assume failure from this screen alone.
+        </div>
+      )}
+
+      {isBroadcasting && (
+        <div className="text-blue-300 bg-blue-900/20 border border-blue-800/40 rounded-lg p-3 mb-4 text-sm leading-snug">
+          Waiting for block confirmations. If this takes unusually long, check gas and network status on the explorer.
+        </div>
+      )}
+
+      {step === 'error' && error && (
+        <div className="bg-red-900/15 border border-red-800/40 rounded-lg p-3 mb-4 text-sm text-red-200/90 leading-snug">
+          {error}
+        </div>
+      )}
+
+      {txHash && (
+        <div className="bg-dark-800 rounded-lg p-3 mb-4 space-y-2">
+          <div className="text-xs text-dark-400">Transaction hash</div>
+          <div className="font-mono text-xs text-dark-300 break-all">{txHash}</div>
+          {explorerUrl && (
+            <a
+              href={explorerUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-sm text-primary-400 hover:text-primary-300"
+            >
+              View on block explorer
+              <ExternalLinkIcon />
+            </a>
+          )}
+        </div>
+      )}
+
+      <div className="flex flex-col gap-3">
+        <div className="flex gap-3">
+          <Button variant="secondary" onClick={onClose} fullWidth>
+            Close
+          </Button>
+        </div>
+        {onClearPendingSwap && (
+          <Button variant="secondary" onClick={onClearPendingSwap} fullWidth className="text-xs">
+            I verified on the explorer — clear pending and allow a new swap
+          </Button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -454,16 +629,35 @@ function SuccessContent({
             <div className="text-dark-400 text-xs">{quote.to_asset}</div>
           </div>
         </div>
+        <p className="text-[11px] text-dark-500 text-center mb-3 leading-snug">
+          Amounts shown are from the quote at signing. They are not parsed from on-chain token transfers.
+        </p>
 
         {/* Receipt Details */}
         <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-dark-400">Rate</span>
-            <span>1 {quote.from_asset} = {formatBalance(quote.rate)} {quote.to_asset}</span>
+          <div className="flex justify-between gap-2">
+            <span className="text-dark-400 shrink-0">Quoted output</span>
+            <span className="text-right">{formatBalance(quote.to_amount)} {quote.to_asset}</span>
+          </div>
+          <div className="flex justify-between gap-2">
+            <span className="text-dark-400 shrink-0" title="Floor implied by your slippage at send time">
+              Minimum protected
+            </span>
+            <span className="text-right">{formatBalance(quote.minimum_received)} {quote.to_asset}</span>
+          </div>
+          <div className="rounded-lg bg-blue-900/15 border border-blue-800/30 px-3 py-2 text-[11px] text-dark-300 leading-snug">
+            <span className="text-blue-200/90 font-medium">Confirmed on-chain</span>
+            {' '}
+            — This receipt reflects a successful transaction, not a decoded exact received amount. For definitive
+            settlement, use your wallet balances or the block explorer.
           </div>
           <div className="flex justify-between">
-            <span className="text-dark-400">Provider</span>
+            <span className="text-dark-400">Execution venue</span>
             <span className="text-primary-400">{swapAggregatorProviderLabel(quote.provider)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-dark-400">Rate (quote)</span>
+            <span>1 {quote.from_asset} = {formatBalance(quote.rate)} {quote.to_asset}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-dark-400">Slippage</span>
@@ -540,6 +734,16 @@ interface ErrorInfo {
 function categorizeError(error: string | null): ErrorInfo {
   const errorLower = error?.toLowerCase() || '';
 
+  if (error === 'QUOTE_EXPIRED' || errorLower.includes('quote expired')) {
+    return {
+      type: 'unknown',
+      title: 'Quote expired',
+      message: 'This price quote is no longer valid for execution.',
+      suggestion: 'Refresh the quote, then confirm again.',
+      canRetry: true,
+    };
+  }
+
   // User rejected transaction
   if (errorLower.includes('rejected') || errorLower.includes('denied') || errorLower.includes('cancelled') || errorLower.includes('user refused')) {
     return {
@@ -585,12 +789,33 @@ function categorizeError(error: string | null): ErrorInfo {
   }
 
   // Network issues
-  if (errorLower.includes('network') || errorLower.includes('timeout') || errorLower.includes('connection')) {
+  if (
+    errorLower.includes('network') ||
+    errorLower.includes('timeout') ||
+    errorLower.includes('connection') ||
+    errorLower.includes('failed to fetch') ||
+    errorLower.includes('json-rpc') ||
+    errorLower.includes('rpc error')
+  ) {
     return {
       type: 'network',
       title: 'Network Error',
-      message: 'There was a problem connecting to the network.',
-      suggestion: 'Check your internet connection and try again.',
+      message: 'Could not reliably reach the blockchain or your wallet provider.',
+      suggestion: 'Check your connection or RPC, wait a moment, and try again.',
+      canRetry: true,
+    };
+  }
+
+  if (
+    errorLower.includes('revert') ||
+    errorLower.includes('transaction was not successful') ||
+    errorLower.includes('blockchain rejected')
+  ) {
+    return {
+      type: 'unknown',
+      title: 'Transaction failed on-chain',
+      message: 'The transaction was included, but the swap did not succeed.',
+      suggestion: 'Open the explorer for details. You may need different slippage, a smaller amount, or to retry later.',
       canRetry: true,
     };
   }
@@ -598,9 +823,9 @@ function categorizeError(error: string | null): ErrorInfo {
   // Unknown error
   return {
     type: 'unknown',
-    title: 'Swap Failed',
-    message: error || 'An unexpected error occurred.',
-    suggestion: 'Please try again. If the issue persists, the token or pool may have restrictions.',
+    title: 'Something went wrong',
+    message: error || 'We could not classify this error. Your funds may be unchanged.',
+    suggestion: 'If you have a transaction hash, check the explorer. Otherwise try again.',
     canRetry: true,
   };
 }
@@ -608,14 +833,19 @@ function categorizeError(error: string | null): ErrorInfo {
 // Error Content - Enhanced with categorization and helpful suggestions
 function ErrorContent({
   error,
+  txHash,
+  explorerUrl,
   onTryAgain,
   onCancel,
 }: {
   error: string | null;
+  txHash?: string | null;
+  explorerUrl?: string | null;
   onTryAgain: () => void;
   onCancel: () => void;
 }) {
   const errorInfo = categorizeError(error);
+  const explorerLink = explorerUrl ?? null;
 
   const getErrorIcon = () => {
     switch (errorInfo.type) {
@@ -672,6 +902,27 @@ function ErrorContent({
               <p className="text-sm text-dark-300">{errorInfo.suggestion}</p>
             </div>
           </div>
+        </div>
+      )}
+
+      {txHash && (
+        <div className="bg-amber-900/15 border border-amber-800/40 rounded-lg p-3 mb-4 text-left">
+          <div className="text-xs text-amber-200/90 font-medium mb-1">Check on-chain status</div>
+          <p className="text-sm text-dark-300 mb-2 leading-snug">
+            This hash was broadcast from your wallet. The explorer shows pending, success, or revert — not only this message.
+          </p>
+          <div className="font-mono text-[11px] text-dark-400 break-all mb-2">{txHash}</div>
+          {explorerLink && (
+            <a
+              href={explorerLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-sm text-primary-400 hover:text-primary-300"
+            >
+              View on block explorer
+              <ExternalLinkIcon />
+            </a>
+          )}
         </div>
       )}
 

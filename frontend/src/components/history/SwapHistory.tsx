@@ -17,6 +17,36 @@ import {
   formatTimeAgo,
   type Transaction,
 } from '@/services/transactionHistory';
+import { formatBalance, swapAggregatorProviderLabel } from '@/utils/format';
+
+/** Compact recent list for the Swap page (same store as Quick Repeat / Portfolio). */
+export function DeviceSwapActivityStrip({
+  chainId,
+  maxItems = 3,
+  onRepeatSwap,
+}: {
+  chainId: number;
+  maxItems?: number;
+  onRepeatSwap?: (record: SwapRecord) => void;
+}) {
+  const { getRecentRecords } = useSwapHistoryStore();
+  const rows = getRecentRecords(20).filter((r) => r.chainId === chainId).slice(0, maxItems);
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="relative z-10 mt-4 pt-4 border-t border-white/[0.06]">
+      <h3 className="text-sm font-semibold text-dark-300 mb-2">Recent swaps (this device)</h3>
+      <p className="text-[11px] text-dark-500 mb-2 leading-snug">
+        Saved locally from this browser. Verify any in-flight swap on the explorer before repeating.
+      </p>
+      <div className="space-y-2">
+        {rows.map((record) => (
+          <LocalSwapRow key={record.id} record={record} onRepeat={onRepeatSwap} compact />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 interface SwapHistoryProps {
   onRepeatSwap?: (record: SwapRecord) => void;
@@ -179,49 +209,124 @@ export function SwapHistory({ onRepeatSwap }: SwapHistoryProps = {}) {
   );
 }
 
+function statusLabel(status: SwapRecord['status']): string {
+  switch (status) {
+    case 'success':
+      return 'Confirmed';
+    case 'pending':
+      return 'Pending';
+    case 'uncertain':
+      return 'Outcome unclear';
+    case 'failed':
+      return 'Failed';
+    default:
+      return status;
+  }
+}
+
+function successExecutionHint(record: SwapRecord): string | null {
+  if (record.status !== 'success') return null;
+  const sym = record.toAsset.symbol;
+  if (record.minimumToAmount) {
+    return `Quote ${formatBalance(record.toAmount)} ${sym} · min protected ${formatBalance(record.minimumToAmount)} ${sym}. Exact received: use explorer or wallet.`;
+  }
+  return 'Confirmed on-chain. Exact received amount is not decoded here — use explorer or wallet.';
+}
+
+function retryHint(record: SwapRecord): string | null {
+  if (record.status === 'pending') {
+    return 'Wait for confirmation and verify on the explorer before retrying.';
+  }
+  if (record.status === 'uncertain') {
+    return 'Verify on the explorer before retrying — this app did not confirm the final result.';
+  }
+  if (record.status === 'failed' && record.txHash) {
+    return 'Check the explorer before retrying — the transaction was on-chain.';
+  }
+  if (record.status === 'failed') {
+    return null;
+  }
+  return null;
+}
+
 // Local Swap Row with Quick Repeat
 function LocalSwapRow({
   record,
   onRepeat,
+  compact = false,
 }: {
   record: SwapRecord;
   onRepeat?: (record: SwapRecord) => void;
+  compact?: boolean;
 }) {
-  return (
-    <div className="flex items-center justify-between p-4 bg-dark-800 rounded-xl hover:bg-dark-700/50 transition-colors">
-      <div className="flex items-center gap-3">
-        {/* Status Icon */}
-        <div
-          className={`w-8 h-8 rounded-full flex items-center justify-center ${
-            record.status === 'success'
-              ? 'bg-green-900/30 text-green-400'
-              : record.status === 'pending'
-              ? 'bg-yellow-900/30 text-yellow-400'
-              : 'bg-red-900/30 text-red-400'
-          }`}
-        >
-          {record.status === 'success' ? <CheckIcon /> : record.status === 'pending' ? <ClockIcon /> : <XIcon />}
-        </div>
+  const hint = retryHint(record);
+  const successHint = successExecutionHint(record);
+  const pad = compact ? 'p-3' : 'p-4';
 
-        {/* Swap Details */}
-        <div>
-          <div className="font-medium flex items-center gap-2">
+  const iconWrap =
+    record.status === 'success'
+      ? 'bg-green-900/30 text-green-400'
+      : record.status === 'pending'
+      ? 'bg-yellow-900/30 text-yellow-400'
+      : record.status === 'uncertain'
+      ? 'bg-amber-900/30 text-amber-400'
+      : 'bg-red-900/30 text-red-400';
+
+  const icon =
+    record.status === 'success' ? (
+      <CheckIcon />
+    ) : record.status === 'pending' ? (
+      <ClockIcon />
+    ) : record.status === 'uncertain' ? (
+      <QuestionIcon />
+    ) : (
+      <XIcon />
+    );
+
+  const providerLabel = swapAggregatorProviderLabel(record.provider);
+
+  return (
+    <div className={`flex items-center justify-between ${pad} bg-dark-800 rounded-xl hover:bg-dark-700/50 transition-colors gap-2`}>
+      <div className="flex items-center gap-3 min-w-0 flex-1">
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${iconWrap}`}>{icon}</div>
+
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="text-[10px] font-medium uppercase tracking-wide text-dark-500">
+              {statusLabel(record.status)}
+            </span>
+          </div>
+          <div className={`font-medium flex items-center gap-2 flex-wrap ${compact ? 'text-sm' : ''}`}>
             <span>{record.fromAmount}</span>
             <span className="text-primary-400">{record.fromAsset.symbol}</span>
             <ArrowRightIcon />
-            <span>{parseFloat(record.toAmount).toFixed(4)}</span>
+            <span title="Quoted output at send">
+              ~{parseFloat(record.toAmount).toFixed(4)}
+            </span>
             <span className="text-primary-400">{record.toAsset.symbol}</span>
+            {record.status === 'success' && (
+              <span className="text-[10px] font-normal text-dark-500">(quote)</span>
+            )}
           </div>
-          <div className="text-sm text-dark-400 flex items-center gap-2">
-            <span>{formatTimeAgo(record.timestamp)}</span>
-            <span className="text-dark-600">via {record.provider}</span>
+          <div className={`text-dark-400 flex flex-col gap-0.5 ${compact ? 'text-xs' : 'text-sm'}`}>
+            <span>
+              {formatTimeAgo(record.timestamp)}
+              <span className="text-dark-600"> · {providerLabel}</span>
+            </span>
+            {record.txHash && (
+              <span className="font-mono text-[10px] text-dark-500 truncate" title={record.txHash}>
+                {record.txHash.slice(0, 10)}…{record.txHash.slice(-8)}
+              </span>
+            )}
+            {hint && <span className="text-amber-200/90 text-[11px] leading-snug">{hint}</span>}
+            {successHint && (
+              <span className="text-dark-400 text-[11px] leading-snug">{successHint}</span>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Actions */}
-      <div className="flex items-center gap-2">
-        {/* Repeat Button */}
+      <div className="flex items-center gap-2 flex-shrink-0">
         {onRepeat && record.status === 'success' && (
           <button
             onClick={() => onRepeat(record)}
@@ -229,10 +334,9 @@ function LocalSwapRow({
             title="Repeat this swap"
           >
             <RepeatIcon />
-            <span>Repeat</span>
+            {!compact && <span>Repeat</span>}
           </button>
         )}
-        {/* Explorer Link */}
         <a
           href={record.explorerUrl}
           target="_blank"
@@ -337,6 +441,14 @@ function ClockIcon() {
   return (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  );
+}
+
+function QuestionIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   );
 }

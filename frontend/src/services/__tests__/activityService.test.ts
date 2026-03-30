@@ -74,6 +74,24 @@ describe('activityService', () => {
       const item = normalizeLocalRecord(makeSwapRecord({ status: 'failed' }));
       expect(item.canRepeat).toBe(false);
     });
+
+    it('marks uncertain swaps as non-repeatable and preserves status', () => {
+      const item = normalizeLocalRecord(makeSwapRecord({ status: 'uncertain' }));
+      expect(item.status).toBe('uncertain');
+      expect(item.canRepeat).toBe(false);
+    });
+
+    it('includes quoted tilde output and min on success when minimumToAmount set', () => {
+      const item = normalizeLocalRecord(
+        makeSwapRecord({
+          status: 'success',
+          minimumToAmount: '2990',
+          toAmount: '3000.123456',
+        })
+      );
+      expect(item.detail).toContain('~3000.1235');
+      expect(item.detail).toContain('min 2990');
+    });
   });
 
   describe('normalizeTransaction', () => {

@@ -16,7 +16,7 @@ import {
 // ─── Types ─────────────────────────────────────────────────────────
 
 export type ActivityType = 'swap' | 'approval' | 'transfer';
-export type ActivityStatus = 'success' | 'pending' | 'failed';
+export type ActivityStatus = 'success' | 'pending' | 'failed' | 'uncertain';
 
 export interface ActivityItem {
   id: string;
@@ -72,6 +72,12 @@ export function normalizeLocalRecord(record: SwapRecord): ActivityItem {
     };
   }
 
+  const quoteOut = `~${parseFloat(record.toAmount).toFixed(4)} ${record.toAsset.symbol}`;
+  const minPart =
+    record.status === 'success' && record.minimumToAmount
+      ? ` · min ${record.minimumToAmount}`
+      : '';
+
   return {
     id: `local:${record.txHash || record.id}`,
     chainId: record.chainId,
@@ -80,7 +86,7 @@ export function normalizeLocalRecord(record: SwapRecord): ActivityItem {
     ts: record.timestamp,
     txHash: record.txHash,
     title: `${record.fromAsset.symbol} → ${record.toAsset.symbol}`,
-    detail: `${record.fromAmount} ${record.fromAsset.symbol} → ${parseFloat(record.toAmount).toFixed(4)} ${record.toAsset.symbol}`,
+    detail: `${record.fromAmount} ${record.fromAsset.symbol} → ${quoteOut}${minPart}`,
     tokenIn: { symbol: record.fromAsset.symbol, amount: record.fromAmount },
     tokenOut: { symbol: record.toAsset.symbol, amount: parseFloat(record.toAmount).toFixed(4) },
     provider: record.provider,
