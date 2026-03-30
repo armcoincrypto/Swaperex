@@ -87,6 +87,64 @@ export function parseDecimal(value: string): number {
 }
 
 /**
+ * Format estimated gas limit (gas units from quote simulation) for display.
+ */
+export function formatGasLimitUnits(gasEstimate: string | undefined | null): string | null {
+  if (gasEstimate == null || String(gasEstimate).trim() === '') return null;
+  const n = Math.floor(Number(String(gasEstimate).replace(/,/g, '')));
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n.toLocaleString('en-US');
+}
+
+export type PriceImpactSeverity = 'negligible' | 'low' | 'medium' | 'high' | 'critical';
+
+/**
+ * Short label for aggregator execution providers (swap card / preview).
+ * Normalizes common slug variants; unknown strings pass through.
+ */
+export function swapAggregatorProviderLabel(provider: string): string {
+  if (!provider) return '—';
+  const key = provider.toLowerCase().replace(/-/g, '_');
+  switch (key) {
+    case '1inch':
+    case 'oneinch':
+      return '1inch';
+    case 'uniswap_v3':
+    case 'uniswap':
+      return 'Uniswap';
+    case 'pancakeswap_v3':
+    case 'pancakeswap':
+      return 'PancakeSwap';
+    default:
+      return provider;
+  }
+}
+
+export function getPriceImpactUi(priceImpact: string | undefined | null): {
+  label: string;
+  severity: PriceImpactSeverity;
+} {
+  const raw = String(priceImpact ?? '0').replace(/%/g, '').trim();
+  const n = parseFloat(raw);
+  if (!Number.isFinite(n) || n <= 0) {
+    return { label: 'Negligible', severity: 'negligible' };
+  }
+  if (n < 0.01) {
+    return { label: '<0.01%', severity: 'negligible' };
+  }
+  if (n <= 1) {
+    return { label: `${n.toFixed(2)}%`, severity: 'low' };
+  }
+  if (n <= 3) {
+    return { label: `${n.toFixed(2)}%`, severity: 'medium' };
+  }
+  if (n <= 10) {
+    return { label: `${n.toFixed(2)}%`, severity: 'high' };
+  }
+  return { label: `${n.toFixed(2)}%`, severity: 'critical' };
+}
+
+/**
  * Get chain name from chain ID - uses chain config as single source of truth
  */
 export function getChainName(chainId: number): string {
