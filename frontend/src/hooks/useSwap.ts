@@ -43,6 +43,7 @@ import {
   isUserRejection,
   parseTransactionError,
   parseRpcError,
+  parseQuoteError,
   logError,
 } from '@/utils/errors';
 import {
@@ -102,6 +103,13 @@ interface SwapState {
 // PHASE 10 + 11: Provider type for routing
 export type SwapProvider = 'uniswap-v3' | 'pancakeswap-v3' | '1inch';
 
+/** Runner-up from aggregator compare (display output; not full calldata quote). */
+export interface RunnerUpQuoteSnippet {
+  provider: string;
+  /** Human-readable quoted output amount (same basis as amountOutFormatted). */
+  amountOut: string;
+}
+
 // Extended quote for UI display - compatible with SwapQuoteResponse
 export interface SwapQuote extends QuoteResult {
   fromSymbol: string;
@@ -113,6 +121,10 @@ export interface SwapQuote extends QuoteResult {
   // PHASE 10: Provider info
   provider: SwapProvider;
   aggregatedQuote?: AggregatedQuote;
+  /** Aggregator selection rationale (multi-source chains) */
+  quoteSelectionReason?: string;
+  /** Runner-up when two execution quotes were compared */
+  runnerUpAggregatedQuote?: RunnerUpQuoteSnippet | null;
   // Quote expiry tracking (timestamp when quote was received)
   quoteTimestamp: number;
   // UI-compatible fields (maps to SwapQuoteResponse)
@@ -332,17 +344,26 @@ export function useSwap() {
         throw new Error(validationErrors.join(', '));
       }
 
-      // PHASE 10: Fetch best quote via aggregator (compares 1inch vs Uniswap)
+      // PHASE 10: Fetch best quote via aggregator (compares 1inch vs Uniswap / Pancake on ETH & BSC)
       // Use slippage from store (user-selected) with fallback to default
-      const aggregatedQuote = await getAggregatedQuote(
+      const aggregation = await getAggregatedQuote(
         fromSymbol,
         toSymbol,
         fromAmount,
         chainId || 1,
         slippage || DEFAULT_SLIPPAGE
       );
+      const aggregatedQuote = aggregation.best;
 
-      console.log('[Swap] Aggregator selected:', aggregatedQuote.provider, '|', aggregatedQuote.amountOutFormatted, toSymbol);
+      console.log(
+        '[Swap] Aggregator selected:',
+        aggregatedQuote.provider,
+        '|',
+        aggregatedQuote.amountOutFormatted,
+        toSymbol,
+        '|',
+        aggregation.selectionReason
+      );
 
       // Extract quote data for compatibility
       const quote: QuoteResult = aggregatedQuote.provider === 'uniswap-v3'
@@ -409,6 +430,13 @@ export function useSwap() {
         // PHASE 10: Provider info
         provider: aggregatedQuote.provider,
         aggregatedQuote,
+        quoteSelectionReason: aggregation.selectionReason,
+        runnerUpAggregatedQuote: aggregation.alternative
+          ? {
+              provider: aggregation.alternative.provider,
+              amountOut: aggregation.alternative.amountOutFormatted,
+            }
+          : null,
         // Quote expiry: timestamp when this quote was received
         quoteTimestamp: Date.now(),
         // UI-compatible fields
@@ -452,6 +480,9 @@ export function useSwap() {
           price_impact: aggregatedQuote.priceImpact,
           minimum_received: aggregatedQuote.minAmountOutFormatted,
           expires_at: new Date(Date.now() + 30000).toISOString(),
+          aggregator_selection_reason: aggregation.selectionReason,
+          runner_up_provider: aggregation.alternative?.provider,
+          runner_up_to_amount: aggregation.alternative?.amountOutFormatted,
         },
         gas_estimate: {
           gas_limit: aggregatedQuote.providerDetails.gas.toString(),
@@ -492,11 +523,11 @@ export function useSwap() {
         return null;
       }
 
-      const errorMessage = err instanceof Error ? err.message : 'Failed to get quote';
+      const parsed = parseQuoteError(err);
       console.error('[Swap] Quote error:', err);
-      logLifecycle(state.status, 'error', { error: errorMessage });
-      setState((s) => ({ ...s, status: 'error', error: errorMessage }));
-      toast.error(errorMessage);
+      logLifecycle(state.status, 'error', { error: parsed.message });
+      setState((s) => ({ ...s, status: 'error', error: parsed.message }));
+      toast.error(parsed.message);
       return null;
     }
   // Note: state.status removed from deps to prevent infinite loop - it's only used for logging

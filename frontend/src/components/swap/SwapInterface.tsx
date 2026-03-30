@@ -22,7 +22,7 @@ import { SwapIntelligencePanel } from '@/components/swap/intelligence';
 import { evaluatePresetGuards } from '@/services/presetGuardService';
 import { TokenSafetyBadges } from '@/components/common/TokenSafetyBadges';
 import { SwapPreviewModal, SwapStep } from './SwapPreviewModal';
-import { formatBalance, formatPercent } from '@/utils/format';
+import { formatBalance, formatGasLimitUnits, getPriceImpactUi, swapAggregatorProviderLabel } from '@/utils/format';
 import { getPopularTokens, isNativeToken, isStaticToken, type Token } from '@/tokens';
 import { validateToken } from '@/services/tokenValidation';
 import { analyzeSwapFromContext, type SwapIntelligence } from '@/services/dex';
@@ -225,8 +225,11 @@ export function SwapInterface() {
 
   // Quote expiry countdown - updates every second when quote is active
   useEffect(() => {
-    // Only run countdown when we have a quote with timestamp
-    if (!swapQuote?.quoteTimestamp || status !== 'previewing') {
+    // Only run countdown when we have a quote with timestamp (keep during fetch so TTL UX stays stable)
+    if (
+      !swapQuote?.quoteTimestamp ||
+      (status !== 'previewing' && status !== 'fetching_quote')
+    ) {
       setQuoteSecondsRemaining(null);
       return;
     }
@@ -441,6 +444,13 @@ export function SwapInterface() {
     if (status !== 'previewing') {
       console.warn('[Swap] Preview blocked - status is not previewing:', status);
       return;
+    }
+
+    // Refresh stale quote before preview (aligns with 30s TTL / modal expiry)
+    const staleMs = QUOTE_EXPIRY_SECONDS * 1000;
+    if (swapQuote.quoteTimestamp && Date.now() - swapQuote.quoteTimestamp >= staleMs) {
+      const refreshed = await fetchSwapQuote();
+      if (!refreshed) return;
     }
 
     try {
@@ -784,6 +794,34 @@ export function SwapInterface() {
           </div>
         </div>
 
+        {/* Imported / unverified token notice (swap path only) */}
+        {(() => {
+          const fromExt = fromAsset as ExtendedAssetInfo | null;
+          const toExt = toAsset as ExtendedAssetInfo | null;
+          const lines: string[] = [];
+          if (fromExt?.isCustom && !fromExt.verified) {
+            lines.push(
+              `${fromExt.symbol} is imported and not on the curated list — double-check the contract before you pay.`
+            );
+          }
+          if (toExt?.isCustom && !toExt.verified) {
+            lines.push(
+              `${toExt.symbol} is imported and not on the curated list — verify you are receiving the correct asset.`
+            );
+          }
+          if (lines.length === 0) return null;
+          return (
+            <div className="relative z-10 mt-3 rounded-glass-sm border border-amber-800/50 bg-amber-900/15 px-3 py-2 text-xs text-amber-200/95 space-y-1">
+              {lines.map((line) => (
+                <p key={line} className="flex items-start gap-2">
+                  <WarningIcon />
+                  <span>{line}</span>
+                </p>
+              ))}
+            </div>
+          );
+        })()}
+
         {/* Swap Intelligence Panel (when quote available) */}
         {swapIntelligence && status === 'previewing' && !showPreview && (
           <div className="mt-4">
@@ -803,7 +841,7 @@ export function SwapInterface() {
         )}
 
         {/* Quote Details (when quote available) */}
-        {swapQuote && status === 'previewing' && !showPreview && (
+        {swapQuote && (status === 'previewing' || status === 'fetching_quote') && !showPreview && (
           <div className="relative z-10 mt-4 p-4 bg-electro-bgAlt/60 rounded-glass-sm text-sm space-y-2 border border-white/[0.06]">
             {/* Best Route Banner with Countdown */}
             <div className="flex items-center justify-between pb-2 mb-2 border-b border-dark-700">
@@ -813,29 +851,80 @@ export function SwapInterface() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <span className="text-green-400 font-medium">Best route found</span>
+                <span className="text-green-400 font-medium">
+                  {swapQuote.runnerUpAggregatedQuote ? 'Best execution quote' : 'Quoted for this trade'}
+                </span>
                 <RouteTooltip provider={swapQuote.provider} />
               </div>
               {/* Quote Expiry Countdown */}
               {quoteSecondsRemaining !== null && (
-                <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium ${
-                  quoteSecondsRemaining <= 0
-                    ? 'bg-red-900/30 text-red-400'
-                    : quoteSecondsRemaining <= 5
-                    ? 'bg-red-900/30 text-red-400'
-                    : quoteSecondsRemaining <= 10
-                    ? 'bg-yellow-900/30 text-yellow-400'
-                    : 'bg-dark-700 text-dark-300'
-                }`}>
-                  <ClockIcon />
-                  {quoteSecondsRemaining <= 0 ? (
-                    <span>Expired - Refresh</span>
-                  ) : (
+                quoteSecondsRemaining <= 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => void fetchSwapQuote()}
+                    disabled={isQuoting || status === 'fetching_quote'}
+                    className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium bg-red-900/30 text-red-400 hover:bg-red-900/45 disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    <ClockIcon />
+                    <span>{isQuoting || status === 'fetching_quote' ? 'Refreshing…' : 'Expired — refresh'}</span>
+                  </button>
+                ) : (
+                  <div
+                    className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium ${
+                      quoteSecondsRemaining <= 5
+                        ? 'bg-red-900/30 text-red-400'
+                        : quoteSecondsRemaining <= 10
+                        ? 'bg-yellow-900/30 text-yellow-400'
+                        : 'bg-dark-700 text-dark-300'
+                    }`}
+                    title="Quote TTL is 30s — refresh if you waited"
+                  >
+                    <ClockIcon />
                     <span>{quoteSecondsRemaining}s</span>
-                  )}
-                </div>
+                  </div>
+                )
               )}
             </div>
+
+            {/* Aggregator: real winner vs runner-up (execution quotes) */}
+            {swapQuote.quoteSelectionReason && (
+              <div className="rounded-lg bg-dark-800/40 border border-white/[0.05] px-3 py-2 space-y-2">
+                <div className="flex justify-between gap-2 items-start text-xs">
+                  <span className="text-dark-400 shrink-0">Selection</span>
+                  <span className="text-dark-200 text-right leading-snug">{swapQuote.quoteSelectionReason}</span>
+                </div>
+                {swapQuote.runnerUpAggregatedQuote ? (
+                  <>
+                    <div className="flex justify-between text-xs gap-2">
+                      <span className="text-dark-400">
+                        Selected · {swapAggregatorProviderLabel(swapQuote.provider)}
+                      </span>
+                      <span className="text-primary-400 font-medium tabular-nums">
+                        {formatBalance(swapQuote.amountOutFormatted, 6)} {toAsset?.symbol}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-xs gap-2 text-dark-400">
+                      <span>
+                        vs {swapAggregatorProviderLabel(swapQuote.runnerUpAggregatedQuote.provider)}
+                      </span>
+                      <span className="tabular-nums">
+                        {formatBalance(swapQuote.runnerUpAggregatedQuote.amountOut, 6)}{' '}
+                        {toAsset?.symbol}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex justify-between text-xs gap-2">
+                    <span className="text-dark-400">
+                      Executing with · {swapAggregatorProviderLabel(swapQuote.provider)}
+                    </span>
+                    <span className="text-primary-400 font-medium tabular-nums">
+                      {formatBalance(swapQuote.amountOutFormatted, 6)} {toAsset?.symbol}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Rate */}
             <div className="flex justify-between">
@@ -857,21 +946,26 @@ export function SwapInterface() {
               <span>{formatBalance(swapQuote.minimum_received, 6)} {toAsset?.symbol}</span>
             </div>
 
-            {/* Price Impact */}
-            {swapQuote.price_impact && parseFloat(swapQuote.price_impact) > 0 && (
-              <div className="flex justify-between">
-                <span className="text-dark-400">Price Impact</span>
-                <span className={
-                  parseFloat(swapQuote.price_impact) > 3
-                    ? 'text-red-400'
-                    : parseFloat(swapQuote.price_impact) > 1
-                    ? 'text-yellow-400'
-                    : 'text-green-400'
-                }>
-                  {formatPercent(swapQuote.price_impact)}
-                </span>
-              </div>
-            )}
+            {/* Price Impact — always visible for trust */}
+            {(() => {
+              const pi = getPriceImpactUi(swapQuote.price_impact);
+              const impactClass =
+                pi.severity === 'critical' || pi.severity === 'high'
+                  ? 'text-red-400'
+                  : pi.severity === 'medium'
+                  ? 'text-yellow-400'
+                  : pi.severity === 'low' || pi.severity === 'negligible'
+                  ? 'text-green-400'
+                  : 'text-dark-300';
+              return (
+                <div className="flex justify-between items-baseline gap-2">
+                  <span className="text-dark-400 shrink-0">Price impact</span>
+                  <span className={`text-right ${impactClass}`} title="Estimated move vs. mid price before fees — not slippage tolerance">
+                    {pi.label}
+                  </span>
+                </div>
+              );
+            })()}
 
             {/* Fee Tier */}
             <div className="flex justify-between">
@@ -885,10 +979,17 @@ export function SwapInterface() {
               <span>{swapQuote.slippage}%</span>
             </div>
 
-            {/* Gas Estimate */}
-            <div className="flex justify-between border-t border-dark-700 pt-2 mt-2">
-              <span className="text-dark-400">Est. Gas</span>
-              <span className="text-dark-400">~250,000 gas</span>
+            {/* Gas limit (simulation) — wallet sets final fee */}
+            <div className="border-t border-dark-700 pt-2 mt-2 space-y-1">
+              <div className="flex justify-between gap-2">
+                <span className="text-dark-400 shrink-0">Est. gas (units)</span>
+                <span className="text-dark-300 font-mono text-right">
+                  {formatGasLimitUnits(swapQuote.gasEstimate) ?? '—'}
+                </span>
+              </div>
+              <p className="text-[11px] text-dark-500 leading-snug">
+                Simulation estimate from the quote route. Your wallet confirms the final gas limit and network fee.
+              </p>
             </div>
 
             {/* Provider */}
@@ -1627,31 +1728,37 @@ function RouteTooltip({ provider }: { provider: string }) {
   const getProviderInfo = () => {
     switch (provider) {
       case '1inch':
-        return 'Aggregates multiple DEXs to find the best price with lowest slippage.';
+        return 'The aggregator compares multiple DEX routes and picks the best output for this size (may split across pools).';
       case 'uniswap-v3':
-        return 'Direct swap via Uniswap V3 concentrated liquidity pools.';
+        return 'Direct swap through Uniswap V3 concentrated liquidity on this chain.';
       case 'pancakeswap-v3':
-        return 'Direct swap via PancakeSwap V3 on BNB Chain.';
+        return 'Direct swap through PancakeSwap V3 on BNB Chain.';
       default:
-        return 'Route selected for best output amount.';
+        return 'Route selected for best output among sources we query for this pair.';
     }
   };
 
   return (
     <div className="relative">
       <button
+        type="button"
         onMouseEnter={() => setShowTooltip(true)}
         onMouseLeave={() => setShowTooltip(false)}
         className="text-dark-400 hover:text-dark-300"
+        aria-label="Route explanation"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       </button>
       {showTooltip && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-dark-700 rounded-lg text-xs text-white w-48 shadow-lg z-50">
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-dark-700 rounded-lg text-xs text-white w-64 shadow-lg z-50">
           <div className="font-medium mb-1">Why this route?</div>
-          <div className="text-dark-300">{getProviderInfo()}</div>
+          <div className="text-dark-300 leading-relaxed">{getProviderInfo()}</div>
+          <div className="text-dark-400 mt-2 pt-2 border-t border-dark-600 leading-relaxed space-y-1.5">
+            <p>Quotes are short-lived (30s). If the timer expires, refresh before you confirm in your wallet.</p>
+            <p>Gas limits and network fees in the quote panel are estimates — your wallet finalizes them when you sign.</p>
+          </div>
           <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-dark-700" />
         </div>
       )}
