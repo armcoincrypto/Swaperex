@@ -975,10 +975,16 @@ export function SwapInterface() {
               );
             })()}
 
-            {/* Fee Tier */}
+            {/* Pool fee (direct routes) vs aggregator (1inch bundles many pool fees into the quote) */}
             <div className="flex justify-between">
-              <span className="text-dark-400">Pool Fee</span>
-              <span>{getFeeTierDisplay(swapQuote.feeTier)}</span>
+              <span className="text-dark-400">
+                {swapQuote.provider === '1inch' ? 'Route fees' : 'Pool Fee'}
+              </span>
+              <span>
+                {swapQuote.provider === '1inch'
+                  ? 'Included in quote (multi-pool)'
+                  : getFeeTierDisplay(swapQuote.feeTier)}
+              </span>
             </div>
 
             {/* Slippage */}

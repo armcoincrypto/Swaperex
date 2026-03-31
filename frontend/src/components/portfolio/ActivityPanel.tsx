@@ -18,6 +18,7 @@ import {
   type ActivityItem,
   type ActivityType,
 } from '@/services/activityService';
+import { swapAggregatorProviderLabel } from '@/utils/format';
 
 /** Explorer-supported chain IDs (FIX-6: added Polygon 137) */
 const ACTIVITY_CHAIN_IDS = [1, 56, 137];
@@ -237,7 +238,10 @@ function ActivityRow({
           <div className="text-[11px] text-dark-500 truncate">
             {item.detail}
             {item.provider && (
-              <span className="text-dark-600"> via {item.provider}</span>
+              <span className="text-dark-600">
+                {' '}
+                via {swapAggregatorProviderLabel(item.provider)}
+              </span>
             )}
           </div>
           {item.type === 'swap' && item.status === 'pending' && (
