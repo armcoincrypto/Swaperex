@@ -905,7 +905,7 @@ export function SwapInterface() {
                   <>
                     <div className="flex justify-between text-xs gap-2">
                       <span className="text-dark-400">
-                        Selected venue · {swapAggregatorProviderLabel(swapQuote.provider)}
+                        Route via · {swapAggregatorProviderLabel(swapQuote.provider)}
                       </span>
                       <span className="text-primary-400 font-medium tabular-nums">
                         {formatBalance(swapQuote.amountOutFormatted, 6)} {toAsset?.symbol}
@@ -924,7 +924,7 @@ export function SwapInterface() {
                 ) : (
                   <div className="flex justify-between text-xs gap-2">
                     <span className="text-dark-400">
-                      Executing with · {swapAggregatorProviderLabel(swapQuote.provider)}
+                      Route via · {swapAggregatorProviderLabel(swapQuote.provider)}
                     </span>
                     <span className="text-primary-400 font-medium tabular-nums">
                       {formatBalance(swapQuote.amountOutFormatted, 6)} {toAsset?.symbol}
@@ -934,9 +934,9 @@ export function SwapInterface() {
               </div>
             )}
 
-            {/* Rate */}
+            {/* Exchange rate */}
             <div className="flex justify-between">
-              <span className="text-dark-400">Rate</span>
+              <span className="text-dark-400">Exchange Rate</span>
               <span>1 {fromAsset?.symbol} = {formatBalance(swapQuote.rate, 6)} {toAsset?.symbol}</span>
             </div>
 
@@ -983,7 +983,7 @@ export function SwapInterface() {
               <span>
                 {swapQuote.provider === '1inch'
                   ? 'Included in quote (multi-pool)'
-                  : getFeeTierDisplay(swapQuote.feeTier)}
+                  : `${getFeeTierDisplay(swapQuote.feeTier)} fee tier`}
               </span>
             </div>
 
@@ -1006,7 +1006,7 @@ export function SwapInterface() {
               </p>
             </div>
 
-            {/* Provider */}
+            {/* Route */}
             <div className="flex justify-between items-center">
               <span className="text-dark-400">Route via</span>
               <div className="flex items-center gap-2">

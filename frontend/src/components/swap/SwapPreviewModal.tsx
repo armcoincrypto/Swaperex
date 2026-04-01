@@ -260,11 +260,19 @@ export function SwapPreviewModal({
               title="Estimated vs. mid price before fees — not your slippage setting"
             />
             <DetailRow
+              label={quote.provider === '1inch' ? 'Route fees' : 'Pool Fee'}
+              value={
+                quote.provider === '1inch'
+                  ? 'Included in quote (multi-pool)'
+                  : `${formatSwapFeeTierDisplay(quote.feeTier)} fee tier`
+              }
+            />
+            <DetailRow
               label="Slippage Tolerance"
               value={`${quote.slippage}%`}
             />
             <DetailRow
-              label="Provider"
+              label="Route via"
               value={swapAggregatorProviderLabel(quote.provider)}
             />
             {quote.quoteSelectionReason && (
@@ -641,7 +649,7 @@ function SuccessContent({
           </div>
           <div className="flex justify-between gap-2">
             <span className="text-dark-400 shrink-0" title="Floor implied by your slippage at send time">
-              Minimum protected
+              Minimum received
             </span>
             <span className="text-right">{formatBalance(quote.minimum_received)} {quote.to_asset}</span>
           </div>
@@ -652,11 +660,11 @@ function SuccessContent({
             settlement, use your wallet balances or the block explorer.
           </div>
           <div className="flex justify-between">
-            <span className="text-dark-400">Execution venue</span>
+            <span className="text-dark-400">Route via</span>
             <span className="text-primary-400">{swapAggregatorProviderLabel(quote.provider)}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-dark-400">Rate (quote)</span>
+            <span className="text-dark-400">Exchange rate (quote)</span>
             <span>1 {quote.from_asset} = {formatBalance(quote.rate)} {quote.to_asset}</span>
           </div>
           <div className="flex justify-between">
@@ -980,6 +988,17 @@ function DetailRow({
       </span>
     </div>
   );
+}
+
+/** Match SwapInterface fee tier labels for direct V3 routes */
+function formatSwapFeeTierDisplay(feeTier: number): string {
+  const tiers: Record<number, string> = {
+    100: '0.01%',
+    500: '0.05%',
+    3000: '0.3%',
+    10000: '1%',
+  };
+  return tiers[feeTier] || `${(feeTier / 10000).toFixed(2)}%`;
 }
 
 // Helper functions

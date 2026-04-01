@@ -367,7 +367,7 @@ async function getOneInchOnlyQuote(
   return {
     best,
     alternative: null,
-    selectionReason: '1inch (only configured source for this chain)',
+    selectionReason: '1inch is the available route on this network',
   };
 }
 
@@ -385,7 +385,7 @@ function selectBestQuote(
     return {
       best: oneInchQuote,
       alternative: null,
-      selectionReason: `1inch only (${fallbackName} unavailable)`,
+      selectionReason: 'Only 1inch was available for this route',
     };
   }
 
@@ -393,7 +393,7 @@ function selectBestQuote(
     return {
       best: directQuote,
       alternative: null,
-      selectionReason: `${fallbackName} fallback (1inch unavailable)`,
+      selectionReason: `Using ${fallbackName} because 1inch was unavailable`,
     };
   }
 
@@ -412,13 +412,13 @@ function selectBestQuote(
     return {
       best: oneInchQuote!,
       alternative: directQuote!,
-      selectionReason: `1inch better by ${Math.abs(diff).toFixed(2)}%`,
+      selectionReason: `Selected 1inch for the best quoted output (+${Math.abs(diff).toFixed(2)}%)`,
     };
   } else {
     return {
       best: directQuote!,
       alternative: oneInchQuote!,
-      selectionReason: `${fallbackName} better by ${Math.abs(diff).toFixed(2)}%`,
+      selectionReason: `Selected ${fallbackName} for the best quoted output (+${Math.abs(diff).toFixed(2)}%)`,
     };
   }
 }

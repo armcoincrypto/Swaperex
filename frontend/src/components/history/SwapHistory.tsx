@@ -228,7 +228,7 @@ function successExecutionHint(record: SwapRecord): string | null {
   if (record.status !== 'success') return null;
   const sym = record.toAsset.symbol;
   if (record.minimumToAmount) {
-    return `Quote ${formatBalance(record.toAmount)} ${sym} · min protected ${formatBalance(record.minimumToAmount)} ${sym}. Exact received: use explorer or wallet.`;
+    return `Quote ${formatBalance(record.toAmount)} ${sym} · Minimum received ${formatBalance(record.minimumToAmount)} ${sym}. Exact received: use explorer or wallet.`;
   }
   return 'Confirmed on-chain. Exact received amount is not decoded here — use explorer or wallet.';
 }
@@ -311,7 +311,7 @@ function LocalSwapRow({
           <div className={`text-dark-400 flex flex-col gap-0.5 ${compact ? 'text-xs' : 'text-sm'}`}>
             <span>
               {formatTimeAgo(record.timestamp)}
-              <span className="text-dark-600"> · {providerLabel}</span>
+              <span className="text-dark-600"> · Route via {providerLabel}</span>
             </span>
             {record.txHash && (
               <span className="font-mono text-[10px] text-dark-500 truncate" title={record.txHash}>

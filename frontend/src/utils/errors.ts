@@ -201,7 +201,7 @@ export function parseQuoteError(error: unknown): ParsedError {
   if (message.includes('expired') || message.includes('stale')) {
     return {
       category: 'quote_error',
-      message: "Quote expired (over 30 seconds old). Click 'Refresh Quote' to get current price.",
+      message: "Quote expired (over 30 seconds old). Click 'Refresh' to get current price.",
       isRecoverable: true,
       shouldShowRetry: true,
     };

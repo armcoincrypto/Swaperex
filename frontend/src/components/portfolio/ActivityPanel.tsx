@@ -240,7 +240,7 @@ function ActivityRow({
             {item.provider && (
               <span className="text-dark-600">
                 {' '}
-                via {swapAggregatorProviderLabel(item.provider)}
+                Route via {swapAggregatorProviderLabel(item.provider)}
               </span>
             )}
           </div>
@@ -262,7 +262,7 @@ function ActivityRow({
           {item.type === 'swap' && item.status === 'success' && (
             <p className="text-[10px] text-dark-500 mt-0.5 leading-snug">
               {item.localRecord?.minimumToAmount
-                ? `Min protected at send: ${item.localRecord.minimumToAmount} ${item.tokenOut?.symbol ?? ''}. Exact received: explorer or wallet.`
+                ? `Minimum received at send: ${item.localRecord.minimumToAmount} ${item.tokenOut?.symbol ?? ''}. Exact received: explorer or wallet.`
                 : 'Confirmed on-chain. Exact received not decoded here — explorer or wallet.'}
             </p>
           )}
