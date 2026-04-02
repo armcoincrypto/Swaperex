@@ -151,8 +151,9 @@ export function SwapPreviewModal({
 
   // Determine step number for multi-step display
   const getStepDisplay = () => {
+    // Broadcasting: single sentence in wallet notice below (avoid duplicating "confirming" copy)
     if (step === 'broadcasting') {
-      return needsApproval ? 'Step 2/2: Confirming on-chain' : 'Step 1/1: Confirming on-chain';
+      return null;
     }
     if (!needsApproval) {
       if (step === 'swapping') return 'Step 1/1: Confirm in wallet';
@@ -169,10 +170,7 @@ export function SwapPreviewModal({
     step === 'broadcasting'
       ? {
           boxClass: 'text-blue-300 bg-blue-900/20 border border-blue-800/40',
-          text:
-            txHash && explorerUrl
-              ? 'Submitted to the network. Waiting for confirmations — often under a minute, longer when the chain is busy.'
-              : 'Waiting for on-chain confirmation…',
+          text: 'Submitted to the network. Waiting for confirmation.',
         }
       : step === 'approving' || step === 'swapping'
         ? {
@@ -225,6 +223,10 @@ export function SwapPreviewModal({
           <div className="bg-dark-800 rounded-xl p-4 mb-4">
             <SwapSummary quote={quote} />
           </div>
+
+          <p className="text-[11px] text-dark-500 leading-snug mb-4">
+            Displayed amounts are from this quote (estimates). Final execution is confirmed on-chain.
+          </p>
 
           {/* Quote Expiry Timer */}
           {step === 'preview' && (

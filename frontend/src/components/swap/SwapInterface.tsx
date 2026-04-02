@@ -111,6 +111,7 @@ export function SwapInterface() {
     txHash,
     explorerUrl,
     error,
+    isQuoteExpired,
     swap,
     confirmSwap,
     cancelPreview,
@@ -426,6 +427,15 @@ export function SwapInterface() {
       });
   }, [skipConfirmationActive, swapQuote, status, swap, confirmSwap]);
 
+  // Expired quote: refresh only (stay on swap card). Fresh quote: open preview as today.
+  const handleMainSwapAction = async () => {
+    if (swapQuote && isQuoteExpired) {
+      await fetchSwapQuote();
+      return;
+    }
+    await handlePreviewSwap();
+  };
+
   // Open preview modal - ONLY if quote is valid and fresh
   const handlePreviewSwap = async () => {
     // Guard: Must have valid input
@@ -568,6 +578,7 @@ export function SwapInterface() {
     if (!swapQuote && fromAmount && parseFloat(fromAmount) > 0) return 'Getting Quote...';
     // Show blocked state if hard guards fail
     if (guardEvaluation?.blocked && !guardsDismissed) return 'Blocked by Protection';
+    if (swapQuote && isQuoteExpired) return 'Refresh Quote';
     return 'Preview Swap';
   };
 
@@ -597,8 +608,9 @@ export function SwapInterface() {
     return tiers[feeTier] || `${(feeTier / 10000).toFixed(2)}%`;
   };
 
-  // Check if swap is ready (for glow effect)
-  const isSwapReady = !isButtonDisabled() && swapQuote && status === 'previewing';
+  // Check if swap is ready (for glow effect) — never "ready" on an expired quote
+  const isSwapReady =
+    !isButtonDisabled() && swapQuote && status === 'previewing' && !isQuoteExpired;
 
   // Render swap form
   return (
@@ -874,7 +886,9 @@ export function SwapInterface() {
                     className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium bg-red-900/30 text-red-400 hover:bg-red-900/45 disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
                     <ClockIcon />
-                    <span>{isQuoting || status === 'fetching_quote' ? 'Refreshing…' : 'Expired — refresh'}</span>
+                    <span>
+                      {isQuoting || status === 'fetching_quote' ? 'Refreshing…' : 'Quote expired — Refresh'}
+                    </span>
                   </button>
                 ) : (
                   <div
@@ -893,6 +907,10 @@ export function SwapInterface() {
                 )
               )}
             </div>
+
+            <p className="text-[11px] text-dark-500 leading-snug">
+              Amounts below reflect this quote (estimate). Final tokens received are confirmed on-chain.
+            </p>
 
             {/* Aggregator: real winner vs runner-up (execution quotes) */}
             {swapQuote.quoteSelectionReason && (
@@ -1052,7 +1070,7 @@ export function SwapInterface() {
         {/* Swap Button */}
         <div className="relative z-10 mt-4">
           <button
-            onClick={handlePreviewSwap}
+            onClick={() => void handleMainSwapAction()}
             disabled={isButtonDisabled()}
             className={`
               w-full py-3.5 rounded-glass-sm font-semibold text-base

@@ -777,7 +777,7 @@ export function useSwap() {
           gasUsed: receipt.gasUsed?.toString()
         });
         setState((s) => ({ ...s, status: 'success', txHash: tx.hash, explorerUrl }));
-        toast.success(`Swap completed! View on explorer: ${explorerUrl}`);
+        toast.success('Swap confirmed');
 
         // Record swap to local history for Quick Repeat
         if (fromAsset && toAsset && swapQuote) {
@@ -971,7 +971,7 @@ export function useSwap() {
     if (quoteAge > QUOTE_EXPIRY_MS) {
       const expiredSeconds = Math.floor(quoteAge / 1000);
       logLifecycle('previewing', 'previewing', { reason: 'quote_expired', quoteAge: expiredSeconds });
-      toast.warning(`Quote expired (${expiredSeconds}s old). Please refresh to get a current price.`);
+      toast.warning('Quote expired. Refresh for a current price.');
       throw new Error('QUOTE_EXPIRED');
     }
 
