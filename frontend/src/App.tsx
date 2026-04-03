@@ -5,20 +5,15 @@
  * SECURITY: All signing happens client-side via connected wallet.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { WalletConnect } from '@/components/wallet/WalletConnect';
 import { AppKitBridge } from '@/components/wallet/AppKitBridge';
 import { SwapInterface } from '@/components/swap/SwapInterface';
-import { SendPage } from '@/components/send/SendPage';
 import { TokenList } from '@/components/balances/TokenList';
-import { PortfolioPage } from '@/components/portfolio/PortfolioPage';
 import { ChainWarningBanner } from '@/components/chain/ChainWarning';
 import { ToastContainer } from '@/components/common/Toast';
 import { GlobalErrorDisplay } from '@/components/common/GlobalErrorDisplay';
 import { NetworkSelector } from '@/components/common/NetworkSelector';
-import { TokenScreener } from '@/components/screener/TokenScreener';
-import { RadarPanel } from '@/components/radar/RadarPanel';
-import { AboutPage, TermsPage, PrivacyPage, DisclaimerPage } from '@/components/pages/StaticPages';
 import { SystemStatusIndicator } from '@/components/common/SystemStatusIndicator';
 import { useWallet } from '@/hooks/useWallet';
 import { useSwapStore } from '@/stores/swapStore';
@@ -29,6 +24,30 @@ import { useSystemStatusStore } from '@/stores/systemStatusStore';
 import { type SwapRecord } from '@/stores/swapHistoryStore';
 import { getTokenBySymbol } from '@/tokens';
 import { startWatchlistMonitor } from '@/services/watchlistMonitor';
+
+const LazySendPage = lazy(() => import('@/components/send/SendPage'));
+const LazyPortfolioPage = lazy(() => import('@/components/portfolio/PortfolioPage'));
+const LazyTokenScreener = lazy(() => import('@/components/screener/TokenScreener'));
+const LazyRadarPanel = lazy(() => import('@/components/radar/RadarPanel'));
+
+const LazyAboutPage = lazy(() =>
+  import('@/components/pages/StaticPages').then((m) => ({ default: m.AboutPage }))
+);
+const LazyTermsPage = lazy(() =>
+  import('@/components/pages/StaticPages').then((m) => ({ default: m.TermsPage }))
+);
+const LazyPrivacyPage = lazy(() =>
+  import('@/components/pages/StaticPages').then((m) => ({ default: m.PrivacyPage }))
+);
+const LazyDisclaimerPage = lazy(() =>
+  import('@/components/pages/StaticPages').then((m) => ({ default: m.DisclaimerPage }))
+);
+
+const lazyTabFallback = (
+  <div className="flex justify-center py-16">
+    <p className="text-sm text-dark-400">Loading…</p>
+  </div>
+);
 
 type Page = 'swap' | 'send' | 'portfolio' | 'radar' | 'screener' | 'about' | 'terms' | 'privacy' | 'disclaimer';
 
@@ -286,51 +305,75 @@ export function App() {
         )}
 
         {currentPage === 'send' && (
-          <div className="flex flex-col lg:flex-row gap-8">
-            {/* Send Panel */}
-            <div className="flex-1 flex justify-center">
-              {isConnected ? (
-                <SendPage />
-              ) : (
-                <div className="w-full max-w-md mx-auto bg-dark-900 rounded-2xl p-8 border border-dark-800 text-center">
-                  <h2 className="text-xl font-bold mb-4">Connect Your Wallet</h2>
-                  <p className="text-dark-400 mb-6">
-                    Connect your wallet to send tokens.
-                  </p>
-                  <WalletConnect />
-                </div>
+          <Suspense fallback={lazyTabFallback}>
+            <div className="flex flex-col lg:flex-row gap-8">
+              {/* Send Panel */}
+              <div className="flex-1 flex justify-center">
+                {isConnected ? (
+                  <LazySendPage />
+                ) : (
+                  <div className="w-full max-w-md mx-auto bg-dark-900 rounded-2xl p-8 border border-dark-800 text-center">
+                    <h2 className="text-xl font-bold mb-4">Connect Your Wallet</h2>
+                    <p className="text-dark-400 mb-6">
+                      Connect your wallet to send tokens.
+                    </p>
+                    <WalletConnect />
+                  </div>
+                )}
+              </div>
+
+              {/* Balances Sidebar */}
+              {isConnected && (
+                <aside className="w-full lg:w-80">
+                  <TokenList />
+                </aside>
               )}
             </div>
-
-            {/* Balances Sidebar */}
-            {isConnected && (
-              <aside className="w-full lg:w-80">
-                <TokenList />
-              </aside>
-            )}
-          </div>
+          </Suspense>
         )}
 
         {currentPage === 'portfolio' && (
-          <PortfolioPage
-            onSwapToken={handlePortfolioSwapV2}
-            onRepeatSwap={handleRepeatSwap}
-          />
+          <Suspense fallback={lazyTabFallback}>
+            <LazyPortfolioPage
+              onSwapToken={handlePortfolioSwapV2}
+              onRepeatSwap={handleRepeatSwap}
+            />
+          </Suspense>
         )}
 
         {currentPage === 'radar' && (
-          <RadarPanel onSignalClick={handleRadarSignalClick} />
+          <Suspense fallback={lazyTabFallback}>
+            <LazyRadarPanel onSignalClick={handleRadarSignalClick} />
+          </Suspense>
         )}
 
         {currentPage === 'screener' && (
-          <TokenScreener onSwapSelect={handleScreenerSwapSelect} />
+          <Suspense fallback={lazyTabFallback}>
+            <LazyTokenScreener onSwapSelect={handleScreenerSwapSelect} />
+          </Suspense>
         )}
 
         {/* Static Pages */}
-        {currentPage === 'about' && <AboutPage onBack={() => setCurrentPage('swap')} />}
-        {currentPage === 'terms' && <TermsPage onBack={() => setCurrentPage('swap')} />}
-        {currentPage === 'privacy' && <PrivacyPage onBack={() => setCurrentPage('swap')} />}
-        {currentPage === 'disclaimer' && <DisclaimerPage onBack={() => setCurrentPage('swap')} />}
+        {currentPage === 'about' && (
+          <Suspense fallback={lazyTabFallback}>
+            <LazyAboutPage onBack={() => setCurrentPage('swap')} />
+          </Suspense>
+        )}
+        {currentPage === 'terms' && (
+          <Suspense fallback={lazyTabFallback}>
+            <LazyTermsPage onBack={() => setCurrentPage('swap')} />
+          </Suspense>
+        )}
+        {currentPage === 'privacy' && (
+          <Suspense fallback={lazyTabFallback}>
+            <LazyPrivacyPage onBack={() => setCurrentPage('swap')} />
+          </Suspense>
+        )}
+        {currentPage === 'disclaimer' && (
+          <Suspense fallback={lazyTabFallback}>
+            <LazyDisclaimerPage onBack={() => setCurrentPage('swap')} />
+          </Suspense>
+        )}
       </main>
 
       {/* Footer */}
