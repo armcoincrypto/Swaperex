@@ -8,6 +8,7 @@
  */
 
 import { create } from 'zustand';
+import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 
 /**
  * Error categories matching portfolioErrorHandler
@@ -83,7 +84,7 @@ export function getCategoryMessage(category: ErrorCategory): string {
     network_error: 'Network connection error',
     rpc_timeout: 'Request timed out',
     rate_limit: 'Too many requests',
-    quote_expired: 'Quote expired',
+    quote_expired: `${SWAP_SURFACE_COPY.quoteExpiredTitle} — ${SWAP_SURFACE_COPY.refreshQuoteCta}`,
     slippage_error: 'Price moved too much',
     chain_mismatch: 'Wrong network',
     unsupported_chain: 'Chain not supported',

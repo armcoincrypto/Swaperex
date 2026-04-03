@@ -22,6 +22,7 @@ import { SwapIntelligencePanel } from '@/components/swap/intelligence';
 import { evaluatePresetGuards } from '@/services/presetGuardService';
 import { TokenSafetyBadges } from '@/components/common/TokenSafetyBadges';
 import { SwapPreviewModal, SwapStep } from './SwapPreviewModal';
+import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 import { formatBalance, formatGasLimitUnits, getPriceImpactUi, swapAggregatorProviderLabel } from '@/utils/format';
 import { getPopularTokens, isNativeToken, isStaticToken, type Token } from '@/tokens';
 import { validateToken } from '@/services/tokenValidation';
@@ -573,12 +574,12 @@ export function SwapInterface() {
     if (isWrongChain) return 'Wrong Network';
     if (!fromAmount || parseFloat(fromAmount) === 0) return 'Enter Amount';
     if (insufficientBalance) return `Insufficient ${fromAsset?.symbol || ''} Balance`;
-    if (isQuoting || status === 'fetching_quote') return 'Getting Quote...';
+    if (isQuoting || status === 'fetching_quote') return SWAP_SURFACE_COPY.gettingQuote;
     if (quoteError) return 'Quote Error - Try Again';
-    if (!swapQuote && fromAmount && parseFloat(fromAmount) > 0) return 'Getting Quote...';
+    if (!swapQuote && fromAmount && parseFloat(fromAmount) > 0) return SWAP_SURFACE_COPY.gettingQuote;
     // Show blocked state if hard guards fail
     if (guardEvaluation?.blocked && !guardsDismissed) return 'Blocked by Protection';
-    if (swapQuote && isQuoteExpired) return 'Refresh Quote';
+    if (swapQuote && isQuoteExpired) return SWAP_SURFACE_COPY.refreshQuoteCta;
     return 'Preview Swap';
   };
 
@@ -792,7 +793,7 @@ export function SwapInterface() {
               {showSpinner ? (
                 <div className="flex items-center gap-2">
                   <LoadingSpinner />
-                  <span className="text-dark-400">Getting quote...</span>
+                  <span className="text-dark-400">{SWAP_SURFACE_COPY.gettingQuote}</span>
                 </div>
               ) : swapQuote && swapQuote.amountOutFormatted ? (
                 <span className="text-2xl font-medium text-primary-400">
@@ -887,7 +888,9 @@ export function SwapInterface() {
                   >
                     <ClockIcon />
                     <span>
-                      {isQuoting || status === 'fetching_quote' ? 'Refreshing…' : 'Quote expired — Refresh'}
+                      {isQuoting || status === 'fetching_quote'
+                        ? SWAP_SURFACE_COPY.refreshing
+                        : SWAP_SURFACE_COPY.quoteExpiredChip}
                     </span>
                   </button>
                 ) : (
@@ -899,7 +902,7 @@ export function SwapInterface() {
                         ? 'bg-yellow-900/30 text-yellow-400'
                         : 'bg-dark-700 text-dark-300'
                     }`}
-                    title="Quote TTL is 30s — refresh if you waited"
+                    title={SWAP_SURFACE_COPY.quoteTtlTooltip}
                   >
                     <ClockIcon />
                     <span>{quoteSecondsRemaining}s</span>
@@ -909,7 +912,7 @@ export function SwapInterface() {
             </div>
 
             <p className="text-[11px] text-dark-500 leading-snug">
-              Amounts below reflect this quote (estimate). Final tokens received are confirmed on-chain.
+              {SWAP_SURFACE_COPY.trustLineQuoteEstimate}
             </p>
 
             {/* Aggregator: real winner vs runner-up (execution quotes) */}
@@ -923,7 +926,7 @@ export function SwapInterface() {
                   <>
                     <div className="flex justify-between text-xs gap-2">
                       <span className="text-dark-400">
-                        Route via · {swapAggregatorProviderLabel(swapQuote.provider)}
+                        {SWAP_SURFACE_COPY.routeViaLabel} · {swapAggregatorProviderLabel(swapQuote.provider)}
                       </span>
                       <span className="text-primary-400 font-medium tabular-nums">
                         {formatBalance(swapQuote.amountOutFormatted, 6)} {toAsset?.symbol}
@@ -942,7 +945,7 @@ export function SwapInterface() {
                 ) : (
                   <div className="flex justify-between text-xs gap-2">
                     <span className="text-dark-400">
-                      Route via · {swapAggregatorProviderLabel(swapQuote.provider)}
+                      {SWAP_SURFACE_COPY.routeViaLabel} · {swapAggregatorProviderLabel(swapQuote.provider)}
                     </span>
                     <span className="text-primary-400 font-medium tabular-nums">
                       {formatBalance(swapQuote.amountOutFormatted, 6)} {toAsset?.symbol}
@@ -954,7 +957,7 @@ export function SwapInterface() {
 
             {/* Exchange rate */}
             <div className="flex justify-between">
-              <span className="text-dark-400">Exchange Rate</span>
+              <span className="text-dark-400">Exchange rate</span>
               <span>1 {fromAsset?.symbol} = {formatBalance(swapQuote.rate, 6)} {toAsset?.symbol}</span>
             </div>
 
@@ -966,9 +969,9 @@ export function SwapInterface() {
               </span>
             </div>
 
-            {/* Minimum Received */}
+            {/* Minimum received */}
             <div className="flex justify-between">
-              <span className="text-dark-400">Minimum Received</span>
+              <span className="text-dark-400">Minimum received</span>
               <span>{formatBalance(swapQuote.minimum_received, 6)} {toAsset?.symbol}</span>
             </div>
 
@@ -1005,9 +1008,9 @@ export function SwapInterface() {
               </span>
             </div>
 
-            {/* Slippage */}
+            {/* Slippage tolerance */}
             <div className="flex justify-between">
-              <span className="text-dark-400">Slippage Tolerance</span>
+              <span className="text-dark-400">Slippage tolerance</span>
               <span>{swapQuote.slippage}%</span>
             </div>
 
@@ -1026,7 +1029,7 @@ export function SwapInterface() {
 
             {/* Route */}
             <div className="flex justify-between items-center">
-              <span className="text-dark-400">Route via</span>
+              <span className="text-dark-400">{SWAP_SURFACE_COPY.routeViaLabel}</span>
               <div className="flex items-center gap-2">
                 <ProviderBadge provider={swapQuote.provider} />
               </div>
@@ -1087,7 +1090,7 @@ export function SwapInterface() {
             {showSpinner ? (
               <span className="flex items-center justify-center gap-2">
                 <LoadingSpinner />
-                <span>Getting Quote...</span>
+                <span>{SWAP_SURFACE_COPY.gettingQuote}</span>
               </span>
             ) : (
               getButtonText()
@@ -1570,9 +1573,9 @@ function SlippageSettings({
         </button>
       </div>
 
-      {/* Slippage Tolerance */}
+      {/* Slippage tolerance */}
       <div className="mb-4">
-        <span className="text-sm text-dark-300 mb-2 block">Slippage Tolerance</span>
+        <span className="text-sm text-dark-300 mb-2 block">Slippage tolerance</span>
         <div className="flex gap-2 mb-2">
           {presets.map((opt) => (
             <button
@@ -1788,7 +1791,7 @@ function RouteTooltip({ provider }: { provider: string }) {
           <div className="font-medium mb-1">Why this route?</div>
           <div className="text-dark-300 leading-relaxed">{getProviderInfo()}</div>
           <div className="text-dark-400 mt-2 pt-2 border-t border-dark-600 leading-relaxed space-y-1.5">
-            <p>Quotes are short-lived (30s). If the timer expires, refresh before you confirm in your wallet.</p>
+            <p>Quotes are short-lived (30s). If the timer expires, refresh quote before you confirm in your wallet.</p>
             <p>Gas limits and network fees in the quote panel are estimates — your wallet finalizes them when you sign.</p>
           </div>
           <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-dark-700" />

@@ -18,6 +18,7 @@ import {
   type ActivityItem,
   type ActivityType,
 } from '@/services/activityService';
+import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 import { swapAggregatorProviderLabel } from '@/utils/format';
 
 /** Explorer-supported chain IDs (FIX-6: added Polygon 137) */
@@ -240,7 +241,7 @@ function ActivityRow({
             {item.provider && (
               <span className="text-dark-600">
                 {' '}
-                Route via {swapAggregatorProviderLabel(item.provider)}
+                · {SWAP_SURFACE_COPY.routeViaLabel} {swapAggregatorProviderLabel(item.provider)}
               </span>
             )}
           </div>
@@ -256,14 +257,14 @@ function ActivityRow({
           )}
           {item.type === 'swap' && item.status === 'failed' && item.txHash && (
             <p className="text-[10px] text-amber-200/80 mt-0.5 leading-snug">
-              Failed on-chain — confirm on the explorer before retrying.
+              Failed on-chain — verify on the explorer before retrying.
             </p>
           )}
           {item.type === 'swap' && item.status === 'success' && (
             <p className="text-[10px] text-dark-500 mt-0.5 leading-snug">
               {item.localRecord?.minimumToAmount
-                ? `Minimum received at send: ${item.localRecord.minimumToAmount} ${item.tokenOut?.symbol ?? ''}. Exact received: explorer or wallet.`
-                : 'Confirmed on-chain. Exact received not decoded here — explorer or wallet.'}
+                ? `Minimum received at send: ${item.localRecord.minimumToAmount} ${item.tokenOut?.symbol ?? ''}. ${SWAP_SURFACE_COPY.minimumReceivedExactFooter}`
+                : SWAP_SURFACE_COPY.confirmedOnChainNoExact}
             </p>
           )}
         </div>

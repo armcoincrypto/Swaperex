@@ -17,6 +17,7 @@ import {
   formatTimeAgo,
   type Transaction,
 } from '@/services/transactionHistory';
+import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 import { formatBalance, swapAggregatorProviderLabel } from '@/utils/format';
 
 /** Compact recent list for the Swap page (same store as Quick Repeat / Portfolio). */
@@ -228,20 +229,20 @@ function successExecutionHint(record: SwapRecord): string | null {
   if (record.status !== 'success') return null;
   const sym = record.toAsset.symbol;
   if (record.minimumToAmount) {
-    return `Quote ${formatBalance(record.toAmount)} ${sym} · Minimum received ${formatBalance(record.minimumToAmount)} ${sym}. Exact received: use explorer or wallet.`;
+    return `Minimum received at send: ${formatBalance(record.minimumToAmount)} ${sym}. ${SWAP_SURFACE_COPY.minimumReceivedExactFooter}`;
   }
-  return 'Confirmed on-chain. Exact received amount is not decoded here — use explorer or wallet.';
+  return SWAP_SURFACE_COPY.confirmedOnChainNoExact;
 }
 
 function retryHint(record: SwapRecord): string | null {
   if (record.status === 'pending') {
-    return 'Wait for confirmation and verify on the explorer before retrying.';
+    return 'Pending — verify on the explorer before retrying.';
   }
   if (record.status === 'uncertain') {
-    return 'Verify on the explorer before retrying — this app did not confirm the final result.';
+    return 'Outcome unclear — verify on the explorer before retrying.';
   }
   if (record.status === 'failed' && record.txHash) {
-    return 'Check the explorer before retrying — the transaction was on-chain.';
+    return 'Failed on-chain — verify on the explorer before retrying.';
   }
   if (record.status === 'failed') {
     return null;
@@ -311,7 +312,10 @@ function LocalSwapRow({
           <div className={`text-dark-400 flex flex-col gap-0.5 ${compact ? 'text-xs' : 'text-sm'}`}>
             <span>
               {formatTimeAgo(record.timestamp)}
-              <span className="text-dark-600"> · Route via {providerLabel}</span>
+              <span className="text-dark-600">
+                {' '}
+                · {SWAP_SURFACE_COPY.routeViaLabel} {providerLabel}
+              </span>
             </span>
             {record.txHash && (
               <span className="font-mono text-[10px] text-dark-500 truncate" title={record.txHash}>

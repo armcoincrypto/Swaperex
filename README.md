@@ -1,394 +1,102 @@
 # Swaperex
 
-Telegram crypto wallet bot with multi-route swap aggregation for the best rates.
+**Swaperex** is a **non-custodial DEX aggregator frontend**: connect a wallet, compare executable quotes from configured liquidity sources, review details, approve when needed, and sign swaps locally. The live app is hosted as a static SPA behind nginx.
 
-## Features
+**Live:** [https://dex.kobbex.com](https://dex.kobbex.com)
 
-- **HD Wallet Support**: BIP32/44/84 deterministic address generation (xpub only, no private keys stored)
-- **Multi-Chain**: BTC, ETH, LTC, DASH, TRX, BSC, SOL support
-- **Token Support**: USDT (ERC-20 & TRC-20), USDC
-- **Swap Aggregation**: Compare quotes from multiple routing providers
-- **Cheapest Routes**: Automatically selects the best rate (no internal spread)
-- **Withdrawal System**: Multi-chain withdrawal with fee estimation
-- **Admin Dashboard**: Protected API endpoints for balance management
-- **Secure Architecture**: CORS protection, token-based auth, encrypted xpub storage
+## What this repository is
 
-## Supported Cryptocurrencies
+The primary product in this repo is the **React + TypeScript + Vite** application under `frontend/`. It talks to chains via **ethers v6** and **Reown AppKit / WalletConnect**, aggregates quotes in the browser, builds unsigned swap transactions using chain-specific builders, and never holds user keys.
 
-| Asset | Chain | Address Format | Status |
-|-------|-------|----------------|--------|
-| BTC | Bitcoin | bc1q... (SegWit) | ✓ |
-| ETH | Ethereum | 0x... | ✓ |
-| LTC | Litecoin | ltc1q... (SegWit) | ✓ |
-| DASH | Dash | X... | ✓ |
-| TRX | TRON | T... | ✓ |
-| BSC | BNB Smart Chain | 0x... | ✓ |
-| SOL | Solana | Base58 | ✓ |
-| USDT | ERC-20 | 0x... | ✓ |
-| USDC | ERC-20 | 0x... | ✓ |
-| USDT-TRC20 | TRC-20 | T... | ✓ |
+Supporting pieces:
 
-## Stage 1 (PoC) - Current
+- **`backend-signals/`** — small backend/helpers for signals and explorer-proxy style calls (as wired in the project).
+- **`scripts/`** — production deploy, audit, and helper scripts.
 
-- Aiogram 3.x Telegram bot (polling mode)
-- FastAPI backend for deposit webhooks and admin API
-- SQLite/PostgreSQL database with async SQLAlchemy
-- HD wallet address derivation (BIP32/44/84)
-- Simulated routing with multi-provider comparison
-- Withdrawal handlers for all supported chains
-- xpub encryption with Fernet (AES-128-CBC)
-- Multiple signing backends (Local, AWS KMS, HSM)
+> **Note:** Older documentation that described a Telegram/Python custodial bot is **obsolete**. This README reflects the **current DEX frontend**.
 
-## Stage 2 (Planned)
+## Main stack
 
-- Real routing adapters (THORChain, 1inch, AtomicDEX/MM2)
-- Real deposit provider integration (CryptoAPIs, NOWPayments)
-- Transaction broadcasting for withdrawals
-- Deposit scanning daemons per chain
-- Redis for FSM state (production scaling)
+| Layer | Technology |
+|--------|------------|
+| UI | React 18, TypeScript, Vite, Tailwind |
+| Wallet | Reown AppKit, WalletConnect, ethers v6 |
+| Hosting | Static build → nginx (`/var/www/swaperex`) |
+| State | Zustand stores |
 
-## Architecture
+## Architecture (summary)
 
-```mermaid
-sequenceDiagram
-    participant User as Telegram User
-    participant Bot as Aiogram Bot
-    participant API as FastAPI Backend
-    participant Provider as Deposit Provider
-    participant Router as Route Aggregator
-    participant DB as SQLite Ledger
+- **Wallet session** — user connects via AppKit; RPC + chain switching are wallet-driven.
+- **Quotes** — client requests quotes from configured aggregators / routers (e.g. 1inch, Uniswap V3, PancakeSwap V3) and selects an executable quote for the trade size.
+- **Preview & signing** — unsigned transactions are shown in a review modal; the user approves in the wallet. Approvals and swaps are separate steps when required.
+- **History & activity** — local device history (Quick Repeat) plus explorer-backed activity where configured.
 
-    User->>Bot: /deposit (request)
-    Bot->>API: request deposit address (user_id, asset)
-    API->>Provider: create_address(user_id, asset)
-    Provider-->>API: address
-    API-->>Bot: address
-    Bot-->>User: show address
+## What already works (production scope)
 
-    User->>Provider: send tx (on-chain)
-    Provider-->>API: webhook(deposit)
-    API->>DB: record_deposit, credit_balance
-    API->>Bot: notify deposit credited
+- Wallet connect and network handling  
+- Quote aggregation and selection UX  
+- Preview, approval, swap execution, pending/recovery flows  
+- Explorer links and trust-first copy on swap surfaces  
+- Activity / history visibility  
+- Reproducible **production deploy** (build → rsync → nginx → verification scripts)
 
-    User->>Bot: /swap BTC->USDT amount
-    Bot->>API: ask for quote
-    API->>Router: get_quote(BTC,USDT,amt)
-    Router-->>API: best_quote
-    API->>DB: record_swap(simulated)
-    API-->>Bot: send confirmation
-    Bot-->>User: "swap executed"
-```
+## Milestone status
 
-## Roadmap
+| Milestone | Status |
+|-----------|--------|
+| **Surface glossary parity + project documentation alignment** | **Completed** — consistent route/provider, stale-quote, and trust copy across swap card, preview, history, activity; README aligned with the DEX frontend. |
+| **Bundle baseline + lazy-load non-swap tabs** | **Next** — code-splitting and lighter initial load without changing swap safety. |
 
-### Priority A - Core
+## Local development
 
-1. **Provider Adapters** - CryptoAPIs / NOWPayments integration (done: interface)
-2. **DEX Aggregator** - 0x/1inch testnet adapter
-3. **MM2 Adapter** - AtomicDEX interface stub
-4. **Ledger Integrity Tests** - Ensure balance consistency
-
-### Priority B - Safety & Admin
-
-5. **Admin Dashboard** - Protected /admin endpoints (done)
-6. **Hot Wallet Guard** - Configurable balance thresholds
-
-### Priority C - UX & Polish
-
-7. **Interactive Swap Flow** - Inline keyboard UI
-8. **History Export** - CSV download for users
-
-### Priority D - Production
-
-9. **Real Deposits** - CryptoAPIs/NOWPayments live integration
-10. **Real Aggregator** - 0x/1inch mainnet calls
-11. **KMS Signing** - AWS/GCP key management
-12. **Security Audit** - Pen testing
-
-## Quick Start
-
-### Prerequisites
-
-- Python 3.11+
-- Telegram Bot Token (get from [@BotFather](https://t.me/BotFather))
-
-### Installation
+From the repository root:
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/swaperex.git
-cd swaperex
-
-# Copy environment file
-cp .env.example .env
-
-# Edit .env with your bot token
-# TELEGRAM_BOT_TOKEN=your_token_here
-
-# Run development server
-./scripts/start_dev.sh
+cd frontend
+npm ci
+npm run dev
 ```
 
-### Manual Setup
+## Build, typecheck, and tests
 
 ```bash
-# Create virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
-
-# Install dependencies
-pip install -e ".[dev]"
-
-# Create data directory
-mkdir -p data
-
-# Run migrations
-python scripts/migrate.py
-
-# Start the application (bot + API)
-python -m swaperex.main
+cd frontend
+npm ci
+npm run build    # tsc && vite build
+npm test         # vitest run
+npm run lint     # optional
 ```
 
-## Running
+## Production deploy (safe sequence)
 
-### Full Application (Bot + API)
+Deploy expects a **clean git tree** and **HEAD not ahead of `origin/main`** (see `scripts/prod-deploy.sh`).
+
+Typical flow:
+
+1. Merge or push to **`main`** on the remote.
+2. On the production host (or your deploy environment), from the repo root:
 
 ```bash
-./scripts/start_dev.sh
-# or
-python -m swaperex.main
+git fetch origin && git checkout main && git pull --ff-only origin main
+./scripts/prod-deploy.sh
 ```
 
-### API Only
+`prod-deploy.sh` runs `npm ci` + `npm run build` in `frontend/`, rsyncs `frontend/dist/` to **`/var/www/swaperex`**, reloads nginx, then runs:
 
 ```bash
-./scripts/run_api.sh
-# or
-uvicorn swaperex.api.app:app --reload --port 8000
+./scripts/audit/deploy-match.sh
+./scripts/audit/verify-live.sh
 ```
 
-### Bot Only
+You can also run `deploy-match.sh` and `verify-live.sh` manually after a deploy for an extra check.
 
-```bash
-./scripts/run_bot.sh
-# or
-python -m swaperex.bot.bot
-```
+## Important constraints
 
-## Testing
-
-```bash
-# Run all tests
-./scripts/run_tests.sh
-
-# Run with coverage
-pytest tests/ -v --cov=swaperex
-
-# Run specific test file
-pytest tests/test_ledger.py -v
-```
-
-## API Endpoints
-
-### Public Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/health` | GET | Basic health check |
-| `/health/detailed` | GET | Detailed health with config |
-
-### Deposit Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/deposits/webhook` | POST | Deposit webhook (from provider) |
-| `/api/v1/deposits/simulate` | POST | Simulate deposit (dev only) |
-| `/api/v1/deposits/{id}` | GET | Get deposit details |
-
-### Admin Endpoints (Token Protected)
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/admin/balances` | GET | Aggregated balances |
-| `/admin/stats` | GET | System statistics |
-| `/admin/provider` | GET | Provider status |
-| `/admin/users` | GET | List users with balances |
-| `/admin/withdrawals` | GET | List all withdrawals |
-| `/admin/withdrawals/pending` | GET | List pending withdrawals |
-| `/admin/withdrawals/{id}` | GET | Get withdrawal details |
-| `/admin/withdrawals/{id}/complete` | POST | Mark withdrawal as completed |
-| `/admin/withdrawals/{id}/cancel` | POST | Cancel and refund withdrawal |
-
-### Simulated Deposit (Development)
-
-```bash
-curl -X POST http://localhost:8000/api/v1/deposits/simulate \
-  -H "Content-Type: application/json" \
-  -d '{"telegram_id": 123456789, "asset": "BTC", "amount": "0.5"}'
-```
-
-## Bot Commands
-
-### User Commands
-
-| Command | Description |
-|---------|-------------|
-| `/start` | Start the bot, register user |
-| `/help` | Show help message |
-| `/wallet` | View all balances |
-| `/deposit` | Get deposit address (HD wallet) |
-| `/withdraw` | Withdraw to external wallet |
-| `/swap` | Start swap flow |
-| `/quote <from> <to> <amount>` | Get quick swap quote |
-| `/history` | View transaction history |
-
-### Admin Commands
-
-| Command | Description |
-|---------|-------------|
-| `/admin` | Show admin commands |
-| `/debug` | Show environment info |
-| `/dryrun <from> <to> <amount>` | Test swap quote with all providers |
-| `/simulate_deposit <asset> <amount>` | Add test funds to your balance |
-| `/stats` | Show system statistics |
-
-To enable admin commands, add your Telegram user ID to `ADMIN_USER_IDS` in `.env`.
-
-### Menu Buttons
-
-The bot also supports an interactive keyboard menu:
-- **Wallet** - View balances
-- **Swap** - Exchange coins
-- **Deposit** - Get deposit address
-- **Withdraw** - Send crypto out
-- **History** - Transaction log
-- **Settings** - Configure preferences
-
-## Project Structure
-
-```
-swaperex/
-├── src/swaperex/
-│   ├── api/              # FastAPI backend
-│   │   ├── app.py        # App factory with lifespan
-│   │   ├── routes/       # Public API endpoints
-│   │   └── routers/      # Protected admin endpoints
-│   ├── bot/              # Telegram bot
-│   │   ├── bot.py        # Bot setup (aiogram 3.x)
-│   │   ├── keyboards.py  # Inline keyboards
-│   │   └── handlers/     # Command handlers
-│   ├── ledger/           # Database layer
-│   │   ├── models.py     # SQLAlchemy models
-│   │   ├── database.py   # Async DB connection
-│   │   └── repository.py # Data access patterns
-│   ├── hdwallet/         # HD wallet system
-│   │   ├── base.py       # Abstract interface
-│   │   ├── btc.py        # BTC, LTC, DASH wallets
-│   │   ├── eth.py        # ETH, BSC, TRX, SOL wallets
-│   │   └── factory.py    # Wallet factory
-│   ├── routing/          # Swap routing
-│   │   ├── base.py       # Abstract interface
-│   │   └── dry_run.py    # Simulated providers
-│   ├── withdrawal/       # Withdrawal handlers
-│   │   ├── base.py       # Abstract interface
-│   │   ├── btc.py        # BTC, LTC, DASH handlers
-│   │   ├── eth.py        # ETH, BSC handlers
-│   │   ├── trx.py        # TRX, TRC-20 handlers
-│   │   └── factory.py    # Handler factory
-│   ├── signing/          # Transaction signing
-│   │   ├── base.py       # Abstract interface
-│   │   ├── local.py      # Hot wallet signer
-│   │   ├── kms.py        # AWS KMS signer
-│   │   └── hsm.py        # PKCS#11 HSM signer
-│   ├── crypto.py         # Encryption utilities (Fernet)
-│   ├── config.py         # Pydantic settings
-│   └── main.py           # Entry point
-├── tests/                # Unit tests
-├── scripts/              # Utility scripts
-├── data/                 # SQLite database
-├── .env.example          # Environment template
-└── pyproject.toml        # Project config
-```
-
-## Configuration
-
-Environment variables (`.env`):
-
-```bash
-# Required
-TELEGRAM_BOT_TOKEN=your_bot_token
-
-# Optional - General
-DATABASE_URL=sqlite+aiosqlite:///./data/swaperex.db
-API_HOST=0.0.0.0
-API_PORT=8000
-ENVIRONMENT=development
-DEBUG=true
-DRY_RUN=true
-
-# Admin
-ADMIN_USER_IDS=123456789,987654321
-ADMIN_TOKEN=your_admin_api_token
-
-# Provider (Stage 2)
-PROVIDER=dryrun  # dryrun, cryptoapis, nowpayments
-CRYPTOAPIS_KEY=your_cryptoapis_key
-NOWPAYMENTS_KEY=your_nowpayments_key
-
-# Safety
-HOT_WALLET_THRESHOLD=0.0  # 0 = disabled
-```
-
-### Admin API Access
-
-```bash
-# With token set
-curl -H "x-admin-token: your_token" http://localhost:8000/admin/balances
-
-# Response
-{"balances":[{"asset":"BTC","total":0.5,"user_count":1}]}
-```
-
-If `ADMIN_TOKEN` is not set, endpoints are open (dev mode only).
-
-## Routing Architecture
-
-The routing system uses an abstract `RouteProvider` interface:
-
-```python
-class RouteProvider(ABC):
-    @abstractmethod
-    async def get_quote(self, from_asset, to_asset, amount) -> Quote:
-        pass
-
-    @abstractmethod
-    async def execute_swap(self, route: SwapRoute) -> dict:
-        pass
-```
-
-Current simulated providers:
-- `DryRunRouter`: Zero-fee base router
-- `SimulatedThorChainRouter`: Simulates THORChain fees (~0.3% + outbound)
-- `SimulatedDexAggregator`: Simulates DEX aggregator fees (~0.1% + gas)
-
-Stage 2 will add real implementations for:
-- THORChain (cross-chain swaps)
-- DEX aggregators (1inch, 0x, etc.)
-- AtomicDEX/MM2
-
-## Development
-
-### Adding a New Router
-
-1. Create a new file in `src/swaperex/routing/`
-2. Implement `RouteProvider` interface
-3. Add to aggregator in `dry_run.py:create_default_aggregator()`
-
-### Adding Bot Commands
-
-1. Create handler in `src/swaperex/bot/handlers/`
-2. Register router in `handlers/__init__.py`
+- **Non-custodial** — private keys stay in the user’s wallet; Swaperex does not sign on behalf of users.
+- **Quotes are short-lived** — refresh stale quotes before confirming in the wallet.
+- **On-chain truth** — explorers and wallet balances are authoritative for final amounts.
+- **Do not ship swap math / routing / tx-builder changes** without dedicated review and testing.
 
 ## License
 
-MIT
+MIT (unless otherwise noted in `LICENSE`).

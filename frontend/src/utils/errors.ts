@@ -10,6 +10,8 @@
  * - NO silent failures
  */
 
+import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
+
 // Error categories
 export type ErrorCategory =
   | 'user_rejected'
@@ -113,7 +115,7 @@ export function parseTransactionError(error: unknown): ParsedError {
   if (isUserRejection(error)) {
     return {
       category: 'user_rejected',
-      message: 'Transaction cancelled. No changes were made.',
+      message: 'Transaction cancelled in your wallet. No funds were moved.',
       isRecoverable: true,
       shouldShowRetry: true,
     };
@@ -201,7 +203,7 @@ export function parseQuoteError(error: unknown): ParsedError {
   if (message.includes('expired') || message.includes('stale')) {
     return {
       category: 'quote_error',
-      message: "Quote expired (over 30 seconds old). Click 'Refresh' to get current price.",
+      message: SWAP_SURFACE_COPY.quoteExpiredDetail,
       isRecoverable: true,
       shouldShowRetry: true,
     };
@@ -280,13 +282,13 @@ export function getRejectionMessage(action: 'connect' | 'approve' | 'swap' | 'wi
     case 'connect':
       return 'Connection cancelled';
     case 'approve':
-      return 'Approval cancelled. No changes were made.';
+      return 'Approval cancelled in your wallet. No funds were moved.';
     case 'swap':
-      return 'Swap cancelled. No changes were made.';
+      return 'Transaction cancelled in your wallet. No funds were moved.';
     case 'withdraw':
-      return 'Withdrawal cancelled. No changes were made.';
+      return 'Withdrawal cancelled in your wallet. No funds were moved.';
     default:
-      return 'Transaction cancelled. No changes were made.';
+      return 'Transaction cancelled in your wallet. No funds were moved.';
   }
 }
 
@@ -311,7 +313,7 @@ export function parseRpcError(error: unknown): ParsedError {
   if (code === 4001 || code === 'ACTION_REJECTED' || isUserRejection(error)) {
     return {
       category: 'user_rejected',
-      message: 'Transaction rejected in wallet. No funds were moved.',
+      message: 'Transaction cancelled in your wallet. No funds were moved.',
       isRecoverable: true,
       shouldShowRetry: true,
     };
@@ -366,7 +368,7 @@ export function parseRpcError(error: unknown): ParsedError {
     } else if (message.includes('too little received') || message.includes('insufficient output')) {
       revertReason = 'Output amount too low due to price movement. Increase your slippage tolerance and try again.';
     } else if (message.includes('expired') || message.includes('deadline')) {
-      revertReason = 'Transaction deadline passed. Please get a fresh quote and try again.';
+      revertReason = 'Transaction deadline passed. Refresh quote and try again.';
     }
 
     return {

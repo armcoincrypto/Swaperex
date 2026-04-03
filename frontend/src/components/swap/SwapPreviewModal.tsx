@@ -11,6 +11,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Modal } from '@/components/common/Modal';
 import { Button } from '@/components/common/Button';
+import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 import { formatBalance, formatGasLimitUnits, getPriceImpactUi, swapAggregatorProviderLabel } from '@/utils/format';
 import { getExplorerTxUrl } from '@/config/chains';
 import type { SwapQuote } from '@/hooks/useSwap';
@@ -225,7 +226,7 @@ export function SwapPreviewModal({
           </div>
 
           <p className="text-[11px] text-dark-500 leading-snug mb-4">
-            Displayed amounts are from this quote (estimates). Final execution is confirmed on-chain.
+            {SWAP_SURFACE_COPY.trustLineQuoteEstimate}
           </p>
 
           {/* Quote Expiry Timer */}
@@ -248,11 +249,11 @@ export function SwapPreviewModal({
           {/* Quote Details */}
           <div className="space-y-2 text-sm mb-4">
             <DetailRow
-              label="Exchange Rate"
+              label="Exchange rate"
               value={`1 ${quote.from_asset} = ${formatBalance(quote.rate)} ${quote.to_asset}`}
             />
             <DetailRow
-              label="Minimum Received"
+              label="Minimum received"
               value={`${formatBalance(quote.minimum_received)} ${quote.to_asset}`}
             />
             <DetailRow
@@ -270,11 +271,11 @@ export function SwapPreviewModal({
               }
             />
             <DetailRow
-              label="Slippage Tolerance"
+              label="Slippage tolerance"
               value={`${quote.slippage}%`}
             />
             <DetailRow
-              label="Route via"
+              label={SWAP_SURFACE_COPY.routeViaLabel}
               value={swapAggregatorProviderLabel(quote.provider)}
             />
             {quote.quoteSelectionReason && (
@@ -390,7 +391,7 @@ export function SwapPreviewModal({
               fullWidth
             >
               {isExpired
-                ? 'Quote Expired'
+                ? SWAP_SURFACE_COPY.quoteExpiredTitle
                 : isLoading
                 ? getLoadingText(step)
                 : needsApproval
@@ -539,7 +540,7 @@ function QuoteExpiryBanner({
       <div className="flex items-center justify-between bg-red-900/20 border border-red-800 rounded-lg px-3 py-2 mb-4">
         <div className="flex items-center gap-2 text-red-400">
           <ClockIcon />
-          <span className="text-sm font-medium">Quote expired</span>
+          <span className="text-sm font-medium">{SWAP_SURFACE_COPY.quoteExpiredTitle}</span>
         </div>
         <Button
           size="sm"
@@ -547,7 +548,7 @@ function QuoteExpiryBanner({
           onClick={onRefresh}
           loading={isRefreshing}
         >
-          Refresh
+          {SWAP_SURFACE_COPY.refreshQuoteCta}
         </Button>
       </div>
     );
@@ -577,7 +578,7 @@ function QuoteExpiryBanner({
         disabled={isRefreshing}
         className="text-xs text-primary-400 hover:text-primary-300"
       >
-        {isRefreshing ? 'Refreshing...' : 'Refresh'}
+        {isRefreshing ? SWAP_SURFACE_COPY.refreshing : SWAP_SURFACE_COPY.refreshQuoteCta}
       </button>
     </div>
   );
@@ -662,20 +663,20 @@ function SuccessContent({
             settlement, use your wallet balances or the block explorer.
           </div>
           <div className="flex justify-between">
-            <span className="text-dark-400">Route via</span>
+            <span className="text-dark-400">{SWAP_SURFACE_COPY.routeViaLabel}</span>
             <span className="text-primary-400">{swapAggregatorProviderLabel(quote.provider)}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-dark-400">Exchange rate (quote)</span>
+            <span className="text-dark-400">Exchange rate</span>
             <span>1 {quote.from_asset} = {formatBalance(quote.rate)} {quote.to_asset}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-dark-400">Slippage</span>
+            <span className="text-dark-400">Slippage tolerance</span>
             <span>{quote.slippage}%</span>
           </div>
           {quote.price_impact && parseFloat(quote.price_impact) > 0 && (
             <div className="flex justify-between">
-              <span className="text-dark-400">Price Impact</span>
+              <span className="text-dark-400">Price impact</span>
               <span className={parseFloat(quote.price_impact) > 3 ? 'text-yellow-400' : 'text-green-400'}>
                 {quote.price_impact}%
               </span>
@@ -718,7 +719,7 @@ function SuccessContent({
           >
             <Button variant="secondary" fullWidth>
               <span className="flex items-center justify-center gap-2">
-                View Explorer
+                View explorer
                 <ExternalLinkIcon />
               </span>
             </Button>
@@ -747,9 +748,9 @@ function categorizeError(error: string | null): ErrorInfo {
   if (error === 'QUOTE_EXPIRED' || errorLower.includes('quote expired')) {
     return {
       type: 'unknown',
-      title: 'Quote expired',
-      message: 'This price quote is no longer valid for execution.',
-      suggestion: 'Refresh the quote, then confirm again.',
+      title: SWAP_SURFACE_COPY.quoteExpiredTitle,
+      message: SWAP_SURFACE_COPY.quoteExpiredDetail,
+      suggestion: SWAP_SURFACE_COPY.quoteExpiredSuggestion,
       canRetry: true,
     };
   }
@@ -758,9 +759,9 @@ function categorizeError(error: string | null): ErrorInfo {
   if (errorLower.includes('rejected') || errorLower.includes('denied') || errorLower.includes('cancelled') || errorLower.includes('user refused')) {
     return {
       type: 'rejection',
-      title: 'Transaction Cancelled',
-      message: 'You cancelled the transaction in your wallet.',
-      suggestion: 'No funds were moved. You can try again when ready.',
+      title: 'Transaction cancelled',
+      message: 'Transaction cancelled in your wallet. No funds were moved.',
+      suggestion: 'You can try again when you are ready.',
       canRetry: false,
     };
   }
@@ -769,9 +770,9 @@ function categorizeError(error: string | null): ErrorInfo {
   if (errorLower.includes('slippage') || errorLower.includes('price moved') || errorLower.includes('insufficient output')) {
     return {
       type: 'slippage',
-      title: 'Price Changed Too Much',
-      message: 'The price moved beyond your slippage tolerance while the transaction was pending.',
-      suggestion: 'Try increasing your slippage tolerance in settings, or try a smaller amount.',
+      title: 'Price moved too much',
+      message: 'Swap failed: price moved beyond your slippage tolerance.',
+      suggestion: 'Increase slippage in settings or try a smaller amount.',
       canRetry: true,
     };
   }
@@ -780,9 +781,9 @@ function categorizeError(error: string | null): ErrorInfo {
   if (errorLower.includes('gas') || errorLower.includes('fee') || errorLower.includes('underpriced')) {
     return {
       type: 'gas',
-      title: 'Gas Fee Issue',
-      message: 'The transaction failed due to gas estimation or fee issues.',
-      suggestion: 'Network may be congested. Wait a moment and try again, or increase gas in your wallet.',
+      title: 'Gas or fee issue',
+      message: 'Insufficient funds for transaction fees or gas estimation failed.',
+      suggestion: 'Wait and try again, or adjust gas in your wallet.',
       canRetry: true,
     };
   }
@@ -791,9 +792,9 @@ function categorizeError(error: string | null): ErrorInfo {
   if (errorLower.includes('insufficient') || errorLower.includes('balance') || errorLower.includes('not enough')) {
     return {
       type: 'balance',
-      title: 'Insufficient Balance',
-      message: 'You don\'t have enough tokens to complete this swap.',
-      suggestion: 'Check your balance includes enough for the swap amount plus gas fees.',
+      title: 'Insufficient balance',
+      message: 'Insufficient balance to complete this swap. Check your wallet balance and try a smaller amount.',
+      suggestion: 'Include enough for the swap amount plus network fees.',
       canRetry: false,
     };
   }
@@ -809,8 +810,8 @@ function categorizeError(error: string | null): ErrorInfo {
   ) {
     return {
       type: 'network',
-      title: 'Network Error',
-      message: 'Could not reliably reach the blockchain or your wallet provider.',
+      title: 'Network error',
+      message: 'Network connection lost or the wallet provider could not be reached.',
       suggestion: 'Check your connection or RPC, wait a moment, and try again.',
       canRetry: true,
     };
