@@ -64,11 +64,11 @@ export function initAppKit() {
     networks: networks as [typeof mainnet, ...typeof mainnet[]],
     projectId,
     metadata,
+    // Embedded email/social login pulls extra chunks (crypto/UI). Swaperex uses injected + WalletConnect only.
     features: {
       analytics: false,
-      email: true,
-      socials: ['google', 'apple', 'x', 'github', 'discord'],
-      emailShowWallets: true,
+      email: false,
+      socials: false,
     },
   });
 }
