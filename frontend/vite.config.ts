@@ -4,15 +4,15 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 
 /**
- * Conservative vendor chunks for cache + parallel load. Does not change module graph or execution order.
- * Paths normalized for Windows + POSIX Rollup `id` values.
+ * Vendor chunks for cache + parallel load. @reown/* and @walletconnect/* share one chunk to match
+ * their coupled dependency graph (avoids Rollup circular chunk warnings when split separately).
  */
 function vendorManualChunks(id: string): string | undefined {
   if (!id.includes('node_modules')) return undefined;
   const normalized = id.split(path.sep).join('/');
   if (normalized.includes('/node_modules/ethers/')) return 'vendor-ethers';
-  if (normalized.includes('/node_modules/@reown/')) return 'vendor-reown';
-  if (normalized.includes('/node_modules/@walletconnect/')) return 'vendor-walletconnect';
+  if (normalized.includes('/node_modules/@reown/')) return 'vendor-reown-walletconnect';
+  if (normalized.includes('/node_modules/@walletconnect/')) return 'vendor-reown-walletconnect';
   return undefined;
 }
 
