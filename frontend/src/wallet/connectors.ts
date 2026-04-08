@@ -3,7 +3,7 @@
  *
  * Provides connect/disconnect for:
  * 1. Injected wallets (MetaMask, Rabby, Brave, Coinbase ext, OKX, etc.)
- * 2. WalletConnect v2 (QR + deep link for mobile wallets, Ledger Live)
+ * 2. WalletConnect session restore (auto-reconnect) via @walletconnect/ethereum-provider (UI connect is AppKit)
  *
  * Returns an EIP-1193 provider that ethers.js BrowserProvider can wrap.
  *
@@ -114,67 +114,9 @@ export async function connectInjected(): Promise<{
   };
 }
 
-// ─── WalletConnect v2 Connector ──────────────────────────────
+// ─── WalletConnect (@walletconnect/ethereum-provider) session handle ───
 
 let wcProviderInstance: WcProviderInstance | null = null;
-
-export async function connectWalletConnect(): Promise<{
-  provider: EIP1193Provider;
-  info: WalletInfo;
-}> {
-  if (WC_PROJECT_ID_IS_PLACEHOLDER) {
-    throw new Error(
-      'WalletConnect Project ID not configured. Set VITE_WC_PROJECT_ID in .env and rebuild. ' +
-      'Get one free at https://cloud.walletconnect.com',
-    );
-  }
-
-  const EthereumProvider = await getWcEthereumProviderCtor();
-
-  // Create fresh provider each time to ensure clean state
-  if (wcProviderInstance) {
-    try { await wcProviderInstance.disconnect(); } catch { /* noop */ }
-    wcProviderInstance = null;
-  }
-
-  const provider = await EthereumProvider.init({
-    projectId: WC_PROJECT_ID,
-    chains: [DEFAULT_CHAIN_ID],
-    optionalChains: SUPPORTED_CHAIN_IDS.filter((id) => id !== DEFAULT_CHAIN_ID),
-    rpcMap: RPC_MAP,
-    showQrModal: true,
-    metadata: {
-      name: 'Swaperex',
-      description: 'Web3 Non-Custodial Swap Platform',
-      url: window.location.origin,
-      icons: [`${window.location.origin}/favicon.ico`],
-    },
-  });
-
-  wcProviderInstance = provider;
-
-  // This opens the QR modal and waits for user to scan/approve
-  await provider.connect();
-
-  const accounts = provider.accounts;
-  if (!accounts || accounts.length === 0) {
-    throw new Error('No accounts returned from WalletConnect session.');
-  }
-
-  const chainId = provider.chainId;
-
-  saveLastConnector('walletconnect');
-
-  return {
-    provider: provider as unknown as EIP1193Provider,
-    info: {
-      connectorId: 'walletconnect',
-      label: 'WalletConnect',
-      address: accounts[0],
-      chainId,
-    },
-  };
-}
 
 /** Get existing WC provider (for event listeners / disconnect) */
 export function getWcProvider(): WcProviderInstance | null {
