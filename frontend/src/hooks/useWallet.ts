@@ -102,6 +102,7 @@ export function useWallet() {
       if (isConnected || isConnecting) return;
 
       try {
+        // Injected + legacy WC key paths only; live AppKit WC restore is AppKitBridge (see connectors.autoReconnect).
         const result = await autoReconnect();
         if (cancelled || !result) return;
 

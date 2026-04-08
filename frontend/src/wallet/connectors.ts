@@ -128,6 +128,16 @@ export function getWcProvider(): WcProviderInstance | null {
 /**
  * Attempt to restore the last session without prompting.
  * Returns null if no session can be restored.
+ *
+ * Reconnect semantics (read before deleting or “simplifying”):
+ * - `swaperex_last_connector` is written only as `injected` by `connectInjected()` in the current app.
+ *   The value `walletconnect` is not written anywhere in current code; it may still exist from stale
+ *   storage or older builds.
+ * - Live WalletConnect (QR/modal) session restore is handled by Reown AppKit persistence and
+ *   `AppKitBridge`, not by this function’s WC branch.
+ * - The `lastConnector === 'walletconnect'` branch below uses `@walletconnect/ethereum-provider`
+ *   for legacy/stale-key sessions and populates `wcProviderInstance` when successful. Do not remove
+ *   without migration or telemetry planning.
  */
 export async function autoReconnect(): Promise<{
   provider: EIP1193Provider;
