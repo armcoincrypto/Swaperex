@@ -12,6 +12,9 @@ interface ImportMetaEnv {
   // Optional metadata for WalletConnect
   readonly VITE_APP_URL?: string
 
+  /** When `true`, log legacy WC autoReconnect phases in production (see connectors.ts). DEV logs by default. */
+  readonly VITE_LEGACY_WC_AUTORECONNECT_OBSERVABILITY?: string
+
   // Vite flags
   readonly DEV: boolean
   readonly PROD: boolean

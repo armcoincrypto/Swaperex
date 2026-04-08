@@ -123,6 +123,22 @@ export function getWcProvider(): WcProviderInstance | null {
   return wcProviderInstance;
 }
 
+/**
+ * Privacy-safe observability for the legacy `walletconnect` autoReconnect branch only.
+ * Logs no addresses, chain IDs, or counts. Enable in production builds with
+ * `VITE_LEGACY_WC_AUTORECONNECT_OBSERVABILITY=true` (otherwise DEV-only).
+ */
+const LEGACY_WC_AUTORECONNECT_LOG =
+  import.meta.env.DEV ||
+  import.meta.env.VITE_LEGACY_WC_AUTORECONNECT_OBSERVABILITY === 'true';
+
+function logLegacyWcAutoReconnect(
+  phase: 'entered' | 'success' | 'no_restorable_session' | 'failed',
+): void {
+  if (!LEGACY_WC_AUTORECONNECT_LOG) return;
+  console.info('[Swaperex][legacy WC autoReconnect]', phase);
+}
+
 // ─── Auto-reconnect ──────────────────────────────────────────
 
 /**
@@ -168,6 +184,7 @@ export async function autoReconnect(): Promise<{
   }
 
   if (lastConnector === 'walletconnect' && !WC_PROJECT_ID_IS_PLACEHOLDER) {
+    logLegacyWcAutoReconnect('entered');
     try {
       const EthereumProvider = await getWcEthereumProviderCtor();
       const provider = await EthereumProvider.init({
@@ -187,6 +204,7 @@ export async function autoReconnect(): Promise<{
       // Check if session exists
       if (provider.session && provider.accounts.length > 0) {
         wcProviderInstance = provider;
+        logLegacyWcAutoReconnect('success');
         return {
           provider: provider as unknown as EIP1193Provider,
           info: {
@@ -197,8 +215,10 @@ export async function autoReconnect(): Promise<{
           },
         };
       }
+      logLegacyWcAutoReconnect('no_restorable_session');
     } catch {
       // Session expired or invalid
+      logLegacyWcAutoReconnect('failed');
       clearLastConnector();
     }
   }
