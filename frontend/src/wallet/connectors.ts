@@ -6,12 +6,18 @@
  * 2. WalletConnect v2 (QR + deep link for mobile wallets, Ledger Live)
  *
  * Returns an EIP-1193 provider that ethers.js BrowserProvider can wrap.
+ *
+ * @walletconnect/ethereum-provider is loaded only when WC paths run (`import()`).
+ * (With merged vendor-reown-walletconnect chunking, it may still ship in the same file;
+ * this removes static coupling and preserves correct lazy invocation order.)
  */
 
-import EthereumProvider from '@walletconnect/ethereum-provider';
 import type { EIP1193Provider, ConnectorId, WalletInfo } from './types';
 import { SUPPORTED_CHAIN_IDS, RPC_MAP, DEFAULT_CHAIN_ID } from './chains';
 import { WALLETCONNECT_PROJECT_ID } from '@/utils/constants';
+
+type WCEthereumProviderCtor = (typeof import('@walletconnect/ethereum-provider'))['default'];
+type WcProviderInstance = InstanceType<WCEthereumProviderCtor>;
 
 /** WalletConnect Cloud project ID. Required for QR/mobile wallets. Get one at https://cloud.walletconnect.com */
 const WC_PROJECT_ID = WALLETCONNECT_PROJECT_ID;
@@ -22,6 +28,26 @@ const WC_PROJECT_ID_IS_PLACEHOLDER =
 
 // Persist last connector for auto-reconnect
 const CONNECTOR_KEY = 'swaperex_last_connector';
+
+let wcProviderCtorCache: WCEthereumProviderCtor | null = null;
+let wcProviderCtorLoadPromise: Promise<WCEthereumProviderCtor> | null = null;
+
+/** Singleton loader — one in-flight import; retries after failure. */
+async function getWcEthereumProviderCtor(): Promise<WCEthereumProviderCtor> {
+  if (wcProviderCtorCache) return wcProviderCtorCache;
+  if (!wcProviderCtorLoadPromise) {
+    wcProviderCtorLoadPromise = import('@walletconnect/ethereum-provider')
+      .then((mod) => {
+        wcProviderCtorCache = mod.default;
+        return wcProviderCtorCache;
+      })
+      .catch((err) => {
+        wcProviderCtorLoadPromise = null;
+        throw err;
+      });
+  }
+  return wcProviderCtorLoadPromise;
+}
 
 export function saveLastConnector(id: ConnectorId): void {
   try { localStorage.setItem(CONNECTOR_KEY, id); } catch { /* noop */ }
@@ -90,7 +116,7 @@ export async function connectInjected(): Promise<{
 
 // ─── WalletConnect v2 Connector ──────────────────────────────
 
-let wcProviderInstance: InstanceType<typeof EthereumProvider> | null = null;
+let wcProviderInstance: WcProviderInstance | null = null;
 
 export async function connectWalletConnect(): Promise<{
   provider: EIP1193Provider;
@@ -102,6 +128,8 @@ export async function connectWalletConnect(): Promise<{
       'Get one free at https://cloud.walletconnect.com',
     );
   }
+
+  const EthereumProvider = await getWcEthereumProviderCtor();
 
   // Create fresh provider each time to ensure clean state
   if (wcProviderInstance) {
@@ -149,7 +177,7 @@ export async function connectWalletConnect(): Promise<{
 }
 
 /** Get existing WC provider (for event listeners / disconnect) */
-export function getWcProvider(): InstanceType<typeof EthereumProvider> | null {
+export function getWcProvider(): WcProviderInstance | null {
   return wcProviderInstance;
 }
 
@@ -189,6 +217,7 @@ export async function autoReconnect(): Promise<{
 
   if (lastConnector === 'walletconnect' && !WC_PROJECT_ID_IS_PLACEHOLDER) {
     try {
+      const EthereumProvider = await getWcEthereumProviderCtor();
       const provider = await EthereumProvider.init({
         projectId: WC_PROJECT_ID,
         chains: [DEFAULT_CHAIN_ID],
