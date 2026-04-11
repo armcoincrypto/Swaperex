@@ -63,19 +63,72 @@ export function clearLastConnector(): void {
 
 // ─── Injected Wallet Detection ───────────────────────────────
 
+type InjectedProviderCandidate = EIP1193Provider & {
+  isMetaMask?: boolean;
+  isRabby?: boolean;
+  isBraveWallet?: boolean;
+  isCoinbaseWallet?: boolean;
+  isOkxWallet?: boolean;
+  providers?: InjectedProviderCandidate[];
+};
+
+function getInjectedCandidates(): InjectedProviderCandidate[] {
+  const eth = window.ethereum as InjectedProviderCandidate | undefined;
+  if (!eth) return [];
+
+  const raw = Array.isArray(eth.providers) && eth.providers.length > 0
+    ? eth.providers
+    : [eth];
+
+  const seen = new Set<InjectedProviderCandidate>();
+  const candidates: InjectedProviderCandidate[] = [];
+
+  for (const provider of raw) {
+    if (!provider || typeof provider.request !== 'function') continue;
+    if (seen.has(provider)) continue;
+    seen.add(provider);
+    candidates.push(provider);
+  }
+
+  return candidates;
+}
+
+function getInjectedLabel(provider: InjectedProviderCandidate): string {
+  if (provider.isRabby) return 'Rabby';
+  if (provider.isMetaMask) return 'MetaMask';
+  if (provider.isBraveWallet) return 'Brave Wallet';
+  if (provider.isCoinbaseWallet) return 'Coinbase Wallet';
+  if (provider.isOkxWallet) return 'OKX Wallet';
+  return 'Browser Wallet';
+}
+
+function getPreferredInjectedProvider(): { provider: InjectedProviderCandidate; label: string } | null {
+  const candidates = getInjectedCandidates();
+  if (candidates.length === 0) return null;
+
+  const priorityChecks: Array<(p: InjectedProviderCandidate) => boolean> = [
+    (p) => !!p.isRabby,
+    (p) => !!p.isMetaMask,
+    (p) => !!p.isBraveWallet,
+    (p) => !!p.isCoinbaseWallet,
+    (p) => !!p.isOkxWallet,
+  ];
+
+  for (const matches of priorityChecks) {
+    const found = candidates.find(matches);
+    if (found) {
+      return { provider: found, label: getInjectedLabel(found) };
+    }
+  }
+
+  return { provider: candidates[0], label: getInjectedLabel(candidates[0]) };
+}
+
 /** Detect which injected wallet is active */
 export function detectInjectedWallet(): { available: boolean; label: string } {
-  const eth = window.ethereum;
-  if (!eth) return { available: false, label: 'Browser Wallet' };
-
-  // Order matters: more specific checks first
-  if (eth.isRabby) return { available: true, label: 'Rabby' };
-  if (eth.isBraveWallet) return { available: true, label: 'Brave Wallet' };
-  if (eth.isCoinbaseWallet) return { available: true, label: 'Coinbase Wallet' };
-  if (eth.isOkxWallet) return { available: true, label: 'OKX Wallet' };
-  if (eth.isMetaMask) return { available: true, label: 'MetaMask' };
-
-  return { available: true, label: 'Browser Wallet' };
+  const selected = getPreferredInjectedProvider();
+  if (!selected) return { available: false, label: 'Browser Wallet' };
+  return { available: true, label: selected.label };
 }
 
 // ─── Injected Connector ──────────────────────────────────────
@@ -84,10 +137,13 @@ export async function connectInjected(): Promise<{
   provider: EIP1193Provider;
   info: WalletInfo;
 }> {
-  const eth = window.ethereum as EIP1193Provider | undefined;
-  if (!eth || typeof eth.request !== 'function') {
+  const selected = getPreferredInjectedProvider();
+  if (!selected) {
     throw new Error('No browser wallet detected. Please install MetaMask or another wallet extension.');
   }
+
+  const eth = selected.provider;
+  const label = selected.label;
 
   const accounts = (await eth.request({
     method: 'eth_requestAccounts',
@@ -99,7 +155,6 @@ export async function connectInjected(): Promise<{
 
   const chainIdHex = (await eth.request({ method: 'eth_chainId' })) as string;
   const chainId = parseInt(chainIdHex, 16);
-  const { label } = detectInjectedWallet();
 
   saveLastConnector('injected');
 
@@ -162,8 +217,11 @@ export async function autoReconnect(): Promise<{
   const lastConnector = getLastConnector();
 
   if (lastConnector === 'injected') {
-    const eth = window.ethereum as EIP1193Provider | undefined;
-    if (!eth || typeof eth.request !== 'function') return null;
+    const selected = getPreferredInjectedProvider();
+    if (!selected) return null;
+
+    const eth = selected.provider;
+    const label = selected.label;
 
     try {
       // eth_accounts doesn't prompt — returns [] if not connected
@@ -172,7 +230,6 @@ export async function autoReconnect(): Promise<{
 
       const chainIdHex = (await eth.request({ method: 'eth_chainId' })) as string;
       const chainId = parseInt(chainIdHex, 16);
-      const { label } = detectInjectedWallet();
 
       return {
         provider: eth,
