@@ -162,12 +162,14 @@ export function useWallet() {
 
   const disconnectWallet = useCallback(async () => {
     const previousAddress = address;
+    const shouldDisconnectAppKit =
+      connectorIdRef.current === 'walletconnect' || walletType === 'walletconnect';
 
-    if (connectorIdRef.current === 'walletconnect') {
+    if (shouldDisconnectAppKit) {
       try {
         await appKitDisconnect({ namespace: 'eip155' });
       } catch {
-        // Ignore
+        // Ignore AppKit disconnect failures; local cleanup still proceeds.
       }
       appKitProviderRef.current = null;
     }
@@ -182,7 +184,7 @@ export function useWallet() {
     setConnectorLabel('');
 
     walletEvents.emit('disconnect', { previousAddress: previousAddress || undefined });
-  }, [disconnect, clearBalances, address, appKitDisconnect]);
+  }, [disconnect, clearBalances, address, walletType, appKitDisconnect]);
 
   // ─── Read-only mode ───────────────────────────────────────
 
