@@ -11,20 +11,19 @@ import { JsonRpcProvider, Contract, formatUnits, formatEther, Network } from 'et
 import { useCustomTokenStore } from './customTokenStore';
 import { getTokens, NATIVE_TOKEN_ADDRESS } from '@/tokens';
 
-// RPC proxy - use central config (no HTTP fallbacks)
-import { RPC_PROXY_BASE } from '@/config/api';
+import { CHAINS } from '@/config/chains';
 
-// Chain RPC endpoints (ETH/Polygon via proxy; BSC direct — Binance has permissive CORS)
+// Chain RPC endpoints (absolute URLs only — ethers JsonRpcProvider cannot use relative /rpc/* paths in browser runtime)
 const RPC_URLS: Record<string, string> = {
-  ethereum: `${RPC_PROXY_BASE}/eth`,
-  bsc: 'https://bsc-dataseed.binance.org',
-  polygon: `${RPC_PROXY_BASE}/polygon`,
-  arbitrum: 'https://arb1.arbitrum.io/rpc',
-  optimism: 'https://mainnet.optimism.io',
-  avalanche: 'https://api.avax.network/ext/bc/C/rpc',
-  gnosis: 'https://rpc.gnosischain.com',
-  fantom: 'https://rpc.ftm.tools',
-  base: 'https://mainnet.base.org',
+  ethereum: CHAINS.ethereum.rpcUrl,
+  bsc: CHAINS.bsc.rpcUrl,
+  polygon: CHAINS.polygon.rpcUrl,
+  arbitrum: CHAINS.arbitrum.rpcUrl,
+  optimism: CHAINS.optimism.rpcUrl,
+  avalanche: CHAINS.avalanche.rpcUrl,
+  gnosis: CHAINS.gnosis.rpcUrl,
+  fantom: CHAINS.fantom.rpcUrl,
+  base: CHAINS.base.rpcUrl,
 };
 
 // Chain name to ID mapping (for custom token lookup)
