@@ -12,6 +12,9 @@ interface ImportMetaEnv {
   // Optional metadata for WalletConnect
   readonly VITE_APP_URL?: string
 
+  /** When `true`, POST /wallet/connect and /wallet/disconnect are used (optional backend session API). */
+  readonly VITE_ENABLE_WALLET_SESSION_API?: string
+
   /** When `true`, log legacy WC autoReconnect phases in production (see connectors.ts). DEV logs by default. */
   readonly VITE_LEGACY_WC_AUTORECONNECT_OBSERVABILITY?: string
 
