@@ -102,9 +102,15 @@ export function useWallet() {
       if (isConnected || isConnecting) return;
 
       try {
-        // Injected + legacy WC key paths only; live AppKit WC restore is AppKitBridge (see connectors.autoReconnect).
+        // Live AppKit WC restore is handled by AppKitBridge.
+        // Intentionally do NOT auto-reconnect injected wallets on mount:
+        // explicit user action is required for browser-extension wallets.
         const result = await autoReconnect();
         if (cancelled || !result) return;
+
+        if (result.info.connectorId === 'injected') {
+          return;
+        }
 
         console.log('[Wallet] Auto-reconnecting via', result.info.connectorId, 'to', result.info.address);
 
@@ -112,7 +118,7 @@ export function useWallet() {
         connectorIdRef.current = result.info.connectorId;
         setConnectorLabel(result.info.label);
 
-        await connect(result.info.address, result.info.chainId, result.info.connectorId === 'walletconnect' ? 'walletconnect' : 'injected');
+        await connect(result.info.address, result.info.chainId, 'walletconnect');
         safeFetchBalances(result.info.address);
       } catch (err) {
         console.warn('[Wallet] Auto-reconnect failed:', err);
