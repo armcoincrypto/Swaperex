@@ -1,12 +1,10 @@
 /**
- * Wallet Connect Component — Multi-wallet
+ * Wallet Connect Component
  *
  * Handles wallet connection flow:
  * 1. User clicks "Connect Wallet"
- * 2. Wallet picker shows: Injected / WalletConnect / View-only
+ * 2. Wallet picker shows: WalletConnect / View-only (browser extensions disabled on this deployment)
  * 3. After connect: shows address, chain, balance, wallet label
- *
- * Supports: MetaMask, Rabby, Brave, Coinbase ext, OKX, WalletConnect v2
  *
  * NEVER receives private keys — only public address.
  */
@@ -18,7 +16,7 @@ import { shortenAddress } from '@/utils/format';
 import { useBalanceStore } from '@/stores/balanceStore';
 import { getChain, isSupportedChain, CHAINS } from '@/wallet';
 
-type WalletOption = 'injected' | 'walletconnect' | 'readonly';
+type WalletOption = 'walletconnect' | 'readonly';
 
 export function WalletConnect() {
   const {
@@ -28,11 +26,8 @@ export function WalletConnect() {
     isSwitchingChain,
     address,
     chainId,
-    hasInjectedWallet,
-    injectedLabel,
     connectorLabel,
     error,
-    connectInjected,
     connectWalletConnect,
     disconnect,
     switchNetwork,
@@ -91,13 +86,7 @@ export function WalletConnect() {
     setSelectedWallet(option);
     setShowWalletOptions(false);
 
-    if (option === 'injected') {
-      try {
-        await connectInjected();
-      } catch {
-        // Error handled in hook, shown in UI
-      }
-    } else if (option === 'walletconnect') {
+    if (option === 'walletconnect') {
       try {
         await connectWalletConnect();
       } catch {
@@ -132,9 +121,7 @@ export function WalletConnect() {
   // Retry
   const handleRetry = () => {
     clearError();
-    if (selectedWallet === 'injected') {
-      connectInjected().catch(() => {});
-    } else if (selectedWallet === 'walletconnect') {
+    if (selectedWallet === 'walletconnect') {
       connectWalletConnect();
     } else {
       setShowWalletOptions(true);
@@ -332,9 +319,7 @@ export function WalletConnect() {
           Connecting...
         </Button>
         <p className="text-xs text-dark-400 text-center">
-          {selectedWallet === 'walletconnect'
-            ? 'Scan the QR code with your mobile wallet'
-            : 'Please approve in your wallet'}
+          Scan the QR code with your mobile wallet
         </p>
         <button onClick={handleCancel} className="text-xs text-dark-400 hover:text-dark-200">
           Cancel
@@ -357,33 +342,6 @@ export function WalletConnect() {
               Select Wallet
             </span>
           </div>
-
-          {/* Injected wallet */}
-          {hasInjectedWallet ? (
-            <button
-              onClick={() => handleWalletSelect('injected')}
-              className="w-full px-4 py-3 text-left hover:bg-dark-700 transition-colors flex items-center gap-3"
-            >
-              <InjectedWalletIcon label={injectedLabel} />
-              <div>
-                <div className="font-medium">{injectedLabel}</div>
-                <div className="text-xs text-dark-400">Connect with browser wallet</div>
-              </div>
-            </button>
-          ) : (
-            <a
-              href="https://metamask.io/download/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full px-4 py-3 text-left hover:bg-dark-700 transition-colors flex items-center gap-3 text-dark-400 block"
-            >
-              <MetaMaskIcon />
-              <div>
-                <div className="font-medium">Install MetaMask</div>
-                <div className="text-xs">Browser wallet not detected</div>
-              </div>
-            </a>
-          )}
 
           {/* WalletConnect */}
           <button
@@ -463,24 +421,6 @@ function ChainBadge({ chainId, isUnsupported }: { chainId: number; isUnsupported
   );
 }
 
-/** Dynamic icon based on detected injected wallet */
-function InjectedWalletIcon({ label }: { label: string }) {
-  const colors: Record<string, string> = {
-    MetaMask: 'bg-orange-500/20 text-orange-400',
-    Rabby: 'bg-blue-500/20 text-blue-400',
-    'Brave Wallet': 'bg-orange-500/20 text-orange-400',
-    'Coinbase Wallet': 'bg-blue-500/20 text-blue-400',
-    'OKX Wallet': 'bg-white/10 text-white',
-  };
-  const colorClass = colors[label] || 'bg-purple-500/20 text-purple-400';
-
-  return (
-    <div className={`w-8 h-8 rounded-lg ${colorClass} flex items-center justify-center`}>
-      <span className="text-sm font-bold">{label.charAt(0)}</span>
-    </div>
-  );
-}
-
 // ─── Icons ───────────────────────────────────────────────────
 
 function WarningIcon() {
@@ -520,18 +460,6 @@ function DisconnectIcon() {
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
     </svg>
-  );
-}
-
-function MetaMaskIcon() {
-  return (
-    <div className="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center">
-      <svg className="w-5 h-5 text-orange-400" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M21.3 3L13.3 9.3l1.5-3.5L21.3 3z" />
-        <path d="M2.7 3l7.9 6.4-1.4-3.5L2.7 3zm15.5 13.1l-2.1 3.2 4.5 1.2 1.3-4.4-3.7 0zm-15.2 0l1.3 4.4 4.5-1.2-2.1-3.2-3.7 0z" />
-        <path d="M9.1 10.4l-1.3 1.9 4.5.2-.2-4.9-3 2.8zm5.8 0l-3-2.9-.1 5 4.5-.2-1.4-1.9zM6.6 19.3l2.7-1.3-2.3-1.8-.4 3.1zm5.4-1.3l2.7 1.3-.4-3.1-2.3 1.8z" />
-      </svg>
-    </div>
   );
 }
 

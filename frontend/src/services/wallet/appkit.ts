@@ -1,5 +1,5 @@
 /**
- * Reown AppKit initializer — WalletConnect QR modal, injected, Coinbase.
+ * Reown AppKit initializer — WalletConnect QR modal (injected/extension disabled).
  * Replaces deprecated @web3modal/ethers.
  */
 
@@ -64,7 +64,9 @@ export function initAppKit() {
     networks: networks as [typeof mainnet, ...typeof mainnet[]],
     projectId,
     metadata,
-    // Embedded email/social login pulls extra chunks (crypto/UI). Swaperex uses injected + WalletConnect only.
+    // Browser-extension / injected connectors are disabled; WalletConnect + read-only are used in the app UI.
+    enableInjected: false,
+    // Embedded email/social login pulls extra chunks (crypto/UI). Swaperex uses WalletConnect + read-only only.
     features: {
       analytics: false,
       email: false,

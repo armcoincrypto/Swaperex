@@ -2,9 +2,11 @@
  * Wallet Connection Hook — Multi-connector
  *
  * Supports:
- * - Injected wallets (MetaMask, Rabby, Brave, Coinbase ext, OKX)
  * - WalletConnect v2 (QR + deep link for mobile wallets, Ledger Live)
  * - Read-only mode (view without signing)
+ *
+ * Browser-extension / injected connect is disabled in the UI; `connectInjected`
+ * fails fast with a clear message for any legacy callers.
  *
  * Provides ethers.js BrowserProvider/Signer for transaction signing.
  * Integrates with walletStore and walletEvents.
@@ -21,14 +23,15 @@ import { parseWalletError } from '@/utils/errors';
 import { walletEvents } from '@/services/walletEvents';
 import { appKitProviderRef } from '@/components/wallet/AppKitBridge';
 import {
-  connectInjected as doConnectInjected,
   autoReconnect,
   disconnectAll,
-  detectInjectedWallet,
   getWcProvider,
   getChain,
 } from '@/wallet';
 import type { EIP1193Provider, ConnectorId } from '@/wallet';
+
+const EXTENSION_WALLETS_DISABLED_MSG =
+  'Browser extension wallets are disabled on this deployment. Use WalletConnect.';
 
 export function useWallet() {
   const {
@@ -45,7 +48,6 @@ export function useWallet() {
     disconnect,
     switchChain,
     updateChainId,
-    setConnecting,
     setReadOnlyAddress,
     setConnectionError,
     clearError,
@@ -61,8 +63,6 @@ export function useWallet() {
   const rawProviderRef = useRef<EIP1193Provider | null>(null);
   const connectorIdRef = useRef<ConnectorId | null>(null);
 
-  // Check if an injected wallet is available
-  const { available: hasInjectedWallet, label: injectedLabel } = detectInjectedWallet();
   const { open: openAppKit } = useAppKit();
   const { disconnect: appKitDisconnect } = useDisconnect();
 
@@ -133,26 +133,10 @@ export function useWallet() {
   // ─── Connect: Injected ────────────────────────────────────
 
   const connectInjected = useCallback(async () => {
-    setConnecting(true);
     clearError();
-
-    try {
-      const result = await doConnectInjected();
-
-      await setupEthersProvider(result.provider);
-      connectorIdRef.current = 'injected';
-      setConnectorLabel(result.info.label);
-
-      await connect(result.info.address, result.info.chainId, 'injected');
-      safeFetchBalances(result.info.address);
-    } catch (err) {
-      const parsed = parseWalletError(err);
-      setConnectionError(parsed.message);
-      throw err;
-    } finally {
-      setConnecting(false);
-    }
-  }, [connect, safeFetchBalances, setConnecting, setConnectionError, clearError, setupEthersProvider]);
+    setConnectionError(EXTENSION_WALLETS_DISABLED_MSG);
+    throw new Error(EXTENSION_WALLETS_DISABLED_MSG);
+  }, [setConnectionError, clearError]);
 
   // ─── Connect: WalletConnect (via AppKit modal) ──────────────
 
@@ -365,12 +349,10 @@ export function useWallet() {
     chainId,
     walletType,
     supportedChainIds,
-    hasInjectedWallet,
     error: connectionError,
     provider,
     signer,
     connectorLabel,
-    injectedLabel,
 
     // Actions
     connectInjected,
