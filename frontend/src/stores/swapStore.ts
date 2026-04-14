@@ -6,7 +6,6 @@
 
 import { create } from 'zustand';
 import type { SwapQuoteResponse, AssetInfo } from '@/types/api';
-import { swapsApi } from '@/api';
 
 export type ApprovalMode = 'exact' | 'unlimited';
 
@@ -35,7 +34,6 @@ interface SwapState {
   setSlippage: (slippage: number) => void;
   setApprovalMode: (mode: ApprovalMode) => void;
   swapAssets: () => void;
-  fetchQuote: (fromAddress: string) => Promise<void>;
   clearQuote: () => void;
   setQuote: (quote: SwapQuoteResponse | null) => void;
   setSwapping: (swapping: boolean) => void;
@@ -93,47 +91,6 @@ export const useSwapStore = create<SwapState>((set, get) => ({
       quote: null,
       quoteError: null,
     });
-  },
-
-  // Fetch quote from backend
-  fetchQuote: async (fromAddress: string) => {
-    const { fromAsset, toAsset, fromAmount, slippage } = get();
-
-    if (!fromAsset || !toAsset || !fromAmount || parseFloat(fromAmount) <= 0) {
-      return;
-    }
-
-    set({ isQuoting: true, quoteError: null });
-
-    try {
-      const response = await swapsApi.getSwapQuote({
-        from_asset: fromAsset.symbol,
-        to_asset: toAsset.symbol,
-        amount: fromAmount,
-        from_address: fromAddress,
-        slippage,
-      });
-
-      if (response.success) {
-        set({
-          quote: response,
-          toAmount: response.to_amount,
-          isQuoting: false,
-        });
-      } else {
-        set({
-          quote: null,
-          quoteError: response.error || 'Failed to get quote',
-          isQuoting: false,
-        });
-      }
-    } catch (error) {
-      set({
-        quote: null,
-        quoteError: error instanceof Error ? error.message : 'Quote failed',
-        isQuoting: false,
-      });
-    }
   },
 
   // Clear quote
