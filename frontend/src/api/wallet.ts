@@ -13,9 +13,6 @@ import apiClient from './client';
 import type {
   ConnectWalletRequest,
   ConnectWalletResponse,
-  WalletSession,
-  WalletCapabilities,
-  WalletType,
 } from '@/types/api';
 
 /** Opt-in: only then POST /wallet/connect and /wallet/disconnect are sent. */
@@ -44,11 +41,6 @@ export async function disconnectWallet(address: string): Promise<{ success: bool
   return response.data;
 }
 
-export async function getSession(address: string): Promise<WalletSession> {
-  const response = await apiClient.get<WalletSession>(`/wallet/session/${address}`);
-  return response.data;
-}
-
 export async function switchChain(
   address: string,
   chainId: number
@@ -60,29 +52,10 @@ export async function switchChain(
   return response.data;
 }
 
-export async function getCapabilities(
-  walletType: WalletType,
-  readOnly: boolean = false
-): Promise<WalletCapabilities> {
-  const response = await apiClient.get<WalletCapabilities>(
-    `/wallet/capabilities/${walletType}`,
-    { params: { read_only: readOnly } }
-  );
-  return response.data;
-}
-
-export async function listSessions(): Promise<{ count: number; sessions: WalletSession[] }> {
-  const response = await apiClient.get('/wallet/sessions');
-  return response.data;
-}
-
 export const walletApi = {
   connectWallet,
   disconnectWallet,
-  getSession,
   switchChain,
-  getCapabilities,
-  listSessions,
 };
 
 export default walletApi;
