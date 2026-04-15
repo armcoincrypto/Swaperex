@@ -25,6 +25,7 @@ import { getTokenBySymbol } from '@/tokens';
 import { startWatchlistMonitor } from '@/services/watchlistMonitor';
 import { useWalletBootstrapStore } from '@/stores/walletBootstrapStore';
 import { subscribeWalletBootstrapRequest } from '@/services/wallet/appKitActionsRegistry';
+import { SHOW_OPTIONAL_PRIMARY_NAV } from '@/config/productShell';
 
 const LazySendPage = lazy(() => import('@/components/send/SendPage'));
 const LazyPortfolioPage = lazy(() => import('@/components/portfolio/PortfolioPage'));
@@ -65,7 +66,7 @@ export function App() {
   const { getUnreadCount } = useRadarStore();
   const [bannerDismissed, setBannerDismissed] = useState(false);
 
-  const radarUnreadCount = getUnreadCount();
+  const radarUnreadCount = SHOW_OPTIONAL_PRIMARY_NAV ? getUnreadCount() : 0;
 
   // Health checks
   const refreshSignalsHealth = useSignalsHealthStore((s) => s.refresh);
@@ -263,25 +264,29 @@ export function App() {
               >
                 Send
               </NavButton>
-              <NavButton
-                active={currentPage === 'portfolio'}
-                onClick={() => setCurrentPage('portfolio')}
-              >
-                Portfolio
-              </NavButton>
-              <NavButton
-                active={currentPage === 'radar'}
-                onClick={() => setCurrentPage('radar')}
-                badge={radarUnreadCount > 0 ? radarUnreadCount : undefined}
-              >
-                Radar
-              </NavButton>
-              <NavButton
-                active={currentPage === 'screener'}
-                onClick={() => setCurrentPage('screener')}
-              >
-                Screener
-              </NavButton>
+              {SHOW_OPTIONAL_PRIMARY_NAV && (
+                <>
+                  <NavButton
+                    active={currentPage === 'portfolio'}
+                    onClick={() => setCurrentPage('portfolio')}
+                  >
+                    Portfolio
+                  </NavButton>
+                  <NavButton
+                    active={currentPage === 'radar'}
+                    onClick={() => setCurrentPage('radar')}
+                    badge={radarUnreadCount > 0 ? radarUnreadCount : undefined}
+                  >
+                    Radar
+                  </NavButton>
+                  <NavButton
+                    active={currentPage === 'screener'}
+                    onClick={() => setCurrentPage('screener')}
+                  >
+                    Screener
+                  </NavButton>
+                </>
+              )}
             </nav>
           </div>
 
