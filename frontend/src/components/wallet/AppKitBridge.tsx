@@ -8,8 +8,7 @@ import { useEffect, useRef } from 'react';
 import { useAppKitAccount, useAppKitProvider } from '@reown/appkit/react';
 import { useWalletStore } from '@/stores/walletStore';
 import { useBalanceStore } from '@/stores/balanceStore';
-
-export const appKitProviderRef = { current: null as unknown as import('@/wallet').EIP1193Provider | null };
+import { appKitProviderRef } from '@/services/wallet/appKitProviderRef';
 
 export function AppKitBridge() {
   const { address, isConnected: appKitConnected } = useAppKitAccount({ namespace: 'eip155' });

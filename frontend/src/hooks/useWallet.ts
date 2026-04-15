@@ -16,12 +16,16 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BrowserProvider, JsonRpcSigner, isAddress } from 'ethers';
-import { useAppKit, useDisconnect } from '@reown/appkit/react';
 import { useWalletStore } from '@/stores/walletStore';
 import { useBalanceStore } from '@/stores/balanceStore';
 import { parseWalletError } from '@/utils/errors';
 import { walletEvents } from '@/services/walletEvents';
-import { appKitProviderRef } from '@/components/wallet/AppKitBridge';
+import { appKitProviderRef } from '@/services/wallet/appKitProviderRef';
+import {
+  getAppKitDisconnect,
+  getOpenAppKit,
+  waitForAppKitActions,
+} from '@/services/wallet/appKitActionsRegistry';
 import {
   autoReconnect,
   disconnectAll,
@@ -62,9 +66,6 @@ export function useWallet() {
   // Track the raw EIP-1193 provider for event listeners
   const rawProviderRef = useRef<EIP1193Provider | null>(null);
   const connectorIdRef = useRef<ConnectorId | null>(null);
-
-  const { open: openAppKit } = useAppKit();
-  const { disconnect: appKitDisconnect } = useDisconnect();
 
   // ─── Helper: wrap raw provider into ethers ─────────────────
 
@@ -140,13 +141,14 @@ export function useWallet() {
 
   // ─── Connect: WalletConnect (via AppKit modal) ──────────────
 
-  const connectWalletConnect = useCallback(() => {
+  const connectWalletConnect = useCallback(async () => {
     clearError();
     connectorIdRef.current = 'walletconnect';
     setConnectorLabel('WalletConnect');
-    openAppKit({ view: 'Connect', namespace: 'eip155' });
+    await waitForAppKitActions();
+    getOpenAppKit()?.({ view: 'Connect', namespace: 'eip155' });
     // AppKitBridge will sync connection to store when user connects in modal
-  }, [openAppKit, clearError]);
+  }, [clearError]);
 
   // ─── Disconnect ───────────────────────────────────────────
 
@@ -157,7 +159,8 @@ export function useWallet() {
 
     if (shouldDisconnectAppKit) {
       try {
-        await appKitDisconnect({ namespace: 'eip155' });
+        await waitForAppKitActions(8_000);
+        await getAppKitDisconnect()?.({ namespace: 'eip155' });
       } catch {
         // Ignore AppKit disconnect failures; local cleanup still proceeds.
       }
@@ -174,7 +177,7 @@ export function useWallet() {
     setConnectorLabel('');
 
     walletEvents.emit('disconnect', { previousAddress: previousAddress || undefined });
-  }, [disconnect, clearBalances, address, walletType, appKitDisconnect]);
+  }, [disconnect, clearBalances, address, walletType]);
 
   // ─── Read-only mode ───────────────────────────────────────
 

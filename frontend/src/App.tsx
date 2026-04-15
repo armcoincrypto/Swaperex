@@ -6,8 +6,7 @@
  */
 
 import { useState, useEffect, lazy, Suspense } from 'react';
-import { WalletConnect } from '@/components/wallet/WalletConnect';
-import { AppKitBridge } from '@/components/wallet/AppKitBridge';
+import { LazyWalletBootstrap, LazyWalletConnect } from '@/components/wallet/lazyWalletChunks';
 import { SwapInterface } from '@/components/swap/SwapInterface';
 import { TokenList } from '@/components/balances/TokenList';
 import { ChainWarningBanner } from '@/components/chain/ChainWarning';
@@ -24,6 +23,8 @@ import { useSystemStatusStore } from '@/stores/systemStatusStore';
 import { type SwapRecord } from '@/stores/swapHistoryStore';
 import { getTokenBySymbol } from '@/tokens';
 import { startWatchlistMonitor } from '@/services/watchlistMonitor';
+import { useWalletBootstrapStore } from '@/stores/walletBootstrapStore';
+import { subscribeWalletBootstrapRequest } from '@/services/wallet/appKitActionsRegistry';
 
 const LazySendPage = lazy(() => import('@/components/send/SendPage'));
 const LazyPortfolioPage = lazy(() => import('@/components/portfolio/PortfolioPage'));
@@ -49,10 +50,15 @@ const lazyTabFallback = (
   </div>
 );
 
+const lazyWalletConnectFallback = (
+  <div className="h-10 w-[9.5rem] rounded-lg bg-dark-800/80 animate-pulse" aria-hidden />
+);
+
 type Page = 'swap' | 'send' | 'portfolio' | 'radar' | 'screener' | 'about' | 'terms' | 'privacy' | 'disclaimer';
 
 export function App() {
   const [currentPage, setCurrentPage] = useState<Page>('swap');
+  const walletHostNeeded = useWalletBootstrapStore((s) => s.needed);
   const { isConnected, isWrongChain, isReadOnly, chainId, switchNetwork } = useWallet();
   const { setFromAsset, setToAsset, setFromAmount } = useSwapStore();
   const { toasts, removeToast } = useToastStore();
@@ -79,6 +85,12 @@ export function App() {
     }, 60_000);
     return () => clearInterval(intervalId);
   }, [refreshSignalsHealth, refreshSystemStatus]);
+
+  useEffect(() => {
+    return subscribeWalletBootstrapRequest(() => {
+      useWalletBootstrapStore.getState().request();
+    });
+  }, []);
 
   // Handle chain switch from banner
   const handleBannerSwitch = async () => {
@@ -225,7 +237,11 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-electro-bg bg-bg-mesh">
-      <AppKitBridge />
+      {walletHostNeeded && (
+        <Suspense fallback={null}>
+          <LazyWalletBootstrap />
+        </Suspense>
+      )}
       {/* Header */}
       <header className="border-b border-white/[0.06] backdrop-blur-sm bg-electro-bg/80 sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -272,7 +288,9 @@ export function App() {
           {/* Network Selector and Wallet Connection */}
           <div className="flex items-center gap-3">
             <NetworkSelector />
-            <WalletConnect />
+            <Suspense fallback={lazyWalletConnectFallback}>
+              <LazyWalletConnect />
+            </Suspense>
           </div>
         </div>
       </header>
@@ -317,7 +335,9 @@ export function App() {
                     <p className="text-dark-400 mb-6">
                       Connect your wallet to send tokens.
                     </p>
-                    <WalletConnect />
+                    <Suspense fallback={lazyWalletConnectFallback}>
+                      <LazyWalletConnect />
+                    </Suspense>
                   </div>
                 )}
               </div>
