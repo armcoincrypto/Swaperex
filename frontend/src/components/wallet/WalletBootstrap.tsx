@@ -1,11 +1,10 @@
 /**
- * Lazy-loaded wallet host: Reown AppKit init + store bridge + modal action registration.
- * Kept out of the main bundle so read-only / non-wallet first loads avoid vendor-reown-walletconnect.
+ * Lazy-loaded wallet host: AppKit store bridge + modal action registration.
+ * createAppKit runs eagerly from main.tsx before React render so hooks here never race init.
  */
 
-import { useEffect, useLayoutEffect } from 'react';
+import { useEffect } from 'react';
 import { useAppKit, useDisconnect } from '@reown/appkit/react';
-import { initAppKit } from '@/services/wallet/appkit';
 import { AppKitBridge } from '@/components/wallet/AppKitBridge';
 import {
   registerAppKitActions,
@@ -27,10 +26,6 @@ function AppKitActionsRegistrar() {
 }
 
 export default function WalletBootstrap() {
-  useLayoutEffect(() => {
-    initAppKit();
-  }, []);
-
   return (
     <>
       <AppKitBridge />
