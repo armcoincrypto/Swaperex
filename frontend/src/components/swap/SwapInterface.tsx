@@ -648,6 +648,11 @@ export function SwapInterface() {
           </div>
         </div>
 
+        <p className="relative z-10 mb-4 flex items-start gap-2 text-[11px] leading-snug text-dark-400 sm:text-xs">
+          <ShieldIcon />
+          <span>{SWAP_SURFACE_COPY.firstVisitTrustLine}</span>
+        </p>
+
         {/* Settings Panel */}
         {showSettings && (
           <SlippageSettings

@@ -3,6 +3,10 @@
  * Copy only — no runtime behavior.
  */
 export const SWAP_SURFACE_COPY = {
+  /** One line under the Swap title — first-screen trust without duplicating the footer verbatim */
+  firstVisitTrustLine:
+    'Non-custodial swap. Review and sign locally in your wallet — quotes are estimates until confirmed on-chain.',
+
   trustLineQuoteEstimate:
     'Amounts reflect this quote (estimate). Final tokens received are confirmed on-chain.',
 
