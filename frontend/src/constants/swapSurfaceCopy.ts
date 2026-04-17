@@ -39,4 +39,16 @@ export const SWAP_SURFACE_COPY = {
 
   confirmedOnChainNoExact:
     'Confirmed on-chain. Exact received is not shown here — confirm in your wallet or on the explorer.',
+
+  /** Pre-sign confidence block (preview modal) */
+  reviewBeforeSignTitle: 'Review before you sign',
+  networkLabel: 'Network',
+  quoteFreshnessLabel: 'Quote freshness',
+  routeExecutionLabel: 'Route / execution',
+  minimumReceivedLabel: 'Minimum received',
+  slippageToleranceLabel: 'Slippage tolerance',
+  gasLimitEstimateLabel: 'Est. gas (units)',
+  /** We do not show a native-token fee estimate unless the wallet provides it at signing */
+  networkFeeWalletFallback: 'Network fee is shown in your wallet before confirmation.',
+  quoteFreshnessStale: 'Stale — refresh quote',
 } as const;

@@ -13,7 +13,7 @@ import { Modal } from '@/components/common/Modal';
 import { Button } from '@/components/common/Button';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 import { formatBalance, formatGasLimitUnits, getPriceImpactUi, swapAggregatorProviderLabel } from '@/utils/format';
-import { getExplorerTxUrl } from '@/config/chains';
+import { getChainById, getExplorerTxUrl } from '@/config/chains';
 import type { SwapQuote } from '@/hooks/useSwap';
 import type { ApprovalMode } from '@/stores/swapStore';
 
@@ -47,6 +47,8 @@ interface SwapPreviewModalProps {
   onCancel: () => void;
   onRefreshQuote: () => void;
   isRefreshing: boolean;
+  /** Active chain for network label (from wallet / swap context; display-only) */
+  chainId?: number | null;
 }
 
 export function SwapPreviewModal({
@@ -63,6 +65,7 @@ export function SwapPreviewModal({
   onCancel,
   onRefreshQuote,
   isRefreshing,
+  chainId = null,
 }: SwapPreviewModalProps) {
   const [secondsRemaining, setSecondsRemaining] = useState(QUOTE_EXPIRY_SECONDS);
   const [isExpired, setIsExpired] = useState(false);
@@ -229,6 +232,17 @@ export function SwapPreviewModal({
             {SWAP_SURFACE_COPY.trustLineQuoteEstimate}
           </p>
 
+          {/* Pre-sign confidence summary (preview only; display-only; no new quote math) */}
+          {step === 'preview' && (
+            <PreSignConfidenceBlock
+              quote={quote}
+              chainId={chainId}
+              secondsRemaining={secondsRemaining}
+              isExpired={isExpired}
+              gasUnitsDisplay={gasUnitsDisplay}
+            />
+          )}
+
           {/* Quote Expiry Timer */}
           {step === 'preview' && (
             <QuoteExpiryBanner
@@ -253,10 +267,6 @@ export function SwapPreviewModal({
               value={`1 ${quote.from_asset} = ${formatBalance(quote.rate)} ${quote.to_asset}`}
             />
             <DetailRow
-              label="Minimum received"
-              value={`${formatBalance(quote.minimum_received)} ${quote.to_asset}`}
-            />
-            <DetailRow
               label="Price impact"
               value={priceImpactUi.label}
               variant={priceImpactRowVariant}
@@ -270,14 +280,22 @@ export function SwapPreviewModal({
                   : `${formatSwapFeeTierDisplay(quote.feeTier)} fee tier`
               }
             />
-            <DetailRow
-              label="Slippage tolerance"
-              value={`${quote.slippage}%`}
-            />
-            <DetailRow
-              label={SWAP_SURFACE_COPY.routeViaLabel}
-              value={swapAggregatorProviderLabel(quote.provider)}
-            />
+            {step !== 'preview' && (
+              <>
+                <DetailRow
+                  label="Minimum received"
+                  value={`${formatBalance(quote.minimum_received)} ${quote.to_asset}`}
+                />
+                <DetailRow
+                  label="Slippage tolerance"
+                  value={`${quote.slippage}%`}
+                />
+                <DetailRow
+                  label={SWAP_SURFACE_COPY.routeViaLabel}
+                  value={swapAggregatorProviderLabel(quote.provider)}
+                />
+              </>
+            )}
             {quote.quoteSelectionReason && (
               <DetailRow
                 label="Quote selection"
@@ -315,20 +333,22 @@ export function SwapPreviewModal({
             </div>
           )}
 
-          {/* Gas limit (quote) + fee note */}
-          <div className="bg-dark-800/50 rounded-lg p-3 mb-4 space-y-1">
-            <div className="flex justify-between text-sm gap-2">
-              <span className="text-dark-400 shrink-0">Est. gas (units)</span>
-              <span className="text-dark-300 font-mono text-right">{gasUnitsDisplay ?? '—'}</span>
+          {/* Gas limit (quote) + fee note — preview step: summarized in PreSignConfidenceBlock */}
+          {step !== 'preview' && (
+            <div className="bg-dark-800/50 rounded-lg p-3 mb-4 space-y-1">
+              <div className="flex justify-between text-sm gap-2">
+                <span className="text-dark-400 shrink-0">Est. gas (units)</span>
+                <span className="text-dark-300 font-mono text-right">{gasUnitsDisplay ?? '—'}</span>
+              </div>
+              <div className="flex justify-between text-sm gap-2">
+                <span className="text-dark-400 shrink-0">Network fee</span>
+                <span className="text-dark-400 text-right">Set by wallet at signing</span>
+              </div>
+              <p className="text-[11px] text-dark-500 leading-snug pt-1">
+                The limit above is from the quote simulation; gas price and total fee are finalized in your wallet.
+              </p>
             </div>
-            <div className="flex justify-between text-sm gap-2">
-              <span className="text-dark-400 shrink-0">Network fee</span>
-              <span className="text-dark-400 text-right">Set by wallet at signing</span>
-            </div>
-            <p className="text-[11px] text-dark-500 leading-snug pt-1">
-              The limit above is from the quote simulation; gas price and total fee are finalized in your wallet.
-            </p>
-          </div>
+          )}
 
           {/* Approval Notice */}
           {needsApproval && step === 'preview' && (
@@ -486,6 +506,74 @@ function RecoveredSwapTraceBody({
           </Button>
         )}
       </div>
+    </div>
+  );
+}
+
+/** Single scannable block before first wallet confirmation; uses existing quote + countdown only. */
+function PreSignConfidenceBlock({
+  quote,
+  chainId,
+  secondsRemaining,
+  isExpired,
+  gasUnitsDisplay,
+}: {
+  quote: SwapQuote;
+  chainId: number | null | undefined;
+  secondsRemaining: number;
+  isExpired: boolean;
+  gasUnitsDisplay: string | null;
+}) {
+  const chainCfg = chainId != null ? getChainById(chainId) : undefined;
+  const networkDisplay =
+    chainCfg != null && chainId != null
+      ? `${chainCfg.name} · ${chainId}`
+      : chainId != null
+        ? `Chain ID ${chainId}`
+        : '—';
+
+  const freshnessDisplay = isExpired
+    ? SWAP_SURFACE_COPY.quoteFreshnessStale
+    : `Fresh · ${secondsRemaining}s left on quote`;
+
+  return (
+    <div
+      className="rounded-xl border border-white/[0.08] bg-dark-900/40 p-4 mb-4"
+      role="region"
+      aria-label={SWAP_SURFACE_COPY.reviewBeforeSignTitle}
+    >
+      <h3 className="text-sm font-semibold text-white mb-3">{SWAP_SURFACE_COPY.reviewBeforeSignTitle}</h3>
+      <dl className="space-y-2.5 text-sm">
+        <div className="flex justify-between gap-3">
+          <dt className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.networkLabel}</dt>
+          <dd className="text-right text-dark-100">{networkDisplay}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.quoteFreshnessLabel}</dt>
+          <dd className={`text-right ${isExpired ? 'text-red-400' : 'text-dark-100'}`}>{freshnessDisplay}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.routeExecutionLabel}</dt>
+          <dd className="text-right text-dark-100">{swapAggregatorProviderLabel(quote.provider)}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.minimumReceivedLabel}</dt>
+          <dd className="text-right text-dark-100">
+            {formatBalance(quote.minimum_received)} {quote.to_asset}
+          </dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.slippageToleranceLabel}</dt>
+          <dd className="text-right text-dark-100">{quote.slippage}%</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.gasLimitEstimateLabel}</dt>
+          <dd className="text-right font-mono text-dark-100">{gasUnitsDisplay ?? '—'}</dd>
+        </div>
+        <div className="pt-2 border-t border-white/[0.06] mt-1">
+          <p className="text-[11px] text-dark-500 leading-snug">{SWAP_SURFACE_COPY.networkFeeWalletFallback}</p>
+        </div>
+      </dl>
     </div>
   );
 }

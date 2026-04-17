@@ -1118,6 +1118,7 @@ export function SwapInterface() {
         txHash={txHash}
         explorerUrl={explorerUrl}
         approvalMode={approvalMode}
+        chainId={currentChainId}
         onConfirm={handleConfirmSwap}
         onCancel={handleCancelPreview}
         onRefreshQuote={handleRefreshQuote}
