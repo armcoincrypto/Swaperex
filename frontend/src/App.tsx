@@ -52,7 +52,10 @@ const lazyTabFallback = (
 );
 
 const lazyWalletConnectFallback = (
-  <div className="h-10 w-[9.5rem] rounded-lg bg-dark-800/80 animate-pulse" aria-hidden />
+  <div className="flex items-center justify-end gap-2" aria-hidden>
+    <div className="h-10 w-24 rounded-lg bg-dark-800/80 animate-pulse" />
+    <div className="h-10 w-32 rounded-lg bg-dark-800/80 animate-pulse" />
+  </div>
 );
 
 type Page = 'swap' | 'send' | 'portfolio' | 'radar' | 'screener' | 'about' | 'terms' | 'privacy' | 'disclaimer';

@@ -3,7 +3,7 @@
  *
  * Handles wallet connection flow:
  * 1. User clicks "Connect Wallet"
- * 2. Wallet picker shows: WalletConnect / View-only (browser extensions disabled on this deployment)
+ * 2. User may use header "View address" (read-only) or "Connect Wallet" → picker: WalletConnect / view-only
  * 3. After connect: shows address, chain, balance, wallet label
  *
  * NEVER receives private keys — only public address.
@@ -17,6 +17,12 @@ import { useBalanceStore } from '@/stores/balanceStore';
 import { getChain, isSupportedChain, CHAINS } from '@/wallet';
 
 type WalletOption = 'walletconnect' | 'readonly';
+
+/** Disconnected header — short labels; full explanations stay in the picker rows */
+const WALLET_ENTRY_LABELS = {
+  viewAddressHeader: 'View address',
+  viewAddressHeaderTitle: 'Read-only — inspect balances without WalletConnect or signing',
+} as const;
 
 export function WalletConnect() {
   const {
@@ -328,19 +334,37 @@ export function WalletConnect() {
     );
   }
 
+  const openReadOnlyFromHeader = () => {
+    clearError();
+    setSelectedWallet(null);
+    setShowWalletOptions(false);
+    setShowReadOnlyInput(true);
+  };
+
   // ===== DISCONNECTED — WALLET PICKER =====
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative flex flex-wrap items-center justify-end gap-2" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={openReadOnlyFromHeader}
+        title={WALLET_ENTRY_LABELS.viewAddressHeaderTitle}
+        className="px-3 py-2 text-sm font-medium text-dark-300 hover:text-white transition-colors whitespace-nowrap rounded-lg hover:bg-dark-800/80 border border-transparent hover:border-white/[0.06]"
+      >
+        {WALLET_ENTRY_LABELS.viewAddressHeader}
+      </button>
       <Button onClick={() => setShowWalletOptions(!showWalletOptions)} variant="primary">
         Connect Wallet
       </Button>
 
       {showWalletOptions && (
-        <div className="absolute right-0 mt-2 w-72 bg-dark-800 rounded-lg shadow-lg border border-dark-700 py-2 z-50">
+        <div className="absolute right-0 top-full mt-2 w-72 bg-dark-800 rounded-lg shadow-lg border border-dark-700 py-2 z-50">
           <div className="px-3 pb-2 mb-2 border-b border-dark-700">
             <span className="text-xs text-dark-400 uppercase tracking-wide">
-              Select Wallet
+              Connect or view
             </span>
+            <p className="text-[11px] text-dark-500 mt-1 leading-snug">
+              WalletConnect signs transactions. View address is read-only.
+            </p>
           </div>
 
           {/* WalletConnect */}
@@ -373,6 +397,20 @@ export function WalletConnect() {
 
           <div className="my-2 border-t border-dark-700" />
 
+          {/* View-only — placed above network chips so it stays visible without scrolling */}
+          <button
+            onClick={() => handleWalletSelect('readonly')}
+            className="w-full px-4 py-3 text-left hover:bg-dark-700 transition-colors flex items-center gap-3"
+          >
+            <EyeIcon />
+            <div>
+              <div className="font-medium">View address</div>
+              <div className="text-xs text-dark-400">Read-only — balances without signing</div>
+            </div>
+          </button>
+
+          <div className="my-2 border-t border-dark-700" />
+
           {/* Supported chains info */}
           <div className="px-4 py-2">
             <div className="text-xs text-dark-400 mb-1.5">Supported networks</div>
@@ -384,20 +422,6 @@ export function WalletConnect() {
               ))}
             </div>
           </div>
-
-          <div className="my-2 border-t border-dark-700" />
-
-          {/* View-only */}
-          <button
-            onClick={() => handleWalletSelect('readonly')}
-            className="w-full px-4 py-3 text-left hover:bg-dark-700 transition-colors flex items-center gap-3"
-          >
-            <EyeIcon />
-            <div>
-              <div className="font-medium">View Address</div>
-              <div className="text-xs text-dark-400">View balances without signing</div>
-            </div>
-          </button>
         </div>
       )}
     </div>
