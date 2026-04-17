@@ -76,7 +76,7 @@ function tokenToAsset(token: Token, chainId: number): AssetInfo {
 }
 
 export function SwapInterface() {
-  const { isConnected, address, isWrongChain, chainId, provider } = useWallet();
+  const { isConnected, address, isWrongChain, chainId, provider, isReadOnly } = useWallet();
   const { getTokenBalance } = useBalanceStore();
   const { getTokens: getCustomTokens, addToken: addCustomToken, removeToken: removeCustomToken } = useCustomTokenStore();
 
@@ -410,6 +410,7 @@ export function SwapInterface() {
   // Skip confirmation - auto-execute when preset with skipConfirmation is loaded
   useEffect(() => {
     if (!skipConfirmationActive) return;
+    if (isReadOnly) return;
     if (!swapQuote || !swapQuote.amountOutFormatted) return;
     if (status !== 'previewing') return;
 
@@ -426,7 +427,7 @@ export function SwapInterface() {
       .catch((err) => {
         console.warn('[Swap] Auto-execute failed:', err);
       });
-  }, [skipConfirmationActive, swapQuote, status, swap, confirmSwap]);
+  }, [skipConfirmationActive, swapQuote, status, swap, confirmSwap, isReadOnly]);
 
   // Expired quote: refresh only (stay on swap card). Fresh quote: open preview as today.
   const handleMainSwapAction = async () => {
@@ -439,6 +440,8 @@ export function SwapInterface() {
 
   // Open preview modal - ONLY if quote is valid and fresh
   const handlePreviewSwap = async () => {
+    if (isReadOnly) return;
+
     // Guard: Must have valid input
     const amount = parseFloat(fromAmount || '0');
     if (!fromAmount || isNaN(amount) || amount <= 0) {
@@ -580,6 +583,7 @@ export function SwapInterface() {
     // Show blocked state if hard guards fail
     if (guardEvaluation?.blocked && !guardsDismissed) return 'Blocked by Protection';
     if (swapQuote && isQuoteExpired) return SWAP_SURFACE_COPY.refreshQuoteCta;
+    if (isReadOnly) return 'Connect wallet to swap';
     return 'Preview Swap';
   };
 
@@ -593,6 +597,8 @@ export function SwapInterface() {
     if (quoteError) return true;
     // Must have a quote to proceed
     if (!swapQuote) return true;
+    // View-only: quotes are informational; signing requires WalletConnect (expired-quote refresh still allowed)
+    if (isReadOnly && !isQuoteExpired) return true;
     // Block if hard guards fail
     if (guardEvaluation?.blocked && !guardsDismissed) return true;
     return false;

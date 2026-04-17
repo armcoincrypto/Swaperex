@@ -317,6 +317,9 @@ export function useSwap() {
   // Uses request ID to prevent stale responses from updating UI
   const fetchSwapQuote = useCallback(async (): Promise<SwapQuote | null> => {
     if (!address || !fromAsset || !toAsset || !fromAmount) {
+      setSwapQuote(null);
+      clearQuote();
+      setState((s) => ({ ...s, status: 'idle', error: null }));
       return null;
     }
 
@@ -324,7 +327,13 @@ export function useSwap() {
     const toSymbol = getSymbol(toAsset);
 
     if (!fromSymbol || !toSymbol) {
-      setState((s) => ({ ...s, status: 'error', error: 'Please select both tokens to swap. Choose a token from each dropdown.' }));
+      setSwapQuote(null);
+      clearQuote();
+      setState((s) => ({
+        ...s,
+        status: 'error',
+        error: 'Please select both tokens to swap. Choose a token from each dropdown.',
+      }));
       return null;
     }
 
@@ -332,6 +341,10 @@ export function useSwap() {
     quoteRequestIdRef.current += 1;
     const thisRequestId = quoteRequestIdRef.current;
     console.log('[Swap] Quote request started, ID:', thisRequestId);
+
+    // Invalidate any previous receive-line quote immediately for this new request (avoid stale output)
+    setSwapQuote(null);
+    clearQuote();
 
     // PHASE 9: Log lifecycle transition
     logLifecycle(state.status, 'fetching_quote', { fromSymbol, toSymbol, fromAmount });
@@ -536,12 +549,14 @@ export function useSwap() {
       const parsed = parseQuoteError(err);
       console.error('[Swap] Quote error:', err);
       logLifecycle(state.status, 'error', { error: parsed.message });
+      setSwapQuote(null);
+      clearQuote();
       setState((s) => ({ ...s, status: 'error', error: parsed.message }));
       toast.error(parsed.message);
       return null;
     }
   // Note: state.status removed from deps to prevent infinite loop - it's only used for logging
-  }, [address, fromAsset, toAsset, fromAmount, chainId, slippage, provider, checkAllowance, setQuote]);
+  }, [address, fromAsset, toAsset, fromAmount, chainId, slippage, provider, checkAllowance, setQuote, clearQuote]);
 
   // Execute token approval
   const executeApproval = useCallback(async (): Promise<boolean> => {
