@@ -24,7 +24,13 @@ import { TokenSafetyBadges } from '@/components/common/TokenSafetyBadges';
 import { SwapPreviewModal, SwapStep } from './SwapPreviewModal';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 import { formatBalance, formatGasLimitUnits, getPriceImpactUi, swapAggregatorProviderLabel } from '@/utils/format';
-import { getPopularTokens, isNativeToken, isStaticToken, type Token } from '@/tokens';
+import {
+  getPopularTokens,
+  getWrappedNativeAddress,
+  isNativeToken,
+  isStaticToken,
+  type Token,
+} from '@/tokens';
 import { validateToken } from '@/services/tokenValidation';
 import { analyzeSwapFromContext, type SwapIntelligence } from '@/services/dex';
 import type { AssetInfo } from '@/types/api';
@@ -73,6 +79,20 @@ function tokenToAsset(token: Token, chainId: number): AssetInfo {
     contract_address: token.address,
     logo_url: token.logoURI,
   };
+}
+
+/** Display-only: native chain asset vs wrapped native (e.g. ETH vs WETH) for selector clarity */
+function nativeWrappedBadgeKind(asset: AssetInfo, chainId: number): 'native' | 'wrapped' | null {
+  if (asset.is_native) return 'native';
+  const wrappedAddr = getWrappedNativeAddress(chainId);
+  if (
+    asset.contract_address &&
+    wrappedAddr &&
+    asset.contract_address.toLowerCase() === wrappedAddr.toLowerCase()
+  ) {
+    return 'wrapped';
+  }
+  return null;
 }
 
 export function SwapInterface() {
@@ -714,6 +734,7 @@ export function SwapInterface() {
             <div className="relative">
               <TokenButton
                 asset={fromAsset}
+                chainId={currentChainId}
                 onClick={() => {
                   setShowFromSelector(!showFromSelector);
                   setShowToSelector(false);
@@ -779,6 +800,7 @@ export function SwapInterface() {
             <div className="relative">
               <TokenButton
                 asset={toAsset}
+                chainId={currentChainId}
                 onClick={() => {
                   setShowToSelector(!showToSelector);
                   setShowFromSelector(false);
@@ -1176,14 +1198,41 @@ function TokenLogo({ url, symbol, size = 'sm' }: { url?: string; symbol?: string
 }
 
 // Token Button Component
-function TokenButton({ asset, onClick }: { asset: AssetInfo | null; onClick: () => void }) {
+function TokenButton({
+  asset,
+  chainId,
+  onClick,
+}: {
+  asset: AssetInfo | null;
+  chainId: number;
+  onClick: () => void;
+}) {
+  const kind = asset ? nativeWrappedBadgeKind(asset, chainId) : null;
+  const title = asset
+    ? `${asset.symbol} — ${asset.name}${
+        kind === 'native' ? ' — Native (chain gas token)' : kind === 'wrapped' ? ' — Wrapped native' : ''
+      }`
+    : 'Select token';
+
   return (
     <button
+      type="button"
       onClick={onClick}
+      title={title}
       className="flex items-center gap-2 px-3 py-2 bg-electro-panel/80 rounded-xl hover:bg-electro-panelHover transition-all duration-200 border border-white/[0.06] hover:border-white/[0.1]"
     >
       <TokenLogo url={asset?.logo_url} symbol={asset?.symbol} size="sm" />
-      <span className="font-medium">{asset?.symbol || 'Select'}</span>
+      <div className="flex flex-col items-start min-w-0 text-left">
+        <span className="font-medium leading-tight truncate max-w-[6.5rem] sm:max-w-[9rem]">
+          {asset?.symbol || 'Select'}
+        </span>
+        {kind === 'native' && (
+          <span className="text-[10px] text-emerald-400/90 leading-none mt-0.5">Native</span>
+        )}
+        {kind === 'wrapped' && (
+          <span className="text-[10px] text-dark-400 leading-none mt-0.5">Wrapped</span>
+        )}
+      </div>
       <ChevronDownIcon />
     </button>
   );
@@ -1449,6 +1498,8 @@ function TokenSelectorDropdown({
             const verified = (asset as ExtendedAssetInfo).verified;
 
             const isFav = showFavorites && chainId && isFavorite(chainId, asset.contract_address || '');
+            const nativeWrapped =
+              chainId != null ? nativeWrappedBadgeKind(asset, chainId) : null;
 
             return (
               <div
@@ -1486,8 +1537,18 @@ function TokenSelectorDropdown({
                 )}
                 <TokenLogo url={asset.logo_url} symbol={asset.symbol} size="md" />
                 <div className="flex-1 min-w-0 text-left">
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="font-medium truncate">{asset.symbol}</span>
+                    {nativeWrapped === 'native' && (
+                      <span className="text-[9px] uppercase tracking-wide px-1 py-0.5 rounded bg-emerald-900/35 text-emerald-400/95 flex-shrink-0">
+                        Native
+                      </span>
+                    )}
+                    {nativeWrapped === 'wrapped' && (
+                      <span className="text-[9px] uppercase tracking-wide px-1 py-0.5 rounded bg-dark-600/80 text-dark-300 flex-shrink-0">
+                        Wrapped
+                      </span>
+                    )}
                     {isFav && (
                       <span className="text-[10px] px-1 py-0.5 rounded bg-yellow-900/30 text-yellow-400 flex-shrink-0">
                         Fav
