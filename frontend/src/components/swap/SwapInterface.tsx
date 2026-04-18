@@ -710,27 +710,37 @@ export function SwapInterface() {
         } ${
           insufficientBalance ? 'border-danger/50 shadow-glow-danger' : 'border-white/[0.06] hover:border-white/[0.1]'
         }`}>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-dark-400">You Pay</span>
-            <span className={`text-sm ${insufficientBalance ? 'text-red-400' : 'text-dark-400'}`}>
-              Balance: {formatBalance(fromBalance)}
+          <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+            <span className="text-sm text-dark-400 shrink-0">You Pay</span>
+            <div
+              className={`flex items-center gap-2 sm:gap-3 text-sm min-w-0 justify-end ${
+                insufficientBalance ? 'text-red-400' : 'text-dark-400'
+              }`}
+            >
+              <span className="tabular-nums whitespace-nowrap">
+                Balance:{' '}
+                <span className={`font-medium ${insufficientBalance ? 'text-red-300' : 'text-dark-300'}`}>
+                  {formatBalance(fromBalance)}
+                </span>
+              </span>
               {isConnected && parseFloat(fromBalance) > 0 && (
                 <button
+                  type="button"
                   onClick={() => {
                     const maxAmount = getMaxAmount();
                     if (parseFloat(maxAmount) > 0) {
                       setFromAmount(maxAmount);
                     }
                   }}
-                  className="ml-2 text-primary-400 hover:text-primary-300"
+                  className="shrink-0 px-2.5 py-1 rounded-md text-xs font-semibold tracking-wide text-primary-300 bg-primary-500/15 border border-primary-500/35 hover:bg-primary-500/25 hover:border-primary-400/50 transition-colors"
                   title={fromAsset?.is_native ? 'Max (leaves small amount for gas)' : 'Use full balance'}
                 >
                   MAX
                 </button>
               )}
-            </span>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-start gap-4">
             <div className="relative">
               <TokenButton
                 asset={fromAsset}
@@ -790,13 +800,14 @@ export function SwapInterface() {
         <div className={`relative bg-electro-bgAlt/80 rounded-glass-sm p-4 mt-2 border border-white/[0.06] hover:border-white/[0.1] transition-all duration-200 ${
           showToSelector ? 'z-30' : 'z-10'
         }`}>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-dark-400">You Receive</span>
-            <span className="text-sm text-dark-400">
-              Balance: {formatBalance(getBalance(toAsset))}
+          <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+            <span className="text-sm text-dark-400 shrink-0">You Receive</span>
+            <span className="text-sm text-dark-400 tabular-nums whitespace-nowrap">
+              Balance:{' '}
+              <span className="font-medium text-dark-300">{formatBalance(getBalance(toAsset))}</span>
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-start gap-4">
             <div className="relative">
               <TokenButton
                 asset={toAsset}
@@ -821,21 +832,23 @@ export function SwapInterface() {
                 />
               )}
             </div>
-            {/* Fixed height prevents layout shift when toggling between states */}
-            <div className="flex-1 text-right h-9 flex items-center justify-end">
+            {/* Fixed min-height keeps pay/receive rows aligned; quote vs placeholder */}
+            <div className="flex-1 min-h-[2.5rem] text-right flex flex-col items-end justify-center">
               {showSpinner ? (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 justify-end">
                   <LoadingSpinner />
-                  <span className="text-dark-400">{SWAP_SURFACE_COPY.gettingQuote}</span>
+                  <span className="text-sm text-dark-400">{SWAP_SURFACE_COPY.gettingQuote}</span>
                 </div>
               ) : swapQuote && swapQuote.amountOutFormatted ? (
-                <span className="text-2xl font-medium text-primary-400">
+                <span className="text-2xl font-medium tabular-nums text-primary-400">
                   {formatBalance(swapQuote.amountOutFormatted, 6)}
                 </span>
               ) : fromAmount && parseFloat(fromAmount) > 0 && !insufficientBalance ? (
-                <span className="text-2xl font-medium text-dark-500">~</span>
+                <span className="text-2xl font-medium text-dark-500 tabular-nums" title="Quote pending">
+                  —
+                </span>
               ) : (
-                <span className="text-2xl font-medium text-dark-500">0.0</span>
+                <span className="text-xl font-medium text-dark-500/90 tabular-nums">0.0</span>
               )}
             </div>
           </div>
@@ -1208,6 +1221,13 @@ function TokenButton({
   onClick: () => void;
 }) {
   const kind = asset ? nativeWrappedBadgeKind(asset, chainId) : null;
+  const secondaryMeta =
+    asset &&
+    (kind === 'native'
+      ? `${asset.name} · Native`
+      : kind === 'wrapped'
+        ? `${asset.name} · Wrapped`
+        : asset.name);
   const title = asset
     ? `${asset.symbol} — ${asset.name}${
         kind === 'native' ? ' — Native (chain gas token)' : kind === 'wrapped' ? ' — Wrapped native' : ''
@@ -1219,18 +1239,21 @@ function TokenButton({
       type="button"
       onClick={onClick}
       title={title}
-      className="flex items-center gap-2 px-3 py-2 bg-electro-panel/80 rounded-xl hover:bg-electro-panelHover transition-all duration-200 border border-white/[0.06] hover:border-white/[0.1]"
+      className="flex items-center gap-2.5 px-3 py-2.5 bg-electro-panel/80 rounded-xl hover:bg-electro-panelHover transition-all duration-200 border border-white/[0.06] hover:border-white/[0.1] min-w-0 max-w-[min(100%,11rem)] sm:max-w-[13rem]"
     >
       <TokenLogo url={asset?.logo_url} symbol={asset?.symbol} size="sm" />
-      <div className="flex flex-col items-start min-w-0 text-left">
-        <span className="font-medium leading-tight truncate max-w-[6.5rem] sm:max-w-[9rem]">
+      <div className="flex flex-col items-start min-w-0 flex-1 text-left gap-0.5">
+        <span className="text-[15px] font-semibold leading-tight tracking-tight truncate w-full">
           {asset?.symbol || 'Select'}
         </span>
-        {kind === 'native' && (
-          <span className="text-[10px] text-emerald-400/90 leading-none mt-0.5">Native</span>
-        )}
-        {kind === 'wrapped' && (
-          <span className="text-[10px] text-dark-400 leading-none mt-0.5">Wrapped</span>
+        {asset && secondaryMeta && (
+          <span
+            className={`text-[11px] leading-snug truncate w-full ${
+              kind === 'native' ? 'text-emerald-400/85' : kind === 'wrapped' ? 'text-dark-400' : 'text-dark-400'
+            }`}
+          >
+            {secondaryMeta}
+          </span>
         )}
       </div>
       <ChevronDownIcon />
