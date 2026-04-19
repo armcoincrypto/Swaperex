@@ -16,6 +16,12 @@ export const SWAP_SURFACE_COPY = {
   /** Quote fetch in progress (card output + primary button) */
   gettingQuote: 'Getting quote...',
 
+  /** Primary CTA when the last quote request failed (no executable quote) */
+  quoteFailedCta: 'Quote failed — try again',
+
+  /** Primary CTA when the last on-chain swap attempt failed (quote may still be present) */
+  swapFailedCta: 'Swap failed — try again',
+
   /** In-flight quote refresh (countdown chip / modal) */
   refreshing: 'Refreshing…',
 

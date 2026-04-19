@@ -161,10 +161,17 @@ export function SwapInterface() {
     routeMode,
     setRouteMode,
     swapAssets,
-    isQuoting,
-    quoteError,
     clearQuote,
   } = useSwapStore();
+
+  /** Single source of truth: in-flight quote work in useSwap (incl. allowance check after aggregation). */
+  const isQuotePipelineLoading = useMemo(
+    () => status === 'fetching_quote' || status === 'checking_allowance',
+    [status],
+  );
+
+  const statusRef = useRef(status);
+  statusRef.current = status;
 
   const [showSettings, setShowSettings] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -235,11 +242,25 @@ export function SwapInterface() {
     }
   }, [currentChainId, routeMode, setRouteMode]);
 
+  // Clear stale swap error when route or token selection changes (do not depend on `status` — avoids clearing on first error)
+  useEffect(() => {
+    if (statusRef.current === 'error') {
+      reset();
+    }
+  }, [
+    routeMode,
+    fromAsset?.symbol,
+    fromAsset?.contract_address,
+    toAsset?.symbol,
+    toAsset?.contract_address,
+    reset,
+  ]);
+
   // Delayed spinner - wait 250ms before showing spinner (Uniswap-style UX)
   // If quote resolves fast, spinner never appears = feels instant
   const SPINNER_DELAY_MS = 250;
   useEffect(() => {
-    const isFetching = isQuoting || status === 'fetching_quote';
+    const isFetching = isQuotePipelineLoading;
 
     if (isFetching) {
       // Start delay timer - only show spinner after 250ms
@@ -260,14 +281,14 @@ export function SwapInterface() {
         clearTimeout(spinnerTimeoutRef.current);
       }
     };
-  }, [isQuoting, status]);
+  }, [isQuotePipelineLoading]);
 
   // Quote expiry countdown - updates every second when quote is active
   useEffect(() => {
     // Only run countdown when we have a quote with timestamp (keep during fetch so TTL UX stays stable)
     if (
       !swapQuote?.quoteTimestamp ||
-      (status !== 'previewing' && status !== 'fetching_quote')
+      (status !== 'previewing' && status !== 'fetching_quote' && status !== 'checking_allowance')
     ) {
       setQuoteSecondsRemaining(null);
       return;
@@ -381,7 +402,7 @@ export function SwapInterface() {
     const amount = parseFloat(fromAmount || '0');
     if (!fromAmount || isNaN(amount) || amount <= 0) {
       // Only clear if we're not in a swap flow
-      if (status === 'idle' || status === 'fetching_quote') {
+      if (status === 'idle' || status === 'fetching_quote' || status === 'checking_allowance') {
         clearQuote();
       }
       return;
@@ -614,9 +635,14 @@ export function SwapInterface() {
     if (isWrongChain) return 'Wrong Network';
     if (!fromAmount || parseFloat(fromAmount) === 0) return 'Enter Amount';
     if (insufficientBalance) return `Insufficient ${fromAsset?.symbol || ''} Balance`;
-    if (isQuoting || status === 'fetching_quote') return SWAP_SURFACE_COPY.gettingQuote;
-    if (quoteError) return 'Quote Error - Try Again';
-    if (!swapQuote && fromAmount && parseFloat(fromAmount) > 0) return SWAP_SURFACE_COPY.gettingQuote;
+    if (isQuotePipelineLoading) return SWAP_SURFACE_COPY.gettingQuote;
+    if (status === 'error' && error) {
+      return swapQuote ? SWAP_SURFACE_COPY.swapFailedCta : SWAP_SURFACE_COPY.quoteFailedCta;
+    }
+    // Debounce gap / awaiting pipeline: amount set but not yet loading or quoted
+    if (!swapQuote && fromAmount && parseFloat(fromAmount) > 0 && !insufficientBalance) {
+      return SWAP_SURFACE_COPY.gettingQuote;
+    }
     // Show blocked state if hard guards fail
     if (guardEvaluation?.blocked && !guardsDismissed) return 'Blocked by Protection';
     if (swapQuote && isQuoteExpired) return SWAP_SURFACE_COPY.refreshQuoteCta;
@@ -630,8 +656,8 @@ export function SwapInterface() {
     if (isWrongChain) return true;
     if (!fromAmount || parseFloat(fromAmount) === 0) return true;
     if (insufficientBalance) return true;
-    if (isQuoting || status === 'fetching_quote') return true;
-    if (quoteError) return true;
+    if (isQuotePipelineLoading) return true;
+    if (status === 'error' && error) return true;
     // Must have a quote to proceed
     if (!swapQuote) return true;
     // View-only: quotes are informational; signing requires WalletConnect (expired-quote refresh still allowed)
@@ -854,7 +880,7 @@ export function SwapInterface() {
             </div>
             {/* Fixed min-height keeps pay/receive rows aligned; quote vs placeholder */}
             <div className="flex-1 min-h-[2.5rem] text-right flex flex-col items-end justify-center">
-              {showSpinner ? (
+              {showSpinner && status !== 'error' ? (
                 <div className="flex items-center gap-2 justify-end">
                   <LoadingSpinner />
                   <span className="text-sm text-dark-400">{SWAP_SURFACE_COPY.gettingQuote}</span>
@@ -921,7 +947,7 @@ export function SwapInterface() {
         )}
 
         {/* Quote Details (when quote available) */}
-        {swapQuote && (status === 'previewing' || status === 'fetching_quote') && !showPreview && (
+        {swapQuote && (status === 'previewing' || isQuotePipelineLoading) && !showPreview && (
           <div className="relative z-10 mt-4 p-4 bg-electro-bgAlt/60 rounded-glass-sm text-sm space-y-2 border border-white/[0.06]">
             {/* Best Route Banner with Countdown */}
             <div className="flex items-center justify-between pb-2 mb-2 border-b border-dark-700">
@@ -949,12 +975,12 @@ export function SwapInterface() {
                   <button
                     type="button"
                     onClick={() => void fetchSwapQuote()}
-                    disabled={isQuoting || status === 'fetching_quote'}
+                    disabled={isQuotePipelineLoading}
                     className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium bg-red-900/30 text-red-400 hover:bg-red-900/45 disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
                     <ClockIcon />
                     <span>
-                      {isQuoting || status === 'fetching_quote'
+                      {isQuotePipelineLoading
                         ? SWAP_SURFACE_COPY.refreshing
                         : SWAP_SURFACE_COPY.quoteExpiredChip}
                     </span>
@@ -1139,9 +1165,9 @@ export function SwapInterface() {
         )}
 
         {/* Error Display */}
-        {(quoteError || (error && status !== 'previewing')) && (
+        {error && status !== 'previewing' && !isQuotePipelineLoading && (
           <div className="mt-4 p-3 bg-red-900/20 border border-red-800 rounded-xl text-sm text-red-400">
-            {quoteError || error}
+            {error}
           </div>
         )}
 
@@ -1170,7 +1196,7 @@ export function SwapInterface() {
               }
             `}
           >
-            {showSpinner ? (
+            {showSpinner && status !== 'error' ? (
               <span className="flex items-center justify-center gap-2">
                 <LoadingSpinner />
                 <span>{SWAP_SURFACE_COPY.gettingQuote}</span>
