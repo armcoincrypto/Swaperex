@@ -13,6 +13,11 @@
  */
 
 import { getTokenBySymbol, type Token, isNativeToken } from '@/tokens';
+import {
+  formatOneInchFeeParam,
+  getMonetizationConfig,
+  isMonetizationActiveForProvider,
+} from '@/config';
 import { NATIVE_TOKEN_ADDRESS, isOneInchSupported } from './oneInchQuote';
 import { fetchWithTimeout } from '@/utils/fetchWithTimeout';
 
@@ -319,28 +324,74 @@ export async function buildOneInchSwapTx(
     from: fromAddress,
   });
 
-  // Build request URL
-  const url = new URL(`${ONEINCH_API_V6}/${chainId}/swap`);
-  url.searchParams.set('src', srcAddress);
-  url.searchParams.set('dst', dstAddress);
-  url.searchParams.set('amount', amountWei);
-  url.searchParams.set('from', fromAddress);
-  url.searchParams.set('slippage', slippage.toString());
+  const monetizationCfg = getMonetizationConfig();
+  const shouldAttachIntegratorFee = isMonetizationActiveForProvider('1inch');
 
-  if (receiver && receiver !== fromAddress) {
-    url.searchParams.set('receiver', receiver);
+  if (shouldAttachIntegratorFee && import.meta.env.DEV) {
+    console.log('[1inch TxBuilder] Integrator fee enabled:', {
+      feeBps: monetizationCfg.feeBps,
+      feeParam: formatOneInchFeeParam(monetizationCfg.feeBps),
+    });
   }
 
-  if (disableEstimate) {
-    url.searchParams.set('disableEstimate', 'true');
-  }
+  const buildSwapUrl = (includeIntegratorFee: boolean): URL => {
+    const url = new URL(`${ONEINCH_API_V6}/${chainId}/swap`);
+    url.searchParams.set('src', srcAddress);
+    url.searchParams.set('dst', dstAddress);
+    url.searchParams.set('amount', amountWei);
+    url.searchParams.set('from', fromAddress);
+    url.searchParams.set('slippage', slippage.toString());
+
+    if (receiver && receiver !== fromAddress) {
+      url.searchParams.set('receiver', receiver);
+    }
+
+    if (disableEstimate) {
+      url.searchParams.set('disableEstimate', 'true');
+    }
+
+    if (
+      includeIntegratorFee &&
+      monetizationCfg.recipient != null &&
+      monetizationCfg.feeBps > 0
+    ) {
+      // Classic Swap: `fee` = partner fee as percent (max 3%); `referrer` = fee recipient address.
+      url.searchParams.set('fee', formatOneInchFeeParam(monetizationCfg.feeBps));
+      url.searchParams.set('referrer', monetizationCfg.recipient);
+    }
+
+    return url;
+  };
+
+  let url = buildSwapUrl(shouldAttachIntegratorFee);
+  let attemptedWithFee = shouldAttachIntegratorFee;
 
   try {
-    const response = await fetchWithTimeout(
+    let response = await fetchWithTimeout(
       url.toString(),
       { method: 'GET', headers: getHeaders(apiKey) },
       { provider: '1inch' },
     );
+
+    if (!response.ok && attemptedWithFee) {
+      const errorText = await response.text();
+      console.warn(
+        '[1inch TxBuilder] Swap request with integrator fee failed; retrying without fee/referrer',
+        response.status,
+        errorText.slice(0, 500),
+      );
+      attemptedWithFee = false;
+      url = buildSwapUrl(false);
+      response = await fetchWithTimeout(
+        url.toString(),
+        { method: 'GET', headers: getHeaders(apiKey) },
+        { provider: '1inch' },
+      );
+    }
+
+    if (import.meta.env.DEV && response.ok && shouldAttachIntegratorFee && attemptedWithFee) {
+      console.log('[1inch TxBuilder] Swap tx built with 1inch integrator fee (fee + referrer)');
+    }
 
     if (!response.ok) {
       const errorText = await response.text();

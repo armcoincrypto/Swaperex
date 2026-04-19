@@ -68,3 +68,13 @@ export {
   getOneInchEndpoint,
   type DexConfig,
 } from './dex';
+
+// Phase 1 — 1inch platform fee (env)
+export {
+  MAX_PLATFORM_FEE_BPS,
+  feeBpsToOneInchFeePercent,
+  formatOneInchFeeParam,
+  getMonetizationConfig,
+  isMonetizationActiveForProvider,
+  type MonetizationConfig,
+} from './monetization';

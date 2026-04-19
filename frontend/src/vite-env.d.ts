@@ -18,6 +18,13 @@ interface ImportMetaEnv {
   /** When `true`, log legacy WC autoReconnect phases in production (see connectors.ts). DEV logs by default. */
   readonly VITE_LEGACY_WC_AUTORECONNECT_OBSERVABILITY?: string
 
+  /** Phase 1: enable 1inch integrator fee (requires valid recipient + feeBps > 0). */
+  readonly VITE_FEE_ENABLED?: string
+  /** Platform fee in basis points (100 = 1%). Clamped to 0–300 (max 3% per 1inch). Default 0. */
+  readonly VITE_FEE_BPS?: string
+  /** EVM address that receives the integrator fee (1inch `referrer`). */
+  readonly VITE_FEE_RECIPIENT?: string
+
   // Vite flags
   readonly DEV: boolean
   readonly PROD: boolean

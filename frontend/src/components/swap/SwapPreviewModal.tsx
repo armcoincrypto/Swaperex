@@ -13,6 +13,7 @@ import { Modal } from '@/components/common/Modal';
 import { Button } from '@/components/common/Button';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 import { formatBalance, formatGasLimitUnits, getPriceImpactUi, swapAggregatorProviderLabel } from '@/utils/format';
+import { getMonetizationConfig, isMonetizationActiveForProvider } from '@/config';
 import { getChainById, getExplorerTxUrl } from '@/config/chains';
 import type { SwapQuote } from '@/hooks/useSwap';
 import type { ApprovalMode } from '@/stores/swapStore';
@@ -280,6 +281,18 @@ export function SwapPreviewModal({
                   : `${formatSwapFeeTierDisplay(quote.feeTier)} fee tier`
               }
             />
+            {quote.provider === '1inch' && isMonetizationActiveForProvider('1inch') && (
+              <>
+                <DetailRow
+                  label="Platform fee"
+                  value={`${(getMonetizationConfig().feeBps / 100).toFixed(2)}%`}
+                  title="Swaperex platform fee via 1inch — taken from the output token when the swap executes"
+                />
+                <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
+                  Not a network (gas) fee. Quote amounts and route fees above are estimated before this fee.
+                </p>
+              </>
+            )}
             {step !== 'preview' && (
               <>
                 <DetailRow
@@ -566,6 +579,14 @@ function PreSignConfidenceBlock({
           <dt className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.slippageToleranceLabel}</dt>
           <dd className="text-right text-dark-100">{quote.slippage}%</dd>
         </div>
+        {quote.provider === '1inch' && isMonetizationActiveForProvider('1inch') && (
+          <div className="flex justify-between gap-3">
+            <dt className="text-dark-400 shrink-0">Platform fee</dt>
+            <dd className="text-right text-dark-100" title="Output-token fee via 1inch; quote line is before this fee">
+              {(getMonetizationConfig().feeBps / 100).toFixed(2)}%
+            </dd>
+          </div>
+        )}
         <div className="flex justify-between gap-3">
           <dt className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.gasLimitEstimateLabel}</dt>
           <dd className="text-right font-mono text-dark-100">{gasUnitsDisplay ?? '—'}</dd>

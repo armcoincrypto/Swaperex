@@ -31,6 +31,7 @@ import {
   isStaticToken,
   type Token,
 } from '@/tokens';
+import { getMonetizationConfig, isMonetizationActiveForProvider } from '@/config';
 import { validateToken } from '@/services/tokenValidation';
 import { analyzeSwapFromContext, type SwapIntelligence } from '@/services/dex';
 import type { AssetInfo } from '@/types/api';
@@ -1053,6 +1054,18 @@ export function SwapInterface() {
                   : `${getFeeTierDisplay(swapQuote.feeTier)} fee tier`}
               </span>
             </div>
+
+            {swapQuote.provider === '1inch' && isMonetizationActiveForProvider('1inch') && (
+              <div className="flex justify-between gap-2">
+                <span className="text-dark-400 shrink-0">Platform fee</span>
+                <span
+                  className="text-right text-dark-200"
+                  title="Output-token fee via 1inch on execution; quote output is estimated before this fee"
+                >
+                  {(getMonetizationConfig().feeBps / 100).toFixed(2)}%
+                </span>
+              </div>
+            )}
 
             {/* Slippage tolerance */}
             <div className="flex justify-between">
