@@ -11,6 +11,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useWallet } from '@/hooks/useWallet';
 import { useSwap } from '@/hooks/useSwap';
 import { useSwapStore, type ApprovalMode } from '@/stores/swapStore';
+import { toast } from '@/stores/toastStore';
 import { useBalanceStore } from '@/stores/balanceStore';
 import { useCustomTokenStore, type CustomToken } from '@/stores/customTokenStore';
 import { useFavoriteTokensStore } from '@/stores/favoriteTokensStore';
@@ -32,6 +33,11 @@ import {
   type Token,
 } from '@/tokens';
 import { getMonetizationConfig, isMonetizationActiveForProvider } from '@/config';
+import {
+  formatQuoteRoutePreferenceLabel,
+  isQuoteRouteModeDisabled,
+  type QuoteRouteMode,
+} from '@/services/quoteAggregator';
 import { validateToken } from '@/services/tokenValidation';
 import { analyzeSwapFromContext, type SwapIntelligence } from '@/services/dex';
 import type { AssetInfo } from '@/types/api';
@@ -152,6 +158,8 @@ export function SwapInterface() {
     setFromAmount,
     setSlippage,
     setApprovalMode,
+    routeMode,
+    setRouteMode,
     swapAssets,
     isQuoting,
     quoteError,
@@ -218,6 +226,14 @@ export function SwapInterface() {
       setToAsset(AVAILABLE_TOKENS[2] || AVAILABLE_TOKENS[1]);
     }
   }, [currentChainId, prevChainId, fromAsset, toAsset, setFromAsset, setToAsset, setFromAmount, reset, AVAILABLE_TOKENS]);
+
+  // Fixed-route modes are chain-specific; reset to Best price if the network cannot run the selection
+  useEffect(() => {
+    if (isQuoteRouteModeDisabled(routeMode, currentChainId)) {
+      setRouteMode('best');
+      toast.info('Route preference set to Best price — not available on this network.');
+    }
+  }, [currentChainId, routeMode, setRouteMode]);
 
   // Delayed spinner - wait 250ms before showing spinner (Uniswap-style UX)
   // If quote resolves fast, spinner never appears = feels instant
@@ -398,7 +414,7 @@ export function SwapInterface() {
     };
   // Note: status removed from deps to prevent infinite loop - we check it inside the effect
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fromAmount, fromAsset, toAsset, isConnected, fetchSwapQuote, clearQuote]);
+  }, [fromAmount, fromAsset, toAsset, isConnected, fetchSwapQuote, clearQuote, routeMode]);
 
   // Token selection handlers
   const handleFromTokenSelect = useCallback((asset: AssetInfo) => {
@@ -689,6 +705,9 @@ export function SwapInterface() {
             onCustomChange={handleCustomSlippage}
             approvalMode={approvalMode}
             onApprovalModeChange={setApprovalMode}
+            routeMode={routeMode}
+            onRouteModeChange={setRouteMode}
+            chainId={currentChainId}
             onClose={() => setShowSettings(false)}
           />
         )}
@@ -961,6 +980,11 @@ export function SwapInterface() {
             <p className="text-[11px] text-dark-500 leading-snug">
               {SWAP_SURFACE_COPY.trustLineQuoteEstimate}
             </p>
+
+            <div className="flex justify-between text-xs gap-2 pt-1 border-b border-white/[0.06] pb-2 mb-2">
+              <span className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.routePreferenceLabel}</span>
+              <span className="text-dark-200 text-right">{formatQuoteRoutePreferenceLabel(swapQuote.routeMode)}</span>
+            </div>
 
             {/* Aggregator: real winner vs runner-up (execution quotes) */}
             {swapQuote.quoteSelectionReason && (
@@ -1653,6 +1677,13 @@ function StarIcon({ filled = false }: { filled?: boolean }) {
 }
 
 // Slippage Settings Component
+const ROUTE_MODE_OPTIONS: { mode: QuoteRouteMode; label: string }[] = [
+  { mode: 'best', label: 'Best' },
+  { mode: '1inch', label: '1inch' },
+  { mode: 'uniswap-v3', label: 'Uniswap' },
+  { mode: 'pancakeswap-v3', label: 'Pancake' },
+];
+
 function SlippageSettings({
   value,
   customValue,
@@ -1660,6 +1691,9 @@ function SlippageSettings({
   onCustomChange,
   approvalMode,
   onApprovalModeChange,
+  routeMode,
+  onRouteModeChange,
+  chainId,
   onClose,
 }: {
   value: number;
@@ -1668,6 +1702,9 @@ function SlippageSettings({
   onCustomChange: (v: string) => void;
   approvalMode: ApprovalMode;
   onApprovalModeChange: (mode: ApprovalMode) => void;
+  routeMode: QuoteRouteMode;
+  onRouteModeChange: (mode: QuoteRouteMode) => void;
+  chainId: number;
   onClose: () => void;
 }) {
   const presets = [0.1, 0.5, 1.0];
@@ -1680,6 +1717,42 @@ function SlippageSettings({
         <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
           <CloseIcon />
         </button>
+      </div>
+
+      {/* Route preference */}
+      <div className="mb-4">
+        <span className="text-sm text-dark-300 mb-2 block">{SWAP_SURFACE_COPY.routePreferenceLabel}</span>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+          {ROUTE_MODE_OPTIONS.map(({ mode, label }) => {
+            const disabled = isQuoteRouteModeDisabled(mode, chainId);
+            const active = routeMode === mode;
+            return (
+              <button
+                key={mode}
+                type="button"
+                disabled={disabled}
+                title={
+                  disabled
+                    ? 'Not available on this network'
+                    : formatQuoteRoutePreferenceLabel(mode)
+                }
+                onClick={() => onRouteModeChange(mode)}
+                className={`px-2 py-2 rounded-lg text-xs font-medium transition-all duration-200 truncate ${
+                  disabled
+                    ? 'opacity-40 cursor-not-allowed bg-dark-800 text-dark-500'
+                    : active
+                      ? 'bg-accent text-electro-bg'
+                      : 'bg-electro-panel hover:bg-electro-panelHover border border-white/[0.06] text-dark-200'
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-[11px] text-dark-500 mt-2 leading-snug">
+          Best price compares routes. Fixed options execute only on that venue — no silent fallback.
+        </p>
       </div>
 
       {/* Slippage tolerance */}

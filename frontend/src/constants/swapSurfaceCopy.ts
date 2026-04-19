@@ -48,7 +48,9 @@ export const SWAP_SURFACE_COPY = {
   reviewBeforeSignTitle: 'Review before you sign',
   networkLabel: 'Network',
   quoteFreshnessLabel: 'Quote freshness',
-  routeExecutionLabel: 'Route / execution',
+  /** User setting: Best price vs fixed 1inch / Uniswap / Pancake */
+  routePreferenceLabel: 'Route preference',
+  routeExecutionLabel: 'Executes via',
   minimumReceivedLabel: 'Minimum received',
   slippageToleranceLabel: 'Slippage tolerance',
   gasLimitEstimateLabel: 'Est. gas (units)',

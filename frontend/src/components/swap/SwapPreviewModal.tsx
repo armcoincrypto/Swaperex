@@ -12,6 +12,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Modal } from '@/components/common/Modal';
 import { Button } from '@/components/common/Button';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
+import { formatQuoteRoutePreferenceLabel } from '@/services/quoteAggregator';
 import { formatBalance, formatGasLimitUnits, getPriceImpactUi, swapAggregatorProviderLabel } from '@/utils/format';
 import { getMonetizationConfig, isMonetizationActiveForProvider } from '@/config';
 import { getChainById, getExplorerTxUrl } from '@/config/chains';
@@ -304,8 +305,13 @@ export function SwapPreviewModal({
                   value={`${quote.slippage}%`}
                 />
                 <DetailRow
+                  label={SWAP_SURFACE_COPY.routePreferenceLabel}
+                  value={formatQuoteRoutePreferenceLabel(quote.routeMode ?? 'best')}
+                />
+                <DetailRow
                   label={SWAP_SURFACE_COPY.routeViaLabel}
                   value={swapAggregatorProviderLabel(quote.provider)}
+                  title="Venue that will execute this swap"
                 />
               </>
             )}
@@ -564,6 +570,10 @@ function PreSignConfidenceBlock({
         <div className="flex justify-between gap-3">
           <dt className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.quoteFreshnessLabel}</dt>
           <dd className={`text-right ${isExpired ? 'text-red-400' : 'text-dark-100'}`}>{freshnessDisplay}</dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.routePreferenceLabel}</dt>
+          <dd className="text-right text-dark-100">{formatQuoteRoutePreferenceLabel(quote.routeMode ?? 'best')}</dd>
         </div>
         <div className="flex justify-between gap-3">
           <dt className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.routeExecutionLabel}</dt>

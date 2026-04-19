@@ -47,6 +47,61 @@ type SupportedChainId = (typeof SUPPORTED_CHAINS)[number];
  */
 export type QuoteProvider = 'uniswap-v3' | 'pancakeswap-v3' | '1inch';
 
+/** User routing preference: compare all sources, or fix one execution venue. */
+export type QuoteRouteMode = 'best' | QuoteProvider;
+
+const ROUTE_PROVIDER_LABEL: Record<QuoteProvider, string> = {
+  '1inch': '1inch',
+  'uniswap-v3': 'Uniswap V3',
+  'pancakeswap-v3': 'PancakeSwap V3',
+};
+
+/** Human-readable label for settings and preview. */
+export function formatQuoteRoutePreferenceLabel(mode: QuoteRouteMode): string {
+  if (mode === 'best') return 'Best price';
+  return ROUTE_PROVIDER_LABEL[mode] ?? mode;
+}
+
+/** Whether a fixed route is unavailable on the current chain (UI disables the option). */
+export function isQuoteRouteModeDisabled(mode: QuoteRouteMode, chainId: number): boolean {
+  if (mode === 'best') return false;
+  if (mode === 'uniswap-v3') return chainId !== 1;
+  if (mode === 'pancakeswap-v3') return chainId !== 56;
+  return false;
+}
+
+function assertForcedRouteAllowed(provider: QuoteProvider, chainId: number): void {
+  if (provider === 'uniswap-v3' && chainId !== 1) {
+    throw new Error(
+      'Uniswap V3 is only available on Ethereum mainnet. Switch networks or choose Best price or 1inch.',
+    );
+  }
+  if (provider === 'pancakeswap-v3' && chainId !== 56) {
+    throw new Error(
+      'PancakeSwap is only available on BNB Chain. Switch networks or choose Best price or 1inch.',
+    );
+  }
+}
+
+async function getForcedProviderQuoteResult(
+  tokenIn: string,
+  tokenOut: string,
+  amountIn: string,
+  chainId: number,
+  slippage: number,
+  provider: QuoteProvider,
+): Promise<AggregatedQuoteResult> {
+  assertForcedRouteAllowed(provider, chainId);
+
+  const best = await getQuoteFromProvider(provider, tokenIn, tokenOut, amountIn, chainId, slippage);
+
+  return {
+    best,
+    alternative: null,
+    selectionReason: `${ROUTE_PROVIDER_LABEL[provider]} (fixed route — selected in settings)`,
+  };
+}
+
 /**
  * Unified quote result that works with all providers
  */
@@ -220,16 +275,23 @@ function formatFromWei(amount: string, decimals: number): string {
  * @param amountIn - Input amount (human readable)
  * @param chainId - Chain ID (1 = ETH, 56 = BSC, 137 = Polygon, etc.)
  * @param slippage - Slippage tolerance percentage
+ * @param routeMode - Best price (compare venues) or force a single provider
  */
 export async function getAggregatedQuote(
   tokenIn: string,
   tokenOut: string,
   amountIn: string,
   chainId: number = 1,
-  slippage: number = 0.5
+  slippage: number = 0.5,
+  routeMode: QuoteRouteMode = 'best',
 ): Promise<AggregatedQuoteResult> {
   if (!SUPPORTED_CHAINS.includes(chainId as SupportedChainId)) {
     throw new Error(`Quote aggregator only supports chains: ${SUPPORTED_CHAINS.join(', ')}`);
+  }
+
+  if (routeMode !== 'best') {
+    console.log('[Aggregator] Fixed route mode:', routeMode, { tokenIn, tokenOut, amountIn, chainId });
+    return getForcedProviderQuoteResult(tokenIn, tokenOut, amountIn, chainId, slippage, routeMode);
   }
 
   const tokenOutData = getTokenBySymbol(tokenOut, chainId);
@@ -444,7 +506,9 @@ export async function getQuoteFromProvider(
     const apiKey = getOneInchApiKey();
     const quote = await getBestOneInchQuote(tokenIn, tokenOut, amountIn, chainId, apiKey);
     if (!quote) {
-      throw new Error('1inch quote failed');
+      throw new Error(
+        'No quote from 1inch for this pair or amount. Try another size, or switch to Best price to compare routes.',
+      );
     }
     return normalizeOneInchQuote(quote, slippage, tokenOutData.decimals, chainId);
   } else if (provider === 'uniswap-v3') {
@@ -453,7 +517,9 @@ export async function getQuoteFromProvider(
     }
     const quote = await getUniswapQuote(tokenIn, tokenOut, amountIn, chainId);
     if (!quote) {
-      throw new Error('Uniswap quote failed');
+      throw new Error(
+        'No Uniswap V3 quote for this pair or amount. Try another size or route.',
+      );
     }
     return normalizeUniswapQuote(quote, slippage, tokenOutData.decimals);
   } else if (provider === 'pancakeswap-v3') {
@@ -462,7 +528,9 @@ export async function getQuoteFromProvider(
     }
     const quote = await getBestPancakeQuote(tokenIn, tokenOut, amountIn);
     if (!quote) {
-      throw new Error('PancakeSwap quote failed');
+      throw new Error(
+        'No PancakeSwap quote for this pair or amount. Try another size or route.',
+      );
     }
     return normalizePancakeQuote(quote, slippage, tokenOutData.decimals);
   }

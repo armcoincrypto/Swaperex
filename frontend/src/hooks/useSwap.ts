@@ -66,6 +66,7 @@ import {
 import {
   getAggregatedQuote,
   type AggregatedQuote,
+  type QuoteRouteMode,
 } from '@/services/quoteAggregator';
 import {
   buildOneInchSwapTx,
@@ -132,6 +133,8 @@ export interface SwapQuote extends QuoteResult {
   quoteSelectionReason?: string;
   /** Runner-up when two execution quotes were compared */
   runnerUpAggregatedQuote?: RunnerUpQuoteSnippet | null;
+  /** User-selected routing: best price vs fixed venue */
+  routeMode: QuoteRouteMode;
   // Quote expiry tracking (timestamp when quote was received)
   quoteTimestamp: number;
   // UI-compatible fields (maps to SwapQuoteResponse)
@@ -197,7 +200,7 @@ const ALLOWANCE_ABI = [
 
 export function useSwap() {
   const { address, isWrongChain, chainId, getSigner, provider } = useWallet();
-  const { fromAsset, toAsset, fromAmount, slippage, approvalMode, setQuote, clearQuote } = useSwapStore();
+  const { fromAsset, toAsset, fromAmount, slippage, approvalMode, routeMode, setQuote, clearQuote } = useSwapStore();
   const { fetchBalances } = useBalanceStore();
   const { addRecord: addSwapRecord, updateRecordStatus } = useSwapHistoryStore();
   const { trackEvent } = useUsageStore();
@@ -374,7 +377,8 @@ export function useSwap() {
         toSymbol,
         fromAmount,
         chainId || 1,
-        slippage || DEFAULT_SLIPPAGE
+        slippage || DEFAULT_SLIPPAGE,
+        routeMode,
       );
       const aggregatedQuote = aggregation.best;
 
@@ -460,6 +464,7 @@ export function useSwap() {
               amountOut: aggregation.alternative.amountOutFormatted,
             }
           : null,
+        routeMode,
         // Quote expiry: timestamp when this quote was received
         quoteTimestamp: Date.now(),
         // UI-compatible fields
@@ -556,7 +561,7 @@ export function useSwap() {
       return null;
     }
   // Note: state.status removed from deps to prevent infinite loop - it's only used for logging
-  }, [address, fromAsset, toAsset, fromAmount, chainId, slippage, provider, checkAllowance, setQuote, clearQuote]);
+  }, [address, fromAsset, toAsset, fromAmount, chainId, slippage, routeMode, provider, checkAllowance, setQuote, clearQuote]);
 
   // Execute token approval
   const executeApproval = useCallback(async (): Promise<boolean> => {
