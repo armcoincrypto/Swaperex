@@ -42,7 +42,7 @@ import { useUsageStore } from '@/stores/usageStore';
 import {
   isUserRejection,
   parseTransactionError,
-  parseRpcError,
+  parseSwapExecutionError,
   parseQuoteError,
   logError,
 } from '@/utils/errors';
@@ -833,12 +833,8 @@ export function useSwap() {
       // PHASE 7: NO silent failures - log everything
       logError('Swap Execution', err);
 
-      // Try RPC error first, then transaction error
-      const rpcParsed = parseRpcError(err);
-      const txParsed = parseTransactionError(err);
-
-      // Use the more specific error message
-      const parsed = rpcParsed.category !== 'unknown' ? rpcParsed : txParsed;
+      // Distinguish 1inch /swap build, wallet/RPC, and broadcast without mislabeling
+      const parsed = parseSwapExecutionError(err);
 
       if (isUserRejection(err)) {
         logLifecycle(state.status, 'previewing', { reason: 'user_rejected' });

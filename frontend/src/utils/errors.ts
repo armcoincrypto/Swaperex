@@ -38,11 +38,13 @@ export interface ParsedError {
 export function isUserRejection(error: unknown): boolean {
   if (!error) return false;
 
-  const err = error as { code?: number; message?: string };
+  const err = error as { code?: number | string; message?: string };
 
-  // MetaMask rejection codes
+  // EIP-1193 / MetaMask: user rejected request
   if (err.code === 4001) return true;
-  if (err.code === -32603) return true;
+  if (err.code === 'ACTION_REJECTED') return true;
+
+  // Do NOT treat -32603 (internal JSON-RPC error) as user rejection — it is often RPC/wallet noise.
 
   const message = err.message?.toLowerCase() || '';
   return (
@@ -125,10 +127,10 @@ export function parseTransactionError(error: unknown): ParsedError {
   const rawTx = (err.message || err.reason || '').trim();
   const message = rawTx.toLowerCase();
 
-  // Keep full 1inch builder errors (do not reclassify "1inch: Network error..." as generic network)
-  if (rawTx && message.startsWith('1inch:')) {
+  // Keep full 1inch builder errors (quote + /swap build + fetch wrapper). Match anywhere for wrapped errors.
+  if (rawTx && message.includes('1inch:')) {
     return {
-      category: 'transaction_error',
+      category: 'quote_error',
       message: rawTx,
       isRecoverable: true,
       shouldShowRetry: true,
@@ -427,6 +429,37 @@ export function parseRpcError(error: unknown): ParsedError {
 }
 
 /**
+ * Parse errors during swap execution (1inch /swap build, approval, wallet sign, broadcast).
+ *
+ * Order matters: 1inch API + fetch wrapper errors must not lose context to generic RPC "failed to fetch"
+ * messages. `executeSwap` previously preferred `parseRpcError` whenever it was not `unknown`, which
+ * replaced e.g. `1inch: Network error: Failed to fetch` with a generic cannot-connect string.
+ */
+export function parseSwapExecutionError(error: unknown): ParsedError {
+  if (isUserRejection(error)) {
+    return parseTransactionError(error);
+  }
+
+  const raw = (getErrorMessage(error, '') || '').trim();
+  if (raw.toLowerCase().includes('1inch:')) {
+    return {
+      category: 'quote_error',
+      message: raw,
+      isRecoverable: true,
+      shouldShowRetry: true,
+    };
+  }
+
+  const rpcParsed = parseRpcError(error);
+  const txParsed = parseTransactionError(error);
+
+  if (rpcParsed.category !== 'unknown') {
+    return rpcParsed;
+  }
+  return txParsed;
+}
+
+/**
  * Log error with full context (NO silent failures)
  */
 export function logError(context: string, error: unknown): void {
@@ -466,6 +499,7 @@ export default {
   parseTransactionError,
   parseQuoteError,
   parseRpcError,
+  parseSwapExecutionError,
   formatBalanceError,
   formatAddressError,
   getRejectionMessage,

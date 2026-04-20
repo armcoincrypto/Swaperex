@@ -874,6 +874,17 @@ function categorizeError(error: string | null): ErrorInfo {
     };
   }
 
+  // 1inch swap build / API (keep full message — do not collapse to generic "network")
+  if (errorLower.includes('1inch:')) {
+    return {
+      type: 'unknown',
+      title: '1inch could not build this swap',
+      message: error || 'The 1inch swap service returned an error when building the transaction.',
+      suggestion: 'Refresh the quote and try again. If it keeps happening, the 1inch API or your connection may be the cause — not always your wallet.',
+      canRetry: true,
+    };
+  }
+
   // User rejected transaction
   if (errorLower.includes('rejected') || errorLower.includes('denied') || errorLower.includes('cancelled') || errorLower.includes('user refused')) {
     return {
@@ -918,20 +929,26 @@ function categorizeError(error: string | null): ErrorInfo {
     };
   }
 
-  // Network issues
+  // Network / RPC / provider (show the real parsed message; title stays generic for grouping)
   if (
     errorLower.includes('network') ||
     errorLower.includes('timeout') ||
     errorLower.includes('connection') ||
     errorLower.includes('failed to fetch') ||
     errorLower.includes('json-rpc') ||
-    errorLower.includes('rpc error')
+    errorLower.includes('rpc error') ||
+    errorLower.includes('cannot connect to network') ||
+    errorLower.includes('wallet provider')
   ) {
     return {
       type: 'network',
-      title: 'Network error',
-      message: 'Network connection lost or the wallet provider could not be reached.',
-      suggestion: 'Check your connection or RPC, wait a moment, and try again.',
+      title: 'Network or wallet RPC',
+      message:
+        (error && error.trim().length > 0
+          ? error
+          : 'Network connection lost or the wallet provider could not be reached.'),
+      suggestion:
+        'If you use WalletConnect, keep the session open. Try again or switch RPC in your wallet if the problem continues.',
       canRetry: true,
     };
   }
