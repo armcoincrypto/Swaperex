@@ -115,6 +115,18 @@ function getOneInchTokenAddress(token: Token): string {
   return token.address;
 }
 
+/** Best-effort parse of 1inch JSON error bodies (Classic Swap). */
+function parseOneInchErrorBody(errorText: string): string {
+  const trimmed = errorText.trim();
+  if (!trimmed) return '';
+  try {
+    const j = JSON.parse(trimmed) as { description?: string; error?: string; meta?: { message?: string } };
+    return (j.description || j.error || j.meta?.message || '').trim();
+  } catch {
+    return trimmed.length > 280 ? `${trimmed.slice(0, 280)}…` : trimmed;
+  }
+}
+
 /**
  * Build API headers with optional API key
  */
@@ -215,13 +227,44 @@ export async function getOneInchQuote(
 
     if (!response.ok) {
       const errorText = await response.text();
+      const detail = parseOneInchErrorBody(errorText);
       console.error('[1inch Quote] API Error:', response.status, errorText);
 
+      if (response.status === 401) {
+        throw new Error(
+          '1inch: Authentication failed (401). Set VITE_ONEINCH_API_KEY from https://portal.1inch.dev — without a key, quotes are rate-limited and may fail in production.',
+        );
+      }
+      if (response.status === 403) {
+        throw new Error(
+          detail
+            ? `1inch: Access denied (403). ${detail}`
+            : '1inch: Access denied (403). Check API key permissions for the Swap API.',
+        );
+      }
+      if (response.status === 429) {
+        throw new Error(
+          '1inch: Rate limited (429). Wait a few seconds or configure VITE_ONEINCH_API_KEY for higher limits.',
+        );
+      }
       if (response.status === 400) {
-        throw new Error('1inch: Invalid swap parameters. Check token addresses and amounts.');
+        throw new Error(
+          detail
+            ? `1inch: ${detail}`
+            : '1inch: Invalid swap parameters. Check token addresses and amounts.',
+        );
+      }
+      if (response.status >= 500) {
+        throw new Error(
+          detail
+            ? `1inch: Service error (${response.status}). ${detail}`
+            : `1inch: Service temporarily unavailable (${response.status}). Please try again.`,
+        );
       }
 
-      throw new Error(`1inch: API error (${response.status})`);
+      throw new Error(
+        detail ? `1inch: Request failed (${response.status}). ${detail}` : `1inch: API error (${response.status})`,
+      );
     }
 
     const data: OneInchQuoteResponse = await response.json();

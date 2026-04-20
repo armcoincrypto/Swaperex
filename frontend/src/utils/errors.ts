@@ -122,7 +122,18 @@ export function parseTransactionError(error: unknown): ParsedError {
   }
 
   const err = error as { code?: number; message?: string; reason?: string };
-  const message = (err.message || err.reason || '').toLowerCase();
+  const rawTx = (err.message || err.reason || '').trim();
+  const message = rawTx.toLowerCase();
+
+  // Keep full 1inch builder errors (do not reclassify "1inch: Network error..." as generic network)
+  if (rawTx && message.startsWith('1inch:')) {
+    return {
+      category: 'transaction_error',
+      message: rawTx,
+      isRecoverable: true,
+      shouldShowRetry: true,
+    };
+  }
 
   // Insufficient funds
   if (message.includes('insufficient funds') || message.includes('insufficient balance')) {
@@ -197,7 +208,25 @@ export function parseTransactionError(error: unknown): ParsedError {
  */
 export function parseQuoteError(error: unknown): ParsedError {
   const err = error as { message?: string; response?: { data?: { error?: string } } };
-  const message = (err.message || err.response?.data?.error || '').toLowerCase();
+  const raw = (err.message || err.response?.data?.error || '').trim();
+  const message = raw.toLowerCase();
+
+  // Preserve explicit 1inch / aggregator messages (avoid replacing with generic "pricing unavailable")
+  if (
+    raw &&
+    (message.startsWith('1inch:') ||
+      message.startsWith('unknown token:') ||
+      message.includes('1inch does not support chain') ||
+      message.includes('no quotes available from any provider') ||
+      message.includes('no quote from 1inch'))
+  ) {
+    return {
+      category: 'quote_error',
+      message: raw,
+      isRecoverable: true,
+      shouldShowRetry: true,
+    };
+  }
 
   // Quote expired
   if (message.includes('expired') || message.includes('stale')) {
