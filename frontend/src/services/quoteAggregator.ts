@@ -144,13 +144,9 @@ export interface AggregatedQuoteResult {
 }
 
 /**
- * Get 1inch API key from environment
+ * 1inch auth is server-side (ONEINCH_API_KEY on backend-signals proxy). Kept for call-site compatibility.
  */
 function getOneInchApiKey(): string | undefined {
-  // Check environment variable
-  if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_ONEINCH_API_KEY) {
-    return import.meta.env.VITE_ONEINCH_API_KEY;
-  }
   return undefined;
 }
 

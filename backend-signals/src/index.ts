@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import { getSignals } from "./api.js";
 import { getCache, setCache } from "./cache/memory.js";
+import { registerOneInchProxy } from "./oneinchProxy.js";
 
 // Configuration
 const PORT = Number(process.env.PORT) || 4001;
@@ -653,6 +654,8 @@ app.get("/coingecko/simple/price", async (req, reply) => {
   }
 });
 
+await registerOneInchProxy(app);
+
 // Start server
 try {
   await app.listen({ port: PORT, host: "0.0.0.0" });
@@ -663,6 +666,7 @@ try {
 ║  Signals: ${SIGNALS_ENABLED ? "ENABLED" : "DISABLED"}                        ║
 ║  Etherscan V2: ${ETHERSCAN_API_KEY ? "KEY SET" : "NO KEY"}                     ║
 ║  BSCScan:      ${BSCSCAN_API_KEY ? "KEY SET" : "NO KEY"}                     ║
+║  1inch proxy:  ${process.env.ONEINCH_API_KEY ? "KEY SET" : "NO KEY (rate limits)"}     ║
 ╚════════════════════════════════════════════╝
   `);
 } catch (err) {

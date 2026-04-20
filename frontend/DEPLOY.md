@@ -19,6 +19,7 @@
    ```bash
    pm2 restart backend-signals
    ```
+   **1inch:** Set `ONEINCH_API_KEY` in the **backend-signals** process environment (not in Vite). The browser calls same-origin `/oneinch/...` only; nginx must proxy `/oneinch/` to `:4001` (included in `scripts/nginx/dex.kobbex.com.conf`). After changing the key or nginx, reload nginx and restart backend-signals.
 
 4. **Nginx:** Production site uses `scripts/nginx/dex.kobbex.com.conf`. To apply config changes:
    ```bash

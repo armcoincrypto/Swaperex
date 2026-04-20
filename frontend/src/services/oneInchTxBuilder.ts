@@ -19,12 +19,11 @@ import {
   isMonetizationActiveForProvider,
 } from '@/config';
 import { NATIVE_TOKEN_ADDRESS, isOneInchSupported } from './oneInchQuote';
+import { ONEINCH_PROXY_BASE } from '@/config/api';
 import { fetchWithTimeout } from '@/utils/fetchWithTimeout';
 
-/**
- * 1inch API v6 base URL
- */
-const ONEINCH_API_V6 = 'https://api.1inch.dev/swap/v6.0';
+/** Same path as upstream /swap/v6.0 — requests go through same-origin proxy (backend-signals). */
+const ONEINCH_API_V6 = `${ONEINCH_PROXY_BASE.replace(/\/+$/, '')}/swap/v6.0`;
 
 /**
  * Swap parameters for 1inch
@@ -106,17 +105,9 @@ function getOneInchTokenAddress(token: Token): string {
   return token.address;
 }
 
-/**
- * Build API headers with optional API key
- */
-function getHeaders(apiKey?: string): HeadersInit {
-  const headers: HeadersInit = {
-    'Accept': 'application/json',
-  };
-  if (apiKey) {
-    headers['Authorization'] = `Bearer ${apiKey}`;
-  }
-  return headers;
+/** API key is added by the server proxy only — never from the browser. */
+function getHeaders(): HeadersInit {
+  return { Accept: 'application/json' };
 }
 
 /**
@@ -124,14 +115,14 @@ function getHeaders(apiKey?: string): HeadersInit {
  */
 export async function getOneInchRouterAddress(
   chainId: number = 1,
-  apiKey?: string
+  _apiKey?: string
 ): Promise<string> {
   const url = `${ONEINCH_API_V6}/${chainId}/approve/spender`;
 
   try {
     const response = await fetchWithTimeout(
       url,
-      { method: 'GET', headers: getHeaders(apiKey) },
+      { method: 'GET', headers: getHeaders() },
       { provider: '1inch' },
     );
 
@@ -175,7 +166,7 @@ export async function buildOneInchApproval(
   tokenSymbol: string,
   chainId: number = 1,
   amount?: string,
-  apiKey?: string
+  _apiKey?: string
 ): Promise<OneInchApprovalTx> {
   const token = getTokenBySymbol(tokenSymbol, chainId);
   if (!token) {
@@ -206,7 +197,7 @@ export async function buildOneInchApproval(
   try {
     const response = await fetchWithTimeout(
       url.toString(),
-      { method: 'GET', headers: getHeaders(apiKey) },
+      { method: 'GET', headers: getHeaders() },
       { provider: '1inch' },
     );
 
@@ -235,7 +226,7 @@ export async function checkOneInchAllowance(
   tokenSymbol: string,
   walletAddress: string,
   chainId: number = 1,
-  apiKey?: string
+  _apiKey?: string
 ): Promise<string> {
   const token = getTokenBySymbol(tokenSymbol, chainId);
   if (!token) {
@@ -254,7 +245,7 @@ export async function checkOneInchAllowance(
   try {
     const response = await fetchWithTimeout(
       url.toString(),
-      { method: 'GET', headers: getHeaders(apiKey) },
+      { method: 'GET', headers: getHeaders() },
       { provider: '1inch' },
     );
 
@@ -274,7 +265,7 @@ export async function checkOneInchAllowance(
  * Build swap transaction from 1inch API
  *
  * @param params - Swap parameters
- * @param apiKey - Optional 1inch API key
+ * @param _apiKey Deprecated — ignored; bearer token is set on the server proxy.
  *
  * @returns Unsigned transaction data for wallet to sign
  *
@@ -282,7 +273,7 @@ export async function checkOneInchAllowance(
  */
 export async function buildOneInchSwapTx(
   params: OneInchSwapParams,
-  apiKey?: string
+  _apiKey?: string
 ): Promise<OneInchSwapTx> {
   const {
     tokenIn,
@@ -369,7 +360,7 @@ export async function buildOneInchSwapTx(
   try {
     let response = await fetchWithTimeout(
       url.toString(),
-      { method: 'GET', headers: getHeaders(apiKey) },
+      { method: 'GET', headers: getHeaders() },
       { provider: '1inch' },
     );
 
@@ -384,7 +375,7 @@ export async function buildOneInchSwapTx(
       url = buildSwapUrl(false);
       response = await fetchWithTimeout(
         url.toString(),
-        { method: 'GET', headers: getHeaders(apiKey) },
+        { method: 'GET', headers: getHeaders() },
         { provider: '1inch' },
       );
     }

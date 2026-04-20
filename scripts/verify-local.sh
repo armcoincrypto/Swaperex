@@ -28,6 +28,11 @@ STATUS_CG=$(curl -sS -o /dev/null -w "%{http_code}" "$BACKEND/coingecko/markets?
 printf "| %-18s | %-6s |\n" "/coingecko/markets" "$STATUS_CG"
 [ "$STATUS_CG" != "200" ] && echo "  ⚠️  CoinGecko proxy failed" && FAILED=1
 
+# 1inch proxy (401 without ONEINCH_API_KEY is OK — proves route hits upstream, not 404)
+STATUS_1INCH=$(curl -sS -o /dev/null -w "%{http_code}" "$BACKEND/oneinch/swap/v6.0/1/quote?src=0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE&dst=0xdAC17F958D2ee523a2206206994597C13D831ec7&amount=100000000000000000" 2>/dev/null || echo "000")
+printf "| %-18s | %-6s |\n" "/oneinch/.../quote" "$STATUS_1INCH"
+[ "$STATUS_1INCH" = "404" ] && echo "  ⚠️  1inch proxy route missing" && FAILED=1
+
 echo ""
 if [ $FAILED -eq 1 ]; then
   echo "❌ Verification failed"

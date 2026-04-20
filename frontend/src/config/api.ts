@@ -47,6 +47,15 @@ export const EXPLORER_PROXY_BASE: string =
     ? '/explorer'
     : SIGNALS_API_URL.replace(/\/api\/v1\/?$/, '') + '/explorer';
 
+/**
+ * 1inch Classic Swap v6.0 proxy (backend-signals). Browser never calls api.1inch.dev;
+ * server injects ONEINCH_API_KEY. Same-origin pattern as /rpc and /coingecko.
+ */
+export const ONEINCH_PROXY_BASE: string =
+  SIGNALS_API_URL.startsWith('/')
+    ? '/oneinch'
+    : SIGNALS_API_URL.replace(/\/api\/v1\/?$/, '') + '/oneinch';
+
 /** Whether signals use same-origin (relative) URLs. */
 export const isSignalsSameOrigin = (): boolean =>
   !SIGNALS_API_URL || SIGNALS_API_URL.startsWith('/');

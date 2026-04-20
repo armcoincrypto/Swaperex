@@ -13,12 +13,11 @@
  */
 
 import { getTokenBySymbol, type Token } from '@/tokens';
+import { ONEINCH_PROXY_BASE } from '@/config/api';
 import { fetchWithTimeout } from '@/utils/fetchWithTimeout';
 
-/**
- * 1inch API v6 base URL
- */
-const ONEINCH_API_V6 = 'https://api.1inch.dev/swap/v6.0';
+/** Same path shape as upstream /swap/v6.0 — served via same-origin proxy (see backend-signals). */
+const ONEINCH_API_V6 = `${ONEINCH_PROXY_BASE.replace(/\/+$/, '')}/swap/v6.0`;
 
 /**
  * Supported chain IDs for 1inch
@@ -127,17 +126,9 @@ function parseOneInchErrorBody(errorText: string): string {
   }
 }
 
-/**
- * Build API headers with optional API key
- */
-function getHeaders(apiKey?: string): HeadersInit {
-  const headers: HeadersInit = {
-    'Accept': 'application/json',
-  };
-  if (apiKey) {
-    headers['Authorization'] = `Bearer ${apiKey}`;
-  }
-  return headers;
+/** Proxy adds Authorization server-side — never send a 1inch key from the browser. */
+function getHeaders(): HeadersInit {
+  return { Accept: 'application/json' };
 }
 
 /**
@@ -168,7 +159,7 @@ function formatAmountFromWei(amount: string, decimals: number): string {
  * @param tokenOut - Output token symbol
  * @param amountIn - Amount of input token (human readable)
  * @param chainId - Chain ID (default: 1 = Ethereum)
- * @param apiKey - Optional 1inch API key
+ * @param _apiKey Deprecated — ignored; key is configured on the 1inch proxy (ONEINCH_API_KEY).
  *
  * @returns Quote result with output amount and gas estimate
  */
@@ -177,7 +168,7 @@ export async function getOneInchQuote(
   tokenOut: string,
   amountIn: string,
   chainId: number = 1,
-  apiKey?: string
+  _apiKey?: string
 ): Promise<OneInchQuoteResult> {
   // Validate chain support
   if (!isOneInchSupported(chainId)) {
@@ -221,7 +212,7 @@ export async function getOneInchQuote(
   try {
     const response = await fetchWithTimeout(
       url.toString(),
-      { method: 'GET', headers: getHeaders(apiKey) },
+      { method: 'GET', headers: getHeaders() },
       { provider: '1inch' },
     );
 
@@ -232,7 +223,7 @@ export async function getOneInchQuote(
 
       if (response.status === 401) {
         throw new Error(
-          '1inch: Authentication failed (401). Set VITE_ONEINCH_API_KEY from https://portal.1inch.dev — without a key, quotes are rate-limited and may fail in production.',
+          '1inch: Authentication failed (401). Configure ONEINCH_API_KEY on the swap proxy (backend-signals) — see repo .env.example.',
         );
       }
       if (response.status === 403) {
@@ -244,7 +235,7 @@ export async function getOneInchQuote(
       }
       if (response.status === 429) {
         throw new Error(
-          '1inch: Rate limited (429). Wait a few seconds or configure VITE_ONEINCH_API_KEY for higher limits.',
+          '1inch: Rate limited (429). Wait a few seconds — the proxy may need a valid ONEINCH_API_KEY for higher limits.',
         );
       }
       if (response.status === 400) {
@@ -322,11 +313,11 @@ export async function getBestOneInchQuote(
   tokenOut: string,
   amountIn: string,
   chainId: number = 1,
-  apiKey?: string
+  _apiKey?: string
 ): Promise<OneInchQuoteResult | null> {
   try {
     // 1inch always returns the best route, no need to try multiple configs
-    return await getOneInchQuote(tokenIn, tokenOut, amountIn, chainId, apiKey);
+    return await getOneInchQuote(tokenIn, tokenOut, amountIn, chainId);
   } catch (error) {
     console.error('[1inch] Failed to get quote:', error);
     return null;
