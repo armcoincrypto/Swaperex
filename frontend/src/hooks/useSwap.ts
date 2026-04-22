@@ -739,12 +739,23 @@ export function useSwap() {
 
       console.log('[Swap] Sending swap:', { provider: swapQuote.provider, ...swapTx });
 
+      // Omit gasLimit when missing/zero — '0' is truthy in JS and would pass BigInt('0') => 0n (bad for wallets)
+      let resolvedGasLimit: bigint | undefined;
+      if (swapTx.gasLimit !== undefined && swapTx.gasLimit !== null && swapTx.gasLimit !== '') {
+        try {
+          const g = BigInt(swapTx.gasLimit);
+          if (g > 0n) resolvedGasLimit = g;
+        } catch {
+          resolvedGasLimit = undefined;
+        }
+      }
+
       // Send swap transaction (wallet signs)
       const tx = await signer.sendTransaction({
         to: swapTx.to,
         data: swapTx.data,
         value: BigInt(swapTx.value),
-        gasLimit: swapTx.gasLimit ? BigInt(swapTx.gasLimit) : undefined,
+        ...(resolvedGasLimit !== undefined ? { gasLimit: resolvedGasLimit } : {}),
       });
 
       broadcastTx = tx;
