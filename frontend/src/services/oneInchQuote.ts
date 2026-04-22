@@ -13,11 +13,8 @@
  */
 
 import { getTokenBySymbol, type Token } from '@/tokens';
-import { ONEINCH_PROXY_BASE } from '@/config/api';
+import { createOneInchSwapV6Url } from '@/config/api';
 import { fetchWithTimeout } from '@/utils/fetchWithTimeout';
-
-/** Same path shape as upstream /swap/v6.0 — served via same-origin proxy (see backend-signals). */
-const ONEINCH_API_V6 = `${ONEINCH_PROXY_BASE.replace(/\/+$/, '')}/swap/v6.0`;
 
 /**
  * Supported chain IDs for 1inch
@@ -203,8 +200,8 @@ export async function getOneInchQuote(
     dst: dstAddress,
   });
 
-  // Build request URL
-  const url = new URL(`${ONEINCH_API_V6}/${chainId}/quote`);
+  // Build request URL (same-origin `/oneinch/...` must use base + path — single-arg new URL throws)
+  const url = createOneInchSwapV6Url(`${chainId}/quote`);
   url.searchParams.set('src', srcAddress);
   url.searchParams.set('dst', dstAddress);
   url.searchParams.set('amount', amountWei);

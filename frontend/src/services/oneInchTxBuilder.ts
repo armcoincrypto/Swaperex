@@ -19,11 +19,8 @@ import {
   isMonetizationActiveForProvider,
 } from '@/config';
 import { NATIVE_TOKEN_ADDRESS, isOneInchSupported } from './oneInchQuote';
-import { ONEINCH_PROXY_BASE } from '@/config/api';
+import { createOneInchSwapV6Url, getOneInchSwapV6Prefix } from '@/config/api';
 import { fetchWithTimeout } from '@/utils/fetchWithTimeout';
-
-/** Same path as upstream /swap/v6.0 — requests go through same-origin proxy (backend-signals). */
-const ONEINCH_API_V6 = `${ONEINCH_PROXY_BASE.replace(/\/+$/, '')}/swap/v6.0`;
 
 /**
  * Swap parameters for 1inch
@@ -117,7 +114,7 @@ export async function getOneInchRouterAddress(
   chainId: number = 1,
   _apiKey?: string
 ): Promise<string> {
-  const url = `${ONEINCH_API_V6}/${chainId}/approve/spender`;
+  const url = `${getOneInchSwapV6Prefix()}/${chainId}/approve/spender`;
 
   try {
     const response = await fetchWithTimeout(
@@ -179,7 +176,7 @@ export async function buildOneInchApproval(
   }
 
   // Build URL
-  const url = new URL(`${ONEINCH_API_V6}/${chainId}/approve/transaction`);
+  const url = createOneInchSwapV6Url(`${chainId}/approve/transaction`);
   url.searchParams.set('tokenAddress', token.address);
   if (amount) {
     const amountWei = parseAmountToWei(amount, token.decimals);
@@ -238,7 +235,7 @@ export async function checkOneInchAllowance(
     return 'unlimited';
   }
 
-  const url = new URL(`${ONEINCH_API_V6}/${chainId}/approve/allowance`);
+  const url = createOneInchSwapV6Url(`${chainId}/approve/allowance`);
   url.searchParams.set('tokenAddress', token.address);
   url.searchParams.set('walletAddress', walletAddress);
 
@@ -326,7 +323,7 @@ export async function buildOneInchSwapTx(
   }
 
   const buildSwapUrl = (includeIntegratorFee: boolean): URL => {
-    const url = new URL(`${ONEINCH_API_V6}/${chainId}/swap`);
+    const url = createOneInchSwapV6Url(`${chainId}/swap`);
     url.searchParams.set('src', srcAddress);
     url.searchParams.set('dst', dstAddress);
     url.searchParams.set('amount', amountWei);

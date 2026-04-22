@@ -56,6 +56,33 @@ export const ONEINCH_PROXY_BASE: string =
     ? '/oneinch'
     : SIGNALS_API_URL.replace(/\/api\/v1\/?$/, '') + '/oneinch';
 
+/**
+ * Path prefix for Classic Swap v6.0 (`/oneinch/swap/v6.0` or absolute in dev).
+ */
+export function getOneInchSwapV6Prefix(): string {
+  const b = ONEINCH_PROXY_BASE.replace(/\/+$/, '');
+  return `${b}/swap/v6.0`;
+}
+
+/**
+ * Build a URL for 1inch proxy fetches.
+ *
+ * Root-relative bases like `/oneinch/...` cannot use single-arg `new URL(path)` in the browser
+ * (throws "Invalid URL"). Use `path` + `window.location.origin`, or an already-absolute `http(s)` prefix.
+ */
+export function createOneInchSwapV6Url(pathUnderV6: string): URL {
+  const prefix = getOneInchSwapV6Prefix().replace(/\/+$/, '');
+  const path = `${prefix}/${pathUnderV6.replace(/^\/+/, '')}`;
+  if (/^https?:\/\//i.test(path)) {
+    return new URL(path);
+  }
+  const origin =
+    typeof window !== 'undefined' && typeof window.location?.origin === 'string'
+      ? window.location.origin
+      : 'http://127.0.0.1:5173';
+  return new URL(path, origin);
+}
+
 /** Whether signals use same-origin (relative) URLs. */
 export const isSignalsSameOrigin = (): boolean =>
   !SIGNALS_API_URL || SIGNALS_API_URL.startsWith('/');
