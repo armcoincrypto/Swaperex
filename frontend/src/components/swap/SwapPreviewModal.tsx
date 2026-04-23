@@ -178,15 +178,20 @@ export function SwapPreviewModal({
           boxClass: 'text-blue-300 bg-blue-900/20 border border-blue-800/40',
           text: 'Submitted to the network. Waiting for confirmation.',
         }
-      : step === 'approving' || step === 'swapping'
+      : step === 'approving'
         ? {
             boxClass: 'text-yellow-400 bg-yellow-900/20',
-            text: 'Check your wallet and approve this request.',
+            text: 'Check your wallet to approve token spending.',
           }
-        : {
-            boxClass: 'text-yellow-400 bg-yellow-900/20',
-            text: 'Your wallet will open to confirm this transaction.',
-          };
+        : step === 'swapping'
+          ? {
+              boxClass: 'text-yellow-400 bg-yellow-900/20',
+              text: 'Check your wallet to confirm the swap.',
+            }
+          : {
+              boxClass: 'text-yellow-400 bg-yellow-900/20',
+              text: 'Your wallet will open to confirm this transaction.',
+            };
 
   return (
     <Modal
@@ -197,7 +202,11 @@ export function SwapPreviewModal({
           ? 'Swap Completed'
           : step === 'broadcasting'
             ? 'Confirming swap'
-            : 'Review Swap'
+            : step === 'approving'
+              ? 'Approve token'
+              : step === 'swapping'
+                ? 'Confirm swap'
+                : 'Review Swap'
       }
       size="md"
     >

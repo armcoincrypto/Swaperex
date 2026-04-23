@@ -689,7 +689,7 @@ export function useSwap() {
         value: BigInt(approvalTx.value),
       });
 
-      toast.info('Waiting for approval confirmation...');
+      toast.info('Approval sent — waiting for on-chain confirmation…');
       await tx.wait();
 
       console.log('[Swap Lifecycle] Approval confirmed:', tx.hash, '| Provider:', swapQuote.provider);
@@ -735,7 +735,7 @@ export function useSwap() {
         provider: swapQuote.provider,
       });
       setState((s) => ({ ...s, status: 'swapping' }));
-      toast.info('Confirm swap in your wallet...');
+      toast.info('Confirm the swap in your wallet…');
 
       const signer = await getSigner();
 
@@ -875,7 +875,7 @@ export function useSwap() {
         });
       }
 
-      toast.info('Waiting for confirmation...');
+      toast.info('Swap submitted — waiting for on-chain confirmation…');
 
       // Wait for confirmation
       const receipt = await tx.wait();
@@ -1095,8 +1095,14 @@ export function useSwap() {
     }
   }, [state.status, swapQuote, executeSwap]);
 
-  // Check if current quote is expired (for UI timer/guard)
-  const isQuoteExpired = swapQuote ? (Date.now() - swapQuote.quoteTimestamp) > QUOTE_EXPIRY_MS : false;
+  // Quote TTL for UX / refresh CTA only while we are still in "quote + preview" — not during wallet/on-chain execution.
+  // Otherwise the wall-clock age keeps growing and leaks "expired" / refresh messaging behind an in-flight swap.
+  const isQuoteExpired =
+    !!swapQuote &&
+    (Date.now() - swapQuote.quoteTimestamp) > QUOTE_EXPIRY_MS &&
+    (state.status === 'previewing' ||
+      state.status === 'fetching_quote' ||
+      state.status === 'checking_allowance');
 
   const pendingSubmittedSwap = useMemo(() => {
     if (!chainId || !address) return null;

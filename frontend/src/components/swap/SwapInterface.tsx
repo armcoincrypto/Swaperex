@@ -364,6 +364,8 @@ export function SwapInterface() {
   const insufficientBalance = fromAmount &&
     parseFloat(fromAmount) > 0 &&
     parseFloat(fromAmount) > parseFloat(fromBalance);
+  /** Hide main-card insufficient warning while the preview modal is open — balances can update mid-flow and confuse users. */
+  const insufficientBalanceForUi = insufficientBalance && !showPreview;
 
   // Calculate MAX amount (subtract gas buffer for native tokens)
   const getMaxAmount = useCallback((): string => {
@@ -634,6 +636,10 @@ export function SwapInterface() {
     if (!isConnected) return 'Connect Wallet';
     if (isWrongChain) return 'Wrong Network';
     if (!fromAmount || parseFloat(fromAmount) === 0) return 'Enter Amount';
+    if (status === 'approving') return 'Approving token…';
+    if (status === 'swapping') return 'Sign swap in wallet…';
+    if (status === 'confirming') return 'Confirming on-chain…';
+    if (status === 'success') return 'Swap completed';
     if (insufficientBalance) return `Insufficient ${fromAsset?.symbol || ''} Balance`;
     if (isQuotePipelineLoading) return SWAP_SURFACE_COPY.gettingQuote;
     if (status === 'error' && error) {
@@ -655,6 +661,14 @@ export function SwapInterface() {
     if (!isConnected) return true;
     if (isWrongChain) return true;
     if (!fromAmount || parseFloat(fromAmount) === 0) return true;
+    if (
+      status === 'approving' ||
+      status === 'swapping' ||
+      status === 'confirming' ||
+      status === 'success'
+    ) {
+      return true;
+    }
     if (insufficientBalance) return true;
     if (isQuotePipelineLoading) return true;
     if (status === 'error' && error) return true;
@@ -754,18 +768,18 @@ export function SwapInterface() {
         <div className={`relative bg-electro-bgAlt/80 rounded-glass-sm p-4 mb-2 border transition-all duration-200 ${
           showFromSelector ? 'z-30' : 'z-10'
         } ${
-          insufficientBalance ? 'border-danger/50 shadow-glow-danger' : 'border-white/[0.06] hover:border-white/[0.1]'
+          insufficientBalanceForUi ? 'border-danger/50 shadow-glow-danger' : 'border-white/[0.06] hover:border-white/[0.1]'
         }`}>
           <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
             <span className="text-sm text-dark-400 shrink-0">You Pay</span>
             <div
               className={`flex items-center gap-2 sm:gap-3 text-sm min-w-0 justify-end ${
-                insufficientBalance ? 'text-red-400' : 'text-dark-400'
+                insufficientBalanceForUi ? 'text-red-400' : 'text-dark-400'
               }`}
             >
               <span className="tabular-nums whitespace-nowrap">
                 Balance:{' '}
-                <span className={`font-medium ${insufficientBalance ? 'text-red-300' : 'text-dark-300'}`}>
+                <span className={`font-medium ${insufficientBalanceForUi ? 'text-red-300' : 'text-dark-300'}`}>
                   {formatBalance(fromBalance)}
                 </span>
               </span>
@@ -1186,7 +1200,7 @@ export function SwapInterface() {
         )}
 
         {/* Insufficient Balance Warning */}
-        {insufficientBalance && (
+        {insufficientBalanceForUi && (
           <div className="mt-4 p-3 bg-red-900/20 border border-red-800 rounded-xl text-sm text-red-400 flex items-center gap-2">
             <WarningIcon />
             <span>Insufficient {fromAsset?.symbol} balance</span>
