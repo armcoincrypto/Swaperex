@@ -728,6 +728,10 @@ export function useSwap() {
         setSwapQuote((s) => (s ? { ...s, needsApproval: false } : null));
       }
 
+      // Resolve signer before flipping to `swapping` so we do not show "Sign swap in your wallet" while
+      // WalletConnect / injected provider is still connecting (common source of perceived hangs).
+      const signer = await getSigner();
+
       logLifecycle(state.status, 'swapping', {
         from: swapQuote.fromSymbol,
         to: swapQuote.toSymbol,
@@ -736,8 +740,6 @@ export function useSwap() {
       });
       setState((s) => ({ ...s, status: 'swapping' }));
       toast.info('Confirm the swap in your wallet…');
-
-      const signer = await getSigner();
 
       // PHASE 10 + 11: Build swap transaction based on provider
       let swapTx: { to: string; data: string; value: string; gas?: string; gasLimit?: string };
@@ -787,11 +789,16 @@ export function useSwap() {
           throw new Error('Uniswap fee wrapper is enabled in the environment but the wrapper address is not configured.');
         }
         console.log('[Swap] Building Uniswap wrapper swap...');
+        const tokenIn = getTokenBySymbol(swapQuote.fromSymbol, chainId);
         const tokenOut = getTokenBySymbol(swapQuote.toSymbol, chainId);
+        // Use the same wei→decimal path as allowance / 1inch so calldata matches the quoted trade exactly.
+        const amountInHuman = tokenIn
+          ? formatUnits(swapQuote.amountIn, tokenIn.decimals)
+          : swapQuote.from_amount;
         const wrapperTx = buildWrapperSwapTx(wrapperAddr, {
           tokenIn: swapQuote.fromSymbol,
           tokenOut: swapQuote.toSymbol,
-          amountIn: swapQuote.from_amount,
+          amountIn: amountInHuman,
           amountOutMin: formatUnits(
             swapQuote.minAmountOut,
             tokenOut?.decimals ?? 18,
@@ -817,7 +824,13 @@ export function useSwap() {
         swapTx = uniswapTx;
       }
 
-      console.log('[Swap] Sending swap:', { provider: swapQuote.provider, ...swapTx });
+      console.log('[Swap] Sending swap:', {
+        provider: swapQuote.provider,
+        to: swapTx.to,
+        dataLen: swapTx.data?.length ?? 0,
+        value: swapTx.value,
+        gasLimit: swapTx.gasLimit,
+      });
 
       // Omit gasLimit when missing/zero — '0' is truthy in JS and would pass BigInt('0') => 0n (bad for wallets)
       let resolvedGasLimit: bigint | undefined;

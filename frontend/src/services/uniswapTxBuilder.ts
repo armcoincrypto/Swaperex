@@ -320,11 +320,12 @@ export function buildWrapperSwapTx(wrapperAddress: string, params: SwapParams): 
     feeTier,
   });
 
+  // Omit gasLimit — let the wallet estimate. A fixed cap (previously 350k) can cause some wallets to
+  // stall or reject when the wrapper path needs more gas than assumed.
   return {
     to: wrapper,
     data: calldata,
     value: '0',
-    gasLimit: '350000',
   };
 }
 

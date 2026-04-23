@@ -345,13 +345,24 @@ export async function getWrapperQuote(
   const provider = getProvider(chainId);
   const wrapper = new Contract(cfg.wrapperAddress, WRAPPER_QUOTE_ABI, provider);
 
-  const result = await wrapper.quoteExactInputSingleERC20.staticCall(
-    tokenInAddress,
-    tokenOutAddress,
-    feeTier,
-    amountInWei,
-    0n
-  );
+  const quoteOnce = () =>
+    wrapper.quoteExactInputSingleERC20.staticCall(
+      tokenInAddress,
+      tokenOutAddress,
+      feeTier,
+      amountInWei,
+      0n
+    );
+
+  let result;
+  try {
+    result = await quoteOnce();
+  } catch (firstErr) {
+    // One lightweight retry for transient RPC / eth_call flakes on mainnet.
+    console.warn('[WrapperQuote] staticCall failed, retrying once:', firstErr);
+    await new Promise((r) => setTimeout(r, 400));
+    result = await quoteOnce();
+  }
 
   const [, , amountOutNet, sqrtPriceX96After, initializedTicksCrossed, gasEstimate] = result;
 
