@@ -14,7 +14,7 @@ import { Button } from '@/components/common/Button';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 import { formatQuoteRoutePreferenceLabel } from '@/services/quoteAggregator';
 import { formatBalance, formatGasLimitUnits, getPriceImpactUi, swapAggregatorProviderLabel } from '@/utils/format';
-import { getMonetizationConfig, isMonetizationActiveForProvider } from '@/config';
+import { getMonetizationConfig, isMonetizationActiveForProvider, getUniswapWrapperConfig } from '@/config';
 import { getChainById, getExplorerTxUrl } from '@/config/chains';
 import type { SwapQuote } from '@/hooks/useSwap';
 import type { ApprovalMode } from '@/stores/swapStore';
@@ -279,7 +279,9 @@ export function SwapPreviewModal({
               value={
                 quote.provider === '1inch'
                   ? 'Included in quote (multi-pool)'
-                  : `${formatSwapFeeTierDisplay(quote.feeTier)} fee tier`
+                  : quote.provider === 'uniswap-v3-wrapper'
+                    ? `${formatSwapFeeTierDisplay(quote.feeTier)} pool (wrapper route)`
+                    : `${formatSwapFeeTierDisplay(quote.feeTier)} fee tier`
               }
             />
             {quote.provider === '1inch' && isMonetizationActiveForProvider('1inch') && (
@@ -291,6 +293,18 @@ export function SwapPreviewModal({
                 />
                 <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
                   Not a network (gas) fee. Quote amounts and route fees above are estimated before this fee.
+                </p>
+              </>
+            )}
+            {quote.provider === 'uniswap-v3-wrapper' && (
+              <>
+                <DetailRow
+                  label="Wrapper protocol fee"
+                  value={`${(getUniswapWrapperConfig().feeBpsDisplay / 100).toFixed(2)}%`}
+                  title="Swaperex Uniswap wrapper — taken from gross output on-chain; quoted receive amount is net."
+                />
+                <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
+                  Not a network (gas) fee. Expected and minimum received reflect net output after this fee.
                 </p>
               </>
             )}
@@ -594,6 +608,14 @@ function PreSignConfidenceBlock({
             <dt className="text-dark-400 shrink-0">Platform fee</dt>
             <dd className="text-right text-dark-100" title="Output-token fee via 1inch; quote line is before this fee">
               {(getMonetizationConfig().feeBps / 100).toFixed(2)}%
+            </dd>
+          </div>
+        )}
+        {quote.provider === 'uniswap-v3-wrapper' && (
+          <div className="flex justify-between gap-3">
+            <dt className="text-dark-400 shrink-0">Wrapper protocol fee</dt>
+            <dd className="text-right text-dark-100" title="Output-side fee via Swaperex wrapper; amounts shown are net">
+              {(getUniswapWrapperConfig().feeBpsDisplay / 100).toFixed(2)}%
             </dd>
           </div>
         )}

@@ -32,7 +32,7 @@ import {
   isStaticToken,
   type Token,
 } from '@/tokens';
-import { getMonetizationConfig, isMonetizationActiveForProvider } from '@/config';
+import { getMonetizationConfig, isMonetizationActiveForProvider, getUniswapWrapperConfig } from '@/config';
 import {
   formatQuoteRoutePreferenceLabel,
   isQuoteRouteModeDisabled,
@@ -1101,7 +1101,9 @@ export function SwapInterface() {
               <span>
                 {swapQuote.provider === '1inch'
                   ? 'Included in quote (multi-pool)'
-                  : `${getFeeTierDisplay(swapQuote.feeTier)} fee tier`}
+                  : swapQuote.provider === 'uniswap-v3-wrapper'
+                    ? `${getFeeTierDisplay(swapQuote.feeTier)} pool (wrapper route)`
+                    : `${getFeeTierDisplay(swapQuote.feeTier)} fee tier`}
               </span>
             </div>
 
@@ -1113,6 +1115,18 @@ export function SwapInterface() {
                   title="Output-token fee via 1inch on execution; quote output is estimated before this fee"
                 >
                   {(getMonetizationConfig().feeBps / 100).toFixed(2)}%
+                </span>
+              </div>
+            )}
+
+            {swapQuote.provider === 'uniswap-v3-wrapper' && (
+              <div className="flex justify-between gap-2">
+                <span className="text-dark-400 shrink-0">Wrapper protocol fee</span>
+                <span
+                  className="text-right text-dark-200"
+                  title="Taken from gross swap output on-chain; quoted receive amount is net of this fee."
+                >
+                  {(getUniswapWrapperConfig().feeBpsDisplay / 100).toFixed(2)}%
                 </span>
               </div>
             )}
@@ -1974,6 +1988,8 @@ function RouteTooltip({ provider }: { provider: string }) {
         return 'The aggregator compares multiple DEX routes and picks the best output for this size (may split across pools).';
       case 'uniswap-v3':
         return 'Direct swap through Uniswap V3 concentrated liquidity on this chain.';
+      case 'uniswap-v3-wrapper':
+        return 'Uniswap V3 execution via the Swaperex fee wrapper on Ethereum (ERC20→ERC20). Quoted output is net of the wrapper protocol fee.';
       case 'pancakeswap-v3':
         return 'Direct swap through PancakeSwap V3 on BNB Chain.';
       default:
@@ -2017,6 +2033,8 @@ function ProviderBadge({ provider }: { provider: string }) {
         return { bg: 'bg-red-900/30', text: 'text-red-400', label: '1inch' };
       case 'uniswap-v3':
         return { bg: 'bg-pink-900/30', text: 'text-pink-400', label: 'Uniswap V3' };
+      case 'uniswap-v3-wrapper':
+        return { bg: 'bg-pink-900/30', text: 'text-pink-300', label: 'Uniswap V3 · wrapper' };
       case 'pancakeswap-v3':
         return { bg: 'bg-yellow-900/30', text: 'text-yellow-400', label: 'PancakeSwap' };
       default:

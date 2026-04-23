@@ -10,7 +10,7 @@
  * - Only encodes calldata for wallet to sign
  */
 
-import { Interface, parseUnits, MaxUint256 } from 'ethers';
+import { Interface, parseUnits, MaxUint256, getAddress, isAddress } from 'ethers';
 import { getUniswapV3Addresses } from '@/config';
 import { getTokenBySymbol, getSwapAddress, isNativeToken } from '@/tokens';
 import { FEE_TIERS, type FeeTier } from './uniswapQuote';
@@ -102,6 +102,30 @@ const SWAP_ROUTER_ABI = [
     inputs: [],
     name: 'refundETH',
     outputs: [],
+    stateMutability: 'payable',
+    type: 'function',
+  },
+];
+
+/** SwaperexUniswapV3FeeWrapper — ERC20→ERC20 exact input single (net min out) */
+const WRAPPER_SWAP_ABI = [
+  {
+    inputs: [
+      { name: 'tokenIn', type: 'address' },
+      { name: 'tokenOut', type: 'address' },
+      { name: 'fee', type: 'uint24' },
+      { name: 'recipient', type: 'address' },
+      { name: 'amountIn', type: 'uint256' },
+      { name: 'amountOutMinNet', type: 'uint256' },
+      { name: 'deadline', type: 'uint256' },
+      { name: 'sqrtPriceLimitX96', type: 'uint160' },
+    ],
+    name: 'swapExactInputSingleERC20',
+    outputs: [
+      { name: 'amountOutGross', type: 'uint256' },
+      { name: 'feeAmount', type: 'uint256' },
+      { name: 'amountOutNet', type: 'uint256' },
+    ],
     stateMutability: 'payable',
     type: 'function',
   },
@@ -239,6 +263,72 @@ export function buildSwapTx(params: SwapParams): UnsignedSwapTx {
 }
 
 /**
+ * Build swap calldata for Swaperex Uniswap V3 fee wrapper (ERC20→ERC20 only).
+ * Native ETH in/out is rejected — use direct router flow instead.
+ */
+export function buildWrapperSwapTx(wrapperAddress: string, params: SwapParams): UnsignedSwapTx {
+  if (!isAddress(wrapperAddress)) {
+    throw new Error('Invalid Uniswap wrapper address');
+  }
+  const wrapper = getAddress(wrapperAddress);
+
+  const {
+    tokenIn,
+    tokenOut,
+    amountIn,
+    amountOutMin,
+    recipient,
+    feeTier = FEE_TIERS.MEDIUM,
+    deadline = Math.floor(Date.now() / 1000) + 20 * 60,
+    chainId = 1,
+  } = params;
+
+  if (chainId !== 1) {
+    throw new Error('Uniswap fee wrapper swaps are only supported on Ethereum mainnet');
+  }
+
+  const tokenInData = getTokenBySymbol(tokenIn, chainId);
+  const tokenOutData = getTokenBySymbol(tokenOut, chainId);
+  if (!tokenInData) throw new Error(`Unknown token: ${tokenIn}`);
+  if (!tokenOutData) throw new Error(`Unknown token: ${tokenOut}`);
+
+  if (isNativeToken(tokenInData.address) || isNativeToken(tokenOutData.address)) {
+    throw new Error('Uniswap fee wrapper does not support native ETH');
+  }
+
+  const tokenInAddress = getSwapAddress(tokenInData);
+  const tokenOutAddress = getSwapAddress(tokenOutData);
+  const amountInWei = parseUnits(amountIn, tokenInData.decimals);
+  const amountOutMinNetWei = parseUnits(amountOutMin, tokenOutData.decimals);
+
+  const iface = new Interface(WRAPPER_SWAP_ABI);
+  const calldata = iface.encodeFunctionData('swapExactInputSingleERC20', [
+    tokenInAddress,
+    tokenOutAddress,
+    feeTier,
+    recipient,
+    amountInWei,
+    amountOutMinNetWei,
+    deadline,
+    0n,
+  ]);
+
+  console.log('[TxBuilder] Building wrapper swap:', {
+    tokenIn: tokenInData.symbol,
+    tokenOut: tokenOutData.symbol,
+    wrapper,
+    feeTier,
+  });
+
+  return {
+    to: wrapper,
+    data: calldata,
+    value: '0',
+    gasLimit: '350000',
+  };
+}
+
+/**
  * Build approval transaction for token spending
  *
  * @param tokenAddress - Token to approve
@@ -292,6 +382,26 @@ export function buildRouterApproval(
   }
 
   return buildApprovalTx(token.address, uniswapAddresses.router, amount);
+}
+
+/**
+ * Build ERC20 approval for the Uniswap fee wrapper (spender = wrapper contract).
+ */
+export function buildWrapperApprovalTx(
+  tokenSymbol: string,
+  wrapperAddress: string,
+  chainId: number = 1,
+  amount: bigint = MaxUint256
+): ApprovalTx {
+  if (!isAddress(wrapperAddress)) {
+    throw new Error('Invalid Uniswap wrapper address');
+  }
+  const token = getTokenBySymbol(tokenSymbol, chainId);
+  if (!token) throw new Error(`Unknown token: ${tokenSymbol}`);
+  if (isNativeToken(token.address)) {
+    throw new Error('Native tokens do not require approval');
+  }
+  return buildApprovalTx(token.address, getAddress(wrapperAddress), amount);
 }
 
 /**

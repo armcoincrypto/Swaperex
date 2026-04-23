@@ -9,7 +9,8 @@
 
 import { Contract, JsonRpcProvider, formatUnits, parseUnits } from 'ethers';
 import { ETHEREUM_CONFIG, getUniswapV3Addresses } from '@/config';
-import { getTokenBySymbol, getSwapAddress } from '@/tokens';
+import { getUniswapWrapperConfig } from '@/config/uniswapWrapper';
+import { getTokenBySymbol, getSwapAddress, isNativeToken } from '@/tokens';
 
 /**
  * Uniswap V3 Fee Tiers (in hundredths of a bip)
@@ -285,6 +286,128 @@ export function getMinAmountOut(quote: QuoteResult, slippagePercent: number = 0.
   const slippageBps = BigInt(Math.floor(slippagePercent * 100));
   const minAmount = amountOut - (amountOut * slippageBps) / 10000n;
   return minAmount.toString();
+}
+
+const WRAPPER_QUOTE_ABI = [
+  {
+    inputs: [
+      { name: 'tokenIn', type: 'address' },
+      { name: 'tokenOut', type: 'address' },
+      { name: 'fee', type: 'uint24' },
+      { name: 'amountIn', type: 'uint256' },
+      { name: 'sqrtPriceLimitX96', type: 'uint160' },
+    ],
+    name: 'quoteExactInputSingleERC20',
+    outputs: [
+      { name: 'amountOutGross', type: 'uint256' },
+      { name: 'feeAmount', type: 'uint256' },
+      { name: 'amountOutNet', type: 'uint256' },
+      { name: 'sqrtPriceX96After', type: 'uint160' },
+      { name: 'initializedTicksCrossed', type: 'uint32' },
+      { name: 'gasEstimate', type: 'uint256' },
+    ],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+] as const;
+
+/**
+ * Quote via SwaperexUniswapV3FeeWrapper (net output after protocol fee).
+ * Ethereum mainnet + ERC20→ERC20 only; caller must enforce eligibility.
+ */
+export async function getWrapperQuote(
+  tokenIn: string,
+  tokenOut: string,
+  amountIn: string,
+  feeTier: FeeTier = FEE_TIERS.MEDIUM,
+  chainId: number = 1
+): Promise<QuoteResult> {
+  const cfg = getUniswapWrapperConfig();
+  if (!cfg.enabled || !cfg.wrapperAddress) {
+    throw new Error('Uniswap fee wrapper is not enabled or not configured');
+  }
+  if (chainId !== 1) {
+    throw new Error('Uniswap fee wrapper is only available on Ethereum mainnet');
+  }
+
+  const tokenInData = getTokenBySymbol(tokenIn, chainId);
+  const tokenOutData = getTokenBySymbol(tokenOut, chainId);
+  if (!tokenInData) throw new Error(`Unknown token: ${tokenIn}`);
+  if (!tokenOutData) throw new Error(`Unknown token: ${tokenOut}`);
+  if (isNativeToken(tokenInData.address) || isNativeToken(tokenOutData.address)) {
+    throw new Error('Uniswap fee wrapper does not support native ETH');
+  }
+
+  const tokenInAddress = getSwapAddress(tokenInData);
+  const tokenOutAddress = getSwapAddress(tokenOutData);
+  const amountInWei = parseUnits(amountIn, tokenInData.decimals);
+
+  const provider = getProvider(chainId);
+  const wrapper = new Contract(cfg.wrapperAddress, WRAPPER_QUOTE_ABI, provider);
+
+  const result = await wrapper.quoteExactInputSingleERC20.staticCall(
+    tokenInAddress,
+    tokenOutAddress,
+    feeTier,
+    amountInWei,
+    0n
+  );
+
+  const [, , amountOutNet, sqrtPriceX96After, initializedTicksCrossed, gasEstimate] = result;
+
+  const amountOutFormatted = formatUnits(amountOutNet, tokenOutData.decimals);
+  const inputValue = parseFloat(amountIn);
+  const outputValue = parseFloat(amountOutFormatted);
+  const priceImpact = calculatePriceImpact(
+    inputValue,
+    outputValue,
+    tokenInData.symbol,
+    tokenOutData.symbol
+  );
+
+  return {
+    amountIn: amountInWei.toString(),
+    amountOut: amountOutNet.toString(),
+    amountOutFormatted,
+    priceImpact: priceImpact.toFixed(2),
+    gasEstimate: gasEstimate.toString(),
+    feeTier,
+    sqrtPriceX96After: sqrtPriceX96After.toString(),
+    initializedTicksCrossed: Number(initializedTicksCrossed),
+    route: `${tokenInData.symbol} → ${tokenOutData.symbol}`,
+    provider: 'uniswap-v3-wrapper',
+  };
+}
+
+/**
+ * Best wrapper quote across fee tiers (same tiers as direct Uniswap fallback).
+ */
+export async function getBestWrapperQuote(
+  tokenIn: string,
+  tokenOut: string,
+  amountIn: string,
+  chainId: number = 1
+): Promise<QuoteResult | null> {
+  const feeTiers: FeeTier[] = [FEE_TIERS.LOW, FEE_TIERS.MEDIUM, FEE_TIERS.HIGH];
+  const quotes: QuoteResult[] = [];
+
+  const results = await Promise.allSettled(
+    feeTiers.map((fee) => getWrapperQuote(tokenIn, tokenOut, amountIn, fee, chainId))
+  );
+
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      quotes.push(result.value);
+    }
+  }
+
+  if (quotes.length === 0) {
+    return null;
+  }
+
+  return quotes.reduce((best, current) =>
+    BigInt(current.amountOut) > BigInt(best.amountOut) ? current : best
+  );
 }
 
 export default getQuote;

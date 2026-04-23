@@ -78,3 +78,12 @@ export {
   isMonetizationActiveForProvider,
   type MonetizationConfig,
 } from './monetization';
+
+// Uniswap V3 fee wrapper (Ethereum ERC20→ERC20, feature-flagged)
+export {
+  getUniswapWrapperConfig,
+  getUniswapWrapperSpenderAddress,
+  isUniswapWrapperExecutionEligible,
+  shouldUseUniswapWrapperForSymbols,
+  type UniswapWrapperConfig,
+} from './uniswapWrapper';

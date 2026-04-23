@@ -56,15 +56,19 @@ import {
 // Import Uniswap V3 services
 import {
   type QuoteResult,
+  getBestWrapperQuote,
 } from '@/services/uniswapQuote';
 import {
   buildSwapTx,
   buildRouterApproval,
+  buildWrapperSwapTx,
+  buildWrapperApprovalTx,
   validateSwapParams,
 } from '@/services/uniswapTxBuilder';
 // PHASE 10: Import aggregator and 1inch services
 import {
   getAggregatedQuote,
+  normalizeUniswapWrapperAggregatedQuote,
   type AggregatedQuote,
   type QuoteRouteMode,
 } from '@/services/quoteAggregator';
@@ -80,7 +84,7 @@ import {
 } from '@/services/pancakeSwapTxBuilder';
 import { PANCAKESWAP_V3_ADDRESSES } from '@/services/pancakeSwapQuote';
 import { getTokenBySymbol, isNativeToken } from '@/tokens';
-import { getUniswapV3Addresses, getExplorerTxUrl } from '@/config';
+import { getUniswapV3Addresses, getExplorerTxUrl, getUniswapWrapperSpenderAddress, shouldUseUniswapWrapperForSymbols } from '@/config';
 import {
   clearPendingSwap,
   getPendingSwapForAccount,
@@ -109,7 +113,7 @@ interface SwapState {
 }
 
 // PHASE 10 + 11: Provider type for routing
-export type SwapProvider = 'uniswap-v3' | 'pancakeswap-v3' | '1inch';
+export type SwapProvider = 'uniswap-v3' | 'uniswap-v3-wrapper' | 'pancakeswap-v3' | '1inch';
 
 /** Runner-up from aggregator compare (display output; not full calldata quote). */
 export interface RunnerUpQuoteSnippet {
@@ -372,7 +376,7 @@ export function useSwap() {
 
       // PHASE 10: Fetch best quote via aggregator (compares 1inch vs Uniswap / Pancake on ETH & BSC)
       // Use slippage from store (user-selected) with fallback to default
-      const aggregation = await getAggregatedQuote(
+      let aggregation = await getAggregatedQuote(
         fromSymbol,
         toSymbol,
         fromAmount,
@@ -380,6 +384,29 @@ export function useSwap() {
         slippage || DEFAULT_SLIPPAGE,
         routeMode,
       );
+
+      if (
+        aggregation.best.provider === 'uniswap-v3' &&
+        shouldUseUniswapWrapperForSymbols(chainId || 1, fromSymbol, toSymbol)
+      ) {
+        const wq = await getBestWrapperQuote(fromSymbol, toSymbol, fromAmount, chainId || 1);
+        const tokenOutMeta = getTokenBySymbol(toSymbol, chainId || 1);
+        if (wq && tokenOutMeta) {
+          aggregation = {
+            ...aggregation,
+            best: normalizeUniswapWrapperAggregatedQuote(
+              wq,
+              slippage || DEFAULT_SLIPPAGE,
+              tokenOutMeta.decimals,
+              chainId || 1,
+            ),
+            selectionReason: `${aggregation.selectionReason} · Executing via Swaperex Uniswap wrapper (ERC20→ERC20, net output).`,
+          };
+        } else {
+          console.warn('[Swap] Uniswap wrapper quote unavailable — keeping direct Uniswap V3 execution quote.');
+        }
+      }
+
       const aggregatedQuote = aggregation.best;
 
       console.log(
@@ -393,7 +420,8 @@ export function useSwap() {
       );
 
       // Extract quote data for compatibility
-      const quote: QuoteResult = aggregatedQuote.provider === 'uniswap-v3'
+      const quote: QuoteResult =
+        aggregatedQuote.provider === 'uniswap-v3' || aggregatedQuote.provider === 'uniswap-v3-wrapper'
         ? (aggregatedQuote.originalQuote as QuoteResult)
         : {
             // Map 1inch quote to QuoteResult format
@@ -434,6 +462,21 @@ export function useSwap() {
             hasAllowance = allowance >= amountInWei;
           } catch {
             hasAllowance = false;
+          }
+        } else if (aggregatedQuote.provider === 'uniswap-v3-wrapper') {
+          const wrapperAddr = getUniswapWrapperSpenderAddress();
+          if (!wrapperAddr) {
+            hasAllowance = false;
+          } else {
+            try {
+              const { Contract } = await import('ethers');
+              const tokenContract = new Contract(tokenIn.address, ALLOWANCE_ABI, provider);
+              const allowance = await tokenContract.allowance(address, wrapperAddr);
+              const amountInWei = BigInt(aggregatedQuote.amountIn);
+              hasAllowance = allowance >= amountInWei;
+            } catch {
+              hasAllowance = false;
+            }
           }
         } else {
           // Check Uniswap router allowance (ETH)
@@ -610,6 +653,23 @@ export function useSwap() {
           data: pancakeApproval.data,
           value: pancakeApproval.value,
         };
+      } else if (swapQuote.provider === 'uniswap-v3-wrapper') {
+        const wrapperAddr = getUniswapWrapperSpenderAddress();
+        if (!wrapperAddr) {
+          throw new Error('Uniswap fee wrapper is enabled in the environment but the wrapper address is not configured.');
+        }
+        console.log('[Swap] Building Uniswap wrapper approval...');
+        const wrapAppr = buildWrapperApprovalTx(
+          swapQuote.fromSymbol,
+          wrapperAddr,
+          chainId,
+          useExact ? exactAmount : undefined,
+        );
+        approvalTx = {
+          to: wrapAppr.to,
+          data: wrapAppr.data,
+          value: wrapAppr.value,
+        };
       } else {
         // Uniswap router approval (ETH)
         console.log('[Swap] Building Uniswap approval...');
@@ -721,6 +781,26 @@ export function useSwap() {
           value: pancakeTx.value,
           gasLimit: pancakeTx.gasLimit,
         };
+      } else if (swapQuote.provider === 'uniswap-v3-wrapper') {
+        const wrapperAddr = getUniswapWrapperSpenderAddress();
+        if (!wrapperAddr) {
+          throw new Error('Uniswap fee wrapper is enabled in the environment but the wrapper address is not configured.');
+        }
+        console.log('[Swap] Building Uniswap wrapper swap...');
+        const tokenOut = getTokenBySymbol(swapQuote.toSymbol, chainId);
+        const wrapperTx = buildWrapperSwapTx(wrapperAddr, {
+          tokenIn: swapQuote.fromSymbol,
+          tokenOut: swapQuote.toSymbol,
+          amountIn: swapQuote.from_amount,
+          amountOutMin: formatUnits(
+            swapQuote.minAmountOut,
+            tokenOut?.decimals ?? 18,
+          ),
+          recipient: address,
+          feeTier: swapQuote.feeTier,
+          chainId,
+        });
+        swapTx = wrapperTx;
       } else {
         // Build Uniswap swap transaction (ETH)
         console.log('[Swap] Building Uniswap swap...');

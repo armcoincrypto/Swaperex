@@ -45,7 +45,7 @@ type SupportedChainId = (typeof SUPPORTED_CHAINS)[number];
 /**
  * PHASE 11: Provider types for multi-chain support
  */
-export type QuoteProvider = 'uniswap-v3' | 'pancakeswap-v3' | '1inch';
+export type QuoteProvider = 'uniswap-v3' | 'uniswap-v3-wrapper' | 'pancakeswap-v3' | '1inch';
 
 /** User routing preference: compare all sources, or fix one execution venue. */
 export type QuoteRouteMode = 'best' | QuoteProvider;
@@ -53,6 +53,7 @@ export type QuoteRouteMode = 'best' | QuoteProvider;
 const ROUTE_PROVIDER_LABEL: Record<QuoteProvider, string> = {
   '1inch': '1inch',
   'uniswap-v3': 'Uniswap V3',
+  'uniswap-v3-wrapper': 'Uniswap V3 (Swaperex wrapper)',
   'pancakeswap-v3': 'PancakeSwap V3',
 };
 
@@ -65,12 +66,18 @@ export function formatQuoteRoutePreferenceLabel(mode: QuoteRouteMode): string {
 /** Whether a fixed route is unavailable on the current chain (UI disables the option). */
 export function isQuoteRouteModeDisabled(mode: QuoteRouteMode, chainId: number): boolean {
   if (mode === 'best') return false;
+  if (mode === 'uniswap-v3-wrapper') return true;
   if (mode === 'uniswap-v3') return chainId !== 1;
   if (mode === 'pancakeswap-v3') return chainId !== 56;
   return false;
 }
 
 function assertForcedRouteAllowed(provider: QuoteProvider, chainId: number): void {
+  if (provider === 'uniswap-v3-wrapper') {
+    throw new Error(
+      'The Uniswap fee wrapper cannot be selected as a fixed route. Choose Best price or Uniswap; the wrapper applies automatically when enabled in the environment.',
+    );
+  }
   if (provider === 'uniswap-v3' && chainId !== 1) {
     throw new Error(
       'Uniswap V3 is only available on Ethereum mainnet. Switch networks or choose Best price or 1inch.',
@@ -207,6 +214,37 @@ function normalizeUniswapQuote(
       gas: parseInt(quote.gasEstimate, 10) || 200000,
     },
     chainId: 1, // Uniswap is ETH only
+    priceImpact: quote.priceImpact,
+    amountOutRaw: BigInt(quote.amountOut),
+    originalQuote: quote,
+  };
+}
+
+/**
+ * Normalize fee-wrapper quote (net output) into the same AggregatedQuote shape as direct Uniswap.
+ * Used only after the aggregator already selected a plain `uniswap-v3` quote (no Best-price changes).
+ */
+export function normalizeUniswapWrapperAggregatedQuote(
+  quote: UniswapQuoteResult,
+  slippage: number,
+  tokenOutDecimals: number,
+  chainId: number,
+): AggregatedQuote {
+  const minAmountOut = getUniswapMinAmountOut(quote, slippage);
+  const minAmountOutFormatted = formatFromWei(minAmountOut, tokenOutDecimals);
+
+  return {
+    amountIn: quote.amountIn,
+    amountOut: quote.amountOut,
+    amountOutFormatted: quote.amountOutFormatted,
+    minAmountOut,
+    minAmountOutFormatted,
+    provider: 'uniswap-v3-wrapper',
+    providerDetails: {
+      feeTier: quote.feeTier,
+      gas: parseInt(quote.gasEstimate, 10) || 300000,
+    },
+    chainId,
     priceImpact: quote.priceImpact,
     amountOutRaw: BigInt(quote.amountOut),
     originalQuote: quote,

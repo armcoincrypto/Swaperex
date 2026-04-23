@@ -25,6 +25,13 @@ interface ImportMetaEnv {
   /** EVM address that receives the integrator fee (1inch `referrer`). */
   readonly VITE_FEE_RECIPIENT?: string
 
+  /** When truthy (1/true/yes/on), Ethereum ERC20→ERC20 swaps that would execute on Uniswap V3 use the fee wrapper. Default: off. */
+  readonly VITE_UNISWAP_WRAPPER_ENABLED?: string
+  /** Deployed SwaperexUniswapV3FeeWrapper on Ethereum mainnet (checksummed). Required when wrapper is enabled. */
+  readonly VITE_UNISWAP_WRAPPER_ADDRESS?: string
+  /** Wrapper output fee in bps for UI copy only; should match on-chain `FEE_BPS` (default 20). */
+  readonly VITE_UNISWAP_WRAPPER_FEE_BPS?: string
+
   // Vite flags
   readonly DEV: boolean
   readonly PROD: boolean
