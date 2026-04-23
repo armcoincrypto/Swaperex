@@ -11,6 +11,7 @@ import { Contract, JsonRpcProvider, formatUnits, parseUnits } from 'ethers';
 import { ETHEREUM_CONFIG, getUniswapV3Addresses } from '@/config';
 import { getUniswapWrapperConfig } from '@/config/uniswapWrapper';
 import { getTokenBySymbol, getSwapAddress, isNativeToken } from '@/tokens';
+import { PRICE_IMPACT_NOT_ESTIMATED } from '@/utils/format';
 
 /**
  * Uniswap V3 Fee Tiers (in hundredths of a bip)
@@ -195,7 +196,7 @@ export async function getQuote(
       amountIn: amountInWei.toString(),  // Return in wei format for consistency
       amountOut: amountOut.toString(),
       amountOutFormatted,
-      priceImpact: priceImpact.toFixed(2),
+      priceImpact: priceImpact === null ? PRICE_IMPACT_NOT_ESTIMATED : priceImpact.toFixed(2),
       gasEstimate: gasEstimate.toString(),
       feeTier,
       sqrtPriceX96After: sqrtPriceX96After.toString(),
@@ -259,16 +260,18 @@ function calculatePriceImpact(
   outputAmount: number,
   tokenIn: string,
   tokenOut: string
-): number {
-  // For stablecoin pairs, impact is deviation from 1:1
+): number | null {
+  // For stablecoin pairs, impact is deviation from 1:1 (same-decimal stable assumption).
   const stablecoins = ['USDT', 'USDC', 'DAI'];
   if (stablecoins.includes(tokenIn) && stablecoins.includes(tokenOut)) {
+    if (!Number.isFinite(inputAmount) || inputAmount <= 0 || !Number.isFinite(outputAmount)) {
+      return null;
+    }
     return Math.abs(1 - outputAmount / inputAmount) * 100;
   }
 
-  // For other pairs, we can't calculate real impact without pool data
-  // Return 0 as placeholder - real implementation would query pool
-  return 0;
+  // No pool-level mid price here — do not emit a fake % (callers use PRICE_IMPACT_NOT_ESTIMATED).
+  return null;
 }
 
 /**
@@ -380,7 +383,7 @@ export async function getWrapperQuote(
     amountIn: amountInWei.toString(),
     amountOut: amountOutNet.toString(),
     amountOutFormatted,
-    priceImpact: priceImpact.toFixed(2),
+    priceImpact: priceImpact === null ? PRICE_IMPACT_NOT_ESTIMATED : priceImpact.toFixed(2),
     gasEstimate: gasEstimate.toString(),
     feeTier,
     sqrtPriceX96After: sqrtPriceX96After.toString(),

@@ -13,8 +13,19 @@ import { Modal } from '@/components/common/Modal';
 import { Button } from '@/components/common/Button';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 import { formatQuoteRoutePreferenceLabel } from '@/services/quoteAggregator';
-import { formatBalance, formatGasLimitUnits, getPriceImpactUi, swapAggregatorProviderLabel } from '@/utils/format';
-import { getMonetizationConfig, isMonetizationActiveForProvider, getUniswapWrapperConfig } from '@/config';
+import {
+  formatBalance,
+  formatGasLimitUnits,
+  getPriceImpactUi,
+  parsePriceImpactPercentOrNaN,
+  swapAggregatorProviderLabel,
+} from '@/utils/format';
+import {
+  getMonetizationConfig,
+  isMonetizationActiveForProvider,
+  getUniswapWrapperFeeBpsForUi,
+  isUniswapWrapperFeeBpsUnverified,
+} from '@/config';
 import { getChainById, getExplorerTxUrl } from '@/config/chains';
 import type { SwapQuote } from '@/hooks/useSwap';
 import type { ApprovalMode } from '@/stores/swapStore';
@@ -141,16 +152,18 @@ export function SwapPreviewModal({
 
   if (!quote) return null;
 
-  const priceImpact = parseFloat(quote.price_impact || '0');
+  const priceImpact = parsePriceImpactPercentOrNaN(quote.price_impact);
   const priceImpactUi = getPriceImpactUi(quote.price_impact);
   const priceImpactRowVariant =
-    priceImpactUi.severity === 'critical' || priceImpactUi.severity === 'high'
+    priceImpactUi.severity === 'unavailable'
+      ? 'normal'
+      : priceImpactUi.severity === 'critical' || priceImpactUi.severity === 'high'
       ? 'danger'
       : priceImpactUi.severity === 'medium'
       ? 'warning'
       : 'normal';
-  const isHighImpact = priceImpact > 3;
-  const isVeryHighImpact = priceImpact > 10;
+  const isHighImpact = Number.isFinite(priceImpact) && priceImpact > 3;
+  const isVeryHighImpact = Number.isFinite(priceImpact) && priceImpact > 10;
   const gasUnitsDisplay = formatGasLimitUnits(quote.gasEstimate);
   const isLoading = step === 'approving' || step === 'swapping' || step === 'broadcasting';
   const needsApproval = quote.needsApproval;
@@ -310,9 +323,14 @@ export function SwapPreviewModal({
               <>
                 <DetailRow
                   label="Wrapper protocol fee"
-                  value={`${(getUniswapWrapperConfig().feeBpsDisplay / 100).toFixed(2)}%`}
+                  value={`${(getUniswapWrapperFeeBpsForUi() / 100).toFixed(2)}%`}
                   title="Swaperex Uniswap wrapper — taken from gross output on-chain; quoted receive amount is net."
                 />
+                {isUniswapWrapperFeeBpsUnverified() && (
+                  <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
+                    {SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}
+                  </p>
+                )}
                 <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
                   Not a network (gas) fee. Expected and minimum received reflect net output after this fee.
                 </p>
@@ -637,11 +655,16 @@ function PreSignConfidenceBlock({
           </div>
         )}
         {quote.provider === 'uniswap-v3-wrapper' && (
-          <div className="flex justify-between gap-3">
-            <dt className="text-dark-400 shrink-0">Wrapper protocol fee</dt>
-            <dd className="text-right text-dark-100" title="Output-side fee via Swaperex wrapper; amounts shown are net">
-              {(getUniswapWrapperConfig().feeBpsDisplay / 100).toFixed(2)}%
-            </dd>
+          <div className="flex flex-col gap-1">
+            <div className="flex justify-between gap-3">
+              <dt className="text-dark-400 shrink-0">Wrapper protocol fee</dt>
+              <dd className="text-right text-dark-100" title="Output-side fee via Swaperex wrapper; amounts shown are net">
+                {(getUniswapWrapperFeeBpsForUi() / 100).toFixed(2)}%
+              </dd>
+            </div>
+            {isUniswapWrapperFeeBpsUnverified() && (
+              <p className="text-[10px] text-dark-500 leading-snug">{SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}</p>
+            )}
           </div>
         )}
         <div className="flex justify-between gap-3">

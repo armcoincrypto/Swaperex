@@ -7,7 +7,7 @@
 
 import { Modal } from '@/components/common/Modal';
 import { Button } from '@/components/common/Button';
-import { formatBalance, shortenAddress, getChainName } from '@/utils/format';
+import { formatBalance, shortenAddress, getChainName, getPriceImpactUi } from '@/utils/format';
 import type { UnsignedTransaction, SwapQuote } from '@/types/api';
 
 type TransactionType = 'swap' | 'transfer' | 'approve';
@@ -31,6 +31,8 @@ export function TransactionPreview({
   onCancel,
   isLoading,
 }: TransactionPreviewProps) {
+  const swapPriceImpactUi = type === 'swap' && quote ? getPriceImpactUi(quote.price_impact) : null;
+
   return (
     <Modal isOpen={isOpen} onClose={onCancel} title="Confirm Transaction">
       {/* Transaction Summary */}
@@ -51,8 +53,11 @@ export function TransactionPreview({
           />
           <DetailRow
             label="Price Impact"
-            value={`${quote.price_impact}%`}
-            warning={parseFloat(quote.price_impact) > 1}
+            value={swapPriceImpactUi?.label ?? '—'}
+            warning={
+              !!swapPriceImpactUi &&
+              ['medium', 'high', 'critical'].includes(swapPriceImpactUi.severity)
+            }
           />
           {quote.route && (
             <DetailRow label="Route" value={quote.route.route_path?.join(' → ') || quote.route.provider} />

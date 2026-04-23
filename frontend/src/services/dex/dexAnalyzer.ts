@@ -19,6 +19,15 @@ import {
  * Analyze price impact and return level/color
  */
 export function analyzePriceImpact(impactPercent: number): PriceImpactLevel {
+  if (!Number.isFinite(impactPercent)) {
+    return {
+      level: 'unknown',
+      percentage: 0,
+      color: 'text-dark-400',
+      warning: 'Price impact is not estimated for this quote.',
+    };
+  }
+
   const percentage = Math.abs(impactPercent);
 
   if (percentage < THRESHOLDS.PRICE_IMPACT.LOW) {
@@ -131,15 +140,28 @@ function calculateSafetyFactors(
 
   // Factor 1: Price Impact (0-25 points)
   let priceImpactScore = 25;
-  if (priceImpact.level === 'medium') priceImpactScore = 18;
+  if (priceImpact.level === 'unknown') priceImpactScore = 15;
+  else if (priceImpact.level === 'medium') priceImpactScore = 18;
   else if (priceImpact.level === 'high') priceImpactScore = 10;
   else if (priceImpact.level === 'extreme') priceImpactScore = 0;
+
+  const priceImpactDescription =
+    priceImpact.level === 'unknown'
+      ? 'Impact % not available from quote'
+      : `${priceImpact.percentage.toFixed(2)}% impact`;
 
   factors.push({
     name: 'Price Impact',
     score: priceImpactScore,
-    status: priceImpactScore >= 18 ? 'good' : priceImpactScore >= 10 ? 'warning' : 'danger',
-    description: `${priceImpact.percentage.toFixed(2)}% impact`,
+    status:
+      priceImpact.level === 'unknown'
+        ? 'warning'
+        : priceImpactScore >= 18
+          ? 'good'
+          : priceImpactScore >= 10
+            ? 'warning'
+            : 'danger',
+    description: priceImpactDescription,
   });
 
   // Factor 2: Liquidity Depth (0-25 points)

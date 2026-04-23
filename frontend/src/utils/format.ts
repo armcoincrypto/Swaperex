@@ -96,7 +96,30 @@ export function formatGasLimitUnits(gasEstimate: string | undefined | null): str
   return n.toLocaleString('en-US');
 }
 
-export type PriceImpactSeverity = 'negligible' | 'low' | 'medium' | 'high' | 'critical';
+export type PriceImpactSeverity =
+  | 'negligible'
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'critical'
+  | 'unavailable';
+
+/**
+ * Stored on `SwapQuote.price_impact` when the venue does not provide a trustworthy % (e.g. direct Uniswap V3 quote without pool-based impact math).
+ * Not a user-facing string; UI maps via {@link getPriceImpactUi}.
+ */
+export const PRICE_IMPACT_NOT_ESTIMATED = '__NOT_ESTIMATED__';
+
+/**
+ * Parse a quoted price-impact field for numeric thresholds (high-impact banners, guards).
+ * Returns NaN when the value is missing or explicitly not estimated.
+ */
+export function parsePriceImpactPercentOrNaN(priceImpact: string | undefined | null): number {
+  const raw = String(priceImpact ?? '').replace(/%/g, '').trim();
+  if (raw === '' || raw === PRICE_IMPACT_NOT_ESTIMATED) return NaN;
+  const n = parseFloat(raw);
+  return Number.isFinite(n) ? n : NaN;
+}
 
 /**
  * Short label for aggregator execution providers (swap card / preview).
@@ -127,6 +150,12 @@ export function getPriceImpactUi(priceImpact: string | undefined | null): {
   severity: PriceImpactSeverity;
 } {
   const raw = String(priceImpact ?? '0').replace(/%/g, '').trim();
+  if (raw === PRICE_IMPACT_NOT_ESTIMATED) {
+    return {
+      label: 'Not estimated',
+      severity: 'unavailable',
+    };
+  }
   const n = parseFloat(raw);
   if (!Number.isFinite(n) || n <= 0) {
     return { label: 'Negligible', severity: 'negligible' };

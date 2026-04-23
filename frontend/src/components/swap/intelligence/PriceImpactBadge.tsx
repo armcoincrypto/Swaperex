@@ -23,6 +23,8 @@ export function PriceImpactBadge({ impact, compact = false }: PriceImpactBadgePr
         return 'bg-orange-900/20 border-orange-800';
       case 'extreme':
         return 'bg-red-900/20 border-red-800';
+      case 'unknown':
+        return 'bg-dark-800/80 border-dark-600';
     }
   };
 
@@ -36,6 +38,8 @@ export function PriceImpactBadge({ impact, compact = false }: PriceImpactBadgePr
         return 'text-orange-400';
       case 'extreme':
         return 'text-red-400';
+      case 'unknown':
+        return 'text-dark-300';
     }
   };
 
@@ -48,14 +52,19 @@ export function PriceImpactBadge({ impact, compact = false }: PriceImpactBadgePr
       case 'high':
       case 'extreme':
         return <WarningIcon />;
+      case 'unknown':
+        return <InfoIcon />;
     }
   };
+
+  const impactPercentLabel =
+    impact.level === 'unknown' ? 'Not estimated' : `${impact.percentage.toFixed(2)}%`;
 
   if (compact) {
     return (
       <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border ${getBgColor()}`}>
         <span className={`text-xs font-medium ${getTextColor()}`}>
-          {impact.percentage.toFixed(2)}%
+          {impactPercentLabel}
         </span>
       </div>
     );
@@ -73,7 +82,7 @@ export function PriceImpactBadge({ impact, compact = false }: PriceImpactBadgePr
             {getIcon()}
           </span>
           <span className={`text-lg font-bold ${getTextColor()}`}>
-            {impact.percentage.toFixed(2)}%
+            {impactPercentLabel}
           </span>
         </div>
       </div>
@@ -92,14 +101,18 @@ export function PriceImpactBadge({ impact, compact = false }: PriceImpactBadgePr
             {impact.level === 'medium' && 'Moderate impact - consider smaller trades'}
             {impact.level === 'high' && 'Significant impact on execution price'}
             {impact.level === 'extreme' && 'Very high impact - split into smaller trades'}
+            {impact.level === 'unknown' &&
+              'Quoted output is from the route simulator; we do not show a synthetic impact %.'}
           </p>
           <WhyButton
             explainerId={
               impact.level === 'low'
                 ? 'priceImpactLow'
                 : impact.level === 'medium'
-                ? 'priceImpactMedium'
-                : 'priceImpactHigh'
+                  ? 'priceImpactMedium'
+                  : impact.level === 'unknown'
+                    ? 'priceImpactLow'
+                    : 'priceImpactHigh'
             }
           />
         </div>

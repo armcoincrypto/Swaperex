@@ -24,7 +24,13 @@ import { evaluatePresetGuards } from '@/services/presetGuardService';
 import { TokenSafetyBadges } from '@/components/common/TokenSafetyBadges';
 import { SwapPreviewModal, SwapStep } from './SwapPreviewModal';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
-import { formatBalance, formatGasLimitUnits, getPriceImpactUi, swapAggregatorProviderLabel } from '@/utils/format';
+import {
+  formatBalance,
+  formatGasLimitUnits,
+  getPriceImpactUi,
+  parsePriceImpactPercentOrNaN,
+  swapAggregatorProviderLabel,
+} from '@/utils/format';
 import {
   getPopularTokens,
   getWrappedNativeAddress,
@@ -32,7 +38,12 @@ import {
   isStaticToken,
   type Token,
 } from '@/tokens';
-import { getMonetizationConfig, isMonetizationActiveForProvider, getUniswapWrapperConfig } from '@/config';
+import {
+  getMonetizationConfig,
+  isMonetizationActiveForProvider,
+  getUniswapWrapperFeeBpsForUi,
+  isUniswapWrapperFeeBpsUnverified,
+} from '@/config';
 import {
   formatQuoteRoutePreferenceLabel,
   isQuoteRouteModeDisabled,
@@ -337,7 +348,7 @@ export function SwapInterface() {
           toAsset,
           fromAmount,
           swapQuote.amountOutFormatted,
-          parseFloat(swapQuote.price_impact || '0'),
+          parsePriceImpactPercentOrNaN(swapQuote.price_impact),
           currentChainId,
           slippage,
           swapAggregatorProviderLabel(swapQuote.provider)
@@ -1118,7 +1129,9 @@ export function SwapInterface() {
             {(() => {
               const pi = getPriceImpactUi(swapQuote.price_impact);
               const impactClass =
-                pi.severity === 'critical' || pi.severity === 'high'
+                pi.severity === 'unavailable'
+                  ? 'text-dark-400'
+                  : pi.severity === 'critical' || pi.severity === 'high'
                   ? 'text-red-400'
                   : pi.severity === 'medium'
                   ? 'text-yellow-400'
@@ -1128,7 +1141,14 @@ export function SwapInterface() {
               return (
                 <div className="flex justify-between items-baseline gap-2">
                   <span className="text-dark-400 shrink-0">Price impact</span>
-                  <span className={`text-right ${impactClass}`} title="Estimated move vs. mid price before fees — not slippage tolerance">
+                  <span
+                    className={`text-right ${impactClass}`}
+                    title={
+                      pi.severity === 'unavailable'
+                        ? 'No trustworthy impact % for this direct Uniswap quote; use size, slippage, and execution preview.'
+                        : 'Estimated move vs. mid price before fees — not slippage tolerance'
+                    }
+                  >
                     {pi.label}
                   </span>
                 </div>
@@ -1162,14 +1182,21 @@ export function SwapInterface() {
             )}
 
             {swapQuote.provider === 'uniswap-v3-wrapper' && (
-              <div className="flex justify-between gap-2">
-                <span className="text-dark-400 shrink-0">Wrapper protocol fee</span>
-                <span
-                  className="text-right text-dark-200"
-                  title="Taken from gross swap output on-chain; quoted receive amount is net of this fee."
-                >
-                  {(getUniswapWrapperConfig().feeBpsDisplay / 100).toFixed(2)}%
-                </span>
+              <div className="flex flex-col gap-0.5">
+                <div className="flex justify-between gap-2">
+                  <span className="text-dark-400 shrink-0">Wrapper protocol fee</span>
+                  <span
+                    className="text-right text-dark-200"
+                    title="Taken from gross swap output on-chain; quoted receive amount is net of this fee."
+                  >
+                    {(getUniswapWrapperFeeBpsForUi() / 100).toFixed(2)}%
+                  </span>
+                </div>
+                {isUniswapWrapperFeeBpsUnverified() && (
+                  <p className="text-[10px] text-dark-500 leading-snug pl-0">
+                    {SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}
+                  </p>
+                )}
               </div>
             )}
 
@@ -1219,7 +1246,10 @@ export function SwapInterface() {
         )}
 
         {/* High Price Impact Warning */}
-        {swapQuote && parseFloat(swapQuote.price_impact || '0') > 3 && (
+        {swapQuote && (() => {
+          const n = parsePriceImpactPercentOrNaN(swapQuote.price_impact);
+          return Number.isFinite(n) && n > 3;
+        })() && (
           <div className="mt-4 p-3 bg-red-900/20 border border-red-800 rounded-xl text-sm text-red-400 flex items-center gap-2">
             <WarningIcon />
             <span>High price impact! You may receive significantly less.</span>

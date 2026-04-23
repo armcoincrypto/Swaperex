@@ -27,7 +27,7 @@ export interface LiquidityData {
 }
 
 export interface PriceImpactLevel {
-  level: 'low' | 'medium' | 'high' | 'extreme';
+  level: 'low' | 'medium' | 'high' | 'extreme' | 'unknown';
   percentage: number;
   color: string;
   warning?: string;
