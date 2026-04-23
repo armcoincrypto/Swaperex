@@ -84,7 +84,13 @@ import {
 } from '@/services/pancakeSwapTxBuilder';
 import { PANCAKESWAP_V3_ADDRESSES } from '@/services/pancakeSwapQuote';
 import { getTokenBySymbol, isNativeToken, isNativeSwapInput } from '@/tokens';
-import { getUniswapV3Addresses, getExplorerTxUrl, getUniswapWrapperSpenderAddress, shouldUseUniswapWrapperForSymbols } from '@/config';
+import {
+  ensureUniswapWrapperChainFeeBps,
+  getUniswapV3Addresses,
+  getExplorerTxUrl,
+  getUniswapWrapperSpenderAddress,
+  shouldUseUniswapWrapperForSymbols,
+} from '@/config';
 import {
   clearPendingSwap,
   getPendingSwapForAccount,
@@ -374,15 +380,20 @@ export function useSwap() {
       }
 
       // PHASE 10: Fetch best quote via aggregator (compares 1inch vs Uniswap / Pancake on ETH & BSC)
-      // Use slippage from store (user-selected) with fallback to default
-      let aggregation = await getAggregatedQuote(
-        fromSymbol,
-        toSymbol,
-        fromAmount,
-        chainId || 1,
-        slippage || DEFAULT_SLIPPAGE,
-        routeMode,
-      );
+      // Use slippage from store (user-selected) with fallback to default.
+      // In parallel on mainnet: one lightweight `FEE_BPS` read for wrapper fee display (session-cached).
+      const [aggregationInitial] = await Promise.all([
+        getAggregatedQuote(
+          fromSymbol,
+          toSymbol,
+          fromAmount,
+          chainId || 1,
+          slippage || DEFAULT_SLIPPAGE,
+          routeMode,
+        ),
+        ensureUniswapWrapperChainFeeBps(provider, chainId || 1),
+      ]);
+      let aggregation = aggregationInitial;
 
       if (
         aggregation.best.provider === 'uniswap-v3' &&

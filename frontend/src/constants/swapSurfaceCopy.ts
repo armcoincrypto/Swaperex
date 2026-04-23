@@ -23,6 +23,10 @@ export const SWAP_SURFACE_COPY = {
   /** Toast when auto-refreshing quote due to uncertain allowance */
   allowanceCheckUncertainToast: 'Fetching a new quote to verify your allowance…',
 
+  /** Shown under wrapper fee % when on-chain FEE_BPS could not be read (RPC / contract) */
+  wrapperFeeUnverifiedNote:
+    'Could not confirm wrapper fee on-chain; showing the configured app value. Refresh or retry if this persists.',
+
   /** Quote fetch in progress (card output + primary button) */
   gettingQuote: 'Getting quote...',
 

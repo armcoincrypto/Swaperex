@@ -81,9 +81,13 @@ export {
 
 // Uniswap V3 fee wrapper (Ethereum ERC20→ERC20, feature-flagged)
 export {
+  ensureUniswapWrapperChainFeeBps,
   getUniswapWrapperConfig,
+  getUniswapWrapperFeeBpsForUi,
   getUniswapWrapperSpenderAddress,
   isUniswapWrapperExecutionEligible,
+  isUniswapWrapperFeeBpsUnverified,
+  isUniswapWrapperFeeBpsVerified,
   shouldUseUniswapWrapperForSymbols,
   type UniswapWrapperConfig,
 } from './uniswapWrapper';
