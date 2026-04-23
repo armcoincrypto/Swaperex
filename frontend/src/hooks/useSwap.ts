@@ -83,7 +83,7 @@ import {
   buildPancakeApprovalTx,
 } from '@/services/pancakeSwapTxBuilder';
 import { PANCAKESWAP_V3_ADDRESSES } from '@/services/pancakeSwapQuote';
-import { getTokenBySymbol, isNativeToken } from '@/tokens';
+import { getTokenBySymbol, isNativeToken, isNativeSwapInput } from '@/tokens';
 import { getUniswapV3Addresses, getExplorerTxUrl, getUniswapWrapperSpenderAddress, shouldUseUniswapWrapperForSymbols } from '@/config';
 import {
   clearPendingSwap,
@@ -445,7 +445,9 @@ export function useSwap() {
       const tokenIn = getTokenBySymbol(fromSymbol, chainId || 1);
       let hasAllowance = true;
 
-      // Native tokens don't need approval
+      const inputIsNative = isNativeSwapInput(fromAsset, fromSymbol, chainId || 1);
+
+      // Native tokens don't need approval (no ERC20 allowance / spender flow)
       if (tokenIn && !isNativeToken(tokenIn.address)) {
         if (aggregatedQuote.provider === '1inch') {
           // Check 1inch router allowance
@@ -488,6 +490,31 @@ export function useSwap() {
       // Calculate rate
       const rate = (parseFloat(aggregatedQuote.amountOutFormatted) / parseFloat(fromAmount)).toFixed(6);
 
+      const needsApproval = !inputIsNative && !hasAllowance;
+
+      const uniswapForLog = getUniswapV3Addresses(chainId || 1);
+      const spenderForLog =
+        aggregatedQuote.provider === 'uniswap-v3-wrapper'
+          ? getUniswapWrapperSpenderAddress()
+          : aggregatedQuote.provider === 'uniswap-v3'
+            ? uniswapForLog?.router ?? null
+            : aggregatedQuote.provider === 'pancakeswap-v3'
+              ? '(pancake router)'
+              : aggregatedQuote.provider === '1inch'
+                ? '(1inch spender)'
+                : null;
+
+      console.log('[Swap] Approval gate', {
+        fromSymbol,
+        tokenInAddress: tokenIn?.address,
+        tokenInIsNativeByList: tokenIn ? isNativeToken(tokenIn.address) : null,
+        inputIsNative,
+        provider: aggregatedQuote.provider,
+        spenderForAllowance: spenderForLog,
+        hasAllowance,
+        needsApproval,
+      });
+
       // Build extended quote for UI - includes all fields for compatibility
       const extendedQuote: SwapQuote = {
         ...quote,
@@ -496,7 +523,7 @@ export function useSwap() {
         minAmountOut: aggregatedQuote.minAmountOut,
         minAmountOutFormatted: aggregatedQuote.minAmountOutFormatted,
         slippage: slippage || DEFAULT_SLIPPAGE,
-        needsApproval: !hasAllowance,
+        needsApproval,
         // PHASE 10: Provider info
         provider: aggregatedQuote.provider,
         aggregatedQuote,
@@ -530,7 +557,7 @@ export function useSwap() {
       logLifecycle('checking_allowance', 'previewing', {
         provider: aggregatedQuote.provider,
         quote: aggregatedQuote.amountOutFormatted,
-        needsApproval: !hasAllowance,
+        needsApproval,
       });
       setState((s) => ({ ...s, status: 'previewing', quote }));
       setSwapQuote(extendedQuote);
@@ -610,6 +637,14 @@ export function useSwap() {
   const executeApproval = useCallback(async (): Promise<boolean> => {
     if (!swapQuote || !chainId) {
       throw new Error('No quote available. Please enter an amount and wait for a quote before proceeding.');
+    }
+
+    if (isNativeSwapInput(fromAsset, swapQuote.fromSymbol, chainId)) {
+      console.warn('[Swap] executeApproval skipped — native gas token input does not use ERC20 allowance', {
+        fromSymbol: swapQuote.fromSymbol,
+        provider: swapQuote.provider,
+      });
+      return true;
     }
 
     try {
@@ -710,7 +745,7 @@ export function useSwap() {
 
       throw err;
     }
-  }, [swapQuote, chainId, approvalMode, getSigner, state.status]);
+  }, [swapQuote, chainId, approvalMode, getSigner, state.status, fromAsset]);
 
   // Execute the swap
   const executeSwap = useCallback(async (): Promise<string> => {

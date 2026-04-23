@@ -173,6 +173,27 @@ export function isNativeToken(address: string): boolean {
 }
 
 /**
+ * True when the swap "from" side is the chain's native gas token (not WETH / not ERC20).
+ * Uses token list metadata first, then optional UI asset hints (sentinel address, is_native + symbol).
+ */
+export function isNativeSwapInput(
+  fromAsset: { is_native?: boolean; contract_address?: string } | null | undefined,
+  fromSymbol: string,
+  chainId: number,
+): boolean {
+  const meta = getTokenBySymbol(fromSymbol, chainId);
+  if (meta && isNativeToken(meta.address)) return true;
+
+  const addr = fromAsset?.contract_address;
+  if (addr && isNativeToken(addr)) return true;
+
+  const nativeSym = (NATIVE_SYMBOLS[chainId] || 'ETH').toUpperCase();
+  if (fromAsset?.is_native === true && fromSymbol.toUpperCase() === nativeSym) return true;
+
+  return false;
+}
+
+/**
  * Get wrapped native token address for chain
  */
 export function getWrappedNativeAddress(chainId: number): string {

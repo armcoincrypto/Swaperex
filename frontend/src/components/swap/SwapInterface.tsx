@@ -446,8 +446,10 @@ export function SwapInterface() {
     } else {
       setFromAsset(asset);
     }
+    // Drop in-memory quote immediately so a prior ERC20 `needsApproval` cannot leak across token changes
+    reset();
     setShowFromSelector(false);
-  }, [toAsset, setFromAsset, swapAssets]);
+  }, [toAsset, setFromAsset, swapAssets, reset]);
 
   const handleToTokenSelect = useCallback((asset: AssetInfo) => {
     if (asset.symbol === fromAsset?.symbol) {
@@ -455,8 +457,9 @@ export function SwapInterface() {
     } else {
       setToAsset(asset);
     }
+    reset();
     setShowToSelector(false);
-  }, [fromAsset, setToAsset, swapAssets]);
+  }, [fromAsset, setToAsset, swapAssets, reset]);
 
   // Handle custom slippage input
   const handleCustomSlippage = (value: string) => {
@@ -578,6 +581,9 @@ export function SwapInterface() {
     setFromAmount(preset.fromAmount);
     setSlippage(preset.slippage);
 
+    // Clear prior swap quote / approval flags (same concern as token picker)
+    reset();
+
     // Mark preset as used
     markPresetUsed(preset.id);
 
@@ -591,7 +597,7 @@ export function SwapInterface() {
     if (preset.skipConfirmation && (!preset.guards?.enabled || preset.guards.mode === 'soft')) {
       setSkipConfirmationActive(true);
     }
-  }, [setFromAsset, setToAsset, setFromAmount, setSlippage, markPresetUsed]);
+  }, [setFromAsset, setToAsset, setFromAmount, setSlippage, markPresetUsed, reset]);
 
   // Evaluate guards when intelligence changes
   useEffect(() => {
@@ -761,6 +767,7 @@ export function SwapInterface() {
             const toToken = AVAILABLE_TOKENS.find((t) => t.symbol === to);
             if (fromToken) setFromAsset(fromToken);
             if (toToken) setToAsset(toToken);
+            reset();
           }}
         />
 
@@ -846,7 +853,10 @@ export function SwapInterface() {
         {/* Swap Direction Button */}
         <div className="flex justify-center -my-2 relative z-20">
           <button
-            onClick={swapAssets}
+            onClick={() => {
+              swapAssets();
+              reset();
+            }}
             className="p-2.5 bg-electro-panel rounded-xl hover:bg-electro-panelHover transition-all duration-200 border-4 border-electro-bg hover:border-accent/20 group"
             title="Swap direction"
           >
