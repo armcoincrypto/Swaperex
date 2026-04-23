@@ -809,17 +809,36 @@ export function useSwap() {
         });
         swapTx = wrapperTx;
       } else {
-        // Build Uniswap swap transaction (ETH)
+        // Build Uniswap swap transaction (direct SwapRouter02)
+        // `swapQuote.amountIn` is wei (QuoteResult); buildSwapTx expects human decimal strings + parseUnits.
         console.log('[Swap] Building Uniswap swap...');
+        const tokenInMeta = getTokenBySymbol(swapQuote.fromSymbol, chainId);
+        const tokenOutMeta = getTokenBySymbol(swapQuote.toSymbol, chainId);
+        const amountInHuman = tokenInMeta
+          ? formatUnits(swapQuote.amountIn, tokenInMeta.decimals)
+          : swapQuote.from_amount;
         const uniswapTx = buildSwapTx({
           tokenIn: swapQuote.fromSymbol,
           tokenOut: swapQuote.toSymbol,
-          amountIn: swapQuote.amountIn,
-          amountOutMin: formatUnits(swapQuote.minAmountOut,
-            getTokenBySymbol(swapQuote.toSymbol, chainId)?.decimals || 18),
+          amountIn: amountInHuman,
+          amountOutMin: formatUnits(
+            swapQuote.minAmountOut,
+            tokenOutMeta?.decimals ?? 18,
+          ),
           recipient: address,
           feeTier: swapQuote.feeTier,
           chainId,
+        });
+        console.log('[Swap] Direct Uniswap tx preview', {
+          provider: swapQuote.provider,
+          tokenIn: swapQuote.fromSymbol,
+          tokenOut: swapQuote.toSymbol,
+          nativeEthInput: tokenInMeta ? isNativeToken(tokenInMeta.address) : false,
+          amountInSource: 'wei→human via formatUnits(swapQuote.amountIn)',
+          amountInHumanPreview: amountInHuman,
+          to: uniswapTx.to,
+          value: uniswapTx.value,
+          dataLen: uniswapTx.data?.length ?? 0,
         });
         swapTx = uniswapTx;
       }

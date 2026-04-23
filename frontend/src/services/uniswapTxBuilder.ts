@@ -21,8 +21,10 @@ import { FEE_TIERS, type FeeTier } from './uniswapQuote';
 export interface SwapParams {
   tokenIn: string;           // Token symbol or address
   tokenOut: string;          // Token symbol or address
-  amountIn: string;          // Human readable amount (e.g., "1.5")
-  amountOutMin: string;      // Minimum output (from quote with slippage)
+  /** Human-readable decimal string (e.g. "1.5"). Never wei — `parseUnits` is applied internally. */
+  amountIn: string;
+  /** Human-readable minimum out (decimal string). Never wei. */
+  amountOutMin: string;
   recipient: string;         // Wallet address to receive tokens
   feeTier?: FeeTier;         // Uniswap fee tier (default: 3000)
   deadline?: number;         // Unix timestamp deadline (default: 20 mins)
@@ -194,11 +196,11 @@ export function buildSwapTx(params: SwapParams): UnsignedSwapTx {
   const tokenInAddress = getSwapAddress(tokenInData);
   const tokenOutAddress = getSwapAddress(tokenOutData);
 
-  // Parse amounts
+  // Parse amounts — `amountIn` / `amountOutMin` must be human-readable decimals (NOT wei strings).
   const amountInWei = parseUnits(amountIn, tokenInData.decimals);
   const amountOutMinWei = parseUnits(amountOutMin, tokenOutData.decimals);
 
-  // Check if input is native ETH
+  // Native ETH uses the sentinel address on the token list; WETH contract is never "native" here.
   const isNativeIn = isNativeToken(tokenInData.address);
   const isNativeOut = isNativeToken(tokenOutData.address);
 
@@ -254,10 +256,22 @@ export function buildSwapTx(params: SwapParams): UnsignedSwapTx {
     calldata = routerInterface.encodeFunctionData('exactInputSingle', [swapParams]);
   }
 
+  const txValue = isNativeIn ? amountInWei.toString() : '0';
+
+  console.log('[TxBuilder] Uniswap router tx summary', {
+    tokenIn: tokenInData.symbol,
+    tokenOut: tokenOutData.symbol,
+    isNativeIn,
+    isNativeOut,
+    txValue,
+    router: uniswapAddresses.router,
+    dataLen: calldata.length,
+  });
+
   return {
     to: uniswapAddresses.router,
     data: calldata,
-    value: isNativeIn ? amountInWei.toString() : '0',
+    value: txValue,
     gasLimit: '250000', // Estimate, wallet will refine
   };
 }
