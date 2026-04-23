@@ -52,6 +52,7 @@ import {
   parseAmount,
   logValidationErrors,
 } from '@/utils/swapValidation';
+import { swapObsLog } from '@/utils/swapObservability';
 
 // Import Uniswap V3 services
 import {
@@ -422,6 +423,7 @@ export function useSwap() {
                 oneInch: oneInchAlt.amountOutRaw.toString(),
               },
             );
+            swapObsLog('wrapper_skip', { reason: 'net_below_1inch' });
           } else {
             aggregation = {
               ...aggregation,
@@ -431,6 +433,7 @@ export function useSwap() {
           }
         } else {
           console.warn('[Swap] Uniswap wrapper quote unavailable — keeping direct Uniswap V3 execution quote.');
+          swapObsLog('wrapper_skip', { reason: 'wrapper_quote_unavailable' });
         }
       }
 
@@ -612,6 +615,20 @@ export function useSwap() {
         return null;
       }
 
+      swapObsLog('quote_ready', {
+        chainId: chainId || 0,
+        routeMode: String(routeMode),
+        provider: aggregatedQuote.provider,
+        from: fromSymbol,
+        to: toSymbol,
+        inputNative: inputIsNative,
+        spender: String(spenderForLog ?? ''),
+        needsApproval,
+        allowanceUncertain: allowanceCheckUncertain,
+        quoteTs: extendedQuote.quoteTimestamp,
+        quoteTtlMs: QUOTE_EXPIRY_MS,
+      });
+
       logLifecycle('checking_allowance', 'previewing', {
         provider: aggregatedQuote.provider,
         quote: aggregatedQuote.amountOutFormatted,
@@ -703,6 +720,7 @@ export function useSwap() {
         fromSymbol: swapQuote.fromSymbol,
         provider: swapQuote.provider,
       });
+      swapObsLog('approval_skipped', { reason: 'native_input', provider: swapQuote.provider });
       return true;
     }
 
@@ -776,6 +794,13 @@ export function useSwap() {
 
       console.log('[Swap] Sending approval:', { provider: swapQuote.provider, ...approvalTx });
 
+      swapObsLog('approval_tx_submit', {
+        provider: swapQuote.provider,
+        to: approvalTx.to,
+        value: approvalTx.value,
+        approvalMode: String(approvalMode),
+      });
+
       // Send approval transaction (wallet signs)
       const tx = await signer.sendTransaction({
         to: approvalTx.to,
@@ -787,6 +812,7 @@ export function useSwap() {
       await tx.wait();
 
       console.log('[Swap Lifecycle] Approval confirmed:', tx.hash, '| Provider:', swapQuote.provider);
+      swapObsLog('approval_tx_confirmed', { hash: tx.hash, provider: swapQuote.provider });
       toast.success('Token approved!');
       return true;
     } catch (err) {
@@ -822,6 +848,9 @@ export function useSwap() {
     let broadcastTx: { hash: string } | null = null;
 
     try {
+      const needsApprovalAtStart = swapQuote.needsApproval;
+      const inputNativeForSwap = isNativeSwapInput(fromAsset, swapQuote.fromSymbol, chainId);
+
       // Handle approval if needed
       if (swapQuote.needsApproval) {
         await executeApproval();
@@ -832,6 +861,16 @@ export function useSwap() {
       // Resolve signer before flipping to `swapping` so we do not show "Sign swap in your wallet" while
       // WalletConnect / injected provider is still connecting (common source of perceived hangs).
       const signer = await getSigner();
+
+      swapObsLog('swap_exec_start', {
+        chainId: chainId ?? 0,
+        provider: swapQuote.provider,
+        inputNative: inputNativeForSwap,
+        approvalRequired: needsApprovalAtStart,
+        allowanceUncertain: !!swapQuote.allowanceCheckUncertain,
+        from: swapQuote.fromSymbol,
+        to: swapQuote.toSymbol,
+      });
 
       logLifecycle(state.status, 'swapping', {
         from: swapQuote.fromSymbol,
@@ -952,6 +991,16 @@ export function useSwap() {
         gasLimit: swapTx.gasLimit,
       });
 
+      swapObsLog('swap_tx_submit', {
+        chainId: chainId ?? 0,
+        provider: swapQuote.provider,
+        to: swapTx.to,
+        value: swapTx.value,
+        dataLen: swapTx.data?.length ?? 0,
+        inputNative: inputNativeForSwap,
+        approvalPath: needsApprovalAtStart ? 'ran_or_skipped_native' : 'not_required',
+      });
+
       // Omit gasLimit when missing/zero — '0' is truthy in JS and would pass BigInt('0') => 0n (bad for wallets)
       let resolvedGasLimit: bigint | undefined;
       if (swapTx.gasLimit !== undefined && swapTx.gasLimit !== null && swapTx.gasLimit !== '') {
@@ -972,6 +1021,8 @@ export function useSwap() {
       });
 
       broadcastTx = tx;
+
+      swapObsLog('swap_tx_broadcast', { hash: tx.hash, chainId: chainId ?? 0, provider: swapQuote.provider });
 
       // PHASE 9: Generate explorer URL for this transaction
       const explorerUrl = getExplorerTxUrl(chainId, tx.hash);
@@ -1015,6 +1066,13 @@ export function useSwap() {
 
       if (receipt?.status === 1) {
         clearPendingSwap();
+        swapObsLog('swap_tx_confirmed', {
+          hash: tx.hash,
+          chainId: chainId ?? 0,
+          status: 1,
+          gasUsed: receipt.gasUsed?.toString() ?? '',
+          provider: swapQuote.provider,
+        });
         logLifecycle('confirming', 'success', {
           txHash: tx.hash,
           explorerUrl,
@@ -1050,6 +1108,12 @@ export function useSwap() {
 
         return tx.hash;
       } else {
+        swapObsLog('swap_tx_failed', {
+          hash: tx.hash,
+          chainId: chainId ?? 0,
+          status: receipt?.status ?? -1,
+          provider: swapQuote.provider,
+        });
         updateRecordStatus(tx.hash, 'failed');
         throw new Error('Transaction was not successful. The blockchain rejected the swap. Check your transaction on the explorer for details.');
       }
@@ -1211,9 +1275,20 @@ export function useSwap() {
     if (quoteAge > QUOTE_EXPIRY_MS) {
       const expiredSeconds = Math.floor(quoteAge / 1000);
       logLifecycle('previewing', 'previewing', { reason: 'quote_expired', quoteAge: expiredSeconds });
+      swapObsLog('quote_expired_block', {
+        quoteAgeMs: quoteAge,
+        quoteTtlMs: QUOTE_EXPIRY_MS,
+        provider: swapQuote.provider,
+      });
       toast.warning('Quote expired. Refresh for a current price.');
       throw new Error('QUOTE_EXPIRED');
     }
+
+    swapObsLog('confirm_swap', {
+      quoteAgeMs: quoteAge,
+      provider: swapQuote.provider,
+      chainId: chainId ?? 0,
+    });
 
     if (swapExecutionLockRef.current) {
       console.warn('[Swap] confirmSwap ignored — execution lock held');
@@ -1280,6 +1355,11 @@ export function useSwap() {
         if (receipt !== null) {
           clearPendingSwap();
           updateRecordStatus(pending.txHash, receipt.status === 1 ? 'success' : 'failed');
+          swapObsLog('pending_reconciled', {
+            hash: pending.txHash,
+            chainId,
+            status: receipt.status === 1 ? 1 : 0,
+          });
           const chainNetwork = CHAIN_ID_TO_NETWORK[chainId] || 'ethereum';
           if (receipt.status === 1) {
             toast.success(
@@ -1350,6 +1430,7 @@ export function useSwap() {
 
         if (receipt?.status === 1) {
           updateRecordStatus(hash, 'success');
+          swapObsLog('recovery_tx_confirmed', { hash, chainId, status: 1 });
           toast.success('Swap confirmed on-chain. Balances may take a moment to update.');
           await fetchBalances(address, [chainNetwork]);
           setState((s) => ({
@@ -1367,6 +1448,7 @@ export function useSwap() {
 
         toast.warning('This swap reverted on-chain.');
         updateRecordStatus(hash, 'failed');
+        swapObsLog('recovery_tx_failed', { hash, chainId, status: 0 });
         setState((s) => ({
           ...s,
           status: 'error',
@@ -1378,6 +1460,7 @@ export function useSwap() {
         if (cancelled) return;
         markPendingSwapOutcomeUncertain();
         updateRecordStatus(hash, 'uncertain');
+        swapObsLog('recovery_tx_uncertain', { hash, chainId });
         const explorerUrlResolved = getExplorerTxUrl(chainId, hash);
         setState((s) => ({
           ...s,

@@ -37,6 +37,32 @@ import {
   type PancakeQuoteResult,
 } from './pancakeSwapQuote';
 import { getTokenBySymbol } from '@/tokens';
+import { swapObsLog } from '@/utils/swapObservability';
+
+/** Keep [swap:obs] JSON lines compact in the console */
+const OBS_REASON_MAX = 280;
+
+function obsAggRoute(fields: {
+  chainId: number;
+  routeMode: string;
+  tokenIn: string;
+  tokenOut: string;
+  bestProvider: string;
+  runnerUp: string;
+  reason: string;
+  lane: string;
+}): void {
+  swapObsLog('agg_route', {
+    chainId: fields.chainId,
+    routeMode: fields.routeMode,
+    tokenIn: fields.tokenIn,
+    tokenOut: fields.tokenOut,
+    bestProvider: fields.bestProvider,
+    runnerUp: fields.runnerUp,
+    reason: fields.reason.slice(0, OBS_REASON_MAX),
+    lane: fields.lane,
+  });
+}
 
 // Supported chain IDs: all chains where 1inch works
 const SUPPORTED_CHAINS = [1, 56, 137, 42161, 10, 43114, 100, 250, 8453] as const;
@@ -102,10 +128,22 @@ async function getForcedProviderQuoteResult(
 
   const best = await getQuoteFromProvider(provider, tokenIn, tokenOut, amountIn, chainId, slippage);
 
+  const selectionReason = `${ROUTE_PROVIDER_LABEL[provider]} (fixed route — selected in settings)`;
+  obsAggRoute({
+    chainId,
+    routeMode: `forced:${provider}`,
+    tokenIn,
+    tokenOut,
+    bestProvider: best.provider,
+    runnerUp: '',
+    reason: selectionReason,
+    lane: 'forced',
+  });
+
   return {
     best,
     alternative: null,
-    selectionReason: `${ROUTE_PROVIDER_LABEL[provider]} (fixed route — selected in settings)`,
+    selectionReason,
   };
 }
 
@@ -388,6 +426,17 @@ async function getEthereumQuote(
 
   console.log('[Aggregator] Selected:', comparison.best.provider, '|', comparison.selectionReason);
 
+  obsAggRoute({
+    chainId: 1,
+    routeMode: 'best',
+    tokenIn,
+    tokenOut,
+    bestProvider: comparison.best.provider,
+    runnerUp: comparison.alternative?.provider ?? '',
+    reason: comparison.selectionReason,
+    lane: 'eth',
+  });
+
   return comparison;
 }
 
@@ -433,6 +482,17 @@ async function getBscQuote(
 
   console.log('[Aggregator] Selected:', comparison.best.provider, '|', comparison.selectionReason);
 
+  obsAggRoute({
+    chainId: 56,
+    routeMode: 'best',
+    tokenIn,
+    tokenOut,
+    bestProvider: comparison.best.provider,
+    runnerUp: comparison.alternative?.provider ?? '',
+    reason: comparison.selectionReason,
+    lane: 'bsc',
+  });
+
   return comparison;
 }
 
@@ -459,6 +519,17 @@ async function getOneInchOnlyQuote(
 
   const best = normalizeOneInchQuote(oneInchResult, slippage, tokenOutDecimals, chainId);
   console.log('[Aggregator] 1inch quote:', best.amountOutFormatted, tokenOut);
+
+  obsAggRoute({
+    chainId,
+    routeMode: 'best',
+    tokenIn,
+    tokenOut,
+    bestProvider: best.provider,
+    runnerUp: '',
+    reason: '1inch is the available route on this network',
+    lane: '1inch_only',
+  });
 
   return {
     best,
