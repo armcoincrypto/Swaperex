@@ -30,7 +30,7 @@
  */
 
 import { useCallback, useState, useEffect, useRef, useMemo } from 'react';
-import { formatUnits, parseUnits } from 'ethers';
+import { formatUnits, parseUnits, type Provider } from 'ethers';
 import { useWallet } from './useWallet';
 import { useSwapStore } from '@/stores/swapStore';
 import { useBalanceStore } from '@/stores/balanceStore';
@@ -150,6 +150,11 @@ export interface SwapQuote extends QuoteResult {
   rate: string;
   price_impact: string;
   minimum_received: string;
+  /**
+   * True when an on-chain ERC20 allowance read failed (RPC) for Uniswap router or fee-wrapper paths.
+   * Execution is blocked until the user refreshes the quote; not the same as "approval required".
+   */
+  allowanceCheckUncertain?: boolean;
 }
 
 // Default slippage tolerance (0.5%)
@@ -201,6 +206,27 @@ const ALLOWANCE_ABI = [
     type: 'function',
   },
 ];
+
+/** Result of a single ERC20 `allowance(owner,spender)` read against a required amount. */
+type Erc20AllowanceRead = 'sufficient' | 'insufficient' | 'unknown';
+
+async function readErc20AllowanceVsRequired(
+  tokenAddress: string,
+  spender: string,
+  owner: string,
+  required: bigint,
+  provider: Provider
+): Promise<Erc20AllowanceRead> {
+  try {
+    const { Contract } = await import('ethers');
+    const tokenContract = new Contract(tokenAddress, ALLOWANCE_ABI, provider);
+    const allowance = await tokenContract.allowance(owner, spender);
+    return allowance >= required ? 'sufficient' : 'insufficient';
+  } catch (err) {
+    console.error('[Swap] ERC20 allowance read failed:', err);
+    return 'unknown';
+  }
+}
 
 export function useSwap() {
   const { address, isWrongChain, chainId, getSigner, provider } = useWallet();
@@ -293,33 +319,6 @@ export function useSwap() {
     return '';
   };
 
-  // Check token allowance
-  const checkAllowance = useCallback(
-    async (tokenSymbol: string, amount: bigint): Promise<boolean> => {
-      if (!address || !provider || !chainId) return false;
-
-      const token = getTokenBySymbol(tokenSymbol, chainId);
-      if (!token) return false;
-
-      // Native tokens don't need approval
-      if (isNativeToken(token.address)) return true;
-
-      const uniswapAddresses = getUniswapV3Addresses(chainId);
-      if (!uniswapAddresses) return false;
-
-      try {
-        const { Contract } = await import('ethers');
-        const tokenContract = new Contract(token.address, ALLOWANCE_ABI, provider);
-        const allowance = await tokenContract.allowance(address, uniswapAddresses.router);
-        return allowance >= amount;
-      } catch (err) {
-        console.error('[Swap] Error checking allowance:', err);
-        return false;
-      }
-    },
-    [address, provider, chainId]
-  );
-
   // PHASE 10: Fetch swap quote using aggregator (1inch primary, Uniswap fallback)
   // Uses request ID to prevent stale responses from updating UI
   const fetchSwapQuote = useCallback(async (): Promise<SwapQuote | null> => {
@@ -392,16 +391,33 @@ export function useSwap() {
         const wq = await getBestWrapperQuote(fromSymbol, toSymbol, fromAmount, chainId || 1);
         const tokenOutMeta = getTokenBySymbol(toSymbol, chainId || 1);
         if (wq && tokenOutMeta) {
-          aggregation = {
-            ...aggregation,
-            best: normalizeUniswapWrapperAggregatedQuote(
-              wq,
-              slippage || DEFAULT_SLIPPAGE,
-              tokenOutMeta.decimals,
-              chainId || 1,
-            ),
-            selectionReason: `${aggregation.selectionReason} · Executing via Swaperex Uniswap wrapper (ERC20→ERC20, net output).`,
-          };
+          const wrappedBest = normalizeUniswapWrapperAggregatedQuote(
+            wq,
+            slippage || DEFAULT_SLIPPAGE,
+            tokenOutMeta.decimals,
+            chainId || 1,
+          );
+          // Best-price integrity: wrapper takes net fee on output — it can be worse than 1inch even when
+          // Uniswap direct (gross) beat 1inch. Never downgrade below the aggregated runner-up 1inch quote.
+          const oneInchAlt =
+            routeMode === 'best' && aggregation.alternative?.provider === '1inch'
+              ? aggregation.alternative
+              : null;
+          if (oneInchAlt && wrappedBest.amountOutRaw < oneInchAlt.amountOutRaw) {
+            console.warn(
+              '[Swap] Wrapper net below 1inch runner-up — keeping direct Uniswap V3 execution quote.',
+              {
+                wrapperNet: wrappedBest.amountOutRaw.toString(),
+                oneInch: oneInchAlt.amountOutRaw.toString(),
+              },
+            );
+          } else {
+            aggregation = {
+              ...aggregation,
+              best: wrappedBest,
+              selectionReason: `${aggregation.selectionReason} · Executing via Swaperex Uniswap wrapper (ERC20→ERC20, net output).`,
+            };
+          }
         } else {
           console.warn('[Swap] Uniswap wrapper quote unavailable — keeping direct Uniswap V3 execution quote.');
         }
@@ -444,6 +460,7 @@ export function useSwap() {
 
       const tokenIn = getTokenBySymbol(fromSymbol, chainId || 1);
       let hasAllowance = true;
+      let allowanceCheckUncertain = false;
 
       const inputIsNative = isNativeSwapInput(fromAsset, fromSymbol, chainId || 1);
 
@@ -467,23 +484,51 @@ export function useSwap() {
           }
         } else if (aggregatedQuote.provider === 'uniswap-v3-wrapper') {
           const wrapperAddr = getUniswapWrapperSpenderAddress();
+          const amountInWei = BigInt(aggregatedQuote.amountIn);
           if (!wrapperAddr) {
             hasAllowance = false;
+          } else if (!provider || !address) {
+            allowanceCheckUncertain = true;
+            hasAllowance = true;
           } else {
-            try {
-              const { Contract } = await import('ethers');
-              const tokenContract = new Contract(tokenIn.address, ALLOWANCE_ABI, provider);
-              const allowance = await tokenContract.allowance(address, wrapperAddr);
-              const amountInWei = BigInt(aggregatedQuote.amountIn);
-              hasAllowance = allowance >= amountInWei;
-            } catch {
-              hasAllowance = false;
+            const read = await readErc20AllowanceVsRequired(
+              tokenIn.address,
+              wrapperAddr,
+              address,
+              amountInWei,
+              provider
+            );
+            if (read === 'unknown') {
+              allowanceCheckUncertain = true;
+              hasAllowance = true;
+            } else {
+              hasAllowance = read === 'sufficient';
             }
           }
         } else {
-          // Check Uniswap router allowance (ETH)
+          // Check Uniswap router allowance (direct SwapRouter02 on Ethereum)
           const amountInWei = BigInt(aggregatedQuote.amountIn);
-          hasAllowance = await checkAllowance(fromSymbol, amountInWei);
+          const uni = getUniswapV3Addresses(chainId || 1);
+          if (!uni) {
+            hasAllowance = false;
+          } else if (!provider || !address) {
+            allowanceCheckUncertain = true;
+            hasAllowance = true;
+          } else {
+            const read = await readErc20AllowanceVsRequired(
+              tokenIn.address,
+              uni.router,
+              address,
+              amountInWei,
+              provider
+            );
+            if (read === 'unknown') {
+              allowanceCheckUncertain = true;
+              hasAllowance = true;
+            } else {
+              hasAllowance = read === 'sufficient';
+            }
+          }
         }
       }
 
@@ -513,6 +558,7 @@ export function useSwap() {
         spenderForAllowance: spenderForLog,
         hasAllowance,
         needsApproval,
+        allowanceCheckUncertain,
       });
 
       // Build extended quote for UI - includes all fields for compatibility
@@ -546,6 +592,7 @@ export function useSwap() {
         rate,
         price_impact: aggregatedQuote.priceImpact,
         minimum_received: aggregatedQuote.minAmountOutFormatted,
+        allowanceCheckUncertain: allowanceCheckUncertain || undefined,
       };
 
       // Check if this request is still valid (inputs haven't changed)
@@ -558,6 +605,7 @@ export function useSwap() {
         provider: aggregatedQuote.provider,
         quote: aggregatedQuote.amountOutFormatted,
         needsApproval,
+        allowanceCheckUncertain,
       });
       setState((s) => ({ ...s, status: 'previewing', quote }));
       setSwapQuote(extendedQuote);
@@ -631,7 +679,7 @@ export function useSwap() {
       return null;
     }
   // Note: state.status removed from deps to prevent infinite loop - it's only used for logging
-  }, [address, fromAsset, toAsset, fromAmount, chainId, slippage, routeMode, provider, checkAllowance, setQuote, clearQuote]);
+  }, [address, fromAsset, toAsset, fromAmount, chainId, slippage, routeMode, provider, setQuote, clearQuote]);
 
   // Execute token approval
   const executeApproval = useCallback(async (): Promise<boolean> => {
@@ -751,6 +799,13 @@ export function useSwap() {
   const executeSwap = useCallback(async (): Promise<string> => {
     if (!swapQuote || !address || !chainId) {
       throw new Error('No quote available. Please enter an amount and wait for a quote before proceeding.');
+    }
+
+    if (swapQuote.allowanceCheckUncertain) {
+      const msg =
+        'Could not verify token allowance (network). Refresh the quote and try again before swapping.';
+      toast.warning(msg);
+      throw new Error(msg);
     }
 
     let broadcastTx: { hash: string } | null = null;

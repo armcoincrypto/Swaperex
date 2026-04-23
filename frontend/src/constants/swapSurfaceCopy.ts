@@ -13,6 +13,16 @@ export const SWAP_SURFACE_COPY = {
   /** Primary CTA when a quote must be re-fetched */
   refreshQuoteCta: 'Refresh quote',
 
+  /** Primary CTA when allowance RPC failed (Uniswap / wrapper paths only) */
+  allowanceCheckUncertainCta: 'Refresh quote',
+
+  /** Short inline hint on the swap card when allowance read failed */
+  allowanceCheckUncertainHint:
+    'Could not verify token allowance from the network. Tap refresh to try again — do not approve unless the next quote still asks for approval.',
+
+  /** Toast when auto-refreshing quote due to uncertain allowance */
+  allowanceCheckUncertainToast: 'Fetching a new quote to verify your allowance…',
+
   /** Quote fetch in progress (card output + primary button) */
   gettingQuote: 'Getting quote...',
 

@@ -476,6 +476,7 @@ export function SwapInterface() {
     if (isReadOnly) return;
     if (!swapQuote || !swapQuote.amountOutFormatted) return;
     if (status !== 'previewing') return;
+    if (swapQuote.allowanceCheckUncertain) return;
 
     // Reset the skip confirmation flag
     setSkipConfirmationActive(false);
@@ -498,6 +499,11 @@ export function SwapInterface() {
       await fetchSwapQuote();
       return;
     }
+    if (swapQuote?.allowanceCheckUncertain) {
+      toast.info(SWAP_SURFACE_COPY.allowanceCheckUncertainToast);
+      await fetchSwapQuote();
+      return;
+    }
     await handlePreviewSwap();
   };
 
@@ -515,6 +521,13 @@ export function SwapInterface() {
     // Guard: Must have a quote with output
     if (!swapQuote || !swapQuote.amountOutFormatted || parseFloat(swapQuote.amountOutFormatted) <= 0) {
       console.warn('[Swap] Preview blocked - no valid quote');
+      return;
+    }
+
+    if (swapQuote.allowanceCheckUncertain) {
+      toast.info(SWAP_SURFACE_COPY.allowanceCheckUncertainToast);
+      const refreshed = await fetchSwapQuote();
+      if (!refreshed) return;
       return;
     }
 
@@ -658,6 +671,7 @@ export function SwapInterface() {
     // Show blocked state if hard guards fail
     if (guardEvaluation?.blocked && !guardsDismissed) return 'Blocked by Protection';
     if (swapQuote && isQuoteExpired) return SWAP_SURFACE_COPY.refreshQuoteCta;
+    if (swapQuote?.allowanceCheckUncertain) return SWAP_SURFACE_COPY.allowanceCheckUncertainCta;
     if (isReadOnly) return 'Connect wallet to swap';
     return 'Preview Swap';
   };
@@ -700,7 +714,11 @@ export function SwapInterface() {
 
   // Check if swap is ready (for glow effect) — never "ready" on an expired quote
   const isSwapReady =
-    !isButtonDisabled() && swapQuote && status === 'previewing' && !isQuoteExpired;
+    !isButtonDisabled() &&
+    swapQuote &&
+    status === 'previewing' &&
+    !isQuoteExpired &&
+    !swapQuote.allowanceCheckUncertain;
 
   // Render swap form
   return (
@@ -1189,6 +1207,12 @@ export function SwapInterface() {
                 <span className="text-blue-400 text-xs">
                   Token approval required (2 transactions)
                 </span>
+              </div>
+            )}
+            {swapQuote.allowanceCheckUncertain && (
+              <div className="flex items-center gap-2 p-2 bg-yellow-900/20 rounded-lg mt-2">
+                <WarningIcon />
+                <span className="text-yellow-400 text-xs">{SWAP_SURFACE_COPY.allowanceCheckUncertainHint}</span>
               </div>
             )}
           </div>

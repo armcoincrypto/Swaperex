@@ -154,6 +154,7 @@ export function SwapPreviewModal({
   const gasUnitsDisplay = formatGasLimitUnits(quote.gasEstimate);
   const isLoading = step === 'approving' || step === 'swapping' || step === 'broadcasting';
   const needsApproval = quote.needsApproval;
+  const allowanceUncertain = !!quote.allowanceCheckUncertain;
 
   // Determine step number for multi-step display
   const getStepDisplay = () => {
@@ -408,6 +409,13 @@ export function SwapPreviewModal({
             </div>
           )}
 
+          {step === 'preview' && allowanceUncertain && (
+            <div className="flex items-start gap-2 rounded-lg p-3 mb-4 text-yellow-400 bg-yellow-900/20 border border-yellow-800/30">
+              <WarningIcon />
+              <span className="text-sm leading-snug">{SWAP_SURFACE_COPY.allowanceCheckUncertainHint}</span>
+            </div>
+          )}
+
           {/* Wallet / confirmation notice */}
           <div className={`flex items-start gap-2 rounded-lg p-3 mb-4 ${walletNotice.boxClass}`}>
             <WalletIcon />
@@ -447,7 +455,13 @@ export function SwapPreviewModal({
               Cancel
             </Button>
             <Button
-              onClick={onConfirm}
+              onClick={() => {
+                if (allowanceUncertain) {
+                  void onRefreshQuote();
+                  return;
+                }
+                onConfirm();
+              }}
               loading={isLoading}
               disabled={isExpired || isLoading}
               fullWidth
@@ -456,6 +470,8 @@ export function SwapPreviewModal({
                 ? SWAP_SURFACE_COPY.quoteExpiredTitle
                 : isLoading
                 ? getLoadingText(step)
+                : allowanceUncertain
+                ? SWAP_SURFACE_COPY.allowanceCheckUncertainCta
                 : needsApproval
                 ? 'Approve & Swap'
                 : 'Confirm Swap'}
