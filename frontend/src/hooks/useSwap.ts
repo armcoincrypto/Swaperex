@@ -486,6 +486,16 @@ export function useSwap() {
               oneInchNet: oneInchAlt.amountOutRaw.toString(),
             });
           } else {
+            swapObsLog('pancake_wrapper_apply', {
+              reason: oneInchAlt ? 'net_above_or_equal_1inch' : 'no_1inch_alternative',
+              chainId: 56,
+              wrapper: String(getPancakeWrapperSpenderAddress() ?? ''),
+              wrapperNet: wrappedPancakeBest.amountOutRaw.toString(),
+              oneInchNet: oneInchAlt?.amountOutRaw?.toString(),
+              feeTier: wrappedPancakeBest.providerDetails?.feeTier,
+              tokenIn: fromSymbol,
+              tokenOut: toSymbol,
+            });
             aggregation = {
               ...aggregation,
               best: wrappedPancakeBest,
