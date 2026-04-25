@@ -239,7 +239,6 @@ export function buildPancakeSwapTx(params: PancakeSwapParams): UnsignedPancakeTx
     to: PANCAKESWAP_V3_ADDRESSES.router,
     data: calldata,
     value: isNativeIn ? amountInWei.toString() : '0',
-    gasLimit: '300000', // BSC typically needs slightly more gas
     chainId: 56,
   };
 }

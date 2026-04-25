@@ -1044,7 +1044,8 @@ export function useSwap() {
         const pancakeTx = buildPancakeSwapTx({
           tokenIn: swapQuote.fromSymbol,
           tokenOut: swapQuote.toSymbol,
-          amountIn: tokenIn ? formatUnits(swapQuote.amountIn, tokenIn.decimals) : swapQuote.amountIn,
+          // `buildPancakeSwapTx` expects human decimal strings; never fall back to wei (would produce invalid calldata).
+          amountIn: tokenIn ? formatUnits(swapQuote.amountIn, tokenIn.decimals) : swapQuote.from_amount,
           amountOutMin: tokenOut ? formatUnits(swapQuote.minAmountOut, tokenOut.decimals) : swapQuote.minAmountOutFormatted,
           recipient: address,
           feeTier: pancakeFeeTier,
@@ -1130,6 +1131,7 @@ export function useSwap() {
         value: swapTx.value,
         dataLen: swapTx.data?.length ?? 0,
         inputNative: inputNativeForSwap,
+        nativeLane: inputNativeForSwap ? 'in' : (toAsset && typeof toAsset === 'object' && 'contract_address' in toAsset && isNativeToken(String((toAsset as { contract_address?: string }).contract_address || '')) ? 'out' : 'none'),
         approvalPath: needsApprovalAtStart ? 'ran_or_skipped_native' : 'not_required',
       });
 
