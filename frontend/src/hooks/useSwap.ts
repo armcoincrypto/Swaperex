@@ -69,10 +69,16 @@ import {
 // PHASE 10: Import aggregator and 1inch services
 import {
   getAggregatedQuote,
+  normalizePancakeWrapperAggregatedQuote,
   normalizeUniswapWrapperAggregatedQuote,
   type AggregatedQuote,
   type QuoteRouteMode,
 } from '@/services/quoteAggregator';
+import { getBestPancakeWrapperQuote } from '@/services/pancakeWrapperQuote';
+import {
+  buildPancakeWrapperApprovalTx,
+  buildPancakeWrapperSwapTx,
+} from '@/services/pancakeWrapperTxBuilder';
 import {
   buildOneInchSwapTx,
   buildOneInchApproval,
@@ -86,10 +92,13 @@ import {
 import { PANCAKESWAP_V3_ADDRESSES } from '@/services/pancakeSwapQuote';
 import { getTokenBySymbol, isNativeToken, isNativeSwapInput } from '@/tokens';
 import {
+  ensurePancakeWrapperChainFeeBps,
   ensureUniswapWrapperChainFeeBps,
-  getUniswapV3Addresses,
   getExplorerTxUrl,
+  getPancakeWrapperSpenderAddress,
+  getUniswapV3Addresses,
   getUniswapWrapperSpenderAddress,
+  shouldUsePancakeWrapperForSymbols,
   shouldUseUniswapWrapperForSymbols,
 } from '@/config';
 import {
@@ -120,7 +129,12 @@ interface SwapState {
 }
 
 // PHASE 10 + 11: Provider type for routing
-export type SwapProvider = 'uniswap-v3' | 'uniswap-v3-wrapper' | 'pancakeswap-v3' | '1inch';
+export type SwapProvider =
+  | 'uniswap-v3'
+  | 'uniswap-v3-wrapper'
+  | 'pancakeswap-v3'
+  | 'pancakeswap-v3-wrapper'
+  | '1inch';
 
 /** Runner-up from aggregator compare (display output; not full calldata quote). */
 export interface RunnerUpQuoteSnippet {
@@ -393,6 +407,7 @@ export function useSwap() {
           routeMode,
         ),
         ensureUniswapWrapperChainFeeBps(provider, chainId || 1),
+        ensurePancakeWrapperChainFeeBps(provider, chainId || 1),
       ]);
       let aggregation = aggregationInitial;
 
@@ -437,6 +452,52 @@ export function useSwap() {
         }
       }
 
+      if (
+        (chainId || 1) === 56 &&
+        aggregation.best.provider === 'pancakeswap-v3' &&
+        shouldUsePancakeWrapperForSymbols(chainId || 1, fromSymbol, toSymbol)
+      ) {
+        const pwq = await getBestPancakeWrapperQuote(fromSymbol, toSymbol, fromAmount);
+        const tokenOutMetaBsc = getTokenBySymbol(toSymbol, 56);
+        if (pwq && tokenOutMetaBsc) {
+          const wrappedPancakeBest = normalizePancakeWrapperAggregatedQuote(
+            pwq,
+            slippage || DEFAULT_SLIPPAGE,
+            tokenOutMetaBsc.decimals,
+            56,
+          );
+          // Same integrity rule as Ethereum Uniswap wrapper: net wrapper output vs 1inch runner-up quoted dst.
+          // When Pancake direct beat 1inch gross but wrapper net is worse than 1inch, do not upgrade execution.
+          const oneInchAlt =
+            routeMode === 'best' && aggregation.alternative?.provider === '1inch'
+              ? aggregation.alternative
+              : null;
+          if (oneInchAlt && wrappedPancakeBest.amountOutRaw < oneInchAlt.amountOutRaw) {
+            console.warn(
+              '[Swap] Pancake wrapper net below 1inch runner-up — keeping direct PancakeSwap V3 execution quote.',
+              {
+                wrapperNet: wrappedPancakeBest.amountOutRaw.toString(),
+                oneInch: oneInchAlt.amountOutRaw.toString(),
+              },
+            );
+            swapObsLog('pancake_wrapper_skip', {
+              reason: 'net_below_1inch',
+              wrapperNet: wrappedPancakeBest.amountOutRaw.toString(),
+              oneInchNet: oneInchAlt.amountOutRaw.toString(),
+            });
+          } else {
+            aggregation = {
+              ...aggregation,
+              best: wrappedPancakeBest,
+              selectionReason: `${aggregation.selectionReason} · Executing via Swaperex Pancake wrapper (ERC20→ERC20, net output).`,
+            };
+          }
+        } else {
+          console.warn('[Swap] Pancake wrapper quote unavailable — keeping direct PancakeSwap V3 execution quote.');
+          swapObsLog('pancake_wrapper_skip', { reason: 'wrapper_quote_unavailable' });
+        }
+      }
+
       const aggregatedQuote = aggregation.best;
 
       console.log(
@@ -453,6 +514,9 @@ export function useSwap() {
       const quote: QuoteResult =
         aggregatedQuote.provider === 'uniswap-v3' || aggregatedQuote.provider === 'uniswap-v3-wrapper'
         ? (aggregatedQuote.originalQuote as QuoteResult)
+        : aggregatedQuote.provider === 'pancakeswap-v3' ||
+            aggregatedQuote.provider === 'pancakeswap-v3-wrapper'
+          ? (aggregatedQuote.originalQuote as QuoteResult)
         : {
             // Map 1inch quote to QuoteResult format
             amountIn: aggregatedQuote.amountIn,
@@ -485,6 +549,29 @@ export function useSwap() {
           const allowance = await checkOneInchAllowance(fromSymbol, address, chainId || 1);
           const amountInWei = BigInt(aggregatedQuote.amountIn);
           hasAllowance = allowance === 'unlimited' || BigInt(allowance) >= amountInWei;
+        } else if (aggregatedQuote.provider === 'pancakeswap-v3-wrapper') {
+          const wrapperAddr = getPancakeWrapperSpenderAddress();
+          const amountInWei = BigInt(aggregatedQuote.amountIn);
+          if (!wrapperAddr) {
+            hasAllowance = false;
+          } else if (!provider || !address) {
+            allowanceCheckUncertain = true;
+            hasAllowance = true;
+          } else {
+            const read = await readErc20AllowanceVsRequired(
+              tokenIn.address,
+              wrapperAddr,
+              address,
+              amountInWei,
+              provider,
+            );
+            if (read === 'unknown') {
+              allowanceCheckUncertain = true;
+              hasAllowance = true;
+            } else {
+              hasAllowance = read === 'sufficient';
+            }
+          }
         } else if (aggregatedQuote.provider === 'pancakeswap-v3') {
           // Check PancakeSwap router allowance (BSC)
           try {
@@ -555,6 +642,8 @@ export function useSwap() {
       const spenderForLog =
         aggregatedQuote.provider === 'uniswap-v3-wrapper'
           ? getUniswapWrapperSpenderAddress()
+          : aggregatedQuote.provider === 'pancakeswap-v3-wrapper'
+            ? getPancakeWrapperSpenderAddress()
           : aggregatedQuote.provider === 'uniswap-v3'
             ? uniswapForLog?.router ?? null
             : aggregatedQuote.provider === 'pancakeswap-v3'
@@ -753,6 +842,23 @@ export function useSwap() {
           ? formatUnits(swapQuote.amountIn, tokenIn.decimals)
           : undefined;
         approvalTx = await buildOneInchApproval(swapQuote.fromSymbol, chainId, amountStr);
+      } else if (swapQuote.provider === 'pancakeswap-v3-wrapper') {
+        const w = getPancakeWrapperSpenderAddress();
+        if (!w) {
+          throw new Error('Pancake fee wrapper is enabled in the environment but the wrapper address is not configured.');
+        }
+        console.log('[Swap] Building Pancake wrapper approval...');
+        const wrapAppr = buildPancakeWrapperApprovalTx(
+          swapQuote.fromSymbol,
+          w,
+          chainId,
+          useExact ? exactAmount : undefined,
+        );
+        approvalTx = {
+          to: wrapAppr.to,
+          data: wrapAppr.data,
+          value: wrapAppr.value,
+        };
       } else if (swapQuote.provider === 'pancakeswap-v3') {
         // PancakeSwap router approval (BSC)
         console.log('[Swap] Building PancakeSwap approval...');
@@ -901,6 +1007,32 @@ export function useSwap() {
           data: oneInchTx.data,
           value: oneInchTx.value,
           gasLimit: oneInchTx.gas,
+        };
+      } else if (swapQuote.provider === 'pancakeswap-v3-wrapper') {
+        const w = getPancakeWrapperSpenderAddress();
+        if (!w) {
+          throw new Error('Pancake fee wrapper is enabled in the environment but the wrapper address is not configured.');
+        }
+        console.log('[Swap] Building Pancake wrapper swap...');
+        const tokenIn = getTokenBySymbol(swapQuote.fromSymbol, chainId);
+        const tokenOut = getTokenBySymbol(swapQuote.toSymbol, chainId);
+        const amountInHuman = tokenIn
+          ? formatUnits(swapQuote.amountIn, tokenIn.decimals)
+          : swapQuote.from_amount;
+        const pancakeWrapperFeeTier =
+          (swapQuote.aggregatedQuote?.providerDetails?.feeTier as 100 | 500 | 2500 | 10000) || 2500;
+        const pwTx = buildPancakeWrapperSwapTx(w, {
+          tokenIn: swapQuote.fromSymbol,
+          tokenOut: swapQuote.toSymbol,
+          amountIn: amountInHuman,
+          amountOutMin: formatUnits(swapQuote.minAmountOut, tokenOut?.decimals ?? 18),
+          recipient: address,
+          feeTier: pancakeWrapperFeeTier,
+        });
+        swapTx = {
+          to: pwTx.to,
+          data: pwTx.data,
+          value: pwTx.value,
         };
       } else if (swapQuote.provider === 'pancakeswap-v3') {
         // PHASE 11: Build PancakeSwap swap transaction (BSC)
