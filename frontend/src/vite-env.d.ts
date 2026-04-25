@@ -32,6 +32,13 @@ interface ImportMetaEnv {
   /** Wrapper output fee in bps for UI copy only; should match on-chain `FEE_BPS` (default 20). */
   readonly VITE_UNISWAP_WRAPPER_FEE_BPS?: string
 
+  /** When truthy (1/true/yes/on), BSC ERC20→ERC20 swaps that would execute on direct PancakeSwap V3 use the fee wrapper. Default: off. */
+  readonly VITE_PANCAKE_WRAPPER_ENABLED?: string
+  /** Deployed Swaperex Pancake V3 fee wrapper on BSC (checksummed). Required when wrapper is enabled. */
+  readonly VITE_PANCAKE_WRAPPER_ADDRESS?: string
+  /** Wrapper output fee in bps for UI copy only; should match on-chain `FEE_BPS` (default 50). */
+  readonly VITE_PANCAKE_WRAPPER_FEE_BPS?: string
+
   // Vite flags
   readonly DEV: boolean
   readonly PROD: boolean

@@ -71,7 +71,12 @@ type SupportedChainId = (typeof SUPPORTED_CHAINS)[number];
 /**
  * PHASE 11: Provider types for multi-chain support
  */
-export type QuoteProvider = 'uniswap-v3' | 'uniswap-v3-wrapper' | 'pancakeswap-v3' | '1inch';
+export type QuoteProvider =
+  | 'uniswap-v3'
+  | 'uniswap-v3-wrapper'
+  | 'pancakeswap-v3'
+  | 'pancakeswap-v3-wrapper'
+  | '1inch';
 
 /** User routing preference: compare all sources, or fix one execution venue. */
 export type QuoteRouteMode = 'best' | QuoteProvider;
@@ -81,6 +86,7 @@ const ROUTE_PROVIDER_LABEL: Record<QuoteProvider, string> = {
   'uniswap-v3': 'Uniswap V3',
   'uniswap-v3-wrapper': 'Uniswap V3 (Swaperex wrapper)',
   'pancakeswap-v3': 'PancakeSwap V3',
+  'pancakeswap-v3-wrapper': 'PancakeSwap V3 (Swaperex wrapper)',
 };
 
 /** Human-readable label for settings and preview. */
@@ -93,6 +99,7 @@ export function formatQuoteRoutePreferenceLabel(mode: QuoteRouteMode): string {
 export function isQuoteRouteModeDisabled(mode: QuoteRouteMode, chainId: number): boolean {
   if (mode === 'best') return false;
   if (mode === 'uniswap-v3-wrapper') return true;
+  if (mode === 'pancakeswap-v3-wrapper') return true;
   if (mode === 'uniswap-v3') return chainId !== 1;
   if (mode === 'pancakeswap-v3') return chainId !== 56;
   return false;
@@ -102,6 +109,11 @@ function assertForcedRouteAllowed(provider: QuoteProvider, chainId: number): voi
   if (provider === 'uniswap-v3-wrapper') {
     throw new Error(
       'The Uniswap fee wrapper cannot be selected as a fixed route. Choose Best price or Uniswap; the wrapper applies automatically when enabled in the environment.',
+    );
+  }
+  if (provider === 'pancakeswap-v3-wrapper') {
+    throw new Error(
+      'The Pancake fee wrapper cannot be selected as a fixed route. Choose Best price or Pancake; the wrapper applies automatically when enabled in the environment.',
     );
   }
   if (provider === 'uniswap-v3' && chainId !== 1) {
@@ -278,6 +290,36 @@ export function normalizeUniswapWrapperAggregatedQuote(
     minAmountOut,
     minAmountOutFormatted,
     provider: 'uniswap-v3-wrapper',
+    providerDetails: {
+      feeTier: quote.feeTier,
+      gas: parseInt(quote.gasEstimate, 10) || 300000,
+    },
+    chainId,
+    priceImpact: quote.priceImpact,
+    amountOutRaw: BigInt(quote.amountOut),
+    originalQuote: quote,
+  };
+}
+
+/**
+ * Normalize Pancake fee-wrapper quote (net output) after the aggregator already selected direct `pancakeswap-v3`.
+ */
+export function normalizePancakeWrapperAggregatedQuote(
+  quote: PancakeQuoteResult,
+  slippage: number,
+  tokenOutDecimals: number,
+  chainId: number,
+): AggregatedQuote {
+  const minAmountOut = getPancakeMinAmountOut(quote, slippage);
+  const minAmountOutFormatted = formatFromWei(minAmountOut, tokenOutDecimals);
+
+  return {
+    amountIn: quote.amountIn,
+    amountOut: quote.amountOut,
+    amountOutFormatted: quote.amountOutFormatted,
+    minAmountOut,
+    minAmountOutFormatted,
+    provider: 'pancakeswap-v3-wrapper',
     providerDetails: {
       feeTier: quote.feeTier,
       gas: parseInt(quote.gasEstimate, 10) || 300000,
@@ -638,6 +680,10 @@ export async function getQuoteFromProvider(
       );
     }
     return normalizePancakeQuote(quote, slippage, tokenOutData.decimals);
+  } else if (provider === 'pancakeswap-v3-wrapper') {
+    throw new Error(
+      'The Pancake fee wrapper cannot be quoted as a fixed route. Choose Best price or Pancake; the wrapper applies automatically when enabled.',
+    );
   }
 
   throw new Error(`Unknown provider: ${provider}`);

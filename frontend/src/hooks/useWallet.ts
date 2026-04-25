@@ -18,7 +18,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { BrowserProvider, JsonRpcSigner, isAddress } from 'ethers';
 import { useWalletStore } from '@/stores/walletStore';
 import { useBalanceStore } from '@/stores/balanceStore';
-import { parseWalletError } from '@/utils/errors';
+import { isUserRejection, parseWalletError } from '@/utils/errors';
 import { walletEvents } from '@/services/walletEvents';
 import { appKitProviderRef } from '@/services/wallet/appKitProviderRef';
 import {
@@ -36,6 +36,15 @@ import type { EIP1193Provider, ConnectorId } from '@/wallet';
 
 const EXTENSION_WALLETS_DISABLED_MSG =
   'Browser extension wallets are disabled on this deployment. Use WalletConnect.';
+
+async function readChainIdFromProvider(raw: EIP1193Provider): Promise<number | null> {
+  try {
+    const hex = (await raw.request({ method: 'eth_chainId', params: [] })) as string;
+    return Number.parseInt(hex, 16);
+  } catch {
+    return null;
+  }
+}
 
 export function useWallet() {
   const {
@@ -210,24 +219,66 @@ export function useWallet() {
       setIsSwitchingChain(true);
 
       try {
+        const alreadyOnTarget = (await readChainIdFromProvider(raw)) === targetChainId;
+        if (alreadyOnTarget) {
+          await switchChain(targetChainId);
+          return;
+        }
+
         await raw.request({
           method: 'wallet_switchEthereumChain',
           params: [{ chainId: `0x${targetChainId.toString(16)}` }],
         });
         await switchChain(targetChainId);
       } catch (err: unknown) {
+        if (isUserRejection(err)) {
+          const parsed = parseWalletError(err);
+          throw new Error(parsed.message);
+        }
+
+        // Wallet may have switched before our handler finished, or another tab changed chain.
+        const currentAfterError = await readChainIdFromProvider(raw);
+        if (currentAfterError === targetChainId) {
+          await switchChain(targetChainId);
+          return;
+        }
+
         const code = (err as { code?: number }).code;
 
-        // Chain not added to wallet — try wallet_addEthereumChain
+        // Chain not added to wallet — try wallet_addEthereumChain (not supported on many WC stacks)
         if (code === 4902) {
           const chainCfg = getChain(targetChainId);
           if (chainCfg) {
-            await raw.request({
-              method: 'wallet_addEthereumChain',
-              params: [chainCfg.addChainParams],
-            });
-            await switchChain(targetChainId);
-            return;
+            try {
+              await raw.request({
+                method: 'wallet_addEthereumChain',
+                params: [chainCfg.addChainParams],
+              });
+              await switchChain(targetChainId);
+              return;
+            } catch (addErr: unknown) {
+              const addCode = (addErr as { code?: number }).code;
+              const addMsg = ((addErr as { message?: string }).message || '').toLowerCase();
+              const unsupported =
+                addCode === -32601 ||
+                addMsg.includes('not supported') ||
+                addMsg.includes('does not exist') ||
+                addMsg.includes('method not found');
+
+              const now = await readChainIdFromProvider(raw);
+              if (now === targetChainId) {
+                await switchChain(targetChainId);
+                return;
+              }
+
+              if (unsupported) {
+                throw new Error(
+                  'This wallet cannot add BNB Smart Chain automatically. Open your wallet app, add or select BNB Smart Chain (chain id 56), then return here.',
+                );
+              }
+              const parsed = parseWalletError(addErr);
+              throw new Error(parsed.message);
+            }
           }
         }
 

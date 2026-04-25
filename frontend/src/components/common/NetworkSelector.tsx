@@ -1,8 +1,8 @@
 /**
  * Network Selector Component
  *
- * Allows users to switch between supported blockchain networks.
- * Triggers MetaMask network switch when selected.
+ * Switches chain via `useWallet().switchNetwork` (EIP-1193: same provider as WalletConnect / AppKit).
+ * Injected-wallet add-network fallback uses `window.ethereum` only when not on WalletConnect.
  */
 
 import { useState } from 'react';
@@ -40,9 +40,10 @@ const SUPPORTED_NETWORKS: NetworkInfo[] = Object.values(CHAINS).map((chain) => (
 }));
 
 export function NetworkSelector() {
-  const { chainId, isConnected, switchNetwork } = useWallet();
+  const { chainId, isConnected, switchNetwork, walletType } = useWallet();
   const [isOpen, setIsOpen] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
+  const [switchMessage, setSwitchMessage] = useState<string | null>(null);
 
   const currentNetwork = SUPPORTED_NETWORKS.find((n) => n.chainId === chainId);
   const isUnsupportedNetwork = isConnected && !currentNetwork;
@@ -53,14 +54,23 @@ export function NetworkSelector() {
       return;
     }
 
+    setSwitchMessage(null);
     setIsSwitching(true);
     try {
       await switchNetwork(network.chainId);
       setIsOpen(false);
     } catch (error) {
       console.error('[NetworkSelector] Failed to switch network:', error);
-      // If network doesn't exist in MetaMask, try to add it
-      if (window.ethereum && typeof (window.ethereum as { request?: unknown }).request === 'function') {
+      const msg =
+        error instanceof Error ? error.message : 'Could not switch network. Try again from your wallet app.';
+      setSwitchMessage(msg);
+
+      // Injected wallets only: WC / AppKit handles add-chain inside useWallet; window.ethereum is often wrong here.
+      if (
+        walletType !== 'walletconnect' &&
+        window.ethereum &&
+        typeof (window.ethereum as { request?: unknown }).request === 'function'
+      ) {
         try {
           await (window.ethereum as { request: (args: unknown) => Promise<unknown> }).request({
             method: 'wallet_addEthereumChain',
@@ -79,6 +89,7 @@ export function NetworkSelector() {
             ],
           });
           setIsOpen(false);
+          setSwitchMessage(null);
         } catch (addError) {
           console.error('[NetworkSelector] Failed to add network:', addError);
         }
@@ -96,7 +107,10 @@ export function NetworkSelector() {
     <div className="relative">
       {/* Current Network Button */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          setSwitchMessage(null);
+          setIsOpen(!isOpen);
+        }}
         disabled={isSwitching}
         className={`
           flex items-center gap-2 px-3 py-2 rounded-lg
@@ -126,6 +140,12 @@ export function NetworkSelector() {
           </>
         )}
       </button>
+
+      {switchMessage && (
+        <p className="mt-1 max-w-xs text-xs text-amber-400" role="status">
+          {switchMessage}
+        </p>
+      )}
 
       {/* Dropdown */}
       {isOpen && (

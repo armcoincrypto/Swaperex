@@ -91,3 +91,16 @@ export {
   shouldUseUniswapWrapperForSymbols,
   type UniswapWrapperConfig,
 } from './uniswapWrapper';
+
+// PancakeSwap V3 fee wrapper (BSC / chain 56, ERC20→ERC20, feature-flagged)
+export {
+  ensurePancakeWrapperChainFeeBps,
+  getPancakeWrapperConfig,
+  getPancakeWrapperFeeBpsForUi,
+  getPancakeWrapperSpenderAddress,
+  isPancakeWrapperExecutionEligible,
+  isPancakeWrapperFeeBpsUnverified,
+  isPancakeWrapperFeeBpsVerified,
+  shouldUsePancakeWrapperForSymbols,
+  type PancakeWrapperConfig,
+} from './pancakeWrapper';

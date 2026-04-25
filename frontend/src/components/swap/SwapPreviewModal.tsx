@@ -23,7 +23,9 @@ import {
 import {
   getMonetizationConfig,
   isMonetizationActiveForProvider,
+  getPancakeWrapperFeeBpsForUi,
   getUniswapWrapperFeeBpsForUi,
+  isPancakeWrapperFeeBpsUnverified,
   isUniswapWrapperFeeBpsUnverified,
 } from '@/config';
 import { getChainById, getExplorerTxUrl } from '@/config/chains';
@@ -302,7 +304,8 @@ export function SwapPreviewModal({
               value={
                 quote.provider === '1inch'
                   ? 'Included in quote (multi-pool)'
-                  : quote.provider === 'uniswap-v3-wrapper'
+                  : quote.provider === 'uniswap-v3-wrapper' ||
+                      quote.provider === 'pancakeswap-v3-wrapper'
                     ? `${formatSwapFeeTierDisplay(quote.feeTier)} pool (wrapper route)`
                     : `${formatSwapFeeTierDisplay(quote.feeTier)} fee tier`
               }
@@ -327,6 +330,23 @@ export function SwapPreviewModal({
                   title="Swaperex Uniswap wrapper — taken from gross output on-chain; quoted receive amount is net."
                 />
                 {isUniswapWrapperFeeBpsUnverified() && (
+                  <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
+                    {SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}
+                  </p>
+                )}
+                <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
+                  Not a network (gas) fee. Expected and minimum received reflect net output after this fee.
+                </p>
+              </>
+            )}
+            {quote.provider === 'pancakeswap-v3-wrapper' && (
+              <>
+                <DetailRow
+                  label="Wrapper protocol fee"
+                  value={`${(getPancakeWrapperFeeBpsForUi() / 100).toFixed(2)}%`}
+                  title="Swaperex Pancake wrapper — taken from gross output on-chain; quoted receive amount is net."
+                />
+                {isPancakeWrapperFeeBpsUnverified() && (
                   <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
                     {SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}
                   </p>
@@ -663,6 +683,19 @@ function PreSignConfidenceBlock({
               </dd>
             </div>
             {isUniswapWrapperFeeBpsUnverified() && (
+              <p className="text-[10px] text-dark-500 leading-snug">{SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}</p>
+            )}
+          </div>
+        )}
+        {quote.provider === 'pancakeswap-v3-wrapper' && (
+          <div className="flex flex-col gap-1">
+            <div className="flex justify-between gap-3">
+              <dt className="text-dark-400 shrink-0">Wrapper protocol fee</dt>
+              <dd className="text-right text-dark-100" title="Output-side fee via Swaperex Pancake wrapper; amounts shown are net">
+                {(getPancakeWrapperFeeBpsForUi() / 100).toFixed(2)}%
+              </dd>
+            </div>
+            {isPancakeWrapperFeeBpsUnverified() && (
               <p className="text-[10px] text-dark-500 leading-snug">{SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}</p>
             )}
           </div>

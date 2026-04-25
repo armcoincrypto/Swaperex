@@ -41,7 +41,9 @@ import {
 import {
   getMonetizationConfig,
   isMonetizationActiveForProvider,
+  getPancakeWrapperFeeBpsForUi,
   getUniswapWrapperFeeBpsForUi,
+  isPancakeWrapperFeeBpsUnverified,
   isUniswapWrapperFeeBpsUnverified,
 } from '@/config';
 import {
@@ -1163,7 +1165,8 @@ export function SwapInterface() {
               <span>
                 {swapQuote.provider === '1inch'
                   ? 'Included in quote (multi-pool)'
-                  : swapQuote.provider === 'uniswap-v3-wrapper'
+                  : swapQuote.provider === 'uniswap-v3-wrapper' ||
+                      swapQuote.provider === 'pancakeswap-v3-wrapper'
                     ? `${getFeeTierDisplay(swapQuote.feeTier)} pool (wrapper route)`
                     : `${getFeeTierDisplay(swapQuote.feeTier)} fee tier`}
               </span>
@@ -1193,6 +1196,25 @@ export function SwapInterface() {
                   </span>
                 </div>
                 {isUniswapWrapperFeeBpsUnverified() && (
+                  <p className="text-[10px] text-dark-500 leading-snug pl-0">
+                    {SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {swapQuote.provider === 'pancakeswap-v3-wrapper' && (
+              <div className="flex flex-col gap-0.5">
+                <div className="flex justify-between gap-2">
+                  <span className="text-dark-400 shrink-0">Wrapper protocol fee</span>
+                  <span
+                    className="text-right text-dark-200"
+                    title="Swaperex Pancake wrapper — taken from gross output on-chain; quoted receive amount is net."
+                  >
+                    {(getPancakeWrapperFeeBpsForUi() / 100).toFixed(2)}%
+                  </span>
+                </div>
+                {isPancakeWrapperFeeBpsUnverified() && (
                   <p className="text-[10px] text-dark-500 leading-snug pl-0">
                     {SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}
                   </p>
@@ -2070,6 +2092,8 @@ function RouteTooltip({ provider }: { provider: string }) {
         return 'Uniswap V3 execution via the Swaperex fee wrapper on Ethereum (ERC20→ERC20). Quoted output is net of the wrapper protocol fee.';
       case 'pancakeswap-v3':
         return 'Direct swap through PancakeSwap V3 on BNB Chain.';
+      case 'pancakeswap-v3-wrapper':
+        return 'PancakeSwap V3 execution via the Swaperex fee wrapper on BNB Chain (ERC20→ERC20). Quoted output is net of the wrapper protocol fee.';
       default:
         return 'Route selected for best output among sources we query for this pair.';
     }
@@ -2115,6 +2139,8 @@ function ProviderBadge({ provider }: { provider: string }) {
         return { bg: 'bg-pink-900/30', text: 'text-pink-300', label: 'Uniswap V3 · wrapper' };
       case 'pancakeswap-v3':
         return { bg: 'bg-yellow-900/30', text: 'text-yellow-400', label: 'PancakeSwap' };
+      case 'pancakeswap-v3-wrapper':
+        return { bg: 'bg-yellow-900/30', text: 'text-yellow-300', label: 'PancakeSwap V3 · wrapper' };
       default:
         return { bg: 'bg-primary-900/30', text: 'text-primary-400', label: provider };
     }

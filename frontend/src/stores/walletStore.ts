@@ -130,7 +130,7 @@ export const useWalletStore = create<WalletState>()((set, get) => ({
     });
   },
 
-  // Switch chain (request to wallet + notify backend)
+  // Switch chain: provider is source of truth; backend notify is best-effort only.
   switchChain: async (chainId: number) => {
     const { address, supportedChainIds } = get();
 
@@ -140,12 +140,13 @@ export const useWalletStore = create<WalletState>()((set, get) => ({
 
     try {
       await walletApi.switchChain(address, chainId);
-      const wrongChain = !isChainSupported(chainId, supportedChainIds);
-      set({ chainId, isWrongChain: wrongChain });
     } catch (error) {
-      console.error('Chain switch failed:', error);
-      throw error;
+      // Non-custodial / missing route: never block UI after the wallet already switched.
+      console.warn('[walletStore] switchChain backend notify failed; applying local chain state:', error);
     }
+
+    const wrongChain = !isChainSupported(chainId, supportedChainIds);
+    set({ chainId, isWrongChain: wrongChain });
   },
 
   // Update chain ID (called when wallet emits chainChanged event)
