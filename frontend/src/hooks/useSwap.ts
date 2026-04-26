@@ -41,10 +41,12 @@ import { useSwapHistoryStore } from '@/stores/swapHistoryStore';
 import { useUsageStore } from '@/stores/usageStore';
 import {
   isUserRejection,
+  isWalletSignRequestPending,
   parseTransactionError,
   parseSwapExecutionError,
   parseQuoteError,
   logError,
+  WALLET_SIGN_REQUEST_PENDING_MESSAGE,
 } from '@/utils/errors';
 import {
   validateSwapInputs,
@@ -184,6 +186,9 @@ const DEFAULT_SLIPPAGE = 0.5;
 // Quote expires after 30 seconds
 const QUOTE_EXPIRY_MS = 30000;
 
+/** If the wallet never resolves a sign request, release in-app guards so the user can retry. */
+const WALLET_SIGN_IN_FLIGHT_RELEASE_MS = 120_000;
+
 // Supported chain IDs for swap (all chains with 1inch support)
 const SUPPORTED_CHAIN_IDS = [1, 56, 137, 42161, 10, 43114, 100, 250, 8453] as const;
 
@@ -274,6 +279,54 @@ export function useSwap() {
 
   /** Prevents double confirm / overlapping executeSwap when state updates lag one frame. */
   const swapExecutionLockRef = useRef(false);
+
+  /** Blocks a second approval `sendTransaction` while the first is still with the wallet (Trust -32002). */
+  const approvalWalletSigningInFlightRef = useRef(false);
+  const approvalWalletGuardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Blocks a second swap `sendTransaction` while the first is still with the wallet. */
+  const swapWalletSigningInFlightRef = useRef(false);
+  const swapWalletGuardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearApprovalWalletSigningGuard = useCallback(() => {
+    if (approvalWalletGuardTimerRef.current != null) {
+      clearTimeout(approvalWalletGuardTimerRef.current);
+      approvalWalletGuardTimerRef.current = null;
+    }
+    approvalWalletSigningInFlightRef.current = false;
+  }, []);
+
+  const clearSwapWalletSigningGuard = useCallback(() => {
+    if (swapWalletGuardTimerRef.current != null) {
+      clearTimeout(swapWalletGuardTimerRef.current);
+      swapWalletGuardTimerRef.current = null;
+    }
+    swapWalletSigningInFlightRef.current = false;
+  }, []);
+
+  const armApprovalWalletSigningGuard = useCallback(() => {
+    clearApprovalWalletSigningGuard();
+    approvalWalletSigningInFlightRef.current = true;
+    approvalWalletGuardTimerRef.current = setTimeout(() => {
+      approvalWalletSigningInFlightRef.current = false;
+      approvalWalletGuardTimerRef.current = null;
+    }, WALLET_SIGN_IN_FLIGHT_RELEASE_MS);
+  }, [clearApprovalWalletSigningGuard]);
+
+  const armSwapWalletSigningGuard = useCallback(() => {
+    clearSwapWalletSigningGuard();
+    swapWalletSigningInFlightRef.current = true;
+    swapWalletGuardTimerRef.current = setTimeout(() => {
+      swapWalletSigningInFlightRef.current = false;
+      swapWalletGuardTimerRef.current = null;
+    }, WALLET_SIGN_IN_FLIGHT_RELEASE_MS);
+  }, [clearSwapWalletSigningGuard]);
+
+  useEffect(() => {
+    return () => {
+      clearApprovalWalletSigningGuard();
+      clearSwapWalletSigningGuard();
+    };
+  }, [clearApprovalWalletSigningGuard, clearSwapWalletSigningGuard]);
 
   // PHASE 14: Handle wallet events (disconnect, chain change, account change)
   useEffect(() => {
@@ -917,12 +970,23 @@ export function useSwap() {
         approvalMode: String(approvalMode),
       });
 
-      // Send approval transaction (wallet signs)
-      const tx = await signer.sendTransaction({
-        to: approvalTx.to,
-        data: approvalTx.data,
-        value: BigInt(approvalTx.value),
-      });
+      if (approvalWalletSigningInFlightRef.current) {
+        throw Object.assign(new Error(WALLET_SIGN_REQUEST_PENDING_MESSAGE), {
+          code: -32002,
+        });
+      }
+      armApprovalWalletSigningGuard();
+      let tx;
+      try {
+        // Send approval transaction (wallet signs)
+        tx = await signer.sendTransaction({
+          to: approvalTx.to,
+          data: approvalTx.data,
+          value: BigInt(approvalTx.value),
+        });
+      } finally {
+        clearApprovalWalletSigningGuard();
+      }
 
       toast.info('Approval sent — waiting for on-chain confirmation…');
       await tx.wait();
@@ -938,6 +1002,9 @@ export function useSwap() {
         logLifecycle('approving', 'previewing', { reason: 'user_rejected' });
         toast.warning('Approval cancelled');
         setState((s) => ({ ...s, status: 'previewing' }));
+      } else if (isWalletSignRequestPending(err)) {
+        logLifecycle('approving', 'previewing', { reason: 'wallet_sign_pending', code: -32002 });
+        setState((s) => ({ ...s, status: 'previewing' }));
       } else {
         logLifecycle('approving', 'error', { error: parsed.message });
         toast.error(`Approval failed: ${parsed.message}`);
@@ -946,7 +1013,16 @@ export function useSwap() {
 
       throw err;
     }
-  }, [swapQuote, chainId, approvalMode, getSigner, state.status, fromAsset]);
+  }, [
+    swapQuote,
+    chainId,
+    approvalMode,
+    getSigner,
+    state.status,
+    fromAsset,
+    armApprovalWalletSigningGuard,
+    clearApprovalWalletSigningGuard,
+  ]);
 
   // Execute the swap
   const executeSwap = useCallback(async (): Promise<string> => {
@@ -1156,13 +1232,24 @@ export function useSwap() {
         }
       }
 
-      // Send swap transaction (wallet signs)
-      const tx = await signer.sendTransaction({
-        to: swapTx.to,
-        data: swapTx.data,
-        value: BigInt(swapTx.value),
-        ...(resolvedGasLimit !== undefined ? { gasLimit: resolvedGasLimit } : {}),
-      });
+      if (swapWalletSigningInFlightRef.current) {
+        throw Object.assign(new Error(WALLET_SIGN_REQUEST_PENDING_MESSAGE), {
+          code: -32002,
+        });
+      }
+      armSwapWalletSigningGuard();
+      let tx;
+      try {
+        // Send swap transaction (wallet signs)
+        tx = await signer.sendTransaction({
+          to: swapTx.to,
+          data: swapTx.data,
+          value: BigInt(swapTx.value),
+          ...(resolvedGasLimit !== undefined ? { gasLimit: resolvedGasLimit } : {}),
+        });
+      } finally {
+        clearSwapWalletSigningGuard();
+      }
 
       broadcastTx = tx;
 
@@ -1273,6 +1360,11 @@ export function useSwap() {
         setState((s) => ({ ...s, status: 'previewing' }));
         toast.warning('Swap cancelled. No funds were moved.');
         console.log('[Swap] User rejected transaction');
+      } else if (isWalletSignRequestPending(err)) {
+        logLifecycle(state.status, 'previewing', { reason: 'wallet_sign_pending', code: -32002 });
+        setState((s) => ({ ...s, status: 'previewing' }));
+        toast.warning(WALLET_SIGN_REQUEST_PENDING_MESSAGE);
+        console.warn('[Swap] Wallet sign request already pending (-32002)');
       } else {
         if (broadcastTx) {
           markPendingSwapOutcomeUncertain();
@@ -1289,7 +1381,24 @@ export function useSwap() {
 
       throw err;
     }
-  }, [swapQuote, address, chainId, getSigner, executeApproval, fetchBalances, state.status, fromAmount, fromAsset, toAsset, addSwapRecord, updateRecordStatus, slippage, trackEvent]);
+  }, [
+    swapQuote,
+    address,
+    chainId,
+    getSigner,
+    executeApproval,
+    fetchBalances,
+    state.status,
+    fromAmount,
+    fromAsset,
+    toAsset,
+    addSwapRecord,
+    updateRecordStatus,
+    slippage,
+    trackEvent,
+    armSwapWalletSigningGuard,
+    clearSwapWalletSigningGuard,
+  ]);
 
   // Full swap flow: fetch quote → preview → execute
   // PHASE 7: Comprehensive validation before any action

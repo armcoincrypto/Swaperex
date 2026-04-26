@@ -22,8 +22,29 @@ export type ErrorCategory =
   | 'quote_error'
   | 'transaction_error'
   | 'wallet_error'
+  | 'wallet_sign_pending'
   | 'contract_error'
   | 'unknown';
+
+/** Trust Wallet / injected providers when a second sign request is sent while one is still open (JSON-RPC -32002). */
+export const WALLET_SIGN_REQUEST_PENDING_MESSAGE =
+  'A wallet confirmation is already open in Trust Wallet. Complete or cancel it there, then try again.';
+
+/**
+ * True when the wallet rejected a new signing request because one is already in-flight (e.g. Trust Wallet
+ * `PUBLIC_signTransaction already pending`, JSON-RPC code -32002).
+ */
+export function isWalletSignRequestPending(error: unknown): boolean {
+  if (!error) return false;
+  const err = error as { code?: number | string; message?: string; reason?: string };
+  if (err.code === -32002 || err.code === '-32002') return true;
+  const combined = `${err.message || ''} ${err.reason || ''}`.toLowerCase();
+  return (
+    combined.includes('already pending') ||
+    combined.includes('public_signtransaction') ||
+    combined.includes('signtransaction already pending')
+  );
+}
 
 export interface ParsedError {
   category: ErrorCategory;
@@ -118,6 +139,15 @@ export function parseTransactionError(error: unknown): ParsedError {
     return {
       category: 'user_rejected',
       message: 'Transaction cancelled in your wallet. No funds were moved.',
+      isRecoverable: true,
+      shouldShowRetry: true,
+    };
+  }
+
+  if (isWalletSignRequestPending(error)) {
+    return {
+      category: 'wallet_sign_pending',
+      message: WALLET_SIGN_REQUEST_PENDING_MESSAGE,
       isRecoverable: true,
       shouldShowRetry: true,
     };
@@ -332,14 +362,6 @@ export function parseRpcError(error: unknown): ParsedError {
   const message = (err.message || err.reason || '').toLowerCase();
   const code = err.code;
 
-  // Log all RPC errors for debugging (NO silent failures)
-  console.error('[RPC Error]', {
-    code,
-    message: err.message,
-    reason: err.reason,
-    data: err.data,
-  });
-
   // User rejection (code 4001 or ACTION_REJECTED)
   if (code === 4001 || code === 'ACTION_REJECTED' || isUserRejection(error)) {
     return {
@@ -349,6 +371,24 @@ export function parseRpcError(error: unknown): ParsedError {
       shouldShowRetry: true,
     };
   }
+
+  if (isWalletSignRequestPending(error)) {
+    console.warn('[RPC Error] Wallet sign request already pending', { code: err.code, message: err.message });
+    return {
+      category: 'wallet_sign_pending',
+      message: WALLET_SIGN_REQUEST_PENDING_MESSAGE,
+      isRecoverable: true,
+      shouldShowRetry: true,
+    };
+  }
+
+  // Log remaining RPC errors for debugging (NO silent failures)
+  console.error('[RPC Error]', {
+    code,
+    message: err.message,
+    reason: err.reason,
+    data: err.data,
+  });
 
   // Insufficient funds (code -32000 often)
   if (code === -32000 || message.includes('insufficient funds')) {
@@ -440,6 +480,15 @@ export function parseSwapExecutionError(error: unknown): ParsedError {
     return parseTransactionError(error);
   }
 
+  if (isWalletSignRequestPending(error)) {
+    return {
+      category: 'wallet_sign_pending',
+      message: WALLET_SIGN_REQUEST_PENDING_MESSAGE,
+      isRecoverable: true,
+      shouldShowRetry: true,
+    };
+  }
+
   const raw = (getErrorMessage(error, '') || '').trim();
   if (raw.toLowerCase().includes('1inch:')) {
     return {
@@ -495,6 +544,8 @@ export function getErrorMessage(error: unknown, fallback = 'An error occurred'):
 
 export default {
   isUserRejection,
+  isWalletSignRequestPending,
+  WALLET_SIGN_REQUEST_PENDING_MESSAGE,
   parseWalletError,
   parseTransactionError,
   parseQuoteError,
