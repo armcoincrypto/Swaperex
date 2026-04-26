@@ -104,3 +104,15 @@ export {
   shouldUsePancakeWrapperForSymbols,
   type PancakeWrapperConfig,
 } from './pancakeWrapper';
+
+// PancakeSwap V3 fee wrapper V2 (BSC; optional native legs) — **not wired into routing by default**
+export {
+  ensurePancakeWrapperV2ChainFeeBps,
+  getPancakeWrapperV2Config,
+  getPancakeWrapperV2FeeBpsForUi,
+  getPancakeWrapperV2SpenderAddress,
+  isPancakeWrapperV2ExecutionEligible,
+  isPancakeWrapperV2FeeBpsUnverified,
+  isPancakeWrapperV2FeeBpsVerified,
+  type PancakeWrapperV2Config,
+} from './pancakeWrapperV2';
