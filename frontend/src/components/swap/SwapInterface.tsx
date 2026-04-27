@@ -42,9 +42,12 @@ import {
   getMonetizationConfig,
   isMonetizationActiveForProvider,
   getPancakeWrapperFeeBpsForUi,
+  getPancakeWrapperV2FeeBpsForUi,
   getUniswapWrapperFeeBpsForUi,
   isPancakeWrapperFeeBpsUnverified,
+  isPancakeWrapperV2FeeBpsUnverified,
   isUniswapWrapperFeeBpsUnverified,
+  getPancakeWrapperV2Config,
 } from '@/config';
 import {
   formatQuoteRoutePreferenceLabel,
@@ -1166,7 +1169,8 @@ export function SwapInterface() {
                 {swapQuote.provider === '1inch'
                   ? 'Included in quote (multi-pool)'
                   : swapQuote.provider === 'uniswap-v3-wrapper' ||
-                      swapQuote.provider === 'pancakeswap-v3-wrapper'
+                      swapQuote.provider === 'pancakeswap-v3-wrapper' ||
+                      swapQuote.provider === 'pancakeswap-v3-wrapper-v2'
                     ? `${getFeeTierDisplay(swapQuote.feeTier)} pool (wrapper route)`
                     : `${getFeeTierDisplay(swapQuote.feeTier)} fee tier`}
               </span>
@@ -1215,6 +1219,25 @@ export function SwapInterface() {
                   </span>
                 </div>
                 {isPancakeWrapperFeeBpsUnverified() && (
+                  <p className="text-[10px] text-dark-500 leading-snug pl-0">
+                    {SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {swapQuote.provider === 'pancakeswap-v3-wrapper-v2' && (
+              <div className="flex flex-col gap-0.5">
+                <div className="flex justify-between gap-2">
+                  <span className="text-dark-400 shrink-0">Wrapper V2 protocol fee</span>
+                  <span
+                    className="text-right text-dark-200"
+                    title="Swaperex Pancake wrapper V2 — taken from gross output on-chain; quoted receive amount is net."
+                  >
+                    {(getPancakeWrapperV2FeeBpsForUi() / 100).toFixed(2)}%
+                  </span>
+                </div>
+                {isPancakeWrapperV2FeeBpsUnverified() && (
                   <p className="text-[10px] text-dark-500 leading-snug pl-0">
                     {SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}
                   </p>
@@ -1817,13 +1840,6 @@ function StarIcon({ filled = false }: { filled?: boolean }) {
 }
 
 // Slippage Settings Component
-const ROUTE_MODE_OPTIONS: { mode: QuoteRouteMode; label: string }[] = [
-  { mode: 'best', label: 'Best' },
-  { mode: '1inch', label: '1inch' },
-  { mode: 'uniswap-v3', label: 'Uniswap' },
-  { mode: 'pancakeswap-v3', label: 'Pancake' },
-];
-
 function SlippageSettings({
   value,
   customValue,
@@ -1850,6 +1866,19 @@ function SlippageSettings({
   const presets = [0.1, 0.5, 1.0];
   const isCustom = !presets.includes(value);
 
+  const routeModeOptions = useMemo(() => {
+    const opts: { mode: QuoteRouteMode; label: string }[] = [
+      { mode: 'best', label: 'Best' },
+      { mode: '1inch', label: '1inch' },
+      { mode: 'uniswap-v3', label: 'Uniswap' },
+      { mode: 'pancakeswap-v3', label: 'Pancake' },
+    ];
+    if (chainId === 56 && getPancakeWrapperV2Config().enabled) {
+      opts.push({ mode: 'pancakeswap-v3-wrapper-v2', label: 'Pancake V2 wrap' });
+    }
+    return opts;
+  }, [chainId]);
+
   return (
     <div className="relative z-10 mb-4 p-4 bg-electro-bgAlt/80 rounded-glass-sm border border-white/[0.06]">
       <div className="flex items-center justify-between mb-3">
@@ -1863,7 +1892,7 @@ function SlippageSettings({
       <div className="mb-4">
         <span className="text-sm text-dark-300 mb-2 block">{SWAP_SURFACE_COPY.routePreferenceLabel}</span>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-          {ROUTE_MODE_OPTIONS.map(({ mode, label }) => {
+          {routeModeOptions.map(({ mode, label }) => {
             const disabled = isQuoteRouteModeDisabled(mode, chainId);
             const active = routeMode === mode;
             return (
@@ -2094,6 +2123,8 @@ function RouteTooltip({ provider }: { provider: string }) {
         return 'Direct swap through PancakeSwap V3 on BNB Chain.';
       case 'pancakeswap-v3-wrapper':
         return 'PancakeSwap V3 execution via the Swaperex fee wrapper on BNB Chain (ERC20→ERC20). Quoted output is net of the wrapper protocol fee.';
+      case 'pancakeswap-v3-wrapper-v2':
+        return 'PancakeSwap V3 via Swaperex fee wrapper V2 (canary). ERC20↔ERC20 quoting in this build; quoted output is net of the wrapper protocol fee.';
       default:
         return 'Route selected for best output among sources we query for this pair.';
     }
@@ -2141,6 +2172,8 @@ function ProviderBadge({ provider }: { provider: string }) {
         return { bg: 'bg-yellow-900/30', text: 'text-yellow-400', label: 'PancakeSwap' };
       case 'pancakeswap-v3-wrapper':
         return { bg: 'bg-yellow-900/30', text: 'text-yellow-300', label: 'PancakeSwap V3 · wrapper' };
+      case 'pancakeswap-v3-wrapper-v2':
+        return { bg: 'bg-yellow-900/30', text: 'text-yellow-200', label: 'Pancake V3 · wrap V2' };
       default:
         return { bg: 'bg-primary-900/30', text: 'text-primary-400', label: provider };
     }

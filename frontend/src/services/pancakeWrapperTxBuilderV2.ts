@@ -9,7 +9,7 @@
  * **Disabled by default** — requires `VITE_PANCAKE_WRAPPER_V2_ENABLED` + valid address.
  * Native legs additionally require `VITE_PANCAKE_WRAPPER_V2_NATIVE_ENABLED`.
  *
- * This module does **not** wire into `useSwap` / routing automatically (canary gate lives in product config).
+ * Routed when the selected quote provider is `pancakeswap-v3-wrapper-v2` (env-gated; see `quoteAggregator` / `useSwap`).
  */
 
 import { Interface, MaxUint256, getAddress, isAddress, parseUnits } from 'ethers';

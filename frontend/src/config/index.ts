@@ -105,7 +105,7 @@ export {
   type PancakeWrapperConfig,
 } from './pancakeWrapper';
 
-// PancakeSwap V3 fee wrapper V2 (BSC; optional native legs) — **not wired into routing by default**
+// PancakeSwap V3 fee wrapper V2 (BSC; optional native legs) — optional fixed route `pancakeswap-v3-wrapper-v2` when env-enabled
 export {
   ensurePancakeWrapperV2ChainFeeBps,
   getPancakeWrapperV2Config,

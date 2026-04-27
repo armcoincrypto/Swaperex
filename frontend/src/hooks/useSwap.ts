@@ -82,6 +82,10 @@ import {
   buildPancakeWrapperSwapTx,
 } from '@/services/pancakeWrapperTxBuilder';
 import {
+  buildPancakeWrapperV2ApprovalTx,
+  buildPancakeWrapperV2SwapTx,
+} from '@/services/pancakeWrapperTxBuilderV2';
+import {
   buildOneInchSwapTx,
   buildOneInchApproval,
   checkOneInchAllowance,
@@ -95,9 +99,11 @@ import { PANCAKESWAP_V3_ADDRESSES } from '@/services/pancakeSwapQuote';
 import { getTokenBySymbol, isNativeToken, isNativeSwapInput } from '@/tokens';
 import {
   ensurePancakeWrapperChainFeeBps,
+  ensurePancakeWrapperV2ChainFeeBps,
   ensureUniswapWrapperChainFeeBps,
   getExplorerTxUrl,
   getPancakeWrapperSpenderAddress,
+  getPancakeWrapperV2SpenderAddress,
   getUniswapV3Addresses,
   getUniswapWrapperSpenderAddress,
   shouldUsePancakeWrapperForSymbols,
@@ -136,6 +142,7 @@ export type SwapProvider =
   | 'uniswap-v3-wrapper'
   | 'pancakeswap-v3'
   | 'pancakeswap-v3-wrapper'
+  | 'pancakeswap-v3-wrapper-v2'
   | '1inch';
 
 /** Runner-up from aggregator compare (display output; not full calldata quote). */
@@ -461,6 +468,7 @@ export function useSwap() {
         ),
         ensureUniswapWrapperChainFeeBps(provider, chainId || 1),
         ensurePancakeWrapperChainFeeBps(provider, chainId || 1),
+        ensurePancakeWrapperV2ChainFeeBps(provider, chainId || 1),
       ]);
       let aggregation = aggregationInitial;
 
@@ -578,7 +586,8 @@ export function useSwap() {
         aggregatedQuote.provider === 'uniswap-v3' || aggregatedQuote.provider === 'uniswap-v3-wrapper'
         ? (aggregatedQuote.originalQuote as QuoteResult)
         : aggregatedQuote.provider === 'pancakeswap-v3' ||
-            aggregatedQuote.provider === 'pancakeswap-v3-wrapper'
+            aggregatedQuote.provider === 'pancakeswap-v3-wrapper' ||
+            aggregatedQuote.provider === 'pancakeswap-v3-wrapper-v2'
           ? (aggregatedQuote.originalQuote as QuoteResult)
         : {
             // Map 1inch quote to QuoteResult format
@@ -614,6 +623,29 @@ export function useSwap() {
           hasAllowance = allowance === 'unlimited' || BigInt(allowance) >= amountInWei;
         } else if (aggregatedQuote.provider === 'pancakeswap-v3-wrapper') {
           const wrapperAddr = getPancakeWrapperSpenderAddress();
+          const amountInWei = BigInt(aggregatedQuote.amountIn);
+          if (!wrapperAddr) {
+            hasAllowance = false;
+          } else if (!provider || !address) {
+            allowanceCheckUncertain = true;
+            hasAllowance = true;
+          } else {
+            const read = await readErc20AllowanceVsRequired(
+              tokenIn.address,
+              wrapperAddr,
+              address,
+              amountInWei,
+              provider,
+            );
+            if (read === 'unknown') {
+              allowanceCheckUncertain = true;
+              hasAllowance = true;
+            } else {
+              hasAllowance = read === 'sufficient';
+            }
+          }
+        } else if (aggregatedQuote.provider === 'pancakeswap-v3-wrapper-v2') {
+          const wrapperAddr = getPancakeWrapperV2SpenderAddress();
           const amountInWei = BigInt(aggregatedQuote.amountIn);
           if (!wrapperAddr) {
             hasAllowance = false;
@@ -707,6 +739,8 @@ export function useSwap() {
           ? getUniswapWrapperSpenderAddress()
           : aggregatedQuote.provider === 'pancakeswap-v3-wrapper'
             ? getPancakeWrapperSpenderAddress()
+            : aggregatedQuote.provider === 'pancakeswap-v3-wrapper-v2'
+              ? getPancakeWrapperV2SpenderAddress()
           : aggregatedQuote.provider === 'uniswap-v3'
             ? uniswapForLog?.router ?? null
             : aggregatedQuote.provider === 'pancakeswap-v3'
@@ -922,6 +956,23 @@ export function useSwap() {
           data: wrapAppr.data,
           value: wrapAppr.value,
         };
+      } else if (swapQuote.provider === 'pancakeswap-v3-wrapper-v2') {
+        const w = getPancakeWrapperV2SpenderAddress();
+        if (!w) {
+          throw new Error('Pancake fee wrapper V2 is enabled in the environment but the wrapper address is not configured.');
+        }
+        console.log('[Swap] Building Pancake wrapper V2 approval...');
+        const wrapAppr = buildPancakeWrapperV2ApprovalTx(
+          swapQuote.fromSymbol,
+          w,
+          chainId,
+          useExact ? exactAmount : undefined,
+        );
+        approvalTx = {
+          to: wrapAppr.to,
+          data: wrapAppr.data,
+          value: wrapAppr.value,
+        };
       } else if (swapQuote.provider === 'pancakeswap-v3') {
         // PancakeSwap router approval (BSC)
         console.log('[Swap] Building PancakeSwap approval...');
@@ -1114,6 +1165,32 @@ export function useSwap() {
           amountOutMin: formatUnits(swapQuote.minAmountOut, tokenOut?.decimals ?? 18),
           recipient: address,
           feeTier: pancakeWrapperFeeTier,
+        });
+        swapTx = {
+          to: pwTx.to,
+          data: pwTx.data,
+          value: pwTx.value,
+        };
+      } else if (swapQuote.provider === 'pancakeswap-v3-wrapper-v2') {
+        const w = getPancakeWrapperV2SpenderAddress();
+        if (!w) {
+          throw new Error('Pancake fee wrapper V2 is enabled in the environment but the wrapper address is not configured.');
+        }
+        console.log('[Swap] Building Pancake wrapper V2 swap...');
+        const tokenIn = getTokenBySymbol(swapQuote.fromSymbol, chainId);
+        const tokenOut = getTokenBySymbol(swapQuote.toSymbol, chainId);
+        const amountInHuman = tokenIn
+          ? formatUnits(swapQuote.amountIn, tokenIn.decimals)
+          : swapQuote.from_amount;
+        const pancakeWrapperV2FeeTier =
+          (swapQuote.aggregatedQuote?.providerDetails?.feeTier as 100 | 500 | 2500 | 10000) || 2500;
+        const pwTx = buildPancakeWrapperV2SwapTx(w, {
+          tokenIn: swapQuote.fromSymbol,
+          tokenOut: swapQuote.toSymbol,
+          amountIn: amountInHuman,
+          amountOutMin: formatUnits(swapQuote.minAmountOut, tokenOut?.decimals ?? 18),
+          recipient: address,
+          feeTier: pancakeWrapperV2FeeTier,
         });
         swapTx = {
           to: pwTx.to,
