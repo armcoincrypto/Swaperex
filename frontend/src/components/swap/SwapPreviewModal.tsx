@@ -33,6 +33,8 @@ import {
 import { getChainById, getExplorerTxUrl } from '@/config/chains';
 import type { SwapQuote } from '@/hooks/useSwap';
 import type { ApprovalMode } from '@/stores/swapStore';
+import { classifyCommissionRoute } from '@/utils/commission';
+import { isDebugMode } from '@/utils/chainHealth';
 
 // Quote expires after 30 seconds
 const QUOTE_EXPIRY_SECONDS = 30;
@@ -854,6 +856,18 @@ function SuccessContent({
   const [copied, setCopied] = useState(false);
   const explorerUrl = providedExplorerUrl || getExplorerTxUrl(1, txHash || '');
   const timestamp = new Date().toLocaleString();
+  const showCommissionDebug = import.meta.env.DEV || isDebugMode();
+  const commissionRouteLabel = (() => {
+    const trace = classifyCommissionRoute({
+      provider: quote.provider,
+      routeMode: quote.routeMode ?? 'best',
+      chainId: null,
+      txTo: null,
+    });
+    if (trace.commissionKind === 'wrapper') return 'wrapper';
+    if (trace.commissionKind === '1inch_integrator_fee') return '1inch best-effort';
+    return 'none';
+  })();
 
   const handleCopyTxHash = async () => {
     if (txHash) {
@@ -921,6 +935,12 @@ function SuccessContent({
             <span className="text-dark-400">{SWAP_SURFACE_COPY.routeViaLabel}</span>
             <span className="text-primary-400">{swapAggregatorProviderLabel(quote.provider)}</span>
           </div>
+          {showCommissionDebug && (
+            <div className="flex justify-between">
+              <span className="text-dark-400">Commission route</span>
+              <span className="text-dark-200">Commission route: {commissionRouteLabel}</span>
+            </div>
+          )}
           <div className="flex justify-between">
             <span className="text-dark-400">Exchange rate</span>
             <span>1 {quote.from_asset} = {formatBalance(quote.rate)} {quote.to_asset}</span>

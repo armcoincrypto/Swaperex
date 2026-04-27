@@ -55,6 +55,7 @@ import {
   logValidationErrors,
 } from '@/utils/swapValidation';
 import { swapObsLog } from '@/utils/swapObservability';
+import { classifyCommissionRoute } from '@/utils/commission';
 
 // Import Uniswap V3 services
 import {
@@ -1366,6 +1367,17 @@ export function useSwap() {
           provider: swapQuote.aggregatedQuote?.provider ?? swapQuote.provider,
           to: swapTx.to,
         });
+        const commissionTrace = classifyCommissionRoute({
+          provider: swapQuote.provider,
+          routeMode: swapQuote.routeMode,
+          chainId,
+          txTo: swapTx.to,
+        });
+        console.log('swaperex_commission_trace', commissionTrace);
+        if (import.meta.env.DEV) {
+          // Keep this dev-only to avoid noisy production consoles.
+          console.table([commissionTrace]);
+        }
         // Send swap transaction (wallet signs)
         tx = await signer.sendTransaction({
           to: swapTx.to,
