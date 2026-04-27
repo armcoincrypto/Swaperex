@@ -513,7 +513,11 @@ export function useSwap() {
         }
       }
 
+      // V1 fee-wrapper auto-upgrade is **best-price only**. Fixed routes must not be rewritten here:
+      // - `pancakeswap-v3` must stay direct SmartRouter when the user forces Pancake.
+      // - `pancakeswap-v3-wrapper-v2` must never be replaced by v1.
       if (
+        routeMode === 'best' &&
         (chainId || 1) === 56 &&
         aggregation.best.provider === 'pancakeswap-v3' &&
         shouldUsePancakeWrapperForSymbols(chainId || 1, fromSymbol, toSymbol)
@@ -621,8 +625,8 @@ export function useSwap() {
           const allowance = await checkOneInchAllowance(fromSymbol, address, chainId || 1);
           const amountInWei = BigInt(aggregatedQuote.amountIn);
           hasAllowance = allowance === 'unlimited' || BigInt(allowance) >= amountInWei;
-        } else if (aggregatedQuote.provider === 'pancakeswap-v3-wrapper') {
-          const wrapperAddr = getPancakeWrapperSpenderAddress();
+        } else if (aggregatedQuote.provider === 'pancakeswap-v3-wrapper-v2') {
+          const wrapperAddr = getPancakeWrapperV2SpenderAddress();
           const amountInWei = BigInt(aggregatedQuote.amountIn);
           if (!wrapperAddr) {
             hasAllowance = false;
@@ -644,8 +648,8 @@ export function useSwap() {
               hasAllowance = read === 'sufficient';
             }
           }
-        } else if (aggregatedQuote.provider === 'pancakeswap-v3-wrapper-v2') {
-          const wrapperAddr = getPancakeWrapperV2SpenderAddress();
+        } else if (aggregatedQuote.provider === 'pancakeswap-v3-wrapper') {
+          const wrapperAddr = getPancakeWrapperSpenderAddress();
           const amountInWei = BigInt(aggregatedQuote.amountIn);
           if (!wrapperAddr) {
             hasAllowance = false;
@@ -737,10 +741,10 @@ export function useSwap() {
       const spenderForLog =
         aggregatedQuote.provider === 'uniswap-v3-wrapper'
           ? getUniswapWrapperSpenderAddress()
-          : aggregatedQuote.provider === 'pancakeswap-v3-wrapper'
-            ? getPancakeWrapperSpenderAddress()
-            : aggregatedQuote.provider === 'pancakeswap-v3-wrapper-v2'
-              ? getPancakeWrapperV2SpenderAddress()
+          : aggregatedQuote.provider === 'pancakeswap-v3-wrapper-v2'
+            ? getPancakeWrapperV2SpenderAddress()
+            : aggregatedQuote.provider === 'pancakeswap-v3-wrapper'
+              ? getPancakeWrapperSpenderAddress()
           : aggregatedQuote.provider === 'uniswap-v3'
             ? uniswapForLog?.router ?? null
             : aggregatedQuote.provider === 'pancakeswap-v3'
@@ -939,13 +943,13 @@ export function useSwap() {
           ? formatUnits(swapQuote.amountIn, tokenIn.decimals)
           : undefined;
         approvalTx = await buildOneInchApproval(swapQuote.fromSymbol, chainId, amountStr);
-      } else if (swapQuote.provider === 'pancakeswap-v3-wrapper') {
-        const w = getPancakeWrapperSpenderAddress();
+      } else if (swapQuote.provider === 'pancakeswap-v3-wrapper-v2') {
+        const w = getPancakeWrapperV2SpenderAddress();
         if (!w) {
-          throw new Error('Pancake fee wrapper is enabled in the environment but the wrapper address is not configured.');
+          throw new Error('Pancake fee wrapper V2 is enabled in the environment but the wrapper address is not configured.');
         }
-        console.log('[Swap] Building Pancake wrapper approval...');
-        const wrapAppr = buildPancakeWrapperApprovalTx(
+        console.log('[Swap] Building Pancake wrapper V2 approval...');
+        const wrapAppr = buildPancakeWrapperV2ApprovalTx(
           swapQuote.fromSymbol,
           w,
           chainId,
@@ -956,13 +960,13 @@ export function useSwap() {
           data: wrapAppr.data,
           value: wrapAppr.value,
         };
-      } else if (swapQuote.provider === 'pancakeswap-v3-wrapper-v2') {
-        const w = getPancakeWrapperV2SpenderAddress();
+      } else if (swapQuote.provider === 'pancakeswap-v3-wrapper') {
+        const w = getPancakeWrapperSpenderAddress();
         if (!w) {
-          throw new Error('Pancake fee wrapper V2 is enabled in the environment but the wrapper address is not configured.');
+          throw new Error('Pancake fee wrapper is enabled in the environment but the wrapper address is not configured.');
         }
-        console.log('[Swap] Building Pancake wrapper V2 approval...');
-        const wrapAppr = buildPancakeWrapperV2ApprovalTx(
+        console.log('[Swap] Building Pancake wrapper approval...');
+        const wrapAppr = buildPancakeWrapperApprovalTx(
           swapQuote.fromSymbol,
           w,
           chainId,
@@ -1145,32 +1149,6 @@ export function useSwap() {
           value: oneInchTx.value,
           gasLimit: oneInchTx.gas,
         };
-      } else if (swapQuote.provider === 'pancakeswap-v3-wrapper') {
-        const w = getPancakeWrapperSpenderAddress();
-        if (!w) {
-          throw new Error('Pancake fee wrapper is enabled in the environment but the wrapper address is not configured.');
-        }
-        console.log('[Swap] Building Pancake wrapper swap...');
-        const tokenIn = getTokenBySymbol(swapQuote.fromSymbol, chainId);
-        const tokenOut = getTokenBySymbol(swapQuote.toSymbol, chainId);
-        const amountInHuman = tokenIn
-          ? formatUnits(swapQuote.amountIn, tokenIn.decimals)
-          : swapQuote.from_amount;
-        const pancakeWrapperFeeTier =
-          (swapQuote.aggregatedQuote?.providerDetails?.feeTier as 100 | 500 | 2500 | 10000) || 2500;
-        const pwTx = buildPancakeWrapperSwapTx(w, {
-          tokenIn: swapQuote.fromSymbol,
-          tokenOut: swapQuote.toSymbol,
-          amountIn: amountInHuman,
-          amountOutMin: formatUnits(swapQuote.minAmountOut, tokenOut?.decimals ?? 18),
-          recipient: address,
-          feeTier: pancakeWrapperFeeTier,
-        });
-        swapTx = {
-          to: pwTx.to,
-          data: pwTx.data,
-          value: pwTx.value,
-        };
       } else if (swapQuote.provider === 'pancakeswap-v3-wrapper-v2') {
         const w = getPancakeWrapperV2SpenderAddress();
         if (!w) {
@@ -1191,6 +1169,32 @@ export function useSwap() {
           amountOutMin: formatUnits(swapQuote.minAmountOut, tokenOut?.decimals ?? 18),
           recipient: address,
           feeTier: pancakeWrapperV2FeeTier,
+        });
+        swapTx = {
+          to: pwTx.to,
+          data: pwTx.data,
+          value: pwTx.value,
+        };
+      } else if (swapQuote.provider === 'pancakeswap-v3-wrapper') {
+        const w = getPancakeWrapperSpenderAddress();
+        if (!w) {
+          throw new Error('Pancake fee wrapper is enabled in the environment but the wrapper address is not configured.');
+        }
+        console.log('[Swap] Building Pancake wrapper swap...');
+        const tokenIn = getTokenBySymbol(swapQuote.fromSymbol, chainId);
+        const tokenOut = getTokenBySymbol(swapQuote.toSymbol, chainId);
+        const amountInHuman = tokenIn
+          ? formatUnits(swapQuote.amountIn, tokenIn.decimals)
+          : swapQuote.from_amount;
+        const pancakeWrapperFeeTier =
+          (swapQuote.aggregatedQuote?.providerDetails?.feeTier as 100 | 500 | 2500 | 10000) || 2500;
+        const pwTx = buildPancakeWrapperSwapTx(w, {
+          tokenIn: swapQuote.fromSymbol,
+          tokenOut: swapQuote.toSymbol,
+          amountIn: amountInHuman,
+          amountOutMin: formatUnits(swapQuote.minAmountOut, tokenOut?.decimals ?? 18),
+          recipient: address,
+          feeTier: pancakeWrapperFeeTier,
         });
         swapTx = {
           to: pwTx.to,
@@ -1317,6 +1321,10 @@ export function useSwap() {
       armSwapWalletSigningGuard();
       let tx;
       try {
+        console.debug('swap_tx_target', {
+          provider: swapQuote.aggregatedQuote?.provider ?? swapQuote.provider,
+          to: swapTx.to,
+        });
         // Send swap transaction (wallet signs)
         tx = await signer.sendTransaction({
           to: swapTx.to,
