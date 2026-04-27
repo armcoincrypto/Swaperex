@@ -39,6 +39,26 @@ interface ImportMetaEnv {
   /** Wrapper output fee in bps for UI copy only; should match on-chain `FEE_BPS` (default 50). */
   readonly VITE_PANCAKE_WRAPPER_FEE_BPS?: string
 
+  /** When truthy, BSC Pancake wrapper V2 routes are enabled. */
+  readonly VITE_PANCAKE_WRAPPER_V2_ENABLED?: string
+  /** Deployed Swaperex Pancake V3 fee wrapper V2 on BSC (checksummed). */
+  readonly VITE_PANCAKE_WRAPPER_V2_ADDRESS?: string
+  /** Wrapper V2 output fee in bps for UI copy only; should match on-chain `feeBps` (default 50). */
+  readonly VITE_PANCAKE_WRAPPER_V2_FEE_BPS?: string
+  /** When truthy, wrapper V2 native entrypoints may be executed (native BNB legs). Default: off. */
+  readonly VITE_PANCAKE_WRAPPER_V2_NATIVE_ENABLED?: string
+
+  /** When truthy, wrapper V2 native legs may be quoted (manual-route testing gate). Default: off. */
+  readonly VITE_PANCAKE_WRAPPER_V2_NATIVE_QUOTE_ENABLED?: string
+  /** Future: native-leg canary pct for best-route participation (0..1). Default 0. */
+  readonly VITE_PANCAKE_WRAPPER_V2_NATIVE_CANARY_PCT?: string
+
+  /** Existing: canary pct for ERC20↔ERC20 wrapper-v2 participation in “best” route (0..1). Default 0. */
+  readonly VITE_PANCAKE_WRAPPER_V2_CANARY_PCT?: string
+
+  /** When truthy, swaps must use commission-capable routes or be blocked. Default: off. */
+  readonly VITE_COMMISSION_REQUIRED?: string
+
   // Vite flags
   readonly DEV: boolean
   readonly PROD: boolean

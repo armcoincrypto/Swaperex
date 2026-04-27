@@ -116,3 +116,6 @@ export {
   isPancakeWrapperV2FeeBpsVerified,
   type PancakeWrapperV2Config,
 } from './pancakeWrapperV2';
+
+// Commission-required mode (env)
+export { isCommissionRequiredMode } from './commissionRequired';

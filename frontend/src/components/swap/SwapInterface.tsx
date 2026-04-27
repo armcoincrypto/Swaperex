@@ -48,6 +48,7 @@ import {
   isPancakeWrapperV2FeeBpsUnverified,
   isUniswapWrapperFeeBpsUnverified,
   getPancakeWrapperV2Config,
+  isCommissionRequiredMode,
 } from '@/config';
 import {
   formatQuoteRoutePreferenceLabel,
@@ -58,6 +59,7 @@ import { validateToken } from '@/services/tokenValidation';
 import { analyzeSwapFromContext, type SwapIntelligence } from '@/services/dex';
 import type { AssetInfo } from '@/types/api';
 import { isAddress } from 'ethers';
+import { isDebugMode } from '@/utils/chainHealth';
 
 // Chain ID to chain name mapping
 const CHAIN_NAMES: Record<number, string> = {
@@ -1870,6 +1872,8 @@ function SlippageSettings({
 }) {
   const presets = [0.1, 0.5, 1.0];
   const isCustom = !presets.includes(value);
+  const commissionRequired = isCommissionRequiredMode();
+  const showCommissionRequired = commissionRequired && (import.meta.env.DEV || isDebugMode());
 
   const routeModeOptions = useMemo(() => {
     const opts: { mode: QuoteRouteMode; label: string }[] = [
@@ -1896,6 +1900,11 @@ function SlippageSettings({
       {/* Route preference */}
       <div className="mb-4">
         <span className="text-sm text-dark-300 mb-2 block">{SWAP_SURFACE_COPY.routePreferenceLabel}</span>
+        {showCommissionRequired && (
+          <div className="mb-2 text-[11px] text-yellow-300/90">
+            Commission required mode: enabled
+          </div>
+        )}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
           {routeModeOptions.map(({ mode, label }) => {
             const disabled = isQuoteRouteModeDisabled(mode, chainId);

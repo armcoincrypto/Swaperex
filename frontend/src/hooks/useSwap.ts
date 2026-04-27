@@ -111,6 +111,7 @@ import {
   getUniswapWrapperSpenderAddress,
   shouldUsePancakeWrapperForSymbols,
   shouldUseUniswapWrapperForSymbols,
+  isCommissionRequiredMode,
 } from '@/config';
 import {
   clearPendingSwap,
@@ -462,24 +463,129 @@ export function useSwap() {
         throw new Error(validationErrors.join(', '));
       }
 
-      // PHASE 10: Fetch best quote via aggregator (compares 1inch vs Uniswap / Pancake on ETH & BSC)
-      // Use slippage from store (user-selected) with fallback to default.
-      // In parallel on mainnet: one lightweight `FEE_BPS` read for wrapper fee display (session-cached).
-      const [aggregationInitial] = await Promise.all([
-        getAggregatedQuote(
-          fromSymbol,
-          toSymbol,
-          fromAmount,
-          chainId || 1,
-          slippage || DEFAULT_SLIPPAGE,
-          routeMode,
-          address ?? null,
-        ),
-        ensureUniswapWrapperChainFeeBps(provider, chainId || 1),
-        ensurePancakeWrapperChainFeeBps(provider, chainId || 1),
-        ensurePancakeWrapperV2ChainFeeBps(provider, chainId || 1),
-      ]);
-      let aggregation = aggregationInitial;
+      const commissionRequired = isCommissionRequiredMode();
+      const tokenInMetaForMode = getTokenBySymbol(fromSymbol, chainId || 1);
+      const tokenOutMetaForMode = getTokenBySymbol(toSymbol, chainId || 1);
+      const inNativeForMode = tokenInMetaForMode ? isNativeToken(tokenInMetaForMode.address) : false;
+      const outNativeForMode = tokenOutMetaForMode ? isNativeToken(tokenOutMetaForMode.address) : false;
+
+      let aggregation;
+
+      // Commission-required mode: wrapper-only execution when a commission-capable wrapper exists.
+      // No native enablement yet — block all native legs in this mode (ETH/BNB).
+      if (commissionRequired) {
+        if (inNativeForMode || outNativeForMode) {
+          console.log('commission_required_route_blocked', {
+            chainId: chainId || 1,
+            routeMode,
+            reason: 'native_leg_blocked',
+            tokenIn: fromSymbol,
+            tokenOut: toSymbol,
+          });
+          throw new Error('Commission route unavailable for this pair.');
+        }
+
+        if ((chainId || 1) === 56) {
+          try {
+            const forced = await getQuoteFromProvider(
+              'pancakeswap-v3-wrapper-v2',
+              fromSymbol,
+              toSymbol,
+              fromAmount,
+              56,
+              slippage || DEFAULT_SLIPPAGE,
+            );
+            console.log('commission_required_route_selected', {
+              chainId: 56,
+              routeMode,
+              provider: forced.provider,
+              reason: 'forced_pancakeswap_v3_wrapper_v2',
+              tokenIn: fromSymbol,
+              tokenOut: toSymbol,
+            });
+            // Warm fee-bps cache for UI (best-effort).
+            await ensurePancakeWrapperV2ChainFeeBps(provider, 56);
+            aggregation = {
+              best: forced,
+              alternative: null,
+              selectionReason: 'Commission required: forcing PancakeSwap V3 (Swaperex wrapper V2).',
+            };
+          } catch {
+            console.log('commission_required_route_blocked', {
+              chainId: 56,
+              routeMode,
+              provider: 'pancakeswap-v3-wrapper-v2',
+              reason: 'wrapper_v2_quote_failed',
+              tokenIn: fromSymbol,
+              tokenOut: toSymbol,
+            });
+            throw new Error('Commission route unavailable for this pair.');
+          }
+        } else if ((chainId || 1) === 1) {
+          try {
+            const forced = await getQuoteFromProvider(
+              'uniswap-v3-wrapper',
+              fromSymbol,
+              toSymbol,
+              fromAmount,
+              1,
+              slippage || DEFAULT_SLIPPAGE,
+            );
+            console.log('commission_required_route_selected', {
+              chainId: 1,
+              routeMode,
+              provider: forced.provider,
+              reason: 'forced_uniswap_v3_wrapper',
+              tokenIn: fromSymbol,
+              tokenOut: toSymbol,
+            });
+            await ensureUniswapWrapperChainFeeBps(provider, 1);
+            aggregation = {
+              best: forced,
+              alternative: null,
+              selectionReason: 'Commission required: forcing Uniswap V3 (Swaperex wrapper).',
+            };
+          } catch {
+            console.log('commission_required_route_blocked', {
+              chainId: 1,
+              routeMode,
+              provider: 'uniswap-v3-wrapper',
+              reason: 'wrapper_quote_failed',
+              tokenIn: fromSymbol,
+              tokenOut: toSymbol,
+            });
+            throw new Error('Commission route unavailable for this pair.');
+          }
+        } else {
+          console.log('commission_required_route_blocked', {
+            chainId: chainId || 1,
+            routeMode,
+            reason: 'no_wrapper_available',
+            tokenIn: fromSymbol,
+            tokenOut: toSymbol,
+          });
+          throw new Error('Commission route unavailable for this pair.');
+        }
+      } else {
+        // PHASE 10: Fetch best quote via aggregator (compares 1inch vs Uniswap / Pancake on ETH & BSC)
+        // Use slippage from store (user-selected) with fallback to default.
+        // In parallel on mainnet: one lightweight `FEE_BPS` read for wrapper fee display (session-cached).
+        const [aggregationInitial] = await Promise.all([
+          getAggregatedQuote(
+            fromSymbol,
+            toSymbol,
+            fromAmount,
+            chainId || 1,
+            slippage || DEFAULT_SLIPPAGE,
+            routeMode,
+            address ?? null,
+          ),
+          ensureUniswapWrapperChainFeeBps(provider, chainId || 1),
+          ensurePancakeWrapperChainFeeBps(provider, chainId || 1),
+          ensurePancakeWrapperV2ChainFeeBps(provider, chainId || 1),
+        ]);
+        aggregation = aggregationInitial;
+      }
 
       // Manual route MUST be honored: Pancake wrapper V2 is a fixed-route mode and must not silently degrade.
       // If anything upstream returns a different provider, force the wrapper-v2 quote explicitly.

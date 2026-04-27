@@ -21,6 +21,7 @@ import {
 import { NATIVE_TOKEN_ADDRESS, isOneInchSupported } from './oneInchQuote';
 import { createOneInchSwapV6Url, getOneInchSwapV6Prefix } from '@/config/api';
 import { fetchWithTimeout } from '@/utils/fetchWithTimeout';
+import { isCommissionRequiredMode } from '@/config/commissionRequired';
 
 /**
  * Swap parameters for 1inch
@@ -384,6 +385,11 @@ export async function buildOneInchSwapTx(
         referrer: monetizationCfg.recipient,
         status: response.status,
       });
+      if (isCommissionRequiredMode()) {
+        throw new Error(
+          '1inch: Integrator fee is required but 1inch rejected the fee/referrer request.',
+        );
+      }
       attemptedWithFee = false;
       url = buildSwapUrl(false);
       response = await fetchWithTimeout(

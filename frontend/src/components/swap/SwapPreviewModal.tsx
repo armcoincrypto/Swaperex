@@ -29,6 +29,7 @@ import {
   isPancakeWrapperFeeBpsUnverified,
   isPancakeWrapperV2FeeBpsUnverified,
   isUniswapWrapperFeeBpsUnverified,
+  isCommissionRequiredMode,
 } from '@/config';
 import { getChainById, getExplorerTxUrl } from '@/config/chains';
 import type { SwapQuote } from '@/hooks/useSwap';
@@ -857,6 +858,7 @@ function SuccessContent({
   const explorerUrl = providedExplorerUrl || getExplorerTxUrl(1, txHash || '');
   const timestamp = new Date().toLocaleString();
   const showCommissionDebug = import.meta.env.DEV || isDebugMode();
+  const commissionRequired = isCommissionRequiredMode();
   const commissionRouteLabel = (() => {
     const trace = classifyCommissionRoute({
       provider: quote.provider,
@@ -868,6 +870,15 @@ function SuccessContent({
     if (trace.commissionKind === '1inch_integrator_fee') return '1inch best-effort';
     return 'none';
   })();
+  if (commissionRequired && commissionRouteLabel === 'none') {
+    // Safety: in commission-required mode, receipt should never claim commission route is "none".
+    // This is display-only; execution is already blocked upstream if no commission-capable route exists.
+    // Keep it non-throwing to avoid breaking success receipts.
+    console.warn('[Receipt] Commission required is enabled but receipt computed no commission route.', {
+      provider: quote.provider,
+      routeMode: quote.routeMode,
+    });
+  }
 
   const handleCopyTxHash = async () => {
     if (txHash) {
