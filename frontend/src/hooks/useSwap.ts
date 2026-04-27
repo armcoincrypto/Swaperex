@@ -71,6 +71,7 @@ import {
 // PHASE 10: Import aggregator and 1inch services
 import {
   getAggregatedQuote,
+  getQuoteFromProvider,
   normalizePancakeWrapperAggregatedQuote,
   normalizeUniswapWrapperAggregatedQuote,
   type AggregatedQuote,
@@ -195,6 +196,9 @@ const QUOTE_EXPIRY_MS = 30000;
 
 /** If the wallet never resolves a sign request, release in-app guards so the user can retry. */
 const WALLET_SIGN_IN_FLIGHT_RELEASE_MS = 120_000;
+
+// BSC Pancake wrapper V2 target contract (spender / swap target)
+const PANCAKE_WRAPPER_V2_EXPECTED_TO = '0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6';
 
 // Supported chain IDs for swap (all chains with 1inch support)
 const SUPPORTED_CHAIN_IDS = [1, 56, 137, 42161, 10, 43114, 100, 250, 8453] as const;
@@ -439,6 +443,7 @@ export function useSwap() {
 
     try {
       console.log('[Swap] Fetching quote via aggregator:', { fromSymbol, toSymbol, fromAmount });
+      console.debug('route_mode_selected', { routeMode });
 
       // Validate parameters
       const validationErrors = validateSwapParams({
@@ -471,6 +476,27 @@ export function useSwap() {
         ensurePancakeWrapperV2ChainFeeBps(provider, chainId || 1),
       ]);
       let aggregation = aggregationInitial;
+
+      // Manual route MUST be honored: Pancake wrapper V2 is a fixed-route mode and must not silently degrade.
+      // If anything upstream returns a different provider, force the wrapper-v2 quote explicitly.
+      if (
+        routeMode === 'pancakeswap-v3-wrapper-v2' &&
+        aggregation.best.provider !== 'pancakeswap-v3-wrapper-v2'
+      ) {
+        const forced = await getQuoteFromProvider(
+          'pancakeswap-v3-wrapper-v2',
+          fromSymbol,
+          toSymbol,
+          fromAmount,
+          chainId || 1,
+          slippage || DEFAULT_SLIPPAGE,
+        );
+        aggregation = {
+          best: forced,
+          alternative: null,
+          selectionReason: 'PancakeSwap V3 (Swaperex wrapper V2) — forced by route preference',
+        };
+      }
 
       if (
         aggregation.best.provider === 'uniswap-v3' &&
@@ -574,6 +600,11 @@ export function useSwap() {
       }
 
       const aggregatedQuote = aggregation.best;
+
+      console.debug('aggregated_quote_selected', {
+        provider: aggregatedQuote?.provider,
+        routeMode,
+      });
 
       console.log(
         '[Swap] Aggregator selected:',
@@ -948,6 +979,11 @@ export function useSwap() {
         if (!w) {
           throw new Error('Pancake fee wrapper V2 is enabled in the environment but the wrapper address is not configured.');
         }
+        if (w.toLowerCase() !== PANCAKE_WRAPPER_V2_EXPECTED_TO.toLowerCase()) {
+          throw new Error(
+            `Pancake wrapper V2 address mismatch. Expected ${PANCAKE_WRAPPER_V2_EXPECTED_TO} but got ${w}.`,
+          );
+        }
         console.log('[Swap] Building Pancake wrapper V2 approval...');
         const wrapAppr = buildPancakeWrapperV2ApprovalTx(
           swapQuote.fromSymbol,
@@ -1153,6 +1189,11 @@ export function useSwap() {
         const w = getPancakeWrapperV2SpenderAddress();
         if (!w) {
           throw new Error('Pancake fee wrapper V2 is enabled in the environment but the wrapper address is not configured.');
+        }
+        if (w.toLowerCase() !== PANCAKE_WRAPPER_V2_EXPECTED_TO.toLowerCase()) {
+          throw new Error(
+            `Pancake wrapper V2 address mismatch. Expected ${PANCAKE_WRAPPER_V2_EXPECTED_TO} but got ${w}.`,
+          );
         }
         console.log('[Swap] Building Pancake wrapper V2 swap...');
         const tokenIn = getTokenBySymbol(swapQuote.fromSymbol, chainId);

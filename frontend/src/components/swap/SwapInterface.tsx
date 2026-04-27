@@ -180,6 +180,11 @@ export function SwapInterface() {
     clearQuote,
   } = useSwapStore();
 
+  // TEMP DEBUG: trace route selection state flowing into quote pipeline
+  useEffect(() => {
+    console.debug('route_mode_selected', { routeMode });
+  }, [routeMode]);
+
   /** Single source of truth: in-flight quote work in useSwap (incl. allowance check after aggregation). */
   const isQuotePipelineLoading = useMemo(
     () => status === 'fetching_quote' || status === 'checking_allowance',
