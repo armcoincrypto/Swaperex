@@ -39,6 +39,7 @@ import { walletEvents, getWalletEventMessage } from '@/services/walletEvents';
 import { processQuoteForSignals } from '@/services/radarService';
 import { useSwapHistoryStore } from '@/stores/swapHistoryStore';
 import { useUsageStore } from '@/stores/usageStore';
+import { useCommissionMonitorStore } from '@/stores/commissionMonitorStore';
 import {
   isUserRejection,
   isWalletSignRequestPending,
@@ -272,6 +273,7 @@ export function useSwap() {
   const { fetchBalances } = useBalanceStore();
   const { addRecord: addSwapRecord, updateRecordStatus } = useSwapHistoryStore();
   const { trackEvent } = useUsageStore();
+  const { addConfirmedSwapEvent } = useCommissionMonitorStore();
 
   const [state, setState] = useState<SwapState>({
     status: 'idle',
@@ -471,6 +473,7 @@ export function useSwap() {
           chainId || 1,
           slippage || DEFAULT_SLIPPAGE,
           routeMode,
+          address ?? null,
         ),
         ensureUniswapWrapperChainFeeBps(provider, chainId || 1),
         ensurePancakeWrapperChainFeeBps(provider, chainId || 1),
@@ -1167,6 +1170,7 @@ export function useSwap() {
 
       // PHASE 10 + 11: Build swap transaction based on provider
       let swapTx: { to: string; data: string; value: string; gas?: string; gasLimit?: string };
+      let oneInchIntegratorFeeStatus: 'attached' | 'dropped' | 'disabled' | 'unknown' | null = null;
 
       if (swapQuote.provider === '1inch') {
         // Build 1inch swap transaction
@@ -1180,6 +1184,7 @@ export function useSwap() {
           slippage: swapQuote.slippage,
           chainId,
         });
+        oneInchIntegratorFeeStatus = oneInchTx.integratorFeeStatus ?? 'unknown';
         swapTx = {
           to: oneInchTx.to,
           data: oneInchTx.data,
@@ -1362,21 +1367,27 @@ export function useSwap() {
       }
       armSwapWalletSigningGuard();
       let tx;
+      let commissionTraceForSwap:
+        | ReturnType<typeof classifyCommissionRoute>
+        | null = null;
       try {
         console.debug('swap_tx_target', {
           provider: swapQuote.aggregatedQuote?.provider ?? swapQuote.provider,
           to: swapTx.to,
         });
-        const commissionTrace = classifyCommissionRoute({
+        commissionTraceForSwap = classifyCommissionRoute({
           provider: swapQuote.provider,
           routeMode: swapQuote.routeMode,
           chainId,
           txTo: swapTx.to,
         });
-        console.log('swaperex_commission_trace', commissionTrace);
+        if (swapQuote.provider === '1inch') {
+          commissionTraceForSwap.integratorFeeStatus = oneInchIntegratorFeeStatus ?? 'unknown';
+        }
+        console.log('swaperex_commission_trace', commissionTraceForSwap);
         if (import.meta.env.DEV) {
           // Keep this dev-only to avoid noisy production consoles.
-          console.table([commissionTrace]);
+          console.table([commissionTraceForSwap]);
         }
         // Send swap transaction (wallet signs)
         tx = await signer.sendTransaction({
@@ -1449,6 +1460,26 @@ export function useSwap() {
         });
         setState((s) => ({ ...s, status: 'success', txHash: tx.hash, explorerUrl }));
         toast.success('Swap confirmed');
+
+        // Minimal local-only revenue tracking (confirmed swaps only)
+        if (commissionTraceForSwap) {
+          addConfirmedSwapEvent({
+            timestamp: Date.now(),
+            txHash: tx.hash,
+            chainId: chainId ?? 0,
+            provider: swapQuote.provider,
+            routeMode: String(swapQuote.routeMode ?? 'best'),
+            txTo: String(commissionTraceForSwap.txTo ?? ''),
+            commissionKind:
+              commissionTraceForSwap.commissionKind === 'wrapper'
+                ? 'wrapper'
+                : commissionTraceForSwap.commissionKind === '1inch_integrator_fee'
+                  ? '1inch_integrator_fee'
+                  : 'none',
+            expectedFeeBps: commissionTraceForSwap.expectedCommissionBps,
+            expectedRecipient: commissionTraceForSwap.expectedCommissionRecipient,
+          });
+        }
 
         // Record swap to local history for Quick Repeat
         if (fromAsset && toAsset && swapQuote) {

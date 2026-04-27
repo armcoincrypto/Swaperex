@@ -45,6 +45,8 @@ export interface OneInchSwapTx {
   value: string;             // ETH value (for native swaps)
   gas: string;               // Estimated gas
   gasPrice: string;          // Suggested gas price
+  /** Observability only: whether fee/referrer were attached or dropped via retry */
+  integratorFeeStatus?: 'attached' | 'dropped' | 'disabled' | 'unknown';
 }
 
 /**
@@ -314,6 +316,8 @@ export async function buildOneInchSwapTx(
 
   const monetizationCfg = getMonetizationConfig();
   const shouldAttachIntegratorFee = isMonetizationActiveForProvider('1inch');
+  let integratorFeeStatus: OneInchSwapTx['integratorFeeStatus'] =
+    shouldAttachIntegratorFee ? 'unknown' : 'disabled';
 
   if (shouldAttachIntegratorFee && import.meta.env.DEV) {
     console.log('[1inch TxBuilder] Integrator fee enabled:', {
@@ -346,6 +350,12 @@ export async function buildOneInchSwapTx(
       // Classic Swap: `fee` = partner fee as percent (max 3%); `referrer` = fee recipient address.
       url.searchParams.set('fee', formatOneInchFeeParam(monetizationCfg.feeBps));
       url.searchParams.set('referrer', monetizationCfg.recipient);
+      console.log('oneInch_fee_attached', {
+        chainId,
+        feeBps: monetizationCfg.feeBps,
+        feeParam: formatOneInchFeeParam(monetizationCfg.feeBps),
+        referrer: monetizationCfg.recipient,
+      });
     }
 
     return url;
@@ -368,6 +378,12 @@ export async function buildOneInchSwapTx(
         response.status,
         errorText.slice(0, 500),
       );
+      console.log('oneInch_fee_dropped', {
+        chainId,
+        feeBps: monetizationCfg.feeBps,
+        referrer: monetizationCfg.recipient,
+        status: response.status,
+      });
       attemptedWithFee = false;
       url = buildSwapUrl(false);
       response = await fetchWithTimeout(
@@ -406,6 +422,9 @@ export async function buildOneInchSwapTx(
     }
 
     const data: OneInchSwapResponse = await response.json();
+    if (shouldAttachIntegratorFee) {
+      integratorFeeStatus = attemptedWithFee ? 'attached' : 'dropped';
+    }
 
     console.log('[1inch TxBuilder] Swap tx ready:', {
       to: data.tx.to,
@@ -419,6 +438,7 @@ export async function buildOneInchSwapTx(
       value: data.tx.value,
       gas: data.tx.gas.toString(),
       gasPrice: data.tx.gasPrice,
+      integratorFeeStatus,
     };
   } catch (error) {
     console.error('[1inch TxBuilder] Error:', error);

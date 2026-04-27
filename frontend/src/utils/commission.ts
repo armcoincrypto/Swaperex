@@ -19,6 +19,9 @@ export type CommissionTrace = {
   chainId?: number | null;
   txTo?: string | null;
 
+  /** 1inch only: whether fee/referrer were attached, dropped via retry, disabled, or unknown. */
+  integratorFeeStatus?: 'attached' | 'dropped' | 'disabled' | 'unknown';
+
   isSwaperexWrapper: boolean;
   wrapperKey?: 'uniswap-v3-wrapper' | 'pancakeswap-v3-wrapper' | 'pancakeswap-v3-wrapper-v2' | null;
   wrapperAddress?: string | null;
@@ -143,6 +146,7 @@ export function classifyCommissionRoute(input: {
       routeMode,
       chainId,
       txTo: txToNorm,
+      integratorFeeStatus: enabled ? 'unknown' : 'disabled',
       isSwaperexWrapper: false,
       wrapperKey: null,
       wrapperAddress: null,
