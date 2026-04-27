@@ -36,11 +36,29 @@ import {
   getPancakeMinAmountOut,
   type PancakeQuoteResult,
 } from './pancakeSwapQuote';
-import { getTokenBySymbol } from '@/tokens';
+import { getTokenBySymbol, isNativeToken } from '@/tokens';
+import {
+  getPancakeWrapperV2Config,
+  isPancakeWrapperV2ExecutionEligible,
+} from '@/config';
+import { getBestPancakeWrapperV2Quote } from './pancakeWrapperQuoteV2';
 import { swapObsLog } from '@/utils/swapObservability';
 
 /** Keep [swap:obs] JSON lines compact in the console */
 const OBS_REASON_MAX = 280;
+
+function parseEnvPct0to1(raw: string | undefined): number {
+  if (raw === undefined || raw === null || String(raw).trim() === '') return 0;
+  const n = Number.parseFloat(String(raw).trim());
+  if (!Number.isFinite(n)) return 0;
+  if (n <= 0) return 0;
+  if (n >= 1) return 1;
+  return n;
+}
+
+function getPancakeWrapperV2CanaryPct(): number {
+  return parseEnvPct0to1(import.meta.env.VITE_PANCAKE_WRAPPER_V2_CANARY_PCT);
+}
 
 function obsAggRoute(fields: {
   chainId: number;
@@ -76,6 +94,7 @@ export type QuoteProvider =
   | 'uniswap-v3-wrapper'
   | 'pancakeswap-v3'
   | 'pancakeswap-v3-wrapper'
+  | 'pancakeswap-v3-wrapper-v2'
   | '1inch';
 
 /** User routing preference: compare all sources, or fix one execution venue. */
@@ -87,6 +106,7 @@ const ROUTE_PROVIDER_LABEL: Record<QuoteProvider, string> = {
   'uniswap-v3-wrapper': 'Uniswap V3 (Swaperex wrapper)',
   'pancakeswap-v3': 'PancakeSwap V3',
   'pancakeswap-v3-wrapper': 'PancakeSwap V3 (Swaperex wrapper)',
+  'pancakeswap-v3-wrapper-v2': 'PancakeSwap V3 (Swaperex wrapper V2 · canary)',
 };
 
 /** Human-readable label for settings and preview. */
@@ -100,6 +120,9 @@ export function isQuoteRouteModeDisabled(mode: QuoteRouteMode, chainId: number):
   if (mode === 'best') return false;
   if (mode === 'uniswap-v3-wrapper') return true;
   if (mode === 'pancakeswap-v3-wrapper') return true;
+  if (mode === 'pancakeswap-v3-wrapper-v2') {
+    return chainId !== 56 || !getPancakeWrapperV2Config().enabled;
+  }
   if (mode === 'uniswap-v3') return chainId !== 1;
   if (mode === 'pancakeswap-v3') return chainId !== 56;
   return false;
@@ -115,6 +138,20 @@ function assertForcedRouteAllowed(provider: QuoteProvider, chainId: number): voi
     throw new Error(
       'The Pancake fee wrapper cannot be selected as a fixed route. Choose Best price or Pancake; the wrapper applies automatically when enabled in the environment.',
     );
+  }
+  if (provider === 'pancakeswap-v3-wrapper-v2') {
+    if (chainId !== 56) {
+      throw new Error(
+        'Pancake fee wrapper V2 is only available on BNB Chain. Switch networks or choose another route.',
+      );
+    }
+    const v2 = getPancakeWrapperV2Config();
+    if (!v2.enabled || !v2.wrapperAddress) {
+      throw new Error(
+        'Pancake fee wrapper V2 is not enabled. Set VITE_PANCAKE_WRAPPER_V2_ENABLED and a valid VITE_PANCAKE_WRAPPER_V2_ADDRESS.',
+      );
+    }
+    return;
   }
   if (provider === 'uniswap-v3' && chainId !== 1) {
     throw new Error(
@@ -331,6 +368,34 @@ export function normalizePancakeWrapperAggregatedQuote(
   };
 }
 
+/** Normalize Pancake fee-wrapper **V2** quote (net output) for execution display. */
+export function normalizePancakeWrapperV2AggregatedQuote(
+  quote: PancakeQuoteResult,
+  slippage: number,
+  tokenOutDecimals: number,
+  chainId: number,
+): AggregatedQuote {
+  const minAmountOut = getPancakeMinAmountOut(quote, slippage);
+  const minAmountOutFormatted = formatFromWei(minAmountOut, tokenOutDecimals);
+
+  return {
+    amountIn: quote.amountIn,
+    amountOut: quote.amountOut,
+    amountOutFormatted: quote.amountOutFormatted,
+    minAmountOut,
+    minAmountOutFormatted,
+    provider: 'pancakeswap-v3-wrapper-v2',
+    providerDetails: {
+      feeTier: quote.feeTier,
+      gas: parseInt(quote.gasEstimate, 10) || 300000,
+    },
+    chainId,
+    priceImpact: quote.priceImpact,
+    amountOutRaw: BigInt(quote.amountOut),
+    originalQuote: quote,
+  };
+}
+
 /**
  * PHASE 11: Convert PancakeSwap quote to unified format
  */
@@ -519,8 +584,66 @@ async function getBscQuote(
     console.warn('[Aggregator] PancakeSwap quote failed:', pancakeResult.status === 'rejected' ? pancakeResult.reason : 'No quote returned');
   }
 
-  // Select best quote
-  const comparison = selectBestQuote(oneInchQuote, directQuote, 'PancakeSwap');
+  // Select best quote (existing behavior: 1inch vs direct Pancake)
+  let comparison = selectBestQuote(oneInchQuote, directQuote, 'PancakeSwap');
+
+  // Controlled canary: optionally allow Pancake Wrapper V2 participation as an additional candidate.
+  // Never forces V2 globally; fully reversible via VITE_PANCAKE_WRAPPER_V2_CANARY_PCT (default 0).
+  try {
+    const cfg = getPancakeWrapperV2Config();
+    const canaryPct = getPancakeWrapperV2CanaryPct();
+    const routeKey = 'pancakeswap-v3-wrapper-v2';
+
+    if (cfg.enabled && cfg.wrapperAddress && canaryPct > 0) {
+      const tokenInMeta = getTokenBySymbol(tokenIn, 56);
+      const tokenOutMeta = getTokenBySymbol(tokenOut, 56);
+
+      const eligible =
+        isPancakeWrapperV2ExecutionEligible(56, tokenInMeta, tokenOutMeta) &&
+        tokenInMeta != null &&
+        tokenOutMeta != null &&
+        !isNativeToken(tokenInMeta.address) &&
+        !isNativeToken(tokenOutMeta.address);
+
+      if (eligible) {
+        const v2Quote = await getBestPancakeWrapperV2Quote(tokenIn, tokenOut, amountIn);
+        if (v2Quote) {
+          if (Math.random() < canaryPct) {
+            const v2Agg = normalizePancakeWrapperV2AggregatedQuote(v2Quote, slippage, tokenOutDecimals, 56);
+
+            const candidates = [comparison.best, comparison.alternative, v2Agg].filter(
+              (q): q is AggregatedQuote => q != null,
+            );
+            candidates.sort((a, b) => (a.amountOutRaw > b.amountOutRaw ? -1 : a.amountOutRaw < b.amountOutRaw ? 1 : 0));
+
+            const best = candidates[0];
+            const runnerUp = candidates[1] ?? null;
+            const selectionReason =
+              best.provider === 'pancakeswap-v3-wrapper-v2'
+                ? `${comparison.selectionReason} · Canary: Wrapper V2 participated (pct=${canaryPct}) and won on net output.`
+                : `${comparison.selectionReason} · Canary: Wrapper V2 participated (pct=${canaryPct}) but did not win.`;
+
+            comparison = {
+              best,
+              alternative: runnerUp,
+              selectionReason,
+            };
+          } else {
+            swapObsLog('pancake_wrapper_v2_skip', {
+              tokenIn,
+              tokenOut,
+              nativeEnabled: String(cfg.nativeEnabled),
+              reason: 'canary_not_selected',
+              routeKey,
+            });
+          }
+        }
+      }
+    }
+  } catch (err) {
+    // Never break existing routing on canary path errors.
+    console.warn('[Aggregator] Pancake wrapper V2 canary evaluation failed; ignoring.', err);
+  }
 
   console.log('[Aggregator] Selected:', comparison.best.provider, '|', comparison.selectionReason);
 
@@ -680,6 +803,74 @@ export async function getQuoteFromProvider(
       );
     }
     return normalizePancakeQuote(quote, slippage, tokenOutData.decimals);
+  } else if (provider === 'pancakeswap-v3-wrapper-v2') {
+    const routeKey = 'pancakeswap-v3-wrapper-v2';
+    const cfg = getPancakeWrapperV2Config();
+    const nativeEnabled = cfg.nativeEnabled;
+
+    const logSkip = (reason: string): void => {
+      swapObsLog('pancake_wrapper_v2_skip', {
+        tokenIn,
+        tokenOut,
+        nativeEnabled: String(nativeEnabled),
+        reason,
+        routeKey,
+      });
+    };
+
+    if (chainId !== 56) {
+      logSkip('wrong_chain');
+      throw new Error('Pancake fee wrapper V2 only supports BNB Chain');
+    }
+    if (!cfg.enabled || !cfg.wrapperAddress) {
+      logSkip('v2_disabled_or_unconfigured');
+      throw new Error(
+        'Pancake fee wrapper V2 is not enabled or the wrapper address is missing. Check VITE_PANCAKE_WRAPPER_V2_* env.',
+      );
+    }
+
+    const tokenInMeta = getTokenBySymbol(tokenIn, 56);
+    const tokenOutMeta = getTokenBySymbol(tokenOut, 56);
+    if (!isPancakeWrapperV2ExecutionEligible(56, tokenInMeta, tokenOutMeta)) {
+      logSkip('pair_ineligible_or_native_disabled');
+      throw new Error(
+        'This pair is not eligible for Pancake wrapper V2 with current settings (ERC20↔ERC20 only when native wrapper legs are off).',
+      );
+    }
+    if (
+      (tokenInMeta && isNativeToken(tokenInMeta.address)) ||
+      (tokenOutMeta && isNativeToken(tokenOutMeta.address))
+    ) {
+      logSkip('native_quote_not_supported_in_canary');
+      throw new Error(
+        'Pancake wrapper V2 canary quoting supports ERC20→ERC20 only. Native legs are not quoted in this build.',
+      );
+    }
+
+    try {
+      const wq = await getBestPancakeWrapperV2Quote(tokenIn, tokenOut, amountIn);
+      if (!wq) {
+        logSkip('no_quote_all_tiers_failed');
+        throw new Error(
+          'No Pancake wrapper V2 quote for this pair or amount. Try another size or fee tier route.',
+        );
+      }
+      swapObsLog('pancake_wrapper_v2_apply', {
+        tokenIn,
+        tokenOut,
+        nativeEnabled: String(nativeEnabled),
+        reason: 'quoted',
+        routeKey,
+      });
+      return normalizePancakeWrapperV2AggregatedQuote(wq, slippage, tokenOutData.decimals, 56);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'unknown_error';
+      const alreadyLoggedNoQuote = msg.startsWith('No Pancake wrapper V2 quote');
+      if (!alreadyLoggedNoQuote) {
+        logSkip(msg.length > 280 ? `${msg.slice(0, 277)}...` : msg);
+      }
+      throw e;
+    }
   } else if (provider === 'pancakeswap-v3-wrapper') {
     throw new Error(
       'The Pancake fee wrapper cannot be quoted as a fixed route. Choose Best price or Pancake; the wrapper applies automatically when enabled.',
