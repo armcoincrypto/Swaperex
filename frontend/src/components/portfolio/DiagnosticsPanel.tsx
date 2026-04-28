@@ -12,6 +12,7 @@
 import { useState, useEffect } from 'react';
 import { usePortfolioStore } from '@/stores/portfolioStore';
 import { useWalletStore } from '@/stores/walletStore';
+import { useCommissionMonitorStore } from '@/stores/commissionMonitorStore';
 import {
   isSnapshotValid,
 } from '@/stores/portfolioStore';
@@ -36,12 +37,31 @@ export function DiagnosticsPanel() {
   const chainHealth = usePortfolioStore((s) => s.chainHealth);
   const pricingStatus = usePortfolioStore((s) => s.pricingStatus);
   const privacyMode = usePortfolioStore((s) => s.privacyMode);
+  const commissionEvents = useCommissionMonitorStore((s) => s.events);
 
   // Refresh diagnostics display every 5s
   useEffect(() => {
     const interval = setInterval(() => tick((n) => n + 1), 5_000);
     return () => clearInterval(interval);
   }, []);
+
+  const commissionCounts = commissionEvents.reduce(
+    (acc, e) => {
+      acc.total += 1;
+      acc.byProvider[e.provider] = (acc.byProvider[e.provider] ?? 0) + 1;
+      if (e.commissionKind === 'wrapper') acc.wrapper += 1;
+      else if (e.commissionKind === '1inch_integrator_fee') acc.oneInchBestEffort += 1;
+      else acc.none += 1;
+      return acc;
+    },
+    {
+      total: 0,
+      wrapper: 0,
+      oneInchBestEffort: 0,
+      none: 0,
+      byProvider: {} as Record<string, number>,
+    },
+  );
 
   const snapshotValid = isSnapshotValid(snapshotAt);
   const snapshotTtlRemaining = snapshotAt > 0
@@ -110,6 +130,27 @@ export function DiagnosticsPanel() {
               value={pricingStatus.lastError ? redactError(pricingStatus.lastError) : '(none)'}
               warn={!!pricingStatus.lastError}
             />
+          </Section>
+
+          {/* ─── Commission Monitor ────────────── */}
+          <Section title="Commission Monitor">
+            <Row label="Tracked confirmed swaps" value={String(commissionCounts.total)} />
+            <Row label="Wrapper swaps" value={String(commissionCounts.wrapper)} />
+            <Row label="1inch best-effort" value={String(commissionCounts.oneInchBestEffort)} />
+            <Row label="No-commission" value={String(commissionCounts.none)} />
+            <div className="mt-1 text-dark-500">
+              Totals by provider:
+            </div>
+            <div className="space-y-0.5">
+              {Object.entries(commissionCounts.byProvider)
+                .sort((a, b) => b[1] - a[1])
+                .map(([provider, count]) => (
+                  <Row key={provider} label={provider} value={String(count)} />
+                ))}
+              {Object.keys(commissionCounts.byProvider).length === 0 && (
+                <div className="text-dark-600">No confirmed swaps recorded yet.</div>
+              )}
+            </div>
           </Section>
         </div>
       )}

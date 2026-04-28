@@ -43,6 +43,7 @@ import {
 } from '@/config';
 import { getBestPancakeWrapperV2Quote } from './pancakeWrapperQuoteV2';
 import { swapObsLog } from '@/utils/swapObservability';
+import { keccak256, toUtf8Bytes } from 'ethers';
 
 /** Keep [swap:obs] JSON lines compact in the console */
 const OBS_REASON_MAX = 280;
@@ -58,6 +59,30 @@ function parseEnvPct0to1(raw: string | undefined): number {
 
 function getPancakeWrapperV2CanaryPct(): number {
   return parseEnvPct0to1(import.meta.env.VITE_PANCAKE_WRAPPER_V2_CANARY_PCT);
+}
+
+const CANARY_BUCKET_MOD = 10_000;
+
+function computeCanaryBucket(input: {
+  wallet: string | null;
+  chainId: number;
+  tokenIn: string;
+  tokenOut: string;
+}): { bucket: number; deterministic: boolean } {
+  const wallet = (input.wallet ?? '').trim().toLowerCase();
+  const tokenIn = String(input.tokenIn || '').trim().toLowerCase();
+  const tokenOut = String(input.tokenOut || '').trim().toLowerCase();
+
+  // If wallet is unavailable, fall back to current safe behavior (random canary).
+  if (!wallet) {
+    return { bucket: Math.floor(Math.random() * CANARY_BUCKET_MOD), deterministic: false };
+  }
+
+  const key = `${wallet}|${input.chainId}|${tokenIn}|${tokenOut}`;
+  const h = keccak256(toUtf8Bytes(key));
+  const low32 = BigInt(h) & 0xffffffffn;
+  const bucket = Number(low32 % BigInt(CANARY_BUCKET_MOD));
+  return { bucket, deterministic: true };
 }
 
 function obsAggRoute(fields: {
@@ -463,6 +488,7 @@ export async function getAggregatedQuote(
   chainId: number = 1,
   slippage: number = 0.5,
   routeMode: QuoteRouteMode = 'best',
+  walletAddress: string | null = null,
 ): Promise<AggregatedQuoteResult> {
   if (!SUPPORTED_CHAINS.includes(chainId as SupportedChainId)) {
     throw new Error(`Quote aggregator only supports chains: ${SUPPORTED_CHAINS.join(', ')}`);
@@ -486,7 +512,7 @@ export async function getAggregatedQuote(
   if (chainId === 1) {
     return getEthereumQuote(tokenIn, tokenOut, amountIn, slippage, tokenOutData.decimals, apiKey);
   } else if (chainId === 56) {
-    return getBscQuote(tokenIn, tokenOut, amountIn, slippage, tokenOutData.decimals, apiKey);
+    return getBscQuote(tokenIn, tokenOut, amountIn, slippage, tokenOutData.decimals, apiKey, walletAddress);
   }
 
   // All other supported chains: use 1inch as sole provider
@@ -556,7 +582,8 @@ async function getBscQuote(
   amountIn: string,
   slippage: number,
   tokenOutDecimals: number,
-  apiKey?: string
+  apiKey?: string,
+  walletAddress: string | null = null,
 ): Promise<AggregatedQuoteResult> {
   console.log('[Aggregator] BSC quote request:', { tokenIn, tokenOut, amountIn });
 
@@ -608,7 +635,21 @@ async function getBscQuote(
       if (eligible) {
         const v2Quote = await getBestPancakeWrapperV2Quote(tokenIn, tokenOut, amountIn);
         if (v2Quote) {
-          if (Math.random() < canaryPct) {
+          const { bucket } = computeCanaryBucket({
+            wallet: walletAddress,
+            chainId: 56,
+            tokenIn,
+            tokenOut,
+          });
+          const selected = bucket / CANARY_BUCKET_MOD < canaryPct;
+          console.log('pancake_wrapper_v2_canary_decision', {
+            wallet: walletAddress,
+            bucket,
+            canaryPct,
+            selected,
+          });
+
+          if (selected) {
             const v2Agg = normalizePancakeWrapperV2AggregatedQuote(v2Quote, slippage, tokenOutDecimals, 56);
 
             const candidates = [comparison.best, comparison.alternative, v2Agg].filter(

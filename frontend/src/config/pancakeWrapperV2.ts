@@ -28,6 +28,15 @@ function parseEnvBoolean(raw: string | undefined): boolean {
   return ENABLED_VALUES.has(String(raw).trim().toLowerCase());
 }
 
+function parseEnvPct0to1(raw: string | undefined): number {
+  if (raw === undefined || raw === null || String(raw).trim() === '') return 0;
+  const n = Number.parseFloat(String(raw).trim());
+  if (!Number.isFinite(n)) return 0;
+  if (n <= 0) return 0;
+  if (n >= 1) return 1;
+  return n;
+}
+
 const DEFAULT_PANCAKE_WRAPPER_V2_FEE_BPS = 50;
 
 export interface PancakeWrapperV2Config {
@@ -36,6 +45,10 @@ export interface PancakeWrapperV2Config {
   feeBpsDisplay: number;
   /** When false, V2 native entrypoints must not be used from the tx builder (canary gate). */
   nativeEnabled: boolean;
+  /** When false, native-leg quoting must not be attempted (manual-route gate). */
+  nativeQuoteEnabled: boolean;
+  /** Future flag: separate canary % for native-leg participation (default 0). */
+  nativeCanaryPct: number;
 }
 
 function parseFeeBps(raw: string | undefined): number {
@@ -50,18 +63,36 @@ function parseFeeBps(raw: string | undefined): number {
 export function getPancakeWrapperV2Config(): PancakeWrapperV2Config {
   const enabled = parseEnvBoolean(import.meta.env.VITE_PANCAKE_WRAPPER_V2_ENABLED);
   const nativeEnabled = parseEnvBoolean(import.meta.env.VITE_PANCAKE_WRAPPER_V2_NATIVE_ENABLED);
+  const nativeQuoteEnabled = parseEnvBoolean(
+    import.meta.env.VITE_PANCAKE_WRAPPER_V2_NATIVE_QUOTE_ENABLED,
+  );
+  const nativeCanaryPct = parseEnvPct0to1(import.meta.env.VITE_PANCAKE_WRAPPER_V2_NATIVE_CANARY_PCT);
   const rawAddr = import.meta.env.VITE_PANCAKE_WRAPPER_V2_ADDRESS;
   const feeBpsDisplay = parseFeeBps(import.meta.env.VITE_PANCAKE_WRAPPER_V2_FEE_BPS);
 
   if (!enabled) {
-    return { enabled: false, wrapperAddress: null, feeBpsDisplay, nativeEnabled: false };
+    return {
+      enabled: false,
+      wrapperAddress: null,
+      feeBpsDisplay,
+      nativeEnabled: false,
+      nativeQuoteEnabled: false,
+      nativeCanaryPct: 0,
+    };
   }
 
   if (typeof rawAddr !== 'string' || !isAddress(rawAddr)) {
     console.warn(
       '[PancakeWrapperV2] Enabled but VITE_PANCAKE_WRAPPER_V2_ADDRESS is missing or invalid — V2 disabled.',
     );
-    return { enabled: false, wrapperAddress: null, feeBpsDisplay, nativeEnabled: false };
+    return {
+      enabled: false,
+      wrapperAddress: null,
+      feeBpsDisplay,
+      nativeEnabled: false,
+      nativeQuoteEnabled: false,
+      nativeCanaryPct: 0,
+    };
   }
 
   try {
@@ -70,9 +101,18 @@ export function getPancakeWrapperV2Config(): PancakeWrapperV2Config {
       wrapperAddress: getAddress(rawAddr),
       feeBpsDisplay,
       nativeEnabled,
+      nativeQuoteEnabled,
+      nativeCanaryPct,
     };
   } catch {
-    return { enabled: false, wrapperAddress: null, feeBpsDisplay, nativeEnabled: false };
+    return {
+      enabled: false,
+      wrapperAddress: null,
+      feeBpsDisplay,
+      nativeEnabled: false,
+      nativeQuoteEnabled: false,
+      nativeCanaryPct: 0,
+    };
   }
 }
 

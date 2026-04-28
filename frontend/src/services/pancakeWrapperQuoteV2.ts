@@ -13,6 +13,42 @@ import {
   type PancakeQuoteResult,
 } from './pancakeSwapQuote';
 
+let didDevChecks = false;
+
+function devQuoteSupportChecks(): void {
+  if (!import.meta.env.DEV) return;
+  if (didDevChecks) return;
+  didDevChecks = true;
+
+  try {
+    const cfg = getPancakeWrapperV2Config();
+    const usdt = getTokenBySymbol('USDT', 56);
+    const busd = getTokenBySymbol('BUSD', 56);
+    const bnb = getTokenBySymbol('BNB', 56);
+
+    const hasTokens = !!usdt && !!busd && !!bnb;
+    const nativeAllowed = cfg.enabled && !!cfg.wrapperAddress && cfg.nativeEnabled && cfg.nativeQuoteEnabled;
+
+    console.debug('[PancakeWrapperQuoteV2] native quote support checks', {
+      cfg: {
+        enabled: cfg.enabled,
+        nativeEnabled: cfg.nativeEnabled,
+        nativeQuoteEnabled: cfg.nativeQuoteEnabled,
+        nativeCanaryPct: cfg.nativeCanaryPct,
+      },
+      tokensPresent: hasTokens,
+      checks: {
+        'BNB->USDT': nativeAllowed && hasTokens,
+        'USDT->BNB': nativeAllowed && hasTokens,
+        'USDT->BUSD': cfg.enabled && !!cfg.wrapperAddress && !!usdt && !!busd,
+      },
+      notes: 'These are config/token presence checks only (no RPC).',
+    });
+  } catch (e) {
+    console.debug('[PancakeWrapperQuoteV2] dev checks failed (ignored)', e);
+  }
+}
+
 const WRAPPER_V2_QUOTE_ABI = [
   {
     inputs: [
@@ -66,6 +102,7 @@ export async function getPancakeWrapperV2Quote(
   amountIn: string,
   feeTier: PancakeFeeTier = PANCAKE_FEE_TIERS.MEDIUM,
 ): Promise<PancakeQuoteResult> {
+  devQuoteSupportChecks();
   const cfg = getPancakeWrapperV2Config();
   if (!cfg.enabled || !cfg.wrapperAddress) {
     throw new Error('Pancake fee wrapper V2 is not enabled or not configured');
@@ -80,10 +117,20 @@ export async function getPancakeWrapperV2Quote(
       'Pancake fee wrapper V2 does not support this pair with current settings (enable VITE_PANCAKE_WRAPPER_V2_NATIVE_ENABLED for BNB legs).',
     );
   }
-  if (isNativeToken(tokenInData.address) || isNativeToken(tokenOutData.address)) {
-    throw new Error(
-      'Pancake wrapper V2 native-leg quotes are not implemented in this module; use ERC20↔ERC20 or enable native in product routing when supported.',
-    );
+  const inNative = isNativeToken(tokenInData.address);
+  const outNative = isNativeToken(tokenOutData.address);
+  if (inNative || outNative) {
+    // Separate gating for native legs: quoting must never be accidentally enabled just because execution is enabled.
+    if (!cfg.nativeEnabled) {
+      throw new Error(
+        'Pancake wrapper V2 native legs are disabled for execution (set VITE_PANCAKE_WRAPPER_V2_NATIVE_ENABLED to allow native swaps).',
+      );
+    }
+    if (!cfg.nativeQuoteEnabled) {
+      throw new Error(
+        'Pancake wrapper V2 native-leg quotes are disabled (set VITE_PANCAKE_WRAPPER_V2_NATIVE_QUOTE_ENABLED to allow quoting native legs).',
+      );
+    }
   }
 
   const tokenInAddress = getSwapAddress(tokenInData, 56);
