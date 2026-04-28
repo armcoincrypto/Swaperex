@@ -894,7 +894,9 @@ export async function getQuoteFromProvider(
           flags: { nativeEnabled, nativeQuoteEnabled },
         });
         logSkip(!isManualRoute ? 'native_requires_manual_route' : 'native_quote_flag_off');
-        throw new Error('Native swaps require Pancake V2 wrap');
+        throw new Error(
+          'Pancake wrapper V2 native-leg quoting is not enabled for this deployment.',
+        );
       }
       console.log('pancake_wrapper_v2_native_enabled', {
         tokenIn,

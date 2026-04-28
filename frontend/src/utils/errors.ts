@@ -300,6 +300,20 @@ export function parseQuoteError(error: unknown): ParsedError {
     };
   }
 
+  // Commission / wrapper configuration (preserve explicit wording for ops + UX)
+  if (
+    raw &&
+    (raw.includes('Commission route unavailable') ||
+      raw.includes('Pancake wrapper V2 native-leg quoting'))
+  ) {
+    return {
+      category: 'quote_error',
+      message: raw,
+      isRecoverable: true,
+      shouldShowRetry: true,
+    };
+  }
+
   return {
     category: 'quote_error',
     message: 'Quote request failed. The pricing service is temporarily unavailable. Please try again in a few seconds.',

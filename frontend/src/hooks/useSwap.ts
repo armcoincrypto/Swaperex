@@ -271,7 +271,17 @@ async function readErc20AllowanceVsRequired(
 
 export function useSwap() {
   const { address, isWrongChain, chainId, getSigner, provider } = useWallet();
-  const { fromAsset, toAsset, fromAmount, slippage, approvalMode, routeMode, setQuote, clearQuote } = useSwapStore();
+  const {
+    fromAsset,
+    toAsset,
+    fromAmount,
+    slippage,
+    approvalMode,
+    routeMode,
+    setQuote,
+    clearQuote,
+    setRouteMode,
+  } = useSwapStore();
   const { fetchBalances } = useBalanceStore();
   const { addRecord: addSwapRecord, updateRecordStatus } = useSwapHistoryStore();
   const { trackEvent } = useUsageStore();
@@ -470,71 +480,96 @@ export function useSwap() {
       const inNativeForMode = tokenInMetaForMode ? isNativeToken(tokenInMetaForMode.address) : false;
       const outNativeForMode = tokenOutMetaForMode ? isNativeToken(tokenOutMetaForMode.address) : false;
 
+      /** Route mode used for this quote request (may auto-switch to V2 for BSC native + commission-required). */
+      let effectiveRouteMode: QuoteRouteMode = routeMode;
+
       let aggregation;
 
       // Commission-required mode: wrapper-only execution when a commission-capable wrapper exists.
-      // No native enablement yet — block all native legs in this mode (ETH/BNB).
       if (commissionRequired) {
         if (inNativeForMode || outNativeForMode) {
+          if ((chainId || 1) !== 56) {
+            console.log('commission_required_route_blocked', {
+              chainId: chainId || 1,
+              routeMode,
+              reason: 'native_leg_blocked_non_bsc',
+              tokenIn: fromSymbol,
+              tokenOut: toSymbol,
+            });
+            throw new Error('Commission route unavailable for this pair.');
+          }
+
           const cfg = getPancakeWrapperV2Config();
           const flags = {
             nativeEnabled: cfg.nativeEnabled,
             nativeQuoteEnabled: cfg.nativeQuoteEnabled,
           };
 
-          if ((chainId || 1) === 56 && routeMode === 'pancakeswap-v3-wrapper-v2' && cfg.nativeEnabled) {
-            console.log('pancake_wrapper_v2_native_enabled', {
+          if (routeMode !== 'pancakeswap-v3-wrapper-v2') {
+            console.log('native_route_auto_forced', {
               tokenIn: fromSymbol,
               tokenOut: toSymbol,
-              routeMode,
+              previousRouteMode: routeMode,
               flags,
             });
-            console.log('pancake_wrapper_v2_native_forced', {
-              tokenIn: fromSymbol,
-              tokenOut: toSymbol,
-              routeMode,
-              flags,
-            });
-            // Continue: native swaps are allowed only via manual wrapper-v2 route on BSC when native execution is enabled.
-          } else {
+            setRouteMode('pancakeswap-v3-wrapper-v2');
+            effectiveRouteMode = 'pancakeswap-v3-wrapper-v2';
+          }
+
+          if (!cfg.nativeEnabled) {
             console.log('pancake_wrapper_v2_native_blocked', {
               tokenIn: fromSymbol,
               tokenOut: toSymbol,
-              routeMode,
+              routeMode: effectiveRouteMode,
               flags,
             });
             console.log('commission_required_route_blocked', {
-              chainId: chainId || 1,
-              routeMode,
-              reason:
-                routeMode !== 'pancakeswap-v3-wrapper-v2'
-                  ? 'native_requires_manual_wrapper_v2'
-                  : 'native_wrapper_v2_not_enabled',
+              chainId: 56,
+              routeMode: effectiveRouteMode,
+              reason: 'native_wrapper_v2_not_enabled',
               tokenIn: fromSymbol,
               tokenOut: toSymbol,
             });
-            throw new Error(
-              routeMode !== 'pancakeswap-v3-wrapper-v2'
-                ? 'Native swaps require Pancake V2 wrap'
-                : 'Select Pancake V2 wrap to use native BNB',
-            );
+            throw new Error('Commission route unavailable for this pair.');
           }
+
+          console.log('pancake_wrapper_v2_native_enabled', {
+            tokenIn: fromSymbol,
+            tokenOut: toSymbol,
+            routeMode: effectiveRouteMode,
+            flags,
+          });
+          console.log('pancake_wrapper_v2_native_forced', {
+            tokenIn: fromSymbol,
+            tokenOut: toSymbol,
+            routeMode: effectiveRouteMode,
+            flags,
+          });
         }
 
         if ((chainId || 1) === 56) {
-          try {
-            const forced = await getQuoteFromProvider(
+          const fetchCommissionBscV2Quote = async (): Promise<AggregatedQuote> =>
+            getQuoteFromProvider(
               'pancakeswap-v3-wrapper-v2',
               fromSymbol,
               toSymbol,
               fromAmount,
               56,
               slippage || DEFAULT_SLIPPAGE,
-              routeMode,
+              effectiveRouteMode,
             );
+
+          try {
+            let forced: AggregatedQuote;
+            try {
+              forced = await fetchCommissionBscV2Quote();
+            } catch (firstErr) {
+              console.warn('[Swap] BSC commission-required V2 quote failed; retrying once', firstErr);
+              forced = await fetchCommissionBscV2Quote();
+            }
             console.log('commission_required_route_selected', {
               chainId: 56,
-              routeMode,
+              routeMode: effectiveRouteMode,
               provider: forced.provider,
               reason: 'forced_pancakeswap_v3_wrapper_v2',
               tokenIn: fromSymbol,
@@ -550,7 +585,7 @@ export function useSwap() {
           } catch {
             console.log('commission_required_route_blocked', {
               chainId: 56,
-              routeMode,
+              routeMode: effectiveRouteMode,
               provider: 'pancakeswap-v3-wrapper-v2',
               reason: 'wrapper_v2_quote_failed',
               tokenIn: fromSymbol,
@@ -627,7 +662,7 @@ export function useSwap() {
       // Manual route MUST be honored: Pancake wrapper V2 is a fixed-route mode and must not silently degrade.
       // If anything upstream returns a different provider, force the wrapper-v2 quote explicitly.
       if (
-        routeMode === 'pancakeswap-v3-wrapper-v2' &&
+        effectiveRouteMode === 'pancakeswap-v3-wrapper-v2' &&
         aggregation.best.provider !== 'pancakeswap-v3-wrapper-v2'
       ) {
         const forced = await getQuoteFromProvider(
@@ -637,7 +672,7 @@ export function useSwap() {
           fromAmount,
           chainId || 1,
           slippage || DEFAULT_SLIPPAGE,
-          routeMode,
+          effectiveRouteMode,
         );
         aggregation = {
           best: forced,
@@ -963,7 +998,7 @@ export function useSwap() {
               amountOut: aggregation.alternative.amountOutFormatted,
             }
           : null,
-        routeMode,
+        routeMode: effectiveRouteMode,
         // Quote expiry: timestamp when this quote was received
         quoteTimestamp: Date.now(),
         // UI-compatible fields
@@ -986,7 +1021,7 @@ export function useSwap() {
 
       swapObsLog('quote_ready', {
         chainId: chainId || 0,
-        routeMode: String(routeMode),
+        routeMode: String(effectiveRouteMode),
         provider: aggregatedQuote.provider,
         from: fromSymbol,
         to: toSymbol,
@@ -1076,7 +1111,7 @@ export function useSwap() {
       return null;
     }
   // Note: state.status removed from deps to prevent infinite loop - it's only used for logging
-  }, [address, fromAsset, toAsset, fromAmount, chainId, slippage, routeMode, provider, setQuote, clearQuote]);
+  }, [address, fromAsset, toAsset, fromAmount, chainId, slippage, routeMode, provider, setQuote, clearQuote, setRouteMode]);
 
   // Execute token approval
   const executeApproval = useCallback(async (): Promise<boolean> => {
