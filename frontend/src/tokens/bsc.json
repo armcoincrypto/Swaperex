@@ -66,6 +66,13 @@
       "logoURI": "https://tokens.1inch.io/0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee.png"
     },
     {
+      "symbol": "DAI",
+      "name": "Dai Stablecoin",
+      "address": "0x1AF3F329e8BE154074D8769D1FFAa4eE058B1DBc",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0x6b175474e89094c44da98b954eedcdecb5be3830.png"
+    },
+    {
       "symbol": "XRP",
       "name": "XRP Token",
       "address": "0x1D2F0da169ceB9fC7B3144628dB156f3F6c60dBE",

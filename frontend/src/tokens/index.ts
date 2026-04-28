@@ -260,12 +260,64 @@ export const POPULAR_TOKENS = [
   getTokenBySymbol('LINK')!,
 ].filter(Boolean);
 
+/** Curated swap picker order (chain 1): must match entries in `ethereum.json`. */
+const ETH_POPULAR_SYMBOL_ORDER = [
+  'ETH',
+  'WETH',
+  'USDT',
+  'USDC',
+  'DAI',
+  'WBTC',
+  'UNI',
+  'AAVE',
+  'LINK',
+  'PEPE',
+  'SHIB',
+] as const;
+
+/** Curated swap picker order (chain 56): must match entries in `bsc.json`. */
+const BSC_POPULAR_SYMBOL_ORDER = [
+  'BNB',
+  'WBNB',
+  'USDT',
+  'USDC',
+  'BUSD',
+  'FDUSD',
+  'CAKE',
+  'BTCB',
+  'ETH',
+  'DAI',
+  'LINK',
+  'UNI',
+] as const;
+
+function popularTokensBySymbolOrder(chainId: number, order: readonly string[]): Token[] {
+  const tokens = getTokens(chainId);
+  const bySymbol = new Map(tokens.map((t) => [t.symbol.toUpperCase(), t]));
+  return order.map((sym) => bySymbol.get(sym.toUpperCase())).filter((t): t is Token => Boolean(t));
+}
+
+/** Curated symbols first, then remaining static tokens (no duplicates). */
+function curatedThenRest(chainId: number, order: readonly string[]): Token[] {
+  const all = getTokens(chainId);
+  const curated = popularTokensBySymbolOrder(chainId, order);
+  const seen = new Set(curated.map((t) => t.symbol.toUpperCase()));
+  const rest = all.filter((t) => !seen.has(t.symbol.toUpperCase()));
+  return [...curated, ...rest];
+}
+
 /**
- * Get popular tokens for a specific chain
+ * Get popular tokens for a specific chain (swap token picker).
+ * On Ethereum and BSC, surface curated majors first, then the rest of the static list.
  */
 export function getPopularTokens(chainId: number): Token[] {
   const tokens = getTokens(chainId);
-  // Return first 8 tokens as popular (native + major stables + popular)
+  if (chainId === 1) {
+    return curatedThenRest(chainId, ETH_POPULAR_SYMBOL_ORDER);
+  }
+  if (chainId === 56) {
+    return curatedThenRest(chainId, BSC_POPULAR_SYMBOL_ORDER);
+  }
   return tokens.slice(0, 8);
 }
 
