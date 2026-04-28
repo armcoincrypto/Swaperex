@@ -27,6 +27,7 @@ import {
 } from './oneInchQuote';
 import {
   getBestQuote as getUniswapQuote,
+  getBestWrapperQuote,
   getMinAmountOut as getUniswapMinAmountOut,
   type QuoteResult as UniswapQuoteResult,
 } from './uniswapQuote';
@@ -834,6 +835,34 @@ export async function getQuoteFromProvider(
       );
     }
     return normalizeUniswapQuote(quote, slippage, tokenOutData.decimals);
+  } else if (provider === 'uniswap-v3-wrapper') {
+    if (chainId !== 1) {
+      throw new Error('Uniswap fee wrapper is only available on Ethereum mainnet');
+    }
+    const tokenInData = getTokenBySymbol(tokenIn, chainId);
+    if (!tokenInData) {
+      throw new Error(`Unknown token: ${tokenIn}`);
+    }
+    if (isNativeToken(tokenInData.address) || isNativeToken(tokenOutData.address)) {
+      throw new Error('Native ETH not supported in wrapper');
+    }
+
+    console.log('uniswap_wrapper_quote_apply', {
+      tokenIn,
+      tokenOut,
+      amountIn,
+    });
+
+    const wrapperQuote = await getBestWrapperQuote(tokenIn, tokenOut, amountIn, chainId);
+    if (!wrapperQuote) {
+      throw new Error('Wrapper quote unavailable');
+    }
+    return normalizeUniswapWrapperAggregatedQuote(
+      wrapperQuote,
+      slippage,
+      tokenOutData.decimals,
+      chainId,
+    );
   } else if (provider === 'pancakeswap-v3') {
     if (chainId !== 56) {
       throw new Error('PancakeSwap V3 only supports BSC');
