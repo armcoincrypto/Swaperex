@@ -806,7 +806,8 @@ export async function getQuoteFromProvider(
   tokenOut: string,
   amountIn: string,
   chainId: number = 1,
-  slippage: number = 0.5
+  slippage: number = 0.5,
+  routeMode: QuoteRouteMode | null = null,
 ): Promise<AggregatedQuote> {
   const tokenOutData = getTokenBySymbol(tokenOut, chainId);
   if (!tokenOutData) {
@@ -848,6 +849,7 @@ export async function getQuoteFromProvider(
     const routeKey = 'pancakeswap-v3-wrapper-v2';
     const cfg = getPancakeWrapperV2Config();
     const nativeEnabled = cfg.nativeEnabled;
+    const nativeQuoteEnabled = cfg.nativeQuoteEnabled;
 
     const logSkip = (reason: string): void => {
       swapObsLog('pancake_wrapper_v2_skip', {
@@ -882,10 +884,24 @@ export async function getQuoteFromProvider(
       (tokenInMeta && isNativeToken(tokenInMeta.address)) ||
       (tokenOutMeta && isNativeToken(tokenOutMeta.address))
     ) {
-      logSkip('native_quote_not_supported_in_canary');
-      throw new Error(
-        'Pancake wrapper V2 canary quoting supports ERC20→ERC20 only. Native legs are not quoted in this build.',
-      );
+      // Native quoting is allowed ONLY for the manual fixed route `pancakeswap-v3-wrapper-v2`, behind a separate flag.
+      const isManualRoute = routeMode === 'pancakeswap-v3-wrapper-v2';
+      if (!isManualRoute || !nativeQuoteEnabled) {
+        console.log('pancake_wrapper_v2_native_blocked', {
+          tokenIn,
+          tokenOut,
+          routeMode,
+          flags: { nativeEnabled, nativeQuoteEnabled },
+        });
+        logSkip(!isManualRoute ? 'native_requires_manual_route' : 'native_quote_flag_off');
+        throw new Error('Native swaps require Pancake V2 wrap');
+      }
+      console.log('pancake_wrapper_v2_native_enabled', {
+        tokenIn,
+        tokenOut,
+        routeMode,
+        flags: { nativeEnabled, nativeQuoteEnabled },
+      });
     }
 
     try {
@@ -895,6 +911,23 @@ export async function getQuoteFromProvider(
         throw new Error(
           'No Pancake wrapper V2 quote for this pair or amount. Try another size or fee tier route.',
         );
+      }
+      const tokenInIsNative = tokenInMeta ? isNativeToken(tokenInMeta.address) : false;
+      const tokenOutIsNative = tokenOutMeta ? isNativeToken(tokenOutMeta.address) : false;
+      if (tokenInIsNative || tokenOutIsNative) {
+        console.log('pancake_wrapper_v2_native_forced', {
+          tokenIn,
+          tokenOut,
+          routeMode,
+          flags: { nativeEnabled, nativeQuoteEnabled },
+        });
+        swapObsLog('pancake_wrapper_v2_native_quote_apply', {
+          tokenIn,
+          tokenOut,
+          routeMode: String(routeMode ?? ''),
+          nativeLane: tokenInIsNative ? 'native_in' : tokenOutIsNative ? 'native_out' : 'none',
+          routeKey,
+        });
       }
       swapObsLog('pancake_wrapper_v2_apply', {
         tokenIn,
@@ -909,6 +942,18 @@ export async function getQuoteFromProvider(
       const alreadyLoggedNoQuote = msg.startsWith('No Pancake wrapper V2 quote');
       if (!alreadyLoggedNoQuote) {
         logSkip(msg.length > 280 ? `${msg.slice(0, 277)}...` : msg);
+      }
+      const tokenInIsNative = tokenInMeta ? isNativeToken(tokenInMeta.address) : false;
+      const tokenOutIsNative = tokenOutMeta ? isNativeToken(tokenOutMeta.address) : false;
+      if (tokenInIsNative || tokenOutIsNative) {
+        swapObsLog('pancake_wrapper_v2_native_quote_skip', {
+          tokenIn,
+          tokenOut,
+          routeMode: String(routeMode ?? ''),
+          nativeLane: tokenInIsNative ? 'native_in' : tokenOutIsNative ? 'native_out' : 'none',
+          routeKey,
+          reason: msg.length > 160 ? `${msg.slice(0, 157)}...` : msg,
+        });
       }
       throw e;
     }

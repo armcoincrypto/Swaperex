@@ -1,5 +1,6 @@
 import { getAddress, isAddress } from 'ethers';
 import type { QuoteRouteMode } from '@/services/quoteAggregator';
+import { getTokenBySymbol, isNativeToken } from '@/tokens';
 import {
   getMonetizationConfig,
   getPancakeWrapperConfig,
@@ -12,12 +13,14 @@ import {
 
 export type CommissionGuarantee = 'guaranteed' | 'best_effort' | 'none';
 export type CommissionKind = 'wrapper' | '1inch_integrator_fee' | 'none';
+export type NativeLane = 'native_in' | 'native_out' | 'none';
 
 export type CommissionTrace = {
   provider: string;
   routeMode: QuoteRouteMode | string;
   chainId?: number | null;
   txTo?: string | null;
+  nativeLane?: NativeLane;
 
   /** 1inch only: whether fee/referrer were attached, dropped via retry, disabled, or unknown. */
   integratorFeeStatus?: 'attached' | 'dropped' | 'disabled' | 'unknown';
@@ -66,11 +69,28 @@ export function classifyCommissionRoute(input: {
   routeMode: QuoteRouteMode | string;
   chainId?: number | null;
   txTo?: string | null;
+  tokenInSymbol?: string | null;
+  tokenOutSymbol?: string | null;
 }): CommissionTrace {
   const provider = input.provider;
   const routeMode = input.routeMode;
   const chainId = input.chainId ?? null;
   const txTo = input.txTo ?? null;
+  const tokenInSymbol = input.tokenInSymbol ?? null;
+  const tokenOutSymbol = input.tokenOutSymbol ?? null;
+
+  let nativeLane: NativeLane = 'none';
+  try {
+    if (chainId != null && tokenInSymbol && tokenOutSymbol) {
+      const a = getTokenBySymbol(tokenInSymbol, chainId);
+      const b = getTokenBySymbol(tokenOutSymbol, chainId);
+      const inNative = a ? isNativeToken(a.address) : false;
+      const outNative = b ? isNativeToken(b.address) : false;
+      nativeLane = inNative ? 'native_in' : outNative ? 'native_out' : 'none';
+    }
+  } catch {
+    nativeLane = 'none';
+  }
 
   const uniCfg = getUniswapWrapperConfig();
   const pc1Cfg = getPancakeWrapperConfig();
@@ -125,6 +145,7 @@ export function classifyCommissionRoute(input: {
       routeMode,
       chainId,
       txTo: txToNorm,
+      nativeLane,
       isSwaperexWrapper: true,
       wrapperKey,
       wrapperAddress,
@@ -146,6 +167,7 @@ export function classifyCommissionRoute(input: {
       routeMode,
       chainId,
       txTo: txToNorm,
+      nativeLane,
       integratorFeeStatus: enabled ? 'unknown' : 'disabled',
       isSwaperexWrapper: false,
       wrapperKey: null,
@@ -166,6 +188,7 @@ export function classifyCommissionRoute(input: {
     routeMode,
     chainId,
     txTo: txToNorm,
+    nativeLane,
     isSwaperexWrapper: false,
     wrapperKey: null,
     wrapperAddress: null,

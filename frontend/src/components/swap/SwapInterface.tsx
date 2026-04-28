@@ -783,6 +783,15 @@ export function SwapInterface() {
           <span>{SWAP_SURFACE_COPY.firstVisitTrustLine}</span>
         </p>
 
+        {isCommissionRequiredMode() &&
+          currentChainId === 56 &&
+          (fromAsset?.is_native || toAsset?.is_native) &&
+          routeMode !== 'pancakeswap-v3-wrapper-v2' && (
+            <div className="relative z-10 mb-3 rounded-lg bg-yellow-900/15 border border-yellow-800/40 px-3 py-2 text-[11px] text-yellow-200/90 leading-snug">
+              Native swaps require Pancake V2 wrap
+            </div>
+          )}
+
         {/* Settings Panel */}
         {showSettings && (
           <SlippageSettings

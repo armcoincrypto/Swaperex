@@ -107,6 +107,7 @@ import {
   getExplorerTxUrl,
   getPancakeWrapperSpenderAddress,
   getPancakeWrapperV2SpenderAddress,
+  getPancakeWrapperV2Config,
   getUniswapV3Addresses,
   getUniswapWrapperSpenderAddress,
   shouldUsePancakeWrapperForSymbols,
@@ -475,14 +476,49 @@ export function useSwap() {
       // No native enablement yet — block all native legs in this mode (ETH/BNB).
       if (commissionRequired) {
         if (inNativeForMode || outNativeForMode) {
-          console.log('commission_required_route_blocked', {
-            chainId: chainId || 1,
-            routeMode,
-            reason: 'native_leg_blocked',
-            tokenIn: fromSymbol,
-            tokenOut: toSymbol,
-          });
-          throw new Error('Commission route unavailable for this pair.');
+          const cfg = getPancakeWrapperV2Config();
+          const flags = {
+            nativeEnabled: cfg.nativeEnabled,
+            nativeQuoteEnabled: cfg.nativeQuoteEnabled,
+          };
+
+          if ((chainId || 1) === 56 && routeMode === 'pancakeswap-v3-wrapper-v2' && cfg.nativeEnabled) {
+            console.log('pancake_wrapper_v2_native_enabled', {
+              tokenIn: fromSymbol,
+              tokenOut: toSymbol,
+              routeMode,
+              flags,
+            });
+            console.log('pancake_wrapper_v2_native_forced', {
+              tokenIn: fromSymbol,
+              tokenOut: toSymbol,
+              routeMode,
+              flags,
+            });
+            // Continue: native swaps are allowed only via manual wrapper-v2 route on BSC when native execution is enabled.
+          } else {
+            console.log('pancake_wrapper_v2_native_blocked', {
+              tokenIn: fromSymbol,
+              tokenOut: toSymbol,
+              routeMode,
+              flags,
+            });
+            console.log('commission_required_route_blocked', {
+              chainId: chainId || 1,
+              routeMode,
+              reason:
+                routeMode !== 'pancakeswap-v3-wrapper-v2'
+                  ? 'native_requires_manual_wrapper_v2'
+                  : 'native_wrapper_v2_not_enabled',
+              tokenIn: fromSymbol,
+              tokenOut: toSymbol,
+            });
+            throw new Error(
+              routeMode !== 'pancakeswap-v3-wrapper-v2'
+                ? 'Native swaps require Pancake V2 wrap'
+                : 'Select Pancake V2 wrap to use native BNB',
+            );
+          }
         }
 
         if ((chainId || 1) === 56) {
@@ -494,6 +530,7 @@ export function useSwap() {
               fromAmount,
               56,
               slippage || DEFAULT_SLIPPAGE,
+              routeMode,
             );
             console.log('commission_required_route_selected', {
               chainId: 56,
@@ -600,6 +637,7 @@ export function useSwap() {
           fromAmount,
           chainId || 1,
           slippage || DEFAULT_SLIPPAGE,
+          routeMode,
         );
         aggregation = {
           best: forced,
@@ -1486,6 +1524,8 @@ export function useSwap() {
           routeMode: swapQuote.routeMode,
           chainId,
           txTo: swapTx.to,
+          tokenInSymbol: swapQuote.fromSymbol,
+          tokenOutSymbol: swapQuote.toSymbol,
         });
         if (swapQuote.provider === '1inch') {
           commissionTraceForSwap.integratorFeeStatus = oneInchIntegratorFeeStatus ?? 'unknown';

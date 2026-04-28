@@ -863,8 +863,10 @@ function SuccessContent({
     const trace = classifyCommissionRoute({
       provider: quote.provider,
       routeMode: quote.routeMode ?? 'best',
-      chainId: null,
+      chainId: quote.aggregatedQuote?.chainId ?? null,
       txTo: null,
+      tokenInSymbol: quote.fromSymbol,
+      tokenOutSymbol: quote.toSymbol,
     });
     if (trace.commissionKind === 'wrapper') return 'wrapper';
     if (trace.commissionKind === '1inch_integrator_fee') return '1inch best-effort';
