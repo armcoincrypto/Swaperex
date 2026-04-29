@@ -44,10 +44,13 @@ import {
   getPancakeWrapperFeeBpsForUi,
   getPancakeWrapperV2FeeBpsForUi,
   getUniswapWrapperFeeBpsForUi,
+  getUniswapWrapperV2FeeBpsForUi,
   isPancakeWrapperFeeBpsUnverified,
   isPancakeWrapperV2FeeBpsUnverified,
   isUniswapWrapperFeeBpsUnverified,
+  isUniswapWrapperV2FeeBpsUnverified,
   getPancakeWrapperV2Config,
+  getUniswapWrapperV2Config,
   isCommissionRequiredMode,
 } from '@/config';
 import {
@@ -791,6 +794,44 @@ export function SwapInterface() {
             </div>
           )}
 
+        {isCommissionRequiredMode() &&
+          currentChainId === 1 &&
+          (fromAsset?.is_native || toAsset?.is_native) &&
+          getUniswapWrapperV2Config().nativeEnabled &&
+          getUniswapWrapperV2Config().nativeQuoteEnabled && (
+            <div className="relative z-10 mb-3 rounded-lg bg-blue-900/15 border border-blue-800/35 px-3 py-2 text-[11px] text-blue-100/90 leading-snug">
+              Optimized route selected (Uniswap wrapper V2)
+            </div>
+          )}
+
+        {isCommissionRequiredMode() &&
+          currentChainId === 1 &&
+          (fromAsset?.is_native || toAsset?.is_native) &&
+          getUniswapWrapperV2Config().nativeQuoteEnabled &&
+          !getUniswapWrapperV2Config().nativeEnabled && (
+            <div className="relative z-10 mb-3 rounded-lg bg-slate-800/80 border border-white/[0.08] px-3 py-2 text-[11px] text-dark-100 leading-snug">
+              ETH swaps are currently in quote-only mode.
+            </div>
+          )}
+
+        {currentChainId === 1 &&
+          getUniswapWrapperV2Config().nativeEnabled &&
+          getUniswapWrapperV2Config().experimentalNativeUi &&
+          (fromAsset?.is_native || toAsset?.is_native) && (
+            <div className="relative z-10 mb-3 rounded-lg bg-amber-900/25 border border-amber-700/40 px-3 py-2 text-[11px] text-amber-100/95 leading-snug">
+              Experimental ETH routing
+            </div>
+          )}
+
+        {isCommissionRequiredMode() &&
+          currentChainId === 1 &&
+          (fromAsset?.is_native || toAsset?.is_native) &&
+          (!getUniswapWrapperV2Config().nativeEnabled || !getUniswapWrapperV2Config().nativeQuoteEnabled) && (
+            <div className="relative z-10 mb-3 rounded-lg bg-amber-900/20 border border-amber-700/35 px-3 py-2 text-[11px] text-amber-100/95 leading-snug">
+              ETH native swaps are temporarily unavailable.
+            </div>
+          )}
+
         {/* Settings Panel */}
         {showSettings && (
           <SlippageSettings
@@ -1184,6 +1225,7 @@ export function SwapInterface() {
                 {swapQuote.provider === '1inch'
                   ? 'Included in quote (multi-pool)'
                   : swapQuote.provider === 'uniswap-v3-wrapper' ||
+                      swapQuote.provider === 'uniswap-v3-wrapper-v2' ||
                       swapQuote.provider === 'pancakeswap-v3-wrapper' ||
                       swapQuote.provider === 'pancakeswap-v3-wrapper-v2'
                     ? `${getFeeTierDisplay(swapQuote.feeTier)} pool (wrapper route)`
@@ -1215,6 +1257,25 @@ export function SwapInterface() {
                   </span>
                 </div>
                 {isUniswapWrapperFeeBpsUnverified() && (
+                  <p className="text-[10px] text-dark-500 leading-snug pl-0">
+                    {SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {swapQuote.provider === 'uniswap-v3-wrapper-v2' && (
+              <div className="flex flex-col gap-0.5">
+                <div className="flex justify-between gap-2">
+                  <span className="text-dark-400 shrink-0">Wrapper V2 protocol fee</span>
+                  <span
+                    className="text-right text-dark-200"
+                    title="Swaperex Uniswap wrapper V2 — taken from gross output on-chain; quoted receive amount is net."
+                  >
+                    {(getUniswapWrapperV2FeeBpsForUi() / 100).toFixed(2)}%
+                  </span>
+                </div>
+                {isUniswapWrapperV2FeeBpsUnverified() && (
                   <p className="text-[10px] text-dark-500 leading-snug pl-0">
                     {SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}
                   </p>
@@ -1892,6 +1953,9 @@ function SlippageSettings({
     ];
     if (chainId === 56 && getPancakeWrapperV2Config().enabled) {
       opts.push({ mode: 'pancakeswap-v3-wrapper-v2', label: 'Pancake V2 wrap' });
+    }
+    if (chainId === 1 && getUniswapWrapperV2Config().enabled) {
+      opts.push({ mode: 'uniswap-v3-wrapper-v2', label: 'Uniswap V2 wrap' });
     }
     return opts;
   }, [chainId]);

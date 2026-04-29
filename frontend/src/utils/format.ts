@@ -144,6 +144,8 @@ export function swapAggregatorProviderLabel(provider: string): string {
       return 'PancakeSwap V3 (Swaperex wrapper)';
     case 'pancakeswap_v3_wrapper_v2':
       return 'PancakeSwap V3 (Swaperex wrapper V2)';
+    case 'uniswap_v3_wrapper_v2':
+      return 'Uniswap V3 (Swaperex wrapper V2)';
     default:
       return provider;
   }

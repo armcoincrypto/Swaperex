@@ -9,6 +9,8 @@ import {
   getPancakeWrapperV2FeeBpsForUi,
   getUniswapWrapperConfig,
   getUniswapWrapperFeeBpsForUi,
+  getUniswapWrapperV2Config,
+  getUniswapWrapperV2FeeBpsForUi,
 } from '@/config';
 
 export type CommissionGuarantee = 'guaranteed' | 'best_effort' | 'none';
@@ -26,7 +28,12 @@ export type CommissionTrace = {
   integratorFeeStatus?: 'attached' | 'dropped' | 'disabled' | 'unknown';
 
   isSwaperexWrapper: boolean;
-  wrapperKey?: 'uniswap-v3-wrapper' | 'pancakeswap-v3-wrapper' | 'pancakeswap-v3-wrapper-v2' | null;
+  wrapperKey?:
+    | 'uniswap-v3-wrapper'
+    | 'uniswap-v3-wrapper-v2'
+    | 'pancakeswap-v3-wrapper'
+    | 'pancakeswap-v3-wrapper-v2'
+    | null;
   wrapperAddress?: string | null;
 
   expectedCommissionRecipient: string | null;
@@ -93,10 +100,12 @@ export function classifyCommissionRoute(input: {
   }
 
   const uniCfg = getUniswapWrapperConfig();
+  const uni2Cfg = getUniswapWrapperV2Config();
   const pc1Cfg = getPancakeWrapperConfig();
   const pc2Cfg = getPancakeWrapperV2Config();
 
   const uniWrapper = normalizeAddr(uniCfg.wrapperAddress);
+  const uni2Wrapper = normalizeAddr(uni2Cfg.wrapperAddress);
   const pc1Wrapper = normalizeAddr(pc1Cfg.wrapperAddress);
   const pc2Wrapper = normalizeAddr(pc2Cfg.wrapperAddress);
 
@@ -105,24 +114,29 @@ export function classifyCommissionRoute(input: {
   const wrapperKey: CommissionTrace['wrapperKey'] =
     providerKey === 'uniswap-v3-wrapper'
       ? 'uniswap-v3-wrapper'
-      : providerKey === 'pancakeswap-v3-wrapper'
-        ? 'pancakeswap-v3-wrapper'
-        : providerKey === 'pancakeswap-v3-wrapper-v2'
-          ? 'pancakeswap-v3-wrapper-v2'
-          : null;
+      : providerKey === 'uniswap-v3-wrapper-v2'
+        ? 'uniswap-v3-wrapper-v2'
+        : providerKey === 'pancakeswap-v3-wrapper'
+          ? 'pancakeswap-v3-wrapper'
+          : providerKey === 'pancakeswap-v3-wrapper-v2'
+            ? 'pancakeswap-v3-wrapper-v2'
+            : null;
 
   const wrapperAddress =
     wrapperKey === 'uniswap-v3-wrapper'
       ? uniWrapper
-      : wrapperKey === 'pancakeswap-v3-wrapper'
-        ? pc1Wrapper
-        : wrapperKey === 'pancakeswap-v3-wrapper-v2'
-          ? pc2Wrapper
-          : null;
+      : wrapperKey === 'uniswap-v3-wrapper-v2'
+        ? uni2Wrapper
+        : wrapperKey === 'pancakeswap-v3-wrapper'
+          ? pc1Wrapper
+          : wrapperKey === 'pancakeswap-v3-wrapper-v2'
+            ? pc2Wrapper
+            : null;
 
   const txToNorm = normalizeAddr(txTo);
   const isWrapperByTxTo =
     (uniWrapper && addrEq(txToNorm, uniWrapper)) ||
+    (uni2Wrapper && addrEq(txToNorm, uni2Wrapper)) ||
     (pc1Wrapper && addrEq(txToNorm, pc1Wrapper)) ||
     (pc2Wrapper && addrEq(txToNorm, pc2Wrapper));
 
@@ -133,11 +147,13 @@ export function classifyCommissionRoute(input: {
     const bps =
       wrapperKey === 'uniswap-v3-wrapper'
         ? getUniswapWrapperFeeBpsForUi()
-        : wrapperKey === 'pancakeswap-v3-wrapper'
-          ? getPancakeWrapperFeeBpsForUi()
-          : wrapperKey === 'pancakeswap-v3-wrapper-v2'
-            ? getPancakeWrapperV2FeeBpsForUi()
-            : null;
+        : wrapperKey === 'uniswap-v3-wrapper-v2'
+          ? getUniswapWrapperV2FeeBpsForUi()
+          : wrapperKey === 'pancakeswap-v3-wrapper'
+            ? getPancakeWrapperFeeBpsForUi()
+            : wrapperKey === 'pancakeswap-v3-wrapper-v2'
+              ? getPancakeWrapperV2FeeBpsForUi()
+              : null;
 
     // Recipient lives on-chain; we can’t know it from env alone.
     return {

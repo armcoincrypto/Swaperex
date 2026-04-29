@@ -40,11 +40,15 @@ import {
 import { getTokenBySymbol, isNativeToken } from '@/tokens';
 import {
   getPancakeWrapperV2Config,
+  getUniswapWrapperV2Config,
   isPancakeWrapperV2ExecutionEligible,
+  isUniswapWrapperV2QuoteEligible,
 } from '@/config';
 import { getBestPancakeWrapperV2Quote } from './pancakeWrapperQuoteV2';
+import { getBestUniswapWrapperV2Quote } from './uniswapWrapperQuoteV2';
 import { swapObsLog } from '@/utils/swapObservability';
 import { keccak256, toUtf8Bytes } from 'ethers';
+import { isCommissionRequiredMode } from '@/config/commissionRequired';
 
 /** Keep [swap:obs] JSON lines compact in the console */
 const OBS_REASON_MAX = 280;
@@ -108,6 +112,123 @@ function obsAggRoute(fields: {
   });
 }
 
+/** Providers allowed for quotes and execution when `VITE_COMMISSION_REQUIRED` is on. */
+const COMMISSION_WRAPPER_PROVIDERS = new Set<string>([
+  'uniswap-v3-wrapper',
+  'uniswap-v3-wrapper-v2',
+  'pancakeswap-v3-wrapper',
+  'pancakeswap-v3-wrapper-v2',
+]);
+
+export function isCommissionWrapperExecutionProvider(provider: string): boolean {
+  return COMMISSION_WRAPPER_PROVIDERS.has(provider);
+}
+
+function assertCommissionFixedRouteAllowed(mode: QuoteRouteMode, _chainId: number): void {
+  if (!isCommissionRequiredMode() || mode === 'best') return;
+  if (isCommissionWrapperExecutionProvider(mode)) return;
+  throw new Error(
+    'Commission-required mode only allows Swaperex wrapper routes. Choose a wrapper route or switch network.',
+  );
+}
+
+async function commissionStrictEthereumBestQuote(
+  tokenIn: string,
+  tokenOut: string,
+  amountIn: string,
+  slippage: number,
+): Promise<AggregatedQuoteResult> {
+  const tokenOutData = getTokenBySymbol(tokenOut, 1);
+  if (!tokenOutData) {
+    throw new Error(`Unknown token: ${tokenOut}`);
+  }
+  const tokenInMeta = getTokenBySymbol(tokenIn, 1);
+  const tokenOutMeta = getTokenBySymbol(tokenOut, 1);
+  const inNative = tokenInMeta ? isNativeToken(tokenInMeta.address) : false;
+  const outNative = tokenOutMeta ? isNativeToken(tokenOutMeta.address) : false;
+  const ethNativeLeg = inNative || outNative;
+
+  const u2 = getUniswapWrapperV2Config();
+  const useV2 = ethNativeLeg
+    ? !!(u2.enabled && u2.wrapperAddress && u2.nativeQuoteEnabled)
+    : false;
+
+  if (ethNativeLeg && (!u2.enabled || !u2.wrapperAddress || !u2.nativeQuoteEnabled)) {
+    throw new Error(
+      'ETH native swaps require Uniswap wrapper V2 (enable VITE_UNISWAP_WRAPPER_V2_* and native quote flag).',
+    );
+  }
+
+  const provider: QuoteProvider = useV2 ? 'uniswap-v3-wrapper-v2' : 'uniswap-v3-wrapper';
+  const best = await getQuoteFromProvider(
+    provider,
+    tokenIn,
+    tokenOut,
+    amountIn,
+    1,
+    slippage,
+    ethNativeLeg ? 'uniswap-v3-wrapper-v2' : null,
+  );
+
+  obsAggRoute({
+    chainId: 1,
+    routeMode: 'commission_strict_best',
+    tokenIn,
+    tokenOut,
+    bestProvider: best.provider,
+    runnerUp: '',
+    reason: 'Commission required: Swaperex Uniswap wrapper route only.',
+    lane: 'eth_commission_strict',
+  });
+
+  return {
+    best,
+    alternative: null,
+    selectionReason: 'Commission required: Swaperex Uniswap wrapper route only.',
+  };
+}
+
+async function commissionStrictBscBestQuote(
+  tokenIn: string,
+  tokenOut: string,
+  amountIn: string,
+  slippage: number,
+): Promise<AggregatedQuoteResult> {
+  const cfg = getPancakeWrapperV2Config();
+  if (!cfg.enabled || !cfg.wrapperAddress) {
+    throw new Error(
+      'Commission-required mode on BNB Chain requires Pancake wrapper V2 (set VITE_PANCAKE_WRAPPER_V2_*).',
+    );
+  }
+
+  const best = await getQuoteFromProvider(
+    'pancakeswap-v3-wrapper-v2',
+    tokenIn,
+    tokenOut,
+    amountIn,
+    56,
+    slippage,
+    'pancakeswap-v3-wrapper-v2',
+  );
+
+  obsAggRoute({
+    chainId: 56,
+    routeMode: 'commission_strict_best',
+    tokenIn,
+    tokenOut,
+    bestProvider: best.provider,
+    runnerUp: '',
+    reason: 'Commission required: Swaperex Pancake wrapper V2 route only.',
+    lane: 'bsc_commission_strict',
+  });
+
+  return {
+    best,
+    alternative: null,
+    selectionReason: 'Commission required: Swaperex Pancake wrapper V2 route only.',
+  };
+}
+
 // Supported chain IDs: all chains where 1inch works
 const SUPPORTED_CHAINS = [1, 56, 137, 42161, 10, 43114, 100, 250, 8453] as const;
 type SupportedChainId = (typeof SUPPORTED_CHAINS)[number];
@@ -118,6 +239,7 @@ type SupportedChainId = (typeof SUPPORTED_CHAINS)[number];
 export type QuoteProvider =
   | 'uniswap-v3'
   | 'uniswap-v3-wrapper'
+  | 'uniswap-v3-wrapper-v2'
   | 'pancakeswap-v3'
   | 'pancakeswap-v3-wrapper'
   | 'pancakeswap-v3-wrapper-v2'
@@ -130,6 +252,7 @@ const ROUTE_PROVIDER_LABEL: Record<QuoteProvider, string> = {
   '1inch': '1inch',
   'uniswap-v3': 'Uniswap V3',
   'uniswap-v3-wrapper': 'Uniswap V3 (Swaperex wrapper)',
+  'uniswap-v3-wrapper-v2': 'Uniswap V3 (Swaperex wrapper V2)',
   'pancakeswap-v3': 'PancakeSwap V3',
   'pancakeswap-v3-wrapper': 'PancakeSwap V3 (Swaperex wrapper)',
   'pancakeswap-v3-wrapper-v2': 'PancakeSwap V3 (Swaperex wrapper V2 · canary)',
@@ -148,6 +271,9 @@ export function isQuoteRouteModeDisabled(mode: QuoteRouteMode, chainId: number):
   if (mode === 'pancakeswap-v3-wrapper') return true;
   if (mode === 'pancakeswap-v3-wrapper-v2') {
     return chainId !== 56 || !getPancakeWrapperV2Config().enabled;
+  }
+  if (mode === 'uniswap-v3-wrapper-v2') {
+    return chainId !== 1 || !getUniswapWrapperV2Config().enabled;
   }
   if (mode === 'uniswap-v3') return chainId !== 1;
   if (mode === 'pancakeswap-v3') return chainId !== 56;
@@ -179,6 +305,20 @@ function assertForcedRouteAllowed(provider: QuoteProvider, chainId: number): voi
     }
     return;
   }
+  if (provider === 'uniswap-v3-wrapper-v2') {
+    if (chainId !== 1) {
+      throw new Error(
+        'Uniswap fee wrapper V2 is only available on Ethereum mainnet. Switch networks or choose another route.',
+      );
+    }
+    const u2 = getUniswapWrapperV2Config();
+    if (!u2.enabled || !u2.wrapperAddress) {
+      throw new Error(
+        'Uniswap fee wrapper V2 is not enabled. Set VITE_UNISWAP_WRAPPER_V2_ENABLED and a valid VITE_UNISWAP_WRAPPER_V2_ADDRESS.',
+      );
+    }
+    return;
+  }
   if (provider === 'uniswap-v3' && chainId !== 1) {
     throw new Error(
       'Uniswap V3 is only available on Ethereum mainnet. Switch networks or choose Best price or 1inch.',
@@ -201,7 +341,7 @@ async function getForcedProviderQuoteResult(
 ): Promise<AggregatedQuoteResult> {
   assertForcedRouteAllowed(provider, chainId);
 
-  const best = await getQuoteFromProvider(provider, tokenIn, tokenOut, amountIn, chainId, slippage);
+  const best = await getQuoteFromProvider(provider, tokenIn, tokenOut, amountIn, chainId, slippage, provider);
 
   const selectionReason = `${ROUTE_PROVIDER_LABEL[provider]} (fixed route — selected in settings)`;
   obsAggRoute({
@@ -364,6 +504,34 @@ export function normalizeUniswapWrapperAggregatedQuote(
   };
 }
 
+/** Normalize Uniswap fee-wrapper **V2** quote (net output) for execution display. */
+export function normalizeUniswapWrapperV2AggregatedQuote(
+  quote: UniswapQuoteResult,
+  slippage: number,
+  tokenOutDecimals: number,
+  chainId: number,
+): AggregatedQuote {
+  const minAmountOut = getUniswapMinAmountOut(quote, slippage);
+  const minAmountOutFormatted = formatFromWei(minAmountOut, tokenOutDecimals);
+
+  return {
+    amountIn: quote.amountIn,
+    amountOut: quote.amountOut,
+    amountOutFormatted: quote.amountOutFormatted,
+    minAmountOut,
+    minAmountOutFormatted,
+    provider: 'uniswap-v3-wrapper-v2',
+    providerDetails: {
+      feeTier: quote.feeTier,
+      gas: parseInt(quote.gasEstimate, 10) || 320000,
+    },
+    chainId,
+    priceImpact: quote.priceImpact,
+    amountOutRaw: BigInt(quote.amountOut),
+    originalQuote: quote,
+  };
+}
+
 /**
  * Normalize Pancake fee-wrapper quote (net output) after the aggregator already selected direct `pancakeswap-v3`.
  */
@@ -496,8 +664,21 @@ export async function getAggregatedQuote(
   }
 
   if (routeMode !== 'best') {
+    assertCommissionFixedRouteAllowed(routeMode, chainId);
     console.log('[Aggregator] Fixed route mode:', routeMode, { tokenIn, tokenOut, amountIn, chainId });
     return getForcedProviderQuoteResult(tokenIn, tokenOut, amountIn, chainId, slippage, routeMode);
+  }
+
+  if (isCommissionRequiredMode()) {
+    if (chainId === 1) {
+      return commissionStrictEthereumBestQuote(tokenIn, tokenOut, amountIn, slippage);
+    }
+    if (chainId === 56) {
+      return commissionStrictBscBestQuote(tokenIn, tokenOut, amountIn, slippage);
+    }
+    throw new Error(
+      'Commission-required mode: swaps are only supported on Ethereum and BNB Chain. Switch network or disable commission mode.',
+    );
   }
 
   const tokenOutData = getTokenBySymbol(tokenOut, chainId);
@@ -815,6 +996,10 @@ export async function getQuoteFromProvider(
     throw new Error(`Unknown token: ${tokenOut}`);
   }
 
+  if (isCommissionRequiredMode() && !isCommissionWrapperExecutionProvider(provider)) {
+    throw new Error('Commission-required mode: only Swaperex wrapper routes can be quoted.');
+  }
+
   if (provider === '1inch') {
     const apiKey = getOneInchApiKey();
     const quote = await getBestOneInchQuote(tokenIn, tokenOut, amountIn, chainId, apiKey);
@@ -863,6 +1048,119 @@ export async function getQuoteFromProvider(
       tokenOutData.decimals,
       chainId,
     );
+  } else if (provider === 'uniswap-v3-wrapper-v2') {
+    const routeKey = 'uniswap-v3-wrapper-v2';
+    const cfg = getUniswapWrapperV2Config();
+    const nativeEnabled = cfg.nativeEnabled;
+    const nativeQuoteEnabled = cfg.nativeQuoteEnabled;
+
+    const logSkip = (reason: string): void => {
+      swapObsLog('uniswap_wrapper_v2_skip', {
+        tokenIn,
+        tokenOut,
+        nativeEnabled: String(nativeEnabled),
+        reason,
+        routeKey,
+      });
+    };
+
+    if (chainId !== 1) {
+      logSkip('wrong_chain');
+      throw new Error('Uniswap fee wrapper V2 only supports Ethereum mainnet');
+    }
+    if (!cfg.enabled || !cfg.wrapperAddress) {
+      logSkip('v2_disabled_or_unconfigured');
+      throw new Error(
+        'Uniswap fee wrapper V2 is not enabled or the wrapper address is missing. Check VITE_UNISWAP_WRAPPER_V2_* env.',
+      );
+    }
+
+    const tokenInMeta = getTokenBySymbol(tokenIn, 1);
+    const tokenOutMeta = getTokenBySymbol(tokenOut, 1);
+    if (!isUniswapWrapperV2QuoteEligible(1, tokenInMeta, tokenOutMeta)) {
+      logSkip('pair_ineligible_or_native_quote_disabled');
+      throw new Error(
+        'This pair is not eligible for Uniswap wrapper V2 with current settings (enable VITE_UNISWAP_WRAPPER_V2_NATIVE_QUOTE_ENABLED for ETH legs).',
+      );
+    }
+    if (
+      (tokenInMeta && isNativeToken(tokenInMeta.address)) ||
+      (tokenOutMeta && isNativeToken(tokenOutMeta.address))
+    ) {
+      const isManualRoute = routeMode === 'uniswap-v3-wrapper-v2';
+      if (!isManualRoute || !nativeQuoteEnabled) {
+        console.log('uniswap_wrapper_v2_native_blocked', {
+          tokenIn,
+          tokenOut,
+          routeMode,
+          flags: { nativeEnabled, nativeQuoteEnabled },
+        });
+        logSkip(!isManualRoute ? 'native_requires_manual_route' : 'native_quote_flag_off');
+        throw new Error(
+          'Uniswap wrapper V2 native-leg quoting is not enabled for this deployment.',
+        );
+      }
+      console.log('uniswap_wrapper_v2_native_enabled', {
+        tokenIn,
+        tokenOut,
+        routeMode,
+        flags: { nativeEnabled, nativeQuoteEnabled },
+      });
+    }
+
+    try {
+      const wq = await getBestUniswapWrapperV2Quote(tokenIn, tokenOut, amountIn);
+      if (!wq) {
+        logSkip('no_quote_all_tiers_failed');
+        throw new Error(
+          'No Uniswap wrapper V2 quote for this pair or amount. Try another size or fee tier route.',
+        );
+      }
+      const tokenInIsNative = tokenInMeta ? isNativeToken(tokenInMeta.address) : false;
+      const tokenOutIsNative = tokenOutMeta ? isNativeToken(tokenOutMeta.address) : false;
+      if (tokenInIsNative || tokenOutIsNative) {
+        console.log('uniswap_wrapper_v2_native_forced', {
+          tokenIn,
+          tokenOut,
+          routeMode,
+          flags: { nativeEnabled, nativeQuoteEnabled },
+        });
+        swapObsLog('uniswap_wrapper_v2_native_quote_apply', {
+          tokenIn,
+          tokenOut,
+          routeMode: String(routeMode ?? ''),
+          nativeLane: tokenInIsNative ? 'native_in' : tokenOutIsNative ? 'native_out' : 'none',
+          routeKey,
+        });
+      }
+      swapObsLog('uniswap_wrapper_v2_apply', {
+        tokenIn,
+        tokenOut,
+        nativeEnabled: String(nativeEnabled),
+        reason: 'quoted',
+        routeKey,
+      });
+      return normalizeUniswapWrapperV2AggregatedQuote(wq, slippage, tokenOutData.decimals, 1);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'unknown_error';
+      const alreadyLoggedNoQuote = msg.startsWith('No Uniswap wrapper V2 quote');
+      if (!alreadyLoggedNoQuote) {
+        logSkip(msg.length > 280 ? `${msg.slice(0, 277)}...` : msg);
+      }
+      const tokenInIsNative = tokenInMeta ? isNativeToken(tokenInMeta.address) : false;
+      const tokenOutIsNative = tokenOutMeta ? isNativeToken(tokenOutMeta.address) : false;
+      if (tokenInIsNative || tokenOutIsNative) {
+        swapObsLog('uniswap_wrapper_v2_native_quote_skip', {
+          tokenIn,
+          tokenOut,
+          routeMode: String(routeMode ?? ''),
+          nativeLane: tokenInIsNative ? 'native_in' : tokenOutIsNative ? 'native_out' : 'none',
+          routeKey,
+          reason: msg.length > 160 ? `${msg.slice(0, 157)}...` : msg,
+        });
+      }
+      throw e;
+    }
   } else if (provider === 'pancakeswap-v3') {
     if (chainId !== 56) {
       throw new Error('PancakeSwap V3 only supports BSC');

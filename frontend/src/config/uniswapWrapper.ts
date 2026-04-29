@@ -151,6 +151,11 @@ export function getUniswapWrapperFeeBpsForUi(): number {
 }
 
 /** True after a successful on-chain FEE_BPS read this session. */
+/** Last successful on-chain `FEE_BPS` read this session (undefined if not read). */
+export function getUniswapWrapperSessionOnChainFeeBps(): number | undefined {
+  return sessionChainWrapperFeeBps;
+}
+
 export function isUniswapWrapperFeeBpsVerified(): boolean {
   return sessionChainWrapperFeeBps !== undefined;
 }

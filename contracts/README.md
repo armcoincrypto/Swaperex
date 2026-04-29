@@ -116,6 +116,80 @@ cast call "$WRAPPER" "FEE_BPS()(uint16)" --rpc-url "$MAINNET_RPC_URL"
 
 Compare outputs to your deploy manifest.
 
+---
+
+## SwaperexUniswapV3FeeWrapperV2 (Ethereum)
+
+Mutable-fee **V2** wrapper: **Ethereum mainnet**, **Uniswap V3 `SwapRouter02`**, **ERC20↔ERC20**, **ETH→ERC20**, **ERC20→ETH**, **output-side fee** (`FeeMath` on gross), **`Ownable2Step` + `Pausable` + `ReentrancyGuard`**. See `src/SwaperexUniswapV3FeeWrapperV2.sol`. **V1** (`SwaperexUniswapV3FeeWrapper.sol`) is unchanged.
+
+### Deploy (simulate — no broadcast)
+
+Set env to your chain’s router, quoter, WETH, treasury, and fee (1–1000 bps). Mainnet references:
+
+| Variable | Example (Ethereum mainnet) |
+|----------|----------------------------|
+| `UNISWAP_V3_SWAP_ROUTER02` | `0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45` |
+| `UNISWAP_V3_QUOTER_V2` | `0x61fFE014bA17989E743c5F6cB21bF9697530B21e` |
+| `WETH` | `0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2` |
+
+```bash
+cd contracts
+export MAINNET_RPC_URL="https://…"
+export UNISWAP_V3_SWAP_ROUTER02="0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"
+export UNISWAP_V3_QUOTER_V2="0x61fFE014bA17989E743c5F6cB21bF9697530B21e"
+export WETH="0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+export TREASURY="0x…"
+export FEE_BPS="20"
+# optional: export OWNER="0x…"
+forge script script/DeployUniswapWrapperV2.s.sol:DeployUniswapWrapperV2 \
+  --rpc-url "$MAINNET_RPC_URL" \
+  -vvvv
+```
+
+### Deploy (broadcast)
+
+```bash
+cd contracts
+forge script script/DeployUniswapWrapperV2.s.sol:DeployUniswapWrapperV2 \
+  --rpc-url "$MAINNET_RPC_URL" \
+  --broadcast \
+  --slow \
+  --private-key "$PRIVATE_KEY" \
+  -vvvv
+```
+
+Copy `SwaperexUniswapV3FeeWrapperV2:` address from the logs.
+
+### Verify on Etherscan
+
+Replace `<DEPLOYED>`, match optimizer / `via_ir` from `foundry.toml`, and ABI-encode the constructor `(address,address,address,address,address,uint16)` = `initialOwner, router, quoter, weth, treasury, feeBps`:
+
+```bash
+cd contracts
+forge verify-contract "<DEPLOYED>" \
+  src/SwaperexUniswapV3FeeWrapperV2.sol:SwaperexUniswapV3FeeWrapperV2 \
+  --chain mainnet \
+  --compiler-version 0.8.26 \
+  --num-of-optimizations 200 \
+  --via-ir \
+  --constructor-args $(cast abi-encode "constructor(address,address,address,address,address,uint16)" \
+    "$OWNER_OR_DEPLOYER" \
+    "$UNISWAP_V3_SWAP_ROUTER02" \
+    "$UNISWAP_V3_QUOTER_V2" \
+    "$WETH" \
+    "$TREASURY" \
+    "$FEE_BPS") \
+  --etherscan-api-key "$ETHERSCAN_API_KEY" \
+  --watch
+```
+
+### Unit tests (V2)
+
+```bash
+cd contracts
+forge test -vvv --match-path test/SwaperexUniswapV3FeeWrapperV2.unit.t.sol
+```
+
 ## Build notes
 
 - `via_ir = true` is enabled in `foundry.toml` to avoid “stack too deep” in the swap function while keeping a single external entrypoint.

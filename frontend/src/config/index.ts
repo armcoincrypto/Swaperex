@@ -84,6 +84,7 @@ export {
   ensureUniswapWrapperChainFeeBps,
   getUniswapWrapperConfig,
   getUniswapWrapperFeeBpsForUi,
+  getUniswapWrapperSessionOnChainFeeBps,
   getUniswapWrapperSpenderAddress,
   isUniswapWrapperExecutionEligible,
   isUniswapWrapperFeeBpsUnverified,
@@ -97,6 +98,7 @@ export {
   ensurePancakeWrapperChainFeeBps,
   getPancakeWrapperConfig,
   getPancakeWrapperFeeBpsForUi,
+  getPancakeWrapperSessionOnChainFeeBps,
   getPancakeWrapperSpenderAddress,
   isPancakeWrapperExecutionEligible,
   isPancakeWrapperFeeBpsUnverified,
@@ -110,12 +112,27 @@ export {
   ensurePancakeWrapperV2ChainFeeBps,
   getPancakeWrapperV2Config,
   getPancakeWrapperV2FeeBpsForUi,
+  getPancakeWrapperV2SessionOnChainFeeBps,
   getPancakeWrapperV2SpenderAddress,
   isPancakeWrapperV2ExecutionEligible,
   isPancakeWrapperV2FeeBpsUnverified,
   isPancakeWrapperV2FeeBpsVerified,
   type PancakeWrapperV2Config,
 } from './pancakeWrapperV2';
+
+// Uniswap V3 fee wrapper V2 (Ethereum; optional native ETH legs) — fixed route `uniswap-v3-wrapper-v2` when env-enabled
+export {
+  ensureUniswapWrapperV2ChainFeeBps,
+  getUniswapWrapperV2Config,
+  getUniswapWrapperV2FeeBpsForUi,
+  getUniswapWrapperV2SessionOnChainFeeBps,
+  getUniswapWrapperV2SpenderAddress,
+  isUniswapWrapperV2ExecutionEligible,
+  isUniswapWrapperV2QuoteEligible,
+  isUniswapWrapperV2FeeBpsUnverified,
+  isUniswapWrapperV2FeeBpsVerified,
+  type UniswapWrapperV2Config,
+} from './uniswapWrapperV2';
 
 // Commission-required mode (env)
 export { isCommissionRequiredMode } from './commissionRequired';

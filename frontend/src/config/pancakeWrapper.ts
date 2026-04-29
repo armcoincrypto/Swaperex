@@ -137,6 +137,10 @@ export function getPancakeWrapperFeeBpsForUi(): number {
   return sessionChainPancakeWrapperFeeBps !== undefined ? sessionChainPancakeWrapperFeeBps : cfg.feeBpsDisplay;
 }
 
+export function getPancakeWrapperSessionOnChainFeeBps(): number | undefined {
+  return sessionChainPancakeWrapperFeeBps;
+}
+
 export function isPancakeWrapperFeeBpsVerified(): boolean {
   return sessionChainPancakeWrapperFeeBps !== undefined;
 }
