@@ -826,7 +826,9 @@ export function SwapInterface() {
         {isCommissionRequiredMode() &&
           currentChainId === 1 &&
           (fromAsset?.is_native || toAsset?.is_native) &&
-          (!getUniswapWrapperV2Config().nativeEnabled || !getUniswapWrapperV2Config().nativeQuoteEnabled) && (
+          (!getUniswapWrapperV2Config().enabled ||
+            !getUniswapWrapperV2Config().wrapperAddress ||
+            !getUniswapWrapperV2Config().nativeQuoteEnabled) && (
             <div className="relative z-10 mb-3 rounded-lg bg-amber-900/20 border border-amber-700/35 px-3 py-2 text-[11px] text-amber-100/95 leading-snug">
               ETH native swaps are temporarily unavailable.
             </div>
