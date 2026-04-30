@@ -448,6 +448,19 @@ export function SwapInterface() {
 
     // Debounce quote fetching
     quoteTimeoutRef.current = setTimeout(() => {
+      // `routeMode` is in deps so auto-forcing the wrapper route mid-request (commission / native Phase 2)
+      // can reschedule this timer while a quote is already resolving. `status` is intentionally omitted
+      // from deps, so re-read the latest status here — otherwise an orphaned callback can clear a good
+      // quote and leave the UI stuck on "Getting quote..." (spinner + fetching_quote).
+      if (
+        statusRef.current === 'previewing' ||
+        statusRef.current === 'approving' ||
+        statusRef.current === 'swapping' ||
+        statusRef.current === 'confirming' ||
+        statusRef.current === 'success'
+      ) {
+        return;
+      }
       console.log('[Swap] Fetching quote for:', fromAmount, fromAsset.symbol, '→', toAsset.symbol);
       fetchSwapQuote().catch((err) => {
         console.warn('[Swap] Quote fetch failed:', err.message);
