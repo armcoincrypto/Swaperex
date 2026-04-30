@@ -196,6 +196,25 @@ export function SwapInterface() {
     [status],
   );
 
+  /** True once we have quote output — do not mask it with pipeline loading UI (Phase 2 / allowance tail). */
+  const hasUsableQuote = useMemo(
+    () => Boolean(swapQuote && (swapQuote.amountOut || swapQuote.amountOutFormatted)),
+    [swapQuote],
+  );
+
+  /** Pipeline work without a displayed quote yet — drives spinner / "Getting quote…" only in that window. */
+  const isQuoteFetchUiLoading = useMemo(
+    () => isQuotePipelineLoading && !hasUsableQuote,
+    [isQuotePipelineLoading, hasUsableQuote],
+  );
+
+  const isEthNativeV2QuoteOnlyNoExec = useMemo(() => {
+    if (!isCommissionRequiredMode() || currentChainId !== 1) return false;
+    if (!fromAsset?.is_native && !toAsset?.is_native) return false;
+    const u2 = getUniswapWrapperV2Config();
+    return u2.nativeQuoteEnabled && !u2.nativeEnabled;
+  }, [currentChainId, fromAsset?.is_native, toAsset?.is_native]);
+
   const statusRef = useRef(status);
   statusRef.current = status;
 
@@ -286,7 +305,7 @@ export function SwapInterface() {
   // If quote resolves fast, spinner never appears = feels instant
   const SPINNER_DELAY_MS = 250;
   useEffect(() => {
-    const isFetching = isQuotePipelineLoading;
+    const isFetching = isQuoteFetchUiLoading;
 
     if (isFetching) {
       // Start delay timer - only show spinner after 250ms
@@ -307,7 +326,7 @@ export function SwapInterface() {
         clearTimeout(spinnerTimeoutRef.current);
       }
     };
-  }, [isQuotePipelineLoading]);
+  }, [isQuoteFetchUiLoading]);
 
   // Quote expiry countdown - updates every second when quote is active
   useEffect(() => {
@@ -699,7 +718,7 @@ export function SwapInterface() {
     if (status === 'confirming') return 'Confirming on-chain…';
     if (status === 'success') return 'Swap completed';
     if (insufficientBalance) return `Insufficient ${fromAsset?.symbol || ''} Balance`;
-    if (isQuotePipelineLoading) return SWAP_SURFACE_COPY.gettingQuote;
+    if (isQuoteFetchUiLoading) return SWAP_SURFACE_COPY.gettingQuote;
     if (status === 'error' && error) {
       return swapQuote ? SWAP_SURFACE_COPY.swapFailedCta : SWAP_SURFACE_COPY.quoteFailedCta;
     }
@@ -711,6 +730,13 @@ export function SwapInterface() {
     if (guardEvaluation?.blocked && !guardsDismissed) return 'Blocked by Protection';
     if (swapQuote && isQuoteExpired) return SWAP_SURFACE_COPY.refreshQuoteCta;
     if (swapQuote?.allowanceCheckUncertain) return SWAP_SURFACE_COPY.allowanceCheckUncertainCta;
+    if (
+      hasUsableQuote &&
+      swapQuote?.provider === 'uniswap-v3-wrapper-v2' &&
+      isEthNativeV2QuoteOnlyNoExec
+    ) {
+      return SWAP_SURFACE_COPY.quoteOnlyNoExecutionCta;
+    }
     if (isReadOnly) return 'Connect wallet to swap';
     return 'Preview Swap';
   };
@@ -729,10 +755,17 @@ export function SwapInterface() {
       return true;
     }
     if (insufficientBalance) return true;
-    if (isQuotePipelineLoading) return true;
+    if (isQuoteFetchUiLoading) return true;
     if (status === 'error' && error) return true;
     // Must have a quote to proceed
     if (!swapQuote) return true;
+    if (
+      hasUsableQuote &&
+      swapQuote?.provider === 'uniswap-v3-wrapper-v2' &&
+      isEthNativeV2QuoteOnlyNoExec
+    ) {
+      return true;
+    }
     // View-only: quotes are informational; signing requires WalletConnect (expired-quote refresh still allowed)
     if (isReadOnly && !isQuoteExpired) return true;
     // Block if hard guards fail
@@ -1009,7 +1042,7 @@ export function SwapInterface() {
             </div>
             {/* Fixed min-height keeps pay/receive rows aligned; quote vs placeholder */}
             <div className="flex-1 min-h-[2.5rem] text-right flex flex-col items-end justify-center">
-              {showSpinner && status !== 'error' ? (
+              {showSpinner && status !== 'error' && !hasUsableQuote ? (
                 <div className="flex items-center gap-2 justify-end">
                   <LoadingSpinner />
                   <span className="text-sm text-dark-400">{SWAP_SURFACE_COPY.gettingQuote}</span>
@@ -1418,13 +1451,13 @@ export function SwapInterface() {
               disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none
               ${isSwapReady
                 ? 'bg-accent text-electro-bg shadow-glow-accent hover:brightness-110'
-                : showSpinner
+                : showSpinner && !hasUsableQuote
                   ? 'bg-electro-panel text-gray-400 border border-white/[0.1]'
                   : 'bg-electro-panel text-gray-400 border border-white/[0.1] hover:bg-electro-panelHover hover:border-white/[0.15]'
               }
             `}
           >
-            {showSpinner && status !== 'error' ? (
+            {showSpinner && status !== 'error' && !hasUsableQuote ? (
               <span className="flex items-center justify-center gap-2">
                 <LoadingSpinner />
                 <span>{SWAP_SURFACE_COPY.gettingQuote}</span>

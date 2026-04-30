@@ -30,6 +30,9 @@ export const SWAP_SURFACE_COPY = {
   /** Quote fetch in progress (card output + primary button) */
   gettingQuote: 'Getting quote...',
 
+  /** ETH native Phase 2: quote shown, wrapper execution flag off */
+  quoteOnlyNoExecutionCta: 'Quote only — execution disabled',
+
   /** Primary CTA when the last quote request failed (no executable quote) */
   quoteFailedCta: 'Quote failed — try again',
 
