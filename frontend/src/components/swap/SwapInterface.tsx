@@ -208,11 +208,17 @@ export function SwapInterface() {
     [isQuotePipelineLoading, hasUsableQuote],
   );
 
+  /** Commission mainnet + ETH native leg + V2 configured + quotes on, execution off (Phase 2). */
   const isEthNativeV2QuoteOnlyNoExec = useMemo(() => {
     if (!isCommissionRequiredMode() || currentChainId !== 1) return false;
     if (!fromAsset?.is_native && !toAsset?.is_native) return false;
     const u2 = getUniswapWrapperV2Config();
-    return u2.nativeQuoteEnabled && !u2.nativeEnabled;
+    return (
+      u2.enabled &&
+      !!u2.wrapperAddress &&
+      u2.nativeQuoteEnabled &&
+      !u2.nativeEnabled
+    );
   }, [currentChainId, fromAsset?.is_native, toAsset?.is_native]);
 
   const statusRef = useRef(status);
@@ -410,7 +416,10 @@ export function SwapInterface() {
     parseFloat(fromAmount) > 0 &&
     parseFloat(fromAmount) > parseFloat(fromBalance);
   /** Hide main-card insufficient warning while the preview modal is open — balances can update mid-flow and confuse users. */
-  const insufficientBalanceForUi = insufficientBalance && !showPreview;
+  const insufficientBalanceForUi =
+    insufficientBalance &&
+    !showPreview &&
+    !isEthNativeV2QuoteOnlyNoExec;
 
   // Calculate MAX amount (subtract gas buffer for native tokens)
   const getMaxAmount = useCallback((): string => {
@@ -713,6 +722,10 @@ export function SwapInterface() {
     if (!isConnected) return 'Connect Wallet';
     if (isWrongChain) return 'Wrong Network';
     if (!fromAmount || parseFloat(fromAmount) === 0) return 'Enter Amount';
+    // Phase 2 native quote-only: stable CTA must win over balance / approval / refresh / pipeline labels
+    if (isEthNativeV2QuoteOnlyNoExec && hasUsableQuote) {
+      return SWAP_SURFACE_COPY.quoteOnlyNoExecutionCta;
+    }
     if (status === 'approving') return 'Approving token…';
     if (status === 'swapping') return 'Sign swap in wallet…';
     if (status === 'confirming') return 'Confirming on-chain…';
@@ -730,13 +743,6 @@ export function SwapInterface() {
     if (guardEvaluation?.blocked && !guardsDismissed) return 'Blocked by Protection';
     if (swapQuote && isQuoteExpired) return SWAP_SURFACE_COPY.refreshQuoteCta;
     if (swapQuote?.allowanceCheckUncertain) return SWAP_SURFACE_COPY.allowanceCheckUncertainCta;
-    if (
-      hasUsableQuote &&
-      swapQuote?.provider === 'uniswap-v3-wrapper-v2' &&
-      isEthNativeV2QuoteOnlyNoExec
-    ) {
-      return SWAP_SURFACE_COPY.quoteOnlyNoExecutionCta;
-    }
     if (isReadOnly) return 'Connect wallet to swap';
     return 'Preview Swap';
   };
@@ -759,11 +765,7 @@ export function SwapInterface() {
     if (status === 'error' && error) return true;
     // Must have a quote to proceed
     if (!swapQuote) return true;
-    if (
-      hasUsableQuote &&
-      swapQuote?.provider === 'uniswap-v3-wrapper-v2' &&
-      isEthNativeV2QuoteOnlyNoExec
-    ) {
+    if (isEthNativeV2QuoteOnlyNoExec && hasUsableQuote) {
       return true;
     }
     // View-only: quotes are informational; signing requires WalletConnect (expired-quote refresh still allowed)
@@ -1091,14 +1093,22 @@ export function SwapInterface() {
         })()}
 
         {/* Swap Intelligence Panel (when quote available) */}
-        {swapIntelligence && status === 'previewing' && !showPreview && (
+        {swapIntelligence &&
+          status === 'previewing' &&
+          !showPreview &&
+          !isEthNativeV2QuoteOnlyNoExec && (
           <div className="mt-4">
             <SwapIntelligencePanel intelligence={swapIntelligence} compact />
           </div>
         )}
 
         {/* Guard Warning Panel (when preset has guards and they fail) */}
-        {guardEvaluation && !guardEvaluation.passed && !guardsDismissed && status === 'previewing' && !showPreview && (
+        {guardEvaluation &&
+          !guardEvaluation.passed &&
+          !guardsDismissed &&
+          status === 'previewing' &&
+          !showPreview &&
+          !isEthNativeV2QuoteOnlyNoExec && (
           <div className="mt-4">
             <GuardWarningPanel
               evaluation={guardEvaluation}
@@ -1134,6 +1144,17 @@ export function SwapInterface() {
               {/* Quote Expiry Countdown */}
               {quoteSecondsRemaining !== null && (
                 quoteSecondsRemaining <= 0 ? (
+                  isEthNativeV2QuoteOnlyNoExec && hasUsableQuote && isQuotePipelineLoading ? (
+                    <div className="flex flex-col items-end gap-0.5 shrink-0 max-w-[10rem]">
+                      <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium bg-dark-700 text-dark-300">
+                        <ClockIcon />
+                        <span>0s</span>
+                      </div>
+                      <span className="text-[10px] text-dark-500 leading-tight text-right">
+                        {SWAP_SURFACE_COPY.refreshingQuoteSubtle}
+                      </span>
+                    </div>
+                  ) : (
                   <button
                     type="button"
                     onClick={() => void fetchSwapQuote()}
@@ -1147,6 +1168,7 @@ export function SwapInterface() {
                         : SWAP_SURFACE_COPY.quoteExpiredChip}
                     </span>
                   </button>
+                  )
                 ) : (
                   <div
                     className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium ${
@@ -1396,8 +1418,8 @@ export function SwapInterface() {
               </div>
             </div>
 
-            {/* Approval Notice */}
-            {swapQuote.needsApproval && (
+            {/* Approval Notice — hidden in Phase 2 quote-only (execution impossible) */}
+            {swapQuote.needsApproval && !isEthNativeV2QuoteOnlyNoExec && (
               <div className="flex items-center gap-2 p-2 bg-blue-900/20 rounded-lg mt-2">
                 <InfoIcon />
                 <span className="text-blue-400 text-xs">
@@ -1405,7 +1427,7 @@ export function SwapInterface() {
                 </span>
               </div>
             )}
-            {swapQuote.allowanceCheckUncertain && (
+            {swapQuote.allowanceCheckUncertain && !isEthNativeV2QuoteOnlyNoExec && (
               <div className="flex items-center gap-2 p-2 bg-yellow-900/20 rounded-lg mt-2">
                 <WarningIcon />
                 <span className="text-yellow-400 text-xs">{SWAP_SURFACE_COPY.allowanceCheckUncertainHint}</span>
@@ -1414,8 +1436,10 @@ export function SwapInterface() {
           </div>
         )}
 
-        {/* High Price Impact Warning */}
-        {swapQuote && (() => {
+        {/* High Price Impact Warning — suppressed in Phase 2 quote-only so execution noise does not dominate */}
+        {swapQuote &&
+          !isEthNativeV2QuoteOnlyNoExec &&
+          (() => {
           const n = parsePriceImpactPercentOrNaN(swapQuote.price_impact);
           return Number.isFinite(n) && n > 3;
         })() && (

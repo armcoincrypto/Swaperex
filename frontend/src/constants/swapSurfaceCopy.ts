@@ -42,6 +42,9 @@ export const SWAP_SURFACE_COPY = {
   /** In-flight quote refresh (countdown chip / modal) */
   refreshing: 'Refreshing…',
 
+  /** Background re-quote while the last good quote stays visible (Phase 2 — secondary, not primary chip) */
+  refreshingQuoteSubtle: 'Refreshing quote…',
+
   quoteExpiredTitle: 'Quote expired',
 
   /** Single action label when TTL elapsed (swap card chip) */
