@@ -1635,8 +1635,10 @@ export function useSwap() {
         const amountInHuman = tokenIn
           ? formatUnits(swapQuote.amountIn, tokenIn.decimals)
           : swapQuote.from_amount;
+        // Must match the quoted pool: prefer aggregator metadata, then QuoteResult.feeTier from the quote path.
         const uniswapWrapperV2FeeTier =
           (swapQuote.aggregatedQuote?.providerDetails?.feeTier as FeeTier | undefined) ??
+          (swapQuote.feeTier as FeeTier | undefined) ??
           3000;
         const uTx = buildUniswapWrapperV2SwapTx(w, {
           tokenIn: swapQuote.fromSymbol,

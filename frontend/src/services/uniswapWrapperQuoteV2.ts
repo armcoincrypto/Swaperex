@@ -7,7 +7,7 @@ import { Contract, JsonRpcProvider, Network, formatUnits, parseUnits } from 'eth
 import { ETHEREUM_CONFIG } from '@/config';
 import { getTokenBySymbol, getSwapAddress, isNativeToken } from '@/tokens';
 import { getUniswapWrapperV2Config, isUniswapWrapperV2QuoteEligible } from '@/config/uniswapWrapperV2';
-import { FEE_TIERS, type FeeTier, type QuoteResult } from './uniswapQuote';
+import { type FeeTier, type QuoteResult } from './uniswapQuote';
 
 const WRAPPER_V2_QUOTE_ABI = [
   {
@@ -32,6 +32,11 @@ const WRAPPER_V2_QUOTE_ABI = [
   },
 ] as const;
 
+/** Uniswap V3 pool fee tiers (hundredths of a bip). Tried in order until a pool exists (sequential, low RPC load). */
+const FEE_TIERS: readonly FeeTier[] = [100, 500, 3000, 10000];
+
+const NO_POOL_MESSAGE = 'No valid Uniswap V3 pool found';
+
 let cachedEth: JsonRpcProvider | null = null;
 
 function getEthereumStaticProvider(): JsonRpcProvider {
@@ -55,12 +60,14 @@ function calculatePriceImpact(
   return 0;
 }
 
-/** Single-tier quote via Swaperex Uniswap V3 fee wrapper V2 (net output after protocol fee). */
+/**
+ * Quote via Swaperex Uniswap V3 fee wrapper V2 (net output after protocol fee).
+ * Tries fee tiers 100 → 500 → 3000 → 10000 sequentially; first pool that quotes wins.
+ */
 export async function getUniswapWrapperV2Quote(
   tokenIn: string,
   tokenOut: string,
   amountIn: string,
-  feeTier: FeeTier = FEE_TIERS.MEDIUM,
 ): Promise<QuoteResult> {
   const cfg = getUniswapWrapperV2Config();
   if (!cfg.enabled || !cfg.wrapperAddress) {
@@ -93,68 +100,63 @@ export async function getUniswapWrapperV2Quote(
   const rpc = getEthereumStaticProvider();
   const wrapper = new Contract(cfg.wrapperAddress, WRAPPER_V2_QUOTE_ABI, rpc);
 
-  const quoteOnce = () =>
-    wrapper.quoteExactInputSingleERC20.staticCall(tokenInAddress, tokenOutAddress, feeTier, amountInWei, 0n);
+  for (const fee of FEE_TIERS) {
+    try {
+      const result = await wrapper.quoteExactInputSingleERC20.staticCall(
+        tokenInAddress,
+        tokenOutAddress,
+        fee,
+        amountInWei,
+        0n,
+      );
+      const [, , amountOutNet, sqrtPriceX96After, initializedTicksCrossed, gasEstimate] = result;
 
-  let result;
-  try {
-    result = await quoteOnce();
-  } catch (firstErr) {
-    console.warn('[UniswapWrapperQuoteV2] staticCall failed, retrying once:', firstErr);
-    await new Promise((r) => setTimeout(r, 400));
-    result = await quoteOnce();
+      const amountOutFormatted = formatUnits(amountOutNet, tokenOutData.decimals);
+      const inputValue = parseFloat(amountIn);
+      const outputValue = parseFloat(amountOutFormatted);
+      const priceImpact = calculatePriceImpact(
+        inputValue,
+        outputValue,
+        tokenInData.symbol,
+        tokenOutData.symbol,
+      );
+
+      return {
+        amountIn: amountInWei.toString(),
+        amountOut: amountOutNet.toString(),
+        amountOutFormatted,
+        priceImpact: priceImpact.toFixed(2),
+        gasEstimate: gasEstimate.toString(),
+        feeTier: fee,
+        sqrtPriceX96After: sqrtPriceX96After.toString(),
+        initializedTicksCrossed: Number(initializedTicksCrossed),
+        route: `${tokenInData.symbol} → ${tokenOutData.symbol}`,
+        provider: 'uniswap-v3-wrapper-v2',
+      };
+    } catch {
+      console.debug('[UniswapWrapperQuoteV2] quoteExactInputSingleERC20 tier skipped (no pool or revert)', {
+        fee,
+        tokenIn: tokenInData.symbol,
+        tokenOut: tokenOutData.symbol,
+      });
+    }
   }
 
-  const [, , amountOutNet, sqrtPriceX96After, initializedTicksCrossed, gasEstimate] = result;
-
-  const amountOutFormatted = formatUnits(amountOutNet, tokenOutData.decimals);
-  const inputValue = parseFloat(amountIn);
-  const outputValue = parseFloat(amountOutFormatted);
-  const priceImpact = calculatePriceImpact(
-    inputValue,
-    outputValue,
-    tokenInData.symbol,
-    tokenOutData.symbol,
-  );
-
-  return {
-    amountIn: amountInWei.toString(),
-    amountOut: amountOutNet.toString(),
-    amountOutFormatted,
-    priceImpact: priceImpact.toFixed(2),
-    gasEstimate: gasEstimate.toString(),
-    feeTier,
-    sqrtPriceX96After: sqrtPriceX96After.toString(),
-    initializedTicksCrossed: Number(initializedTicksCrossed),
-    route: `${tokenInData.symbol} → ${tokenOutData.symbol}`,
-    provider: 'uniswap-v3-wrapper-v2',
-  };
+  throw new Error(`${NO_POOL_MESSAGE} for ${tokenInData.symbol}/${tokenOutData.symbol}`);
 }
 
-/** Best wrapper V2 quote across fee tiers 100 / 500 / 3000 / 10000. */
+/** Best wrapper V2 quote (same as single-path quote with multi-fee fallback inside `getUniswapWrapperV2Quote`). */
 export async function getBestUniswapWrapperV2Quote(
   tokenIn: string,
   tokenOut: string,
   amountIn: string,
 ): Promise<QuoteResult | null> {
-  const feeTiers: FeeTier[] = [FEE_TIERS.LOWEST, FEE_TIERS.LOW, FEE_TIERS.MEDIUM, FEE_TIERS.HIGH];
-  const quotes: QuoteResult[] = [];
-
-  const results = await Promise.allSettled(
-    feeTiers.map((fee) => getUniswapWrapperV2Quote(tokenIn, tokenOut, amountIn, fee)),
-  );
-
-  for (const result of results) {
-    if (result.status === 'fulfilled') {
-      quotes.push(result.value);
+  try {
+    return await getUniswapWrapperV2Quote(tokenIn, tokenOut, amountIn);
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith(NO_POOL_MESSAGE)) {
+      return null;
     }
+    throw err;
   }
-
-  if (quotes.length === 0) {
-    return null;
-  }
-
-  return quotes.reduce((best, current) =>
-    BigInt(current.amountOut) > BigInt(best.amountOut) ? current : best,
-  );
 }

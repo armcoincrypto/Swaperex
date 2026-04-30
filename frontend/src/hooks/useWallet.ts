@@ -306,6 +306,10 @@ export function useWallet() {
   // ─── Get signer ───────────────────────────────────────────
 
   const getSigner = useCallback(async () => {
+    if (isReadOnly) {
+      throw new Error('View-only mode: connect a wallet to sign transactions.');
+    }
+
     if (provider) {
       return provider.getSigner();
     }
@@ -321,7 +325,7 @@ export function useWallet() {
     }
 
     throw new Error('Not connected');
-  }, [provider, address]);
+  }, [provider, address, isReadOnly]);
 
   // ─── Event listeners: accountsChanged + chainChanged ──────
 
