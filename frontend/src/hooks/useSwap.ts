@@ -944,9 +944,18 @@ export function useSwap() {
             route: '1inch-aggregator',
           };
 
-      // Check if approval is needed (provider-specific)
-      logLifecycle('fetching_quote', 'checking_allowance', { tokenIn: fromSymbol, provider: aggregatedQuote.provider });
-      setState((s) => ({ ...s, status: 'checking_allowance' }));
+      // A newer quote request may have started during aggregation. Do not advance this one into
+      // `checking_allowance` or it can clobber the latest request's status and strand the UI
+      // (stale response returns at the ID check below without updating status again).
+      if (thisRequestId !== quoteRequestIdRef.current) {
+        console.log(
+          '[Swap] Quote abandoned before allowance phase — stale request ID:',
+          thisRequestId,
+          'current:',
+          quoteRequestIdRef.current,
+        );
+        return null;
+      }
 
       const tokenIn = getTokenBySymbol(fromSymbol, chainId || 1);
       let hasAllowance = true;
@@ -1090,6 +1099,21 @@ export function useSwap() {
           }
         }
       }
+
+      // Enter allowance phase only after async reads complete (ERC20) so a superseding request
+      // cannot strand the UI in `checking_allowance` while this response is later discarded.
+      if (thisRequestId !== quoteRequestIdRef.current) {
+        console.log(
+          '[Swap] Quote abandoned after allowance reads — stale request ID:',
+          thisRequestId,
+          'current:',
+          quoteRequestIdRef.current,
+        );
+        return null;
+      }
+
+      logLifecycle('fetching_quote', 'checking_allowance', { tokenIn: fromSymbol, provider: aggregatedQuote.provider });
+      setState((s) => ({ ...s, status: 'checking_allowance' }));
 
       // Calculate rate
       const rate = (parseFloat(aggregatedQuote.amountOutFormatted) / parseFloat(fromAmount)).toFixed(6);

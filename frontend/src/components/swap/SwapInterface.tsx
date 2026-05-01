@@ -202,10 +202,16 @@ export function SwapInterface() {
     [swapQuote],
   );
 
-  /** Pipeline work without a displayed quote yet — drives spinner / "Getting quote…" only in that window. */
+  /**
+   * Pipeline UI loading: spinner / "Getting quote…" / disabled main CTA.
+   * During `checking_allowance`, treat as loading even if a prior quote is still on screen — avoids
+   * "Preview Swap" while `handlePreviewSwap` requires `previewing` (race when overlapping requests).
+   */
   const isQuoteFetchUiLoading = useMemo(
-    () => isQuotePipelineLoading && !hasUsableQuote,
-    [isQuotePipelineLoading, hasUsableQuote],
+    () =>
+      isQuotePipelineLoading &&
+      (!hasUsableQuote || status === 'checking_allowance'),
+    [isQuotePipelineLoading, hasUsableQuote, status],
   );
 
   /** Commission mainnet + ETH native leg + V2 configured + quotes on, execution off (Phase 2). */
