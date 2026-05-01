@@ -93,7 +93,7 @@ const GAS_BUFFER_FIXED: Record<number, number> = {
 const GAS_BUFFER_PERCENT = 0.05; // 5% of balance as minimum buffer
 
 // Debounce delay for quote fetching (ms)
-const QUOTE_DEBOUNCE_MS = 500;
+const QUOTE_DEBOUNCE_MS = 650;
 
 // Convert Token to AssetInfo for compatibility
 function tokenToAsset(token: Token, chainId: number): AssetInfo {
@@ -185,10 +185,14 @@ export function SwapInterface() {
     clearQuote,
   } = useSwapStore();
 
-  // TEMP DEBUG: trace route selection state flowing into quote pipeline
+  const swapUiTrace =
+    import.meta.env.DEV ||
+    (typeof import.meta.env.VITE_DEBUG_SWAP === 'string' &&
+      ['1', 'true', 'yes', 'on'].includes(import.meta.env.VITE_DEBUG_SWAP.trim().toLowerCase()));
+
   useEffect(() => {
-    console.debug('route_mode_selected', { routeMode });
-  }, [routeMode]);
+    if (swapUiTrace) console.debug('route_mode_selected', { routeMode });
+  }, [routeMode, swapUiTrace]);
 
   /** Single source of truth: in-flight quote work in useSwap (incl. allowance check after aggregation). */
   const isQuotePipelineLoading = useMemo(
@@ -495,7 +499,9 @@ export function SwapInterface() {
       ) {
         return;
       }
-      console.log('[Swap] Fetching quote for:', fromAmount, fromAsset.symbol, '→', toAsset.symbol);
+      if (swapUiTrace) {
+        console.log('[Swap] Fetching quote for:', fromAmount, fromAsset.symbol, '→', toAsset.symbol);
+      }
       fetchSwapQuote().catch((err) => {
         console.warn('[Swap] Quote fetch failed:', err.message);
       });
@@ -510,7 +516,7 @@ export function SwapInterface() {
     };
   // Note: status removed from deps to prevent infinite loop - we check it inside the effect
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fromAmount, fromAsset, toAsset, isConnected, fetchSwapQuote, clearQuote, routeMode]);
+  }, [fromAmount, fromAsset, toAsset, isConnected, fetchSwapQuote, clearQuote, routeMode, swapUiTrace]);
 
   // Token selection handlers
   const handleFromTokenSelect = useCallback((asset: AssetInfo) => {
@@ -555,7 +561,7 @@ export function SwapInterface() {
     setSkipConfirmationActive(false);
 
     // Auto-execute the swap
-    console.log('[Swap] Skip confirmation active - auto-executing swap');
+    if (swapUiTrace) console.log('[Swap] Skip confirmation active - auto-executing swap');
     swap()
       .then(() => {
         // Directly confirm without showing preview

@@ -69,6 +69,9 @@ interface ImportMetaEnv {
   /** When truthy, swaps must use commission-capable routes or be blocked. Default: off. */
   readonly VITE_COMMISSION_REQUIRED?: string
 
+  /** When truthy, enables verbose swap fetch / lifecycle / [swap:obs] console output. Default: off in production. */
+  readonly VITE_DEBUG_SWAP?: string
+
   // Vite flags
   readonly DEV: boolean
   readonly PROD: boolean

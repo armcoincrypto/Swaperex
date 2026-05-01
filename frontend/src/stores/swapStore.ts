@@ -36,7 +36,8 @@ interface SwapState {
   setFromAmount: (amount: string) => void;
   setSlippage: (slippage: number) => void;
   setApprovalMode: (mode: ApprovalMode) => void;
-  setRouteMode: (mode: QuoteRouteMode) => void;
+  /** When `preserveQuoteSnapshot` is true, only updates route (no quote wipe) — for programmatic sync after a quote. */
+  setRouteMode: (mode: QuoteRouteMode, options?: { preserveQuoteSnapshot?: boolean }) => void;
   swapAssets: () => void;
   clearQuote: () => void;
   setQuote: (quote: SwapQuoteResponse | null) => void;
@@ -85,7 +86,11 @@ export const useSwapStore = create<SwapState>((set, get) => ({
     set({ approvalMode: mode });
   },
 
-  setRouteMode: (mode) => {
+  setRouteMode: (mode, options) => {
+    if (options?.preserveQuoteSnapshot) {
+      set({ routeMode: mode });
+      return;
+    }
     set({ routeMode: mode, quote: null, toAmount: '', quoteError: null });
   },
 

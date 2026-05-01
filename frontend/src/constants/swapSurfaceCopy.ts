@@ -70,6 +70,13 @@ export const SWAP_SURFACE_COPY = {
   confirmedOnChainNoExact:
     'Confirmed on-chain. Exact received is not shown here — confirm in your wallet or on the explorer.',
 
+  /** Success modal — single line under from/to summary */
+  successQuoteBasisLine: 'Amounts are from the quote you signed (not decoded from the chain).',
+
+  /** Success modal — compact on-chain disclaimer */
+  successSettlementHint:
+    'Settlement is final on-chain — verify exact balances in your wallet or the explorer.',
+
   /** Pre-sign confidence block (preview modal) */
   reviewBeforeSignTitle: 'Review before you sign',
   networkLabel: 'Network',

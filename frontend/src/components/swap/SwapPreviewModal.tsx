@@ -956,10 +956,10 @@ function SuccessContent({
           </div>
         </div>
         <p className="text-[11px] text-dark-500 text-center mb-3 leading-snug">
-          Amounts shown are from the quote at signing. They are not parsed from on-chain token transfers.
+          {SWAP_SURFACE_COPY.successQuoteBasisLine}
         </p>
 
-        {/* Receipt Details */}
+        {/* Receipt Details — keep quoted output, min out, route; rate/slippage/impact stay on preview card */}
         <div className="space-y-2 text-sm">
           <div className="flex justify-between gap-2">
             <span className="text-dark-400 shrink-0">Quoted output</span>
@@ -971,12 +971,9 @@ function SuccessContent({
             </span>
             <span className="text-right">{formatBalance(quote.minimum_received)} {quote.to_asset}</span>
           </div>
-          <div className="rounded-lg bg-blue-900/15 border border-blue-800/30 px-3 py-2 text-[11px] text-dark-300 leading-snug">
-            <span className="text-blue-200/90 font-medium">Confirmed on-chain</span>
-            {' '}
-            — This receipt reflects a successful transaction, not a decoded exact received amount. For definitive
-            settlement, use your wallet balances or the block explorer.
-          </div>
+          <p className="text-[11px] text-dark-400 leading-snug border-t border-dark-700/80 pt-2 mt-1">
+            {SWAP_SURFACE_COPY.successSettlementHint}
+          </p>
           <div className="flex justify-between">
             <span className="text-dark-400">{SWAP_SURFACE_COPY.routeViaLabel}</span>
             <span className="text-primary-400">{swapAggregatorProviderLabel(quote.provider)}</span>
@@ -985,22 +982,6 @@ function SuccessContent({
             <div className="flex justify-between">
               <span className="text-dark-400">Commission route</span>
               <span className="text-dark-200">Commission route: {commissionRouteLabel}</span>
-            </div>
-          )}
-          <div className="flex justify-between">
-            <span className="text-dark-400">Exchange rate</span>
-            <span>1 {quote.from_asset} = {formatBalance(quote.rate)} {quote.to_asset}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-dark-400">Slippage tolerance</span>
-            <span>{quote.slippage}%</span>
-          </div>
-          {quote.price_impact && parseFloat(quote.price_impact) > 0 && (
-            <div className="flex justify-between">
-              <span className="text-dark-400">Price impact</span>
-              <span className={parseFloat(quote.price_impact) > 3 ? 'text-yellow-400' : 'text-green-400'}>
-                {quote.price_impact}%
-              </span>
             </div>
           )}
         </div>
@@ -1029,16 +1010,16 @@ function SuccessContent({
         </div>
       )}
 
-      {/* Actions */}
-      <div className="flex gap-3">
+      {/* Actions — explorer primary for verification */}
+      <div className="flex flex-col sm:flex-row gap-3">
         {txHash && (
           <a
             href={explorerUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex-1"
+            className="flex-1 min-w-0"
           >
-            <Button variant="secondary" fullWidth>
+            <Button variant="primary" fullWidth>
               <span className="flex items-center justify-center gap-2">
                 View explorer
                 <ExternalLinkIcon />
@@ -1046,7 +1027,7 @@ function SuccessContent({
             </Button>
           </a>
         )}
-        <Button onClick={onClose} fullWidth>
+        <Button variant="secondary" onClick={onClose} fullWidth className="flex-1">
           Done
         </Button>
       </div>

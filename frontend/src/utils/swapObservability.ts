@@ -7,7 +7,15 @@
 
 export type SwapObsValue = string | number | boolean | null | undefined;
 
+function swapObsEnabled(): boolean {
+  if (import.meta.env.DEV) return true;
+  const raw = import.meta.env.VITE_DEBUG_SWAP;
+  if (typeof raw !== 'string') return false;
+  return ['1', 'true', 'yes', 'on'].includes(raw.trim().toLowerCase());
+}
+
 export function swapObsLog(event: string, fields: Record<string, SwapObsValue> = {}): void {
+  if (!swapObsEnabled()) return;
   try {
     const payload: Record<string, SwapObsValue | number> = { event, ts: Date.now(), ...fields };
     console.info('[swap:obs]', JSON.stringify(payload));

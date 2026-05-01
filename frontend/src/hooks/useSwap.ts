@@ -218,6 +218,17 @@ const DEFAULT_SLIPPAGE = 0.5;
 // Quote expires after 30 seconds
 const QUOTE_EXPIRY_MS = 30000;
 
+/** Verbose swap fetch / route / lifecycle trace — dev or `VITE_DEBUG_SWAP=true` only. */
+const SWAP_TRACE_LOG =
+  import.meta.env.DEV ||
+  (typeof import.meta.env.VITE_DEBUG_SWAP === 'string' &&
+    ['1', 'true', 'yes', 'on'].includes(import.meta.env.VITE_DEBUG_SWAP.trim().toLowerCase()));
+
+function swapTrace(...args: unknown[]): void {
+  if (!SWAP_TRACE_LOG) return;
+  console.log(...args);
+}
+
 /** If the wallet never resolves a sign request, release in-app guards so the user can retry. */
 const WALLET_SIGN_IN_FLIGHT_RELEASE_MS = 120_000;
 
@@ -249,6 +260,7 @@ function logLifecycle(
   toStatus: SwapStatus,
   details?: Record<string, unknown>
 ): void {
+  if (!SWAP_TRACE_LOG) return;
   const timestamp = new Date().toISOString();
   const transition = fromStatus ? `${fromStatus} → ${toStatus}` : `→ ${toStatus}`;
   console.log(`[Swap Lifecycle] ${timestamp} | ${transition}`, details || '');
@@ -300,7 +312,6 @@ export function useSwap() {
     routeMode,
     setQuote,
     clearQuote,
-    setRouteMode,
   } = useSwapStore();
   const { fetchBalances } = useBalanceStore();
   const { addRecord: addSwapRecord, updateRecordStatus } = useSwapHistoryStore();
@@ -384,7 +395,7 @@ export function useSwap() {
     }
 
     const unsubscribe = walletEvents.onAny((event) => {
-      console.log(`[Swap] Wallet event during active swap: ${event.type}`);
+      swapTrace(`[Swap] Wallet event during active swap: ${event.type}`);
 
       // Mark as cancelled
       isCancelledRef.current = true;
@@ -416,7 +427,7 @@ export function useSwap() {
   const reset = useCallback(() => {
     // Increment request ID to invalidate any in-flight requests
     quoteRequestIdRef.current += 1;
-    console.log('[Swap] Reset - invalidating pending requests, new ID:', quoteRequestIdRef.current);
+    swapTrace('[Swap] Reset - invalidating pending requests, new ID:', quoteRequestIdRef.current);
 
     logLifecycle(state.status, 'idle', { action: 'reset' });
     setState({ status: 'idle', quote: null, txHash: null, explorerUrl: null, error: null });
@@ -466,7 +477,7 @@ export function useSwap() {
     // Increment request ID and capture it for this request
     quoteRequestIdRef.current += 1;
     const thisRequestId = quoteRequestIdRef.current;
-    console.log('[Swap] Quote request started, ID:', thisRequestId);
+    swapTrace('[Swap] Quote request started, ID:', thisRequestId);
 
     // Invalidate any previous receive-line quote immediately for this new request (avoid stale output)
     setSwapQuote(null);
@@ -477,8 +488,8 @@ export function useSwap() {
     setState((s) => ({ ...s, status: 'fetching_quote', error: null }));
 
     try {
-      console.log('[Swap] Fetching quote via aggregator:', { fromSymbol, toSymbol, fromAmount });
-      console.debug('route_mode_selected', { routeMode });
+      swapTrace('[Swap] Fetching quote via aggregator:', { fromSymbol, toSymbol, fromAmount });
+      if (SWAP_TRACE_LOG) console.debug('route_mode_selected', { routeMode });
 
       // Validate parameters
       const validationErrors = validateSwapParams({
@@ -502,6 +513,8 @@ export function useSwap() {
 
       /** Route mode used for this quote request (may auto-switch to V2 for BSC native + commission-required). */
       let effectiveRouteMode: QuoteRouteMode = routeMode;
+      /** Sync store route after quote lands (avoids mid-fetch `setRouteMode` → duplicate debounced fetch). */
+      let routeModeProgrammaticSync: QuoteRouteMode | null = null;
 
       let aggregation;
 
@@ -518,24 +531,24 @@ export function useSwap() {
             };
 
             if (routeMode !== 'pancakeswap-v3-wrapper-v2') {
-              console.log('native_route_auto_forced', {
+              swapTrace('native_route_auto_forced', {
                 tokenIn: fromSymbol,
                 tokenOut: toSymbol,
                 previousRouteMode: routeMode,
                 flags,
               });
-              setRouteMode('pancakeswap-v3-wrapper-v2');
+              routeModeProgrammaticSync = 'pancakeswap-v3-wrapper-v2';
               effectiveRouteMode = 'pancakeswap-v3-wrapper-v2';
             }
 
             if (!cfg.nativeEnabled) {
-              console.log('pancake_wrapper_v2_native_blocked', {
+              swapTrace('pancake_wrapper_v2_native_blocked', {
                 tokenIn: fromSymbol,
                 tokenOut: toSymbol,
                 routeMode: effectiveRouteMode,
                 flags,
               });
-              console.log('commission_required_route_blocked', {
+              swapTrace('commission_required_route_blocked', {
                 chainId: 56,
                 routeMode: effectiveRouteMode,
                 reason: 'native_wrapper_v2_not_enabled',
@@ -545,13 +558,13 @@ export function useSwap() {
               throw new Error('Commission route unavailable for this pair.');
             }
 
-            console.log('pancake_wrapper_v2_native_enabled', {
+            swapTrace('pancake_wrapper_v2_native_enabled', {
               tokenIn: fromSymbol,
               tokenOut: toSymbol,
               routeMode: effectiveRouteMode,
               flags,
             });
-            console.log('pancake_wrapper_v2_native_forced', {
+            swapTrace('pancake_wrapper_v2_native_forced', {
               tokenIn: fromSymbol,
               tokenOut: toSymbol,
               routeMode: effectiveRouteMode,
@@ -565,19 +578,19 @@ export function useSwap() {
             };
 
             if (routeMode !== 'uniswap-v3-wrapper-v2') {
-              console.log('native_route_auto_forced', {
+              swapTrace('native_route_auto_forced', {
                 tokenIn: fromSymbol,
                 tokenOut: toSymbol,
                 previousRouteMode: routeMode,
                 flags: u2Flags,
                 chain: 'ethereum',
               });
-              setRouteMode('uniswap-v3-wrapper-v2');
+              routeModeProgrammaticSync = 'uniswap-v3-wrapper-v2';
               effectiveRouteMode = 'uniswap-v3-wrapper-v2';
             }
 
             if (!u2.nativeQuoteEnabled) {
-              console.log('uniswap_wrapper_v2_native_blocked', {
+              swapTrace('uniswap_wrapper_v2_native_blocked', {
                 tokenIn: fromSymbol,
                 tokenOut: toSymbol,
                 routeMode: effectiveRouteMode,
@@ -586,20 +599,20 @@ export function useSwap() {
               throw new Error('ETH native swaps require Uniswap wrapper V2.');
             }
 
-            console.log('uniswap_wrapper_v2_native_enabled', {
+            swapTrace('uniswap_wrapper_v2_native_enabled', {
               tokenIn: fromSymbol,
               tokenOut: toSymbol,
               routeMode: effectiveRouteMode,
               flags: u2Flags,
             });
-            console.log('uniswap_wrapper_v2_native_forced', {
+            swapTrace('uniswap_wrapper_v2_native_forced', {
               tokenIn: fromSymbol,
               tokenOut: toSymbol,
               routeMode: effectiveRouteMode,
               flags: u2Flags,
             });
           } else {
-            console.log('commission_required_route_blocked', {
+            swapTrace('commission_required_route_blocked', {
               chainId: cid,
               routeMode,
               reason: 'native_leg_unsupported_chain',
@@ -630,7 +643,7 @@ export function useSwap() {
               console.warn('[Swap] BSC commission-required V2 quote failed; retrying once', firstErr);
               forced = await fetchCommissionBscV2Quote();
             }
-            console.log('commission_required_route_selected', {
+            swapTrace('commission_required_route_selected', {
               chainId: 56,
               routeMode: effectiveRouteMode,
               provider: forced.provider,
@@ -646,7 +659,7 @@ export function useSwap() {
               selectionReason: 'Commission required: forcing PancakeSwap V3 (Swaperex wrapper V2).',
             };
           } catch {
-            console.log('commission_required_route_blocked', {
+            swapTrace('commission_required_route_blocked', {
               chainId: 56,
               routeMode: effectiveRouteMode,
               provider: 'pancakeswap-v3-wrapper-v2',
@@ -694,7 +707,7 @@ export function useSwap() {
               console.warn('[Swap] ETH commission-required quote failed; retrying once', firstErr);
               forced = await fetchEthCommissionQuote();
             }
-            console.log('commission_required_route_selected', {
+            swapTrace('commission_required_route_selected', {
               chainId: 1,
               routeMode: effectiveRouteMode,
               provider: forced.provider,
@@ -717,7 +730,7 @@ export function useSwap() {
                 : 'Commission required: forcing Uniswap V3 (Swaperex wrapper).',
             };
           } catch {
-            console.log('commission_required_route_blocked', {
+            swapTrace('commission_required_route_blocked', {
               chainId: 1,
               routeMode: effectiveRouteMode,
               provider: useV2 ? 'uniswap-v3-wrapper-v2' : 'uniswap-v3-wrapper',
@@ -728,7 +741,7 @@ export function useSwap() {
             throw new Error('Commission route unavailable for this pair.');
           }
         } else {
-          console.log('commission_required_route_blocked', {
+          swapTrace('commission_required_route_blocked', {
             chainId: chainId || 1,
             routeMode,
             reason: 'no_wrapper_available',
@@ -904,19 +917,21 @@ export function useSwap() {
 
       const aggregatedQuote = aggregation.best;
 
-      console.debug('aggregated_quote_selected', {
-        provider: aggregatedQuote?.provider,
-        routeMode,
-      });
+      if (SWAP_TRACE_LOG) {
+        console.debug('aggregated_quote_selected', {
+          provider: aggregatedQuote?.provider,
+          routeMode,
+        });
+      }
 
-      console.log(
+      swapTrace(
         '[Swap] Aggregator selected:',
         aggregatedQuote.provider,
         '|',
         aggregatedQuote.amountOutFormatted,
         toSymbol,
         '|',
-        aggregation.selectionReason
+        aggregation.selectionReason,
       );
 
       // Extract quote data for compatibility
@@ -948,7 +963,7 @@ export function useSwap() {
       // `checking_allowance` or it can clobber the latest request's status and strand the UI
       // (stale response returns at the ID check below without updating status again).
       if (thisRequestId !== quoteRequestIdRef.current) {
-        console.log(
+        swapTrace(
           '[Swap] Quote abandoned before allowance phase — stale request ID:',
           thisRequestId,
           'current:',
@@ -1103,7 +1118,7 @@ export function useSwap() {
       // Enter allowance phase only after async reads complete (ERC20) so a superseding request
       // cannot strand the UI in `checking_allowance` while this response is later discarded.
       if (thisRequestId !== quoteRequestIdRef.current) {
-        console.log(
+        swapTrace(
           '[Swap] Quote abandoned after allowance reads — stale request ID:',
           thisRequestId,
           'current:',
@@ -1138,7 +1153,7 @@ export function useSwap() {
                 ? '(1inch spender)'
                 : null;
 
-      console.log('[Swap] Approval gate', {
+      swapTrace('[Swap] Approval gate', {
         fromSymbol,
         tokenInAddress: tokenIn?.address,
         tokenInIsNativeByList: tokenIn ? isNativeToken(tokenIn.address) : null,
@@ -1186,7 +1201,7 @@ export function useSwap() {
 
       // Check if this request is still valid (inputs haven't changed)
       if (thisRequestId !== quoteRequestIdRef.current) {
-        console.log('[Swap] Quote response ignored - stale request ID:', thisRequestId, 'current:', quoteRequestIdRef.current);
+        swapTrace('[Swap] Quote response ignored - stale request ID:', thisRequestId, 'current:', quoteRequestIdRef.current);
         return null;
       }
 
@@ -1240,6 +1255,13 @@ export function useSwap() {
         },
       });
 
+      if (routeModeProgrammaticSync) {
+        const st = useSwapStore.getState();
+        if (st.routeMode !== routeModeProgrammaticSync) {
+          st.setRouteMode(routeModeProgrammaticSync, { preserveQuoteSnapshot: true });
+        }
+      }
+
       // RADAR: Process quote for price movement signals
       try {
         const toToken = getTokenBySymbol(toSymbol, chainId || 1);
@@ -1268,7 +1290,7 @@ export function useSwap() {
     } catch (err) {
       // Check if this request is still valid before showing error
       if (thisRequestId !== quoteRequestIdRef.current) {
-        console.log('[Swap] Error ignored - stale request ID:', thisRequestId, 'current:', quoteRequestIdRef.current);
+        swapTrace('[Swap] Error ignored - stale request ID:', thisRequestId, 'current:', quoteRequestIdRef.current);
         return null;
       }
 
@@ -1282,7 +1304,7 @@ export function useSwap() {
       return null;
     }
   // Note: state.status removed from deps to prevent infinite loop - it's only used for logging
-  }, [address, fromAsset, toAsset, fromAmount, chainId, slippage, routeMode, provider, setQuote, clearQuote, setRouteMode]);
+  }, [address, fromAsset, toAsset, fromAmount, chainId, slippage, routeMode, provider, setQuote, clearQuote]);
 
   // Execute token approval
   const executeApproval = useCallback(async (): Promise<boolean> => {
@@ -1316,14 +1338,14 @@ export function useSwap() {
         : undefined;
       const useExact = approvalMode === 'exact' && exactAmount !== undefined;
 
-      console.log('[Swap] Approval mode:', approvalMode, useExact ? `(${exactAmount})` : '(unlimited)');
+      swapTrace('[Swap] Approval mode:', approvalMode, useExact ? `(${exactAmount})` : '(unlimited)');
 
       // Build approval transaction based on provider + approval mode
       let approvalTx: { to: string; data: string; value: string };
 
       if (swapQuote.provider === '1inch') {
         // Use 1inch approval API — pass amount string for exact mode
-        console.log('[Swap] Building 1inch approval...');
+        swapTrace('[Swap] Building 1inch approval...');
         const amountStr = useExact && tokenIn
           ? formatUnits(swapQuote.amountIn, tokenIn.decimals)
           : undefined;
@@ -1338,7 +1360,7 @@ export function useSwap() {
             `Pancake wrapper V2 address mismatch. Expected ${PANCAKE_WRAPPER_V2_EXPECTED_TO} but got ${w}.`,
           );
         }
-        console.log('[Swap] Building Pancake wrapper V2 approval...');
+        swapTrace('[Swap] Building Pancake wrapper V2 approval...');
         const wrapAppr = buildPancakeWrapperV2ApprovalTx(
           swapQuote.fromSymbol,
           w,
@@ -1355,7 +1377,7 @@ export function useSwap() {
         if (!w) {
           throw new Error('Pancake fee wrapper is enabled in the environment but the wrapper address is not configured.');
         }
-        console.log('[Swap] Building Pancake wrapper approval...');
+        swapTrace('[Swap] Building Pancake wrapper approval...');
         const wrapAppr = buildPancakeWrapperApprovalTx(
           swapQuote.fromSymbol,
           w,
@@ -1369,7 +1391,7 @@ export function useSwap() {
         };
       } else if (swapQuote.provider === 'pancakeswap-v3') {
         // PancakeSwap router approval (BSC)
-        console.log('[Swap] Building PancakeSwap approval...');
+        swapTrace('[Swap] Building PancakeSwap approval...');
         const pancakeApproval = buildPancakeApprovalTx(
           swapQuote.fromSymbol,
           useExact ? exactAmount : undefined,
@@ -1384,7 +1406,7 @@ export function useSwap() {
         if (!w) {
           throw new Error('Uniswap fee wrapper V2 is enabled in the environment but the wrapper address is not configured.');
         }
-        console.log('[Swap] Building Uniswap wrapper V2 approval...');
+        swapTrace('[Swap] Building Uniswap wrapper V2 approval...');
         const wrapAppr = buildUniswapWrapperV2ApprovalTx(
           swapQuote.fromSymbol,
           w,
@@ -1401,7 +1423,7 @@ export function useSwap() {
         if (!wrapperAddr) {
           throw new Error('Uniswap fee wrapper is enabled in the environment but the wrapper address is not configured.');
         }
-        console.log('[Swap] Building Uniswap wrapper approval...');
+        swapTrace('[Swap] Building Uniswap wrapper approval...');
         const wrapAppr = buildWrapperApprovalTx(
           swapQuote.fromSymbol,
           wrapperAddr,
@@ -1415,7 +1437,7 @@ export function useSwap() {
         };
       } else {
         // Uniswap router approval (ETH)
-        console.log('[Swap] Building Uniswap approval...');
+        swapTrace('[Swap] Building Uniswap approval...');
         approvalTx = buildRouterApproval(
           swapQuote.fromSymbol,
           chainId,
@@ -1423,7 +1445,7 @@ export function useSwap() {
         );
       }
 
-      console.log('[Swap] Sending approval:', { provider: swapQuote.provider, ...approvalTx });
+      swapTrace('[Swap] Sending approval:', { provider: swapQuote.provider, ...approvalTx });
 
       swapObsLog('approval_tx_submit', {
         provider: swapQuote.provider,
@@ -1453,7 +1475,7 @@ export function useSwap() {
       toast.info('Approval sent — waiting for on-chain confirmation…');
       await tx.wait();
 
-      console.log('[Swap Lifecycle] Approval confirmed:', tx.hash, '| Provider:', swapQuote.provider);
+      swapTrace('[Swap Lifecycle] Approval confirmed:', tx.hash, '| Provider:', swapQuote.provider);
       swapObsLog('approval_tx_confirmed', { hash: tx.hash, provider: swapQuote.provider });
       toast.success('Token approved!');
       return true;
@@ -1552,7 +1574,7 @@ export function useSwap() {
 
       if (swapQuote.provider === '1inch') {
         // Build 1inch swap transaction
-        console.log('[Swap] Building 1inch swap...');
+        swapTrace('[Swap] Building 1inch swap...');
         const tokenIn = getTokenBySymbol(swapQuote.fromSymbol, chainId);
         const oneInchTx = await buildOneInchSwapTx({
           tokenIn: swapQuote.fromSymbol,
@@ -1579,7 +1601,7 @@ export function useSwap() {
             `Pancake wrapper V2 address mismatch. Expected ${PANCAKE_WRAPPER_V2_EXPECTED_TO} but got ${w}.`,
           );
         }
-        console.log('[Swap] Building Pancake wrapper V2 swap...');
+        swapTrace('[Swap] Building Pancake wrapper V2 swap...');
         const tokenIn = getTokenBySymbol(swapQuote.fromSymbol, chainId);
         const tokenOut = getTokenBySymbol(swapQuote.toSymbol, chainId);
         const amountInHuman = tokenIn
@@ -1605,7 +1627,7 @@ export function useSwap() {
         if (!w) {
           throw new Error('Pancake fee wrapper is enabled in the environment but the wrapper address is not configured.');
         }
-        console.log('[Swap] Building Pancake wrapper swap...');
+        swapTrace('[Swap] Building Pancake wrapper swap...');
         const tokenIn = getTokenBySymbol(swapQuote.fromSymbol, chainId);
         const tokenOut = getTokenBySymbol(swapQuote.toSymbol, chainId);
         const amountInHuman = tokenIn
@@ -1628,7 +1650,7 @@ export function useSwap() {
         };
       } else if (swapQuote.provider === 'pancakeswap-v3') {
         // PHASE 11: Build PancakeSwap swap transaction (BSC)
-        console.log('[Swap] Building PancakeSwap swap...');
+        swapTrace('[Swap] Building PancakeSwap swap...');
         const tokenIn = getTokenBySymbol(swapQuote.fromSymbol, chainId);
         const tokenOut = getTokenBySymbol(swapQuote.toSymbol, chainId);
         // Get PancakeSwap fee tier from original quote (default: 2500 = medium)
@@ -1653,7 +1675,7 @@ export function useSwap() {
         if (!w) {
           throw new Error('Uniswap fee wrapper V2 is enabled in the environment but the wrapper address is not configured.');
         }
-        console.log('[Swap] Building Uniswap wrapper V2 swap...');
+        swapTrace('[Swap] Building Uniswap wrapper V2 swap...');
         const tokenIn = getTokenBySymbol(swapQuote.fromSymbol, chainId);
         const tokenOut = getTokenBySymbol(swapQuote.toSymbol, chainId);
         const amountInHuman = tokenIn
@@ -1682,7 +1704,7 @@ export function useSwap() {
         if (!wrapperAddr) {
           throw new Error('Uniswap fee wrapper is enabled in the environment but the wrapper address is not configured.');
         }
-        console.log('[Swap] Building Uniswap wrapper swap...');
+        swapTrace('[Swap] Building Uniswap wrapper swap...');
         const tokenIn = getTokenBySymbol(swapQuote.fromSymbol, chainId);
         const tokenOut = getTokenBySymbol(swapQuote.toSymbol, chainId);
         // Use the same wei→decimal path as allowance / 1inch so calldata matches the quoted trade exactly.
@@ -1705,7 +1727,7 @@ export function useSwap() {
       } else {
         // Build Uniswap swap transaction (direct SwapRouter02)
         // `swapQuote.amountIn` is wei (QuoteResult); buildSwapTx expects human decimal strings + parseUnits.
-        console.log('[Swap] Building Uniswap swap...');
+        swapTrace('[Swap] Building Uniswap swap...');
         const tokenInMeta = getTokenBySymbol(swapQuote.fromSymbol, chainId);
         const tokenOutMeta = getTokenBySymbol(swapQuote.toSymbol, chainId);
         const amountInHuman = tokenInMeta
@@ -1723,7 +1745,7 @@ export function useSwap() {
           feeTier: swapQuote.feeTier,
           chainId,
         });
-        console.log('[Swap] Direct Uniswap tx preview', {
+        swapTrace('[Swap] Direct Uniswap tx preview', {
           provider: swapQuote.provider,
           tokenIn: swapQuote.fromSymbol,
           tokenOut: swapQuote.toSymbol,
@@ -1813,7 +1835,7 @@ export function useSwap() {
         }
       }
 
-      console.log('[Swap] Sending swap:', {
+      swapTrace('[Swap] Sending swap:', {
         provider: swapQuote.provider,
         to: swapTx.to,
         dataLen: swapTx.data?.length ?? 0,
@@ -1869,7 +1891,7 @@ export function useSwap() {
         if (swapQuote.provider === '1inch') {
           commissionTraceForSwap.integratorFeeStatus = oneInchIntegratorFeeStatus ?? 'unknown';
         }
-        console.log('swaperex_commission_trace', commissionTraceForSwap);
+        swapTrace('swaperex_commission_trace', commissionTraceForSwap);
         if (import.meta.env.DEV) {
           // Keep this dev-only to avoid noisy production consoles.
           console.table([commissionTraceForSwap]);
@@ -2004,9 +2026,11 @@ export function useSwap() {
         // Track usage for analytics (local only, no personal data)
         trackEvent('swap_completed');
 
-        // Refresh balances for the current chain
+        // Refresh balances once (non-blocking so success modal is not held on RPC)
         const chainNetwork = CHAIN_ID_TO_NETWORK[chainId] || 'ethereum';
-        await fetchBalances(address, [chainNetwork]);
+        void fetchBalances(address, [chainNetwork]).catch((e) => {
+          console.warn('[Swap] Balance refresh after swap failed:', e);
+        });
 
         return tx.hash;
       } else {
@@ -2030,7 +2054,7 @@ export function useSwap() {
         logLifecycle(state.status, 'previewing', { reason: 'user_rejected' });
         setState((s) => ({ ...s, status: 'previewing' }));
         toast.warning('Swap cancelled. No funds were moved.');
-        console.log('[Swap] User rejected transaction');
+        swapTrace('[Swap] User rejected transaction');
       } else if (isWalletSignRequestPending(err)) {
         logLifecycle(state.status, 'previewing', { reason: 'wallet_sign_pending', code: -32002 });
         setState((s) => ({ ...s, status: 'previewing' }));
@@ -2086,7 +2110,7 @@ export function useSwap() {
       chainId,
     });
 
-    console.log('[Swap] Starting swap validation...', {
+    swapTrace('[Swap] Starting swap validation...', {
       address,
       fromSymbol,
       toSymbol,
@@ -2166,7 +2190,7 @@ export function useSwap() {
       throw new Error(error);
     }
 
-    console.log('[Swap] Validation passed, fetching quote...');
+    swapTrace('[Swap] Validation passed, fetching quote...');
 
     // Get fresh quote
     const quote = await fetchSwapQuote();
