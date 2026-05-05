@@ -2000,6 +2000,7 @@ export function useSwap() {
                 : commissionTraceForSwap.commissionKind === '1inch_integrator_fee'
                   ? '1inch_integrator_fee'
                   : 'none',
+            nativeLane: commissionTraceForSwap.nativeLane ?? 'none',
             expectedFeeBps: commissionTraceForSwap.expectedCommissionBps,
             expectedRecipient: commissionTraceForSwap.expectedCommissionRecipient,
           });

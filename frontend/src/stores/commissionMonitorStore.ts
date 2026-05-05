@@ -8,6 +8,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { NativeLane } from '@/utils/commission';
 
 export type CommissionKind = 'wrapper' | '1inch_integrator_fee' | 'none';
 
@@ -20,6 +21,8 @@ export interface CommissionEvent {
   routeMode: string;
   txTo: string;
   commissionKind: CommissionKind;
+  /** Derived from token pair at swap time (same semantics as classifyCommissionRoute). */
+  nativeLane: NativeLane;
   expectedFeeBps: number | null;
   expectedRecipient: string | null;
 }
@@ -55,9 +58,21 @@ export const useCommissionMonitorStore = create<CommissionMonitorState>()(
     }),
     {
       name: 'swaperex-commission-monitor',
-      version: 1,
-      migrate: (persisted) => persisted as CommissionMonitorState,
+      version: 2,
+      partialize: (state) => ({ events: state.events }),
+      migrate: (persisted, fromVersion) => {
+        const p = persisted as { events?: CommissionEvent[] };
+        const ev = p.events ?? [];
+        if (fromVersion < 2) {
+          return {
+            events: ev.map((e) => ({
+              ...e,
+              nativeLane: (e as CommissionEvent).nativeLane ?? 'none',
+            })),
+          };
+        }
+        return { events: ev };
+      },
     },
   ),
 );
-

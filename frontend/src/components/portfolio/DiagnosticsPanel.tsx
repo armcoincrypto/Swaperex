@@ -24,6 +24,53 @@ import {
   CHAIN_LABELS,
   type ChainHealthState,
 } from '@/utils/chainHealth';
+import type { CommissionEvent } from '@/stores/commissionMonitorStore';
+
+function isEthWrapperProvider(provider: string): boolean {
+  return provider === 'uniswap-v3-wrapper' || provider === 'uniswap-v3-wrapper-v2';
+}
+
+function isBscWrapperProvider(provider: string): boolean {
+  return provider === 'pancakeswap-v3-wrapper' || provider === 'pancakeswap-v3-wrapper-v2';
+}
+
+function summarizeCommissionEvents(events: CommissionEvent[]) {
+  let totalWrapperSwaps = 0;
+  let bscWrapperSwaps = 0;
+  let ethWrapperSwaps = 0;
+  let nativeIn = 0;
+  let nativeOut = 0;
+  let erc20Erc20 = 0;
+  let oneInchBestEffort = 0;
+  let noCommission = 0;
+
+  for (const e of events) {
+    if (e.nativeLane === 'native_in') nativeIn += 1;
+    else if (e.nativeLane === 'native_out') nativeOut += 1;
+    else erc20Erc20 += 1;
+
+    if (e.commissionKind === 'wrapper') {
+      totalWrapperSwaps += 1;
+      if (isBscWrapperProvider(e.provider)) bscWrapperSwaps += 1;
+      if (isEthWrapperProvider(e.provider)) ethWrapperSwaps += 1;
+    } else if (e.commissionKind === '1inch_integrator_fee') {
+      oneInchBestEffort += 1;
+    } else {
+      noCommission += 1;
+    }
+  }
+
+  return {
+    totalWrapperSwaps,
+    bscWrapperSwaps,
+    ethWrapperSwaps,
+    nativeIn,
+    nativeOut,
+    erc20Erc20,
+    oneInchBestEffort,
+    noCommission,
+  };
+}
 
 export function DiagnosticsPanel() {
   const [expanded, setExpanded] = useState(false);
@@ -38,6 +85,7 @@ export function DiagnosticsPanel() {
   const pricingStatus = usePortfolioStore((s) => s.pricingStatus);
   const privacyMode = usePortfolioStore((s) => s.privacyMode);
   const commissionEvents = useCommissionMonitorStore((s) => s.events);
+  const clearCommissionMonitor = useCommissionMonitorStore((s) => s.clear);
 
   // Refresh diagnostics display every 5s
   useEffect(() => {
@@ -45,23 +93,17 @@ export function DiagnosticsPanel() {
     return () => clearInterval(interval);
   }, []);
 
-  const commissionCounts = commissionEvents.reduce(
+  const commissionStats = summarizeCommissionEvents(commissionEvents);
+
+  const commissionByProvider = commissionEvents.reduce(
     (acc, e) => {
-      acc.total += 1;
-      acc.byProvider[e.provider] = (acc.byProvider[e.provider] ?? 0) + 1;
-      if (e.commissionKind === 'wrapper') acc.wrapper += 1;
-      else if (e.commissionKind === '1inch_integrator_fee') acc.oneInchBestEffort += 1;
-      else acc.none += 1;
+      acc[e.provider] = (acc[e.provider] ?? 0) + 1;
       return acc;
     },
-    {
-      total: 0,
-      wrapper: 0,
-      oneInchBestEffort: 0,
-      none: 0,
-      byProvider: {} as Record<string, number>,
-    },
+    {} as Record<string, number>,
   );
+
+  const lastTraces = commissionEvents.slice(0, 10);
 
   const snapshotValid = isSnapshotValid(snapshotAt);
   const snapshotTtlRemaining = snapshotAt > 0
@@ -132,23 +174,87 @@ export function DiagnosticsPanel() {
             />
           </Section>
 
-          {/* ─── Commission Monitor ────────────── */}
+          {/* ─── Commission Monitor (localStorage; no backend) ────────────── */}
           <Section title="Commission Monitor">
-            <Row label="Tracked confirmed swaps" value={String(commissionCounts.total)} />
-            <Row label="Wrapper swaps" value={String(commissionCounts.wrapper)} />
-            <Row label="1inch best-effort" value={String(commissionCounts.oneInchBestEffort)} />
-            <Row label="No-commission" value={String(commissionCounts.none)} />
-            <div className="mt-1 text-dark-500">
-              Totals by provider:
+            <p className="text-dark-500 mb-1 leading-relaxed">
+              Confirmed swaps only. Persists in this browser. No routing or RPC calls from this panel.
+            </p>
+            <Row label="Tracked confirmed swaps" value={String(commissionEvents.length)} />
+            <Row label="Total wrapper swaps" value={String(commissionStats.totalWrapperSwaps)} />
+            <Row label="BSC wrapper swaps" value={String(commissionStats.bscWrapperSwaps)} />
+            <Row label="ETH wrapper swaps" value={String(commissionStats.ethWrapperSwaps)} />
+            <Row label="native_in (all routes)" value={String(commissionStats.nativeIn)} />
+            <Row label="native_out (all routes)" value={String(commissionStats.nativeOut)} />
+            <Row label="ERC20↔ERC20 lane (all routes)" value={String(commissionStats.erc20Erc20)} />
+            <Row label="1inch best-effort" value={String(commissionStats.oneInchBestEffort)} />
+            <Row label="No-commission" value={String(commissionStats.noCommission)} />
+            <div className="mt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof window !== 'undefined' && window.confirm('Clear commission monitor history in this browser?')) {
+                    clearCommissionMonitor();
+                  }
+                }}
+                className="text-[10px] px-2 py-1 rounded border border-dark-600 text-dark-400 hover:text-dark-200"
+              >
+                Clear local monitor
+              </button>
             </div>
+            <div className="mt-1 text-dark-500">Totals by provider:</div>
             <div className="space-y-0.5">
-              {Object.entries(commissionCounts.byProvider)
+              {Object.entries(commissionByProvider)
                 .sort((a, b) => b[1] - a[1])
                 .map(([provider, count]) => (
                   <Row key={provider} label={provider} value={String(count)} />
                 ))}
-              {Object.keys(commissionCounts.byProvider).length === 0 && (
+              {Object.keys(commissionByProvider).length === 0 && (
                 <div className="text-dark-600">No confirmed swaps recorded yet.</div>
+              )}
+            </div>
+            <div className="mt-2 text-dark-500">Last 10 commission traces:</div>
+            <div className="max-h-48 overflow-y-auto rounded border border-dark-700/60 bg-dark-950/50 p-2 space-y-2">
+              {lastTraces.length === 0 ? (
+                <div className="text-dark-600">No traces yet.</div>
+              ) : (
+                lastTraces.map((t) => (
+                  <div key={t.id} className="border-b border-dark-800 pb-2 last:border-0 last:pb-0 text-[10px] leading-tight space-y-0.5">
+                    <div className="flex justify-between gap-2">
+                      <span className="text-dark-500">provider</span>
+                      <span className="text-dark-200 truncate text-right">{t.provider}</span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-dark-500">chainId</span>
+                      <span className="text-dark-200">{t.chainId}</span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-dark-500">txHash</span>
+                      <span className="text-dark-200 truncate text-right font-mono" title={t.txHash}>
+                        {t.txHash}
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-dark-500">txTo</span>
+                      <span className="text-dark-200 truncate text-right font-mono" title={t.txTo}>
+                        {t.txTo ? redactAddress(t.txTo) : '—'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-dark-500">commissionKind</span>
+                      <span className="text-dark-200">{t.commissionKind}</span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-dark-500">nativeLane</span>
+                      <span className="text-dark-200">{t.nativeLane}</span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-dark-500">timestamp</span>
+                      <span className="text-dark-200 font-mono">
+                        {t.timestamp ? new Date(t.timestamp).toISOString() : '—'}
+                      </span>
+                    </div>
+                  </div>
+                ))
               )}
             </div>
           </Section>
