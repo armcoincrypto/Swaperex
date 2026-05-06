@@ -121,7 +121,8 @@ export const SWAP_SURFACE_COPY = {
     'Confirm amounts in your wallet before signing — quotes expire quickly.',
 
   /** Compact swap-card security footer (one visual block) */
-  swapCardTrustCompact: 'Signed in your wallet. Swaperex never receives your keys.',
+  swapCardTrustCompact:
+    'Signed in your wallet — approvals and swaps are signed locally. Swaperex never holds your keys.',
 
   /** Muted footnote under grouped rate & fee rows on the swap card */
   quoteFeesFootnote:
@@ -135,4 +136,8 @@ export const SWAP_SURFACE_COPY = {
   /** Activity / history — route context (display-only; does not change stored records) */
   activityCommissionRouteLabel: 'Commission route',
   activityHistoricalRouteLabel: 'Historical route — before commission-required mode',
+
+  /** Sidebar token list — RPC / balance fetch failed (wallet still connected) */
+  tokenListBalancesUnavailable: (networkName: string) =>
+    `Balances unavailable for ${networkName}. Swaps can still work — refresh or try again.`,
 } as const;

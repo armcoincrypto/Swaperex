@@ -13,6 +13,7 @@ import { useSwap } from '@/hooks/useSwap';
 import { useSwapStore, type ApprovalMode } from '@/stores/swapStore';
 import { toast } from '@/stores/toastStore';
 import { useBalances } from '@/hooks/useBalances';
+import { useBalanceStore } from '@/stores/balanceStore';
 import { useCustomTokenStore, type CustomToken } from '@/stores/customTokenStore';
 import { useFavoriteTokensStore } from '@/stores/favoriteTokensStore';
 import { usePresetStore, type SwapPreset, type GuardEvaluation } from '@/stores/presetStore';
@@ -133,12 +134,9 @@ function nativeWrappedBadgeKind(asset: AssetInfo, chainId: number): 'native' | '
 
 export function SwapInterface() {
   const { isConnected, address, isWrongChain, chainId, provider, isReadOnly } = useWallet();
-  const {
-    getTokenBalance,
-    balancesPendingForCurrentChain,
-    currentChainUnsupported,
-    currentChainKey,
-  } = useBalances();
+  const { getTokenBalance, currentChainUnsupported } = useBalances();
+  const chainStatus = useBalanceStore((s) => s.chainStatus);
+  const balanceRows = useBalanceStore((s) => s.balances);
   const { getTokens: getCustomTokens, addToken: addCustomToken, removeToken: removeCustomToken } =
     useCustomTokenStore();
   const hasTokenInStore = useCustomTokenStore((s) => s.hasToken);
@@ -493,33 +491,33 @@ export function SwapInterface() {
     computeIntelligence();
   }, [swapQuote, fromAsset, toAsset, fromAmount, status, currentChainId, slippage]);
 
-  // Get balance for selected asset
+  // Get balance for selected asset (sentinels: '…' loading, 'unavailable' fetch failed, '—' N/A)
   const getBalance = useCallback(
     (asset: AssetInfo | null): string => {
       if (!asset || !address) return '—';
       if (currentChainUnsupported) return '—';
-      const pendingHere = balancesPendingForCurrentChain && asset.chain === currentChainKey;
-      if (pendingHere) return '…';
-      const tokenBalance = getTokenBalance(asset.chain, asset.symbol);
-      return tokenBalance?.balance ?? '0.00';
+      const ck = asset.chain;
+      const st = chainStatus[ck];
+      if (st === 'loading' || (st === 'idle' && !balanceRows[ck])) {
+        return '…';
+      }
+      if (st === 'error') return 'unavailable';
+      const tokenBalance = getTokenBalance(ck, asset.symbol);
+      return tokenBalance?.balance ?? '0';
     },
-    [
-      getTokenBalance,
-      address,
-      balancesPendingForCurrentChain,
-      currentChainUnsupported,
-      currentChainKey,
-    ],
+    [getTokenBalance, address, currentChainUnsupported, chainStatus, balanceRows],
   );
 
   // Check for insufficient balance
   const fromBalance = getBalance(fromAsset);
-  const fromBalanceNum = parseFloat(fromBalance);
+  const fromBalanceNum =
+    fromBalance === '…' || fromBalance === 'unavailable' || fromBalance === '—'
+      ? NaN
+      : parseFloat(fromBalance);
   const insufficientBalance =
     fromAmount &&
     parseFloat(fromAmount) > 0 &&
-    !Number.isNaN(fromBalanceNum) &&
-    fromBalance !== '…' &&
+    Number.isFinite(fromBalanceNum) &&
     parseFloat(fromAmount) > fromBalanceNum;
   /** Hide main-card insufficient warning while the preview modal is open — balances can update mid-flow and confuse users. */
   const insufficientBalanceForUi =
@@ -529,7 +527,7 @@ export function SwapInterface() {
 
   // Calculate MAX amount (subtract gas buffer for native tokens)
   const getMaxAmount = useCallback((): string => {
-    if (fromBalance === '…' || fromBalance === '—') return '0';
+    if (fromBalance === '…' || fromBalance === '—' || fromBalance === 'unavailable') return '0';
     const balance = parseFloat(fromBalance);
     if (!Number.isFinite(balance) || balance <= 0) return '0';
 
@@ -1102,7 +1100,9 @@ export function SwapInterface() {
                 Balance:{' '}
                 <span className={`font-medium ${insufficientBalanceForUi ? 'text-red-300' : 'text-dark-300'}`}>
                   {fromBalance === '…' ? (
-                    <span className="text-dark-500 font-normal not-italic">Loading…</span>
+                    <span className="text-dark-500 font-normal not-italic">Loading balance…</span>
+                  ) : fromBalance === 'unavailable' ? (
+                    <span className="text-dark-500 font-normal not-italic">Balance unavailable</span>
                   ) : fromBalance === '—' ? (
                     <span className="text-dark-500 font-normal">—</span>
                   ) : (
@@ -1200,7 +1200,8 @@ export function SwapInterface() {
               <span className="font-medium text-dark-300">
                 {(() => {
                   const b = getBalance(toAsset);
-                  if (b === '…') return <span className="text-dark-500 font-normal">Loading…</span>;
+                  if (b === '…') return <span className="text-dark-500 font-normal">Loading balance…</span>;
+                  if (b === 'unavailable') return <span className="text-dark-500 font-normal">Balance unavailable</span>;
                   if (b === '—') return <span className="text-dark-500 font-normal">—</span>;
                   return formatBalance(b);
                 })()}
@@ -1248,7 +1249,9 @@ export function SwapInterface() {
                   —
                 </span>
               ) : (
-                <span className="text-xl font-medium text-dark-500/90 tabular-nums">0.0</span>
+                <span className="text-xl font-medium text-dark-600/50 tabular-nums select-none" aria-hidden>
+                  —
+                </span>
               )}
             </div>
           </div>

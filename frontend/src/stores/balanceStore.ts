@@ -12,6 +12,11 @@ import { useCustomTokenStore } from './customTokenStore';
 import { getTokens, NATIVE_TOKEN_ADDRESS } from '@/tokens';
 
 import { CHAINS } from '@/config/chains';
+import { getEthereumReadRpcCandidates, raceWithTimeout, JSONRPC_TIMEOUT_MS } from '@/config/rpc';
+import { isDebugMode } from '@/utils/chainHealth';
+
+/** Per-chain sidebar / swap balance fetch lifecycle (never infer from missing row alone). */
+export type BalanceChainFetchStatus = 'idle' | 'loading' | 'ok' | 'error';
 
 // Chain RPC endpoints (absolute URLs only — ethers JsonRpcProvider cannot use relative /rpc/* paths in browser runtime)
 const RPC_URLS: Record<string, string> = {
@@ -137,6 +142,62 @@ export const ERC20_TOKENS: Record<string, Array<{ symbol: string; address: strin
 const providerCache: Record<string, JsonRpcProvider> = {};
 const providerFailCount: Record<string, number> = {};
 
+/** Ethereum read client — probes fallbacks (same strategy as evmBalanceService). */
+let ethereumReadProvider: JsonRpcProvider | null = null;
+let ethereumReadUrl: string | null = null;
+
+function invalidateEthereumReadProvider(): void {
+  ethereumReadProvider = null;
+  ethereumReadUrl = null;
+  delete providerCache.ethereum;
+}
+
+/**
+ * JsonRpcProvider for balance reads. Ethereum uses rpc.ts candidates + timeout;
+ * other chains use CHAINS.*.rpcUrl via cache.
+ */
+async function resolveReadProvider(chain: string): Promise<JsonRpcProvider | null> {
+  const chainId = CHAIN_NAME_TO_ID[chain];
+  const nativeToken = NATIVE_TOKENS[chain];
+  if (!chainId || !nativeToken) return null;
+
+  if (chain === 'ethereum') {
+    const network = Network.from(1);
+    const candidates = getEthereumReadRpcCandidates();
+
+    if (ethereumReadProvider && ethereumReadUrl) {
+      try {
+        await raceWithTimeout(ethereumReadProvider.getBlockNumber(), JSONRPC_TIMEOUT_MS);
+        return ethereumReadProvider;
+      } catch {
+        invalidateEthereumReadProvider();
+        providerFailCount.ethereum = (providerFailCount.ethereum || 0) + 1;
+      }
+    }
+
+    for (const url of candidates) {
+      try {
+        const p = new JsonRpcProvider(url, network, { staticNetwork: network });
+        await raceWithTimeout(p.getBlockNumber(), JSONRPC_TIMEOUT_MS);
+        ethereumReadProvider = p;
+        ethereumReadUrl = url;
+        providerCache.ethereum = p;
+        providerFailCount.ethereum = 0;
+        if (import.meta.env.DEV || isDebugMode()) {
+          console.debug('[Balance] Ethereum read RPC:', url);
+        }
+        return p;
+      } catch {
+        // try next candidate
+      }
+    }
+    console.warn('[Balance] All Ethereum read RPC candidates failed');
+    return null;
+  }
+
+  return getCachedProvider(chain);
+}
+
 function getCachedProvider(chain: string): JsonRpcProvider | null {
   const rpcUrl = RPC_URLS[chain];
   const chainId = CHAIN_NAME_TO_ID[chain];
@@ -179,6 +240,9 @@ interface ChainBalance {
 interface BalanceState {
   // Balances by chain
   balances: Record<string, ChainBalance>;
+
+  /** Last fetch outcome per chain (drives loading / unavailable vs real zero). */
+  chainStatus: Record<string, BalanceChainFetchStatus>;
 
   // Loading state
   isLoading: boolean;
@@ -242,6 +306,7 @@ async function fetchERC20Balance(
 export const useBalanceStore = create<BalanceState>((set, get) => ({
   // Initial state
   balances: {},
+  chainStatus: {},
   isLoading: false,
   lastUpdated: null,
   totalUsdValue: null,
@@ -253,30 +318,65 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
     const hasExistingData = Object.keys(get().balances).length > 0;
     if (loadingMode === 'always' || !hasExistingData) set({ isLoading: true });
 
+    // Mark requested chains as loading; merge balances later (never replace whole map).
+    set((state) => {
+      const nextStatus = { ...state.chainStatus };
+      for (const c of chains) {
+        nextStatus[c] = 'loading';
+      }
+      return { chainStatus: nextStatus };
+    });
+
     try {
       const balanceMap: Record<string, ChainBalance> = {};
+      const statusMap: Record<string, BalanceChainFetchStatus> = {};
 
-      // Fetch all chains in parallel
-      await Promise.all(
-        chains.map(async (chain) => {
-          try {
-            const nativeToken = NATIVE_TOKENS[chain];
-            const provider = getCachedProvider(chain);
+      const fetchOneChain = async (chain: string) => {
+        const nativeToken = NATIVE_TOKENS[chain];
+        if (!nativeToken) {
+          statusMap[chain] = 'error';
+          return;
+        }
+        try {
+          const provider = await resolveReadProvider(chain);
+          if (!provider) {
+            statusMap[chain] = 'error';
+            return;
+          }
 
-            if (!provider || !nativeToken) {
-              return;
-            }
+          const balanceWei = await provider.getBalance(address);
+          const balance = formatEther(balanceWei);
 
-            // Fetch native balance
-            const balanceWei = await provider.getBalance(address);
-            const balance = formatEther(balanceWei);
+          const erc20Tokens = ERC20_TOKENS[chain] || [];
+          const tokenBalances: TokenBalance[] = [];
 
-            // Fetch ERC20 token balances (built-in tokens)
-            const erc20Tokens = ERC20_TOKENS[chain] || [];
-            const tokenBalances: TokenBalance[] = [];
+          await Promise.all(
+            erc20Tokens.map(async (token) => {
+              const tokenBalance = await fetchERC20Balance(
+                provider,
+                token.address,
+                address,
+                token.decimals
+              );
 
+              if (parseFloat(tokenBalance) > 0) {
+                tokenBalances.push({
+                  symbol: token.symbol,
+                  balance: tokenBalance,
+                  decimals: token.decimals,
+                  chain,
+                  name: token.name,
+                  logo_url: getTokenLogo(chain, token.symbol, token.address),
+                });
+              }
+            })
+          );
+
+          const chainId = CHAIN_NAME_TO_ID[chain];
+          if (chainId) {
+            const customTokens = useCustomTokenStore.getState().getTokens(chainId);
             await Promise.all(
-              erc20Tokens.map(async (token) => {
+              customTokens.map(async (token) => {
                 const tokenBalance = await fetchERC20Balance(
                   provider,
                   token.address,
@@ -284,7 +384,6 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
                   token.decimals
                 );
 
-                // Only add tokens with non-zero balance
                 if (parseFloat(tokenBalance) > 0) {
                   tokenBalances.push({
                     symbol: token.symbol,
@@ -293,64 +392,47 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
                     chain,
                     name: token.name,
                     logo_url: getTokenLogo(chain, token.symbol, token.address),
+                    isCustom: true,
                   });
                 }
               })
             );
-
-            // Fetch custom token balances
-            const chainId = CHAIN_NAME_TO_ID[chain];
-            if (chainId) {
-              const customTokens = useCustomTokenStore.getState().getTokens(chainId);
-              await Promise.all(
-                customTokens.map(async (token) => {
-                  const tokenBalance = await fetchERC20Balance(
-                    provider,
-                    token.address,
-                    address,
-                    token.decimals
-                  );
-
-                  // Only add custom tokens with non-zero balance
-                  if (parseFloat(tokenBalance) > 0) {
-                    tokenBalances.push({
-                      symbol: token.symbol,
-                      balance: tokenBalance,
-                      decimals: token.decimals,
-                      chain,
-                      name: token.name,
-                      logo_url: getTokenLogo(chain, token.symbol, token.address),
-                      isCustom: true,
-                    });
-                  }
-                })
-              );
-            }
-
-            balanceMap[chain] = {
-              chain,
-              native_balance: {
-                symbol: nativeToken.symbol,
-                balance,
-                balance_raw: balanceWei.toString(),
-                decimals: nativeToken.decimals,
-                chain,
-                name: nativeToken.symbol,
-                logo_url: getTokenLogo(chain, nativeToken.symbol, NATIVE_TOKEN_ADDRESS),
-              },
-              token_balances: tokenBalances,
-            };
-          } catch (err) {
-            console.warn(`[Balance] Failed to fetch ${chain} balance:`, err);
           }
-        })
-      );
 
-      set({
-        balances: balanceMap,
+          balanceMap[chain] = {
+            chain,
+            native_balance: {
+              symbol: nativeToken.symbol,
+              balance,
+              balance_raw: balanceWei.toString(),
+              decimals: nativeToken.decimals,
+              chain,
+              name: nativeToken.symbol,
+              logo_url: getTokenLogo(chain, nativeToken.symbol, NATIVE_TOKEN_ADDRESS),
+            },
+            token_balances: tokenBalances,
+          };
+          statusMap[chain] = 'ok';
+        } catch (err) {
+          console.warn(`[Balance] Failed to fetch ${chain} balance:`, err);
+          statusMap[chain] = 'error';
+        }
+      };
+
+      await Promise.all(chains.map((c) => fetchOneChain(c)));
+
+      set((state) => ({
+        balances: {
+          ...state.balances,
+          ...balanceMap,
+        },
+        chainStatus: {
+          ...state.chainStatus,
+          ...statusMap,
+        },
         isLoading: false,
         lastUpdated: Date.now(),
-      });
+      }));
     } catch (error) {
       set({ isLoading: false });
       console.error('[Balance] Failed to fetch balances:', error);
@@ -360,21 +442,32 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
   // Fetch balance for single chain
   fetchChainBalance: async (address: string, chain: string) => {
     set({ isLoading: true });
+    set((state) => ({
+      chainStatus: { ...state.chainStatus, [chain]: 'loading' },
+    }));
+
+    const nativeToken = NATIVE_TOKENS[chain];
+    if (!nativeToken) {
+      set((state) => ({
+        isLoading: false,
+        chainStatus: { ...state.chainStatus, [chain]: 'error' },
+      }));
+      return;
+    }
 
     try {
-      const nativeToken = NATIVE_TOKENS[chain];
-      const provider = getCachedProvider(chain);
-
-      if (!provider || !nativeToken) {
-        set({ isLoading: false });
+      const provider = await resolveReadProvider(chain);
+      if (!provider) {
+        set((state) => ({
+          isLoading: false,
+          chainStatus: { ...state.chainStatus, [chain]: 'error' },
+        }));
         return;
       }
 
-      // Fetch native balance
       const balanceWei = await provider.getBalance(address);
       const balance = formatEther(balanceWei);
 
-      // Fetch ERC20 token balances (built-in tokens)
       const erc20Tokens = ERC20_TOKENS[chain] || [];
       const tokenBalances: TokenBalance[] = [];
 
@@ -387,7 +480,6 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
             token.decimals
           );
 
-          // Only add tokens with non-zero balance
           if (parseFloat(tokenBalance) > 0) {
             tokenBalances.push({
               symbol: token.symbol,
@@ -401,7 +493,6 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
         })
       );
 
-      // Fetch custom token balances
       const chainId = CHAIN_NAME_TO_ID[chain];
       if (chainId) {
         const customTokens = useCustomTokenStore.getState().getTokens(chainId);
@@ -414,7 +505,6 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
               token.decimals
             );
 
-            // Add custom tokens with isCustom flag
             tokenBalances.push({
               symbol: token.symbol,
               balance: tokenBalance,
@@ -445,11 +535,15 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
             token_balances: tokenBalances,
           },
         },
+        chainStatus: { ...state.chainStatus, [chain]: 'ok' },
         isLoading: false,
         lastUpdated: Date.now(),
       }));
     } catch (error) {
-      set({ isLoading: false });
+      set((state) => ({
+        isLoading: false,
+        chainStatus: { ...state.chainStatus, [chain]: 'error' },
+      }));
       console.error(`[Balance] Failed to fetch ${chain} balance:`, error);
     }
   },
@@ -458,25 +552,48 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
   clearBalances: () => {
     set({
       balances: {},
+      chainStatus: {},
       lastUpdated: null,
       totalUsdValue: null,
     });
+    invalidateEthereumReadProvider();
   },
 
   // Get specific token balance
   getTokenBalance: (chain: string, symbol: string) => {
-    const { balances } = get();
+    const { balances, chainStatus } = get();
     const chainBalances = balances[chain];
 
     if (!chainBalances) return null;
+    if (chainStatus[chain] === 'error') return null;
 
     // Check native balance
     if (chainBalances.native_balance.symbol === symbol) {
       return chainBalances.native_balance;
     }
 
-    // Check token balances
-    return chainBalances.token_balances.find((t) => t.symbol === symbol) || null;
+    const fromList = chainBalances.token_balances.find(
+      (t) => t.symbol.toUpperCase() === symbol.toUpperCase()
+    );
+    if (fromList) return fromList;
+
+    // Catalog ERC20 with implicit zero (not stored in token_balances when zero)
+    if (chainStatus[chain] === 'ok') {
+      const catalog = ERC20_TOKENS[chain] || [];
+      const meta = catalog.find((t) => t.symbol.toUpperCase() === symbol.toUpperCase());
+      if (meta) {
+        return {
+          symbol: meta.symbol,
+          balance: '0',
+          decimals: meta.decimals,
+          chain,
+          name: meta.name,
+          logo_url: getTokenLogo(chain, meta.symbol, meta.address),
+        };
+      }
+    }
+
+    return null;
   },
 
   // Toggle hide zero balances setting

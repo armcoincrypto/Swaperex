@@ -31,6 +31,7 @@ export function useBalances(autoRefresh: boolean = true) {
   const { address, isConnected, chainId } = useWalletStore();
   const {
     balances,
+    chainStatus,
     isLoading,
     lastUpdated,
     totalUsdValue,
@@ -72,13 +73,18 @@ export function useBalances(autoRefresh: boolean = true) {
   const currentChainKey = getBalanceChainName(chainId);
   const currentChainBalances = currentChainKey ? balances[currentChainKey] ?? null : null;
 
-  /** True while first load or refresh has not yet written this chain's row. */
+  const currentChainFetchStatus = currentChainKey ? chainStatus[currentChainKey] ?? 'idle' : 'idle';
+
+  /**
+   * True while this chain has no settled fetch yet: first paint before `fetchBalances`,
+   * or an in-flight refresh (`loading`). Do not infer from global `isLoading` alone.
+   */
   const balancesPendingForCurrentChain =
     isConnected &&
     !!address &&
     !!currentChainKey &&
-    !balances[currentChainKey] &&
-    isLoading;
+    (currentChainFetchStatus === 'loading' ||
+      (currentChainFetchStatus === 'idle' && !balances[currentChainKey]));
 
   /** Connected on a chain we don't map to RPC balance fetch (e.g. unsupported testnet). */
   const currentChainUnsupported = isConnected && !!address && currentChainKey === null;
@@ -102,6 +108,8 @@ export function useBalances(autoRefresh: boolean = true) {
 
   return {
     balances,
+    chainStatus,
+    currentChainFetchStatus,
     isLoading,
     lastUpdated,
     totalUsdValue,

@@ -14,6 +14,8 @@ import { useBalances } from '@/hooks/useBalances';
 import { BalanceCard } from './BalanceCard';
 import { formatUsd } from '@/utils/format';
 import type { TokenBalance } from '@/types/api';
+import { CHAINS } from '@/config/chains';
+import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 
 interface TokenListProps {
   onSwapToken?: (symbol: string) => void;
@@ -39,6 +41,7 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
     balancesPendingForCurrentChain,
     currentChainUnsupported,
     currentChainKey,
+    currentChainFetchStatus,
   } = useBalances();
 
   // Sort and filter balances
@@ -118,7 +121,7 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
   }
 
   // Loading / waiting for first row for this chain (avoid fake empty state)
-  if (balancesPendingForCurrentChain || (isLoading && !currentChainBalances)) {
+  if (balancesPendingForCurrentChain) {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -134,7 +137,30 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
     );
   }
 
-  // Fetch finished but this chain failed or returned nothing — don’t look like “connect wallet”
+  // Fetch failed for this chain — do not imply wrong chain; swaps still use the wallet
+  if (currentChainKey && currentChainFetchStatus === 'error') {
+    const networkName =
+      currentChainKey in CHAINS
+        ? CHAINS[currentChainKey as keyof typeof CHAINS].name
+        : currentChainKey;
+    return (
+      <div className="space-y-4">
+        <h2 className="text-xl font-bold">Your Tokens</h2>
+        <div className="p-6 bg-dark-800 rounded-xl text-center border border-amber-800/25">
+          <p className="text-dark-300 text-sm leading-relaxed">{SWAP_SURFACE_COPY.tokenListBalancesUnavailable(networkName)}</p>
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            className="mt-3 text-sm text-primary-400 hover:text-primary-300"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Settled but no row (should be rare)
   if (!currentChainBalances && currentChainKey) {
     return (
       <div className="space-y-4">
