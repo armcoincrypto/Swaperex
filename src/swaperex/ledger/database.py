@@ -14,6 +14,7 @@ from swaperex.ledger.models import (  # noqa: F401
     Deposit,
     DepositAddress,
     HDWalletState,
+    MonitoringIngestBatch,
     ProcessedTransaction,
     Swap,
     User,

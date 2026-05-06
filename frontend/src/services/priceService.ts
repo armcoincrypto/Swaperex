@@ -66,6 +66,12 @@ const COINGECKO_IDS: Record<string, string> = {
   SUSHI: 'sushi',
   COMP: 'compound-governance-token',
   SNX: 'synthetix-network-token',
+  ENS: 'ethereum-name-service',
+  PENDLE: 'pendle',
+  LTC: 'litecoin',
+  FIL: 'filecoin',
+  ATOM: 'cosmos',
+  TRX: 'tron',
 };
 
 /**

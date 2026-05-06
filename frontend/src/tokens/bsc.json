@@ -113,6 +113,34 @@
       "address": "0xBf5140A22578168FD562DCcF235E5D43A02ce9B1",
       "decimals": 18,
       "logoURI": "https://tokens.1inch.io/0x1f9840a85d5af5bf1d1762f925bdaddc4201f984.png"
+    },
+    {
+      "symbol": "LTC",
+      "name": "Binance-Peg Litecoin",
+      "address": "0x4338665CBB7B2485A8855A139b75D5e34AB0DB94",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0x4338665cbb7b2485a8855a139b75d5e34ab0db94.png"
+    },
+    {
+      "symbol": "FIL",
+      "name": "Binance-Peg Filecoin",
+      "address": "0x0D8Ce2A99Bb6e3B7Db580eD848240e4a0F9aE153",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0x0d8ce2a99bb6e3b7db580ed848240e4a0f9ae153.png"
+    },
+    {
+      "symbol": "ATOM",
+      "name": "Binance-Peg Cosmos",
+      "address": "0x0Eb3a705fc54725037CC9e008bDede697f62F335",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0x0eb3a705fc54725037cc9e008bdede697f62f335.png"
+    },
+    {
+      "symbol": "TRX",
+      "name": "TRON",
+      "address": "0xCE7de646e7208a4Ef112cb6ed5038FA6cC6b12e3",
+      "decimals": 6,
+      "logoURI": "https://tokens.1inch.io/0xce7de646e7208a4ef112cb6ed5038fa6cc6b12e3.png"
     }
   ]
 }

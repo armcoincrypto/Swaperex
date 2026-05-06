@@ -10,6 +10,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
+    JSON,
     Numeric,
     String,
     Text,
@@ -279,3 +280,22 @@ class Withdrawal(Base):
 
     # Relationships
     user: Mapped["User"] = relationship(back_populates="withdrawals")
+
+
+class MonitoringIngestBatch(Base):
+    """Append-only batches from the web client (`POST /api/v1/monitoring/events`).
+
+    Payloads are operational telemetry only (no private keys). Used for revenue / health alerts.
+    """
+
+    __tablename__ = "monitoring_ingest_batches"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    schema_version: Mapped[int] = mapped_column(nullable=False)
+    client_session_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    exported_at_ms: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    event_count: Mapped[int] = mapped_column(nullable=False)
+    envelope: Mapped[dict] = mapped_column(JSON, nullable=False)

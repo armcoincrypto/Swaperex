@@ -91,10 +91,11 @@ def create_app() -> FastAPI:
 
     # Register routes
     from swaperex.api.routers import admin, hdwallet, webhook, withdrawal
-    from swaperex.api.routes import deposits, health
+    from swaperex.api.routes import deposits, health, monitoring
 
     app.include_router(health.router, tags=["Health"])
     app.include_router(deposits.router, prefix="/api/v1", tags=["Deposits"])
+    app.include_router(monitoring.router, prefix="/api/v1", tags=["Monitoring"])
     app.include_router(admin.router, tags=["Admin"])
     app.include_router(hdwallet.router, tags=["HD Wallet"])
     app.include_router(withdrawal.router, tags=["Withdrawals"])

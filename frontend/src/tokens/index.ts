@@ -194,6 +194,26 @@ export function isNativeSwapInput(
 }
 
 /**
+ * True when the swap "to" side is the chain native gas token (mirror of `isNativeSwapInput`).
+ */
+export function isNativeSwapOutput(
+  toAsset: { is_native?: boolean; contract_address?: string } | null | undefined,
+  toSymbol: string,
+  chainId: number,
+): boolean {
+  const meta = getTokenBySymbol(toSymbol, chainId);
+  if (meta && isNativeToken(meta.address)) return true;
+
+  const addr = toAsset?.contract_address;
+  if (addr && isNativeToken(addr)) return true;
+
+  const nativeSym = (NATIVE_SYMBOLS[chainId] || 'ETH').toUpperCase();
+  if (toAsset?.is_native === true && toSymbol.toUpperCase() === nativeSym) return true;
+
+  return false;
+}
+
+/**
  * Get wrapped native token address for chain
  */
 export function getWrappedNativeAddress(chainId: number): string {
@@ -268,11 +288,19 @@ const ETH_POPULAR_SYMBOL_ORDER = [
   'USDC',
   'DAI',
   'WBTC',
+  'LINK',
   'UNI',
   'AAVE',
-  'LINK',
+  'MKR',
+  'LDO',
+  'CRV',
+  'COMP',
+  'SNX',
+  'ENS',
+  'PENDLE',
   'PEPE',
   'SHIB',
+  'ARB',
 ] as const;
 
 /** Curated swap picker order (chain 56): must match entries in `bsc.json`. */
@@ -281,14 +309,22 @@ const BSC_POPULAR_SYMBOL_ORDER = [
   'WBNB',
   'USDT',
   'USDC',
-  'BUSD',
   'FDUSD',
+  'BUSD',
+  'DAI',
   'CAKE',
   'BTCB',
   'ETH',
-  'DAI',
   'LINK',
   'UNI',
+  'XRP',
+  'ADA',
+  'DOGE',
+  'DOT',
+  'LTC',
+  'FIL',
+  'ATOM',
+  'TRX',
 ] as const;
 
 function popularTokensBySymbolOrder(chainId: number, order: readonly string[]): Token[] {

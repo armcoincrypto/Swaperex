@@ -106,6 +106,34 @@
       "address": "0x95aD61b0a150d79219dCF64E1E6Cc01f0B64C4cE",
       "decimals": 18,
       "logoURI": "https://tokens.1inch.io/0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce.png"
+    },
+    {
+      "symbol": "COMP",
+      "name": "Compound",
+      "address": "0xc00e94Cb662C3520282E6f5717214004A7f26888",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0xc00e94cb662c3520282e6f5717214004a7f26888.png"
+    },
+    {
+      "symbol": "SNX",
+      "name": "Synthetix Network Token",
+      "address": "0xC011a73ee8576Fb46F5E1c5751cA3b9Fe0af2a6F",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0xc011a73ee8576fb46f5e1c5751ca3b9fe0af2a6f.png"
+    },
+    {
+      "symbol": "ENS",
+      "name": "Ethereum Name Service",
+      "address": "0xC18360217D8F7Ab5e7c516566761Ea12Ce7F9D72",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0xc18360217d8f7ab5e7c516566761ea12ce7f9d72.png"
+    },
+    {
+      "symbol": "PENDLE",
+      "name": "Pendle",
+      "address": "0x808507121B80C02388fAd14726482e061B8da827",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0x808507121b80c02388fad14726482e061b8da827.png"
     }
   ]
 }

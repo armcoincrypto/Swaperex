@@ -7,6 +7,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import './index.css';
 import { initAppKit } from './services/wallet/appkit';
+import { startMonitoringOutboxBridge } from './utils/productionMonitoring';
 
 const container = document.getElementById('root');
 if (!container) {
@@ -16,6 +17,7 @@ if (!container) {
 // Must run before any subtree mounts AppKit hooks (AppKitBridge / useAppKit). Child useLayoutEffect
 // runs after children render, so lazy WalletBootstrap cannot init AppKit inside useLayoutEffect alone.
 initAppKit();
+startMonitoringOutboxBridge();
 
 createRoot(container).render(
   <StrictMode>

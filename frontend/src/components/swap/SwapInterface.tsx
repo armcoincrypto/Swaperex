@@ -59,6 +59,11 @@ import {
   type QuoteRouteMode,
 } from '@/services/quoteAggregator';
 import { validateToken } from '@/services/tokenValidation';
+import {
+  assetToV3ProbeAddress,
+  isSwapAssetKnownForChain,
+  probeV3PairLiquidity,
+} from '@/services/tokenSafetyProbe';
 import { analyzeSwapFromContext, type SwapIntelligence } from '@/services/dex';
 import type { AssetInfo } from '@/types/api';
 import { isAddress } from 'ethers';
@@ -95,6 +100,9 @@ const GAS_BUFFER_PERCENT = 0.05; // 5% of balance as minimum buffer
 // Debounce delay for quote fetching (ms)
 const QUOTE_DEBOUNCE_MS = 650;
 
+/** Debounce for V3 pool / soft token checks (ms) */
+const TOKEN_SAFETY_PROBE_DEBOUNCE_MS = 550;
+
 // Convert Token to AssetInfo for compatibility
 function tokenToAsset(token: Token, chainId: number): AssetInfo {
   const chainName = CHAIN_NAMES[chainId] || 'ethereum';
@@ -126,7 +134,9 @@ function nativeWrappedBadgeKind(asset: AssetInfo, chainId: number): 'native' | '
 export function SwapInterface() {
   const { isConnected, address, isWrongChain, chainId, provider, isReadOnly } = useWallet();
   const { getTokenBalance } = useBalanceStore();
-  const { getTokens: getCustomTokens, addToken: addCustomToken, removeToken: removeCustomToken } = useCustomTokenStore();
+  const { getTokens: getCustomTokens, addToken: addCustomToken, removeToken: removeCustomToken } =
+    useCustomTokenStore();
+  const hasTokenInStore = useCustomTokenStore((s) => s.hasToken);
 
   // Get available tokens for current chain (static + custom)
   const currentChainId = chainId || 1;
@@ -160,6 +170,7 @@ export function SwapInterface() {
     txHash,
     explorerUrl,
     error,
+    receiptSettlement,
     isQuoteExpired,
     swap,
     confirmSwap,
@@ -263,6 +274,16 @@ export function SwapInterface() {
   const quoteTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   // Ref for delayed spinner
   const spinnerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const tokenSafetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tokenSafetyGenRef = useRef(0);
+
+  /** Soft signals only — never blocks the swap button. */
+  const [tokenSafety, setTokenSafety] = useState<{
+    unknownFrom: boolean;
+    unknownTo: boolean;
+    noV3Pool: boolean;
+    lowLiquidity: boolean;
+  } | null>(null);
 
   // Track previous chain to detect changes
   const [prevChainId, setPrevChainId] = useState(currentChainId);
@@ -315,6 +336,60 @@ export function SwapInterface() {
     toAsset?.symbol,
     toAsset?.contract_address,
     reset,
+  ]);
+
+  // Soft token list + V3 pool hints (debounced; informational only)
+  useEffect(() => {
+    if (!fromAsset || !toAsset) {
+      setTokenSafety(null);
+      return;
+    }
+
+    if (tokenSafetyTimerRef.current) clearTimeout(tokenSafetyTimerRef.current);
+
+    tokenSafetyTimerRef.current = setTimeout(() => {
+      const gen = ++tokenSafetyGenRef.current;
+      const unknownFrom = !isSwapAssetKnownForChain(fromAsset, currentChainId, hasTokenInStore);
+      const unknownTo = !isSwapAssetKnownForChain(toAsset, currentChainId, hasTokenInStore);
+      const addrA = assetToV3ProbeAddress(fromAsset, currentChainId);
+      const addrB = assetToV3ProbeAddress(toAsset, currentChainId);
+
+      if (!addrA || !addrB || addrA.toLowerCase() === addrB.toLowerCase()) {
+        if (tokenSafetyGenRef.current === gen) {
+          setTokenSafety({
+            unknownFrom,
+            unknownTo,
+            noV3Pool: false,
+            lowLiquidity: false,
+          });
+        }
+        return;
+      }
+
+      void (async () => {
+        const r = await probeV3PairLiquidity(currentChainId, addrA, addrB);
+        if (tokenSafetyGenRef.current !== gen) return;
+        setTokenSafety({
+          unknownFrom,
+          unknownTo,
+          noV3Pool: !r.hasPool,
+          lowLiquidity: r.lowLiquidity,
+        });
+      })();
+    }, TOKEN_SAFETY_PROBE_DEBOUNCE_MS);
+
+    return () => {
+      if (tokenSafetyTimerRef.current) clearTimeout(tokenSafetyTimerRef.current);
+    };
+  }, [
+    fromAsset,
+    toAsset,
+    currentChainId,
+    fromAsset?.symbol,
+    fromAsset?.contract_address,
+    toAsset?.symbol,
+    toAsset?.contract_address,
+    hasTokenInStore,
   ]);
 
   // Delayed spinner - wait 250ms before showing spinner (Uniswap-style UX)
@@ -809,7 +884,7 @@ export function SwapInterface() {
   // Render swap form
   return (
     <>
-      <div className="w-full max-w-md mx-auto bg-electro-panel/90 backdrop-blur-glass rounded-glass p-4 border border-white/[0.08] shadow-glass relative overflow-hidden">
+      <div className="w-full max-w-md mx-auto bg-electro-panel/90 backdrop-blur-glass rounded-2xl p-5 sm:p-6 border border-white/[0.1] shadow-[0_20px_60px_rgba(0,0,0,0.45)] relative overflow-hidden">
         {/* Subtle gradient overlay */}
         <div className="absolute inset-0 bg-glass-gradient pointer-events-none" />
         {/* Header */}
@@ -841,10 +916,12 @@ export function SwapInterface() {
           </div>
         </div>
 
-        <p className="relative z-10 mb-4 flex items-start gap-2 text-[11px] leading-snug text-dark-400 sm:text-xs">
-          <ShieldIcon />
-          <span>{SWAP_SURFACE_COPY.firstVisitTrustLine}</span>
-        </p>
+        <div className="relative z-10 mb-4 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2.5">
+          <p className="flex items-start gap-2 text-[11px] leading-relaxed text-dark-300 sm:text-xs">
+            <ShieldIcon />
+            <span>{SWAP_SURFACE_COPY.firstVisitTrustLine}</span>
+          </p>
+        </div>
 
         {isCommissionRequiredMode() &&
           currentChainId === 56 &&
@@ -910,6 +987,69 @@ export function SwapInterface() {
           />
         )}
 
+        {tokenSafety &&
+          (tokenSafety.unknownFrom ||
+            tokenSafety.unknownTo ||
+            tokenSafety.noV3Pool ||
+            tokenSafety.lowLiquidity) &&
+          (() => {
+            const contractRisk = !!(tokenSafety.unknownFrom || tokenSafety.unknownTo);
+            const panel =
+              contractRisk
+                ? 'border-amber-600/40 bg-amber-950/30 text-amber-100/95'
+                : 'border-slate-600/35 bg-slate-900/50 text-slate-200';
+            const kicker = contractRisk ? 'text-amber-200/95' : 'text-slate-300';
+            return (
+              <div className={`relative z-10 mb-3 rounded-xl px-3 py-2.5 text-[11px] leading-snug border ${panel}`}>
+                <p className={`font-semibold uppercase tracking-wide text-[10px] mb-1.5 ${kicker}`}>
+                  {contractRisk ? SWAP_SURFACE_COPY.tokenSafetyTitleCaution : SWAP_SURFACE_COPY.tokenSafetyTitleInfo}
+                </p>
+                <ul className="list-none space-y-1.5 pl-0">
+                  {tokenSafety.unknownFrom && (
+                    <li className="flex items-start gap-2">
+                      <span className="text-amber-400 mt-0.5 shrink-0">
+                        <WarningIcon />
+                      </span>
+                      <span>
+                        This token is not verified (&quot;{fromAsset?.symbol}&quot;). Confirm the contract before you swap.
+                      </span>
+                    </li>
+                  )}
+                  {tokenSafety.unknownTo && (
+                    <li className="flex items-start gap-2">
+                      <span className="text-amber-400 mt-0.5 shrink-0">
+                        <WarningIcon />
+                      </span>
+                      <span>
+                        This token is not verified (&quot;{toAsset?.symbol}&quot;). Confirm the contract before you swap.
+                      </span>
+                    </li>
+                  )}
+                  {tokenSafety.noV3Pool && (
+                    <li className="flex items-start gap-2">
+                      <span className="text-slate-400 mt-0.5 shrink-0">
+                        <InfoIcon />
+                      </span>
+                      <span>
+                        No V3 pool was found for this pair on this network — routing may use other venues.
+                      </span>
+                    </li>
+                  )}
+                  {tokenSafety.lowLiquidity && (
+                    <li className="flex items-start gap-2">
+                      <span className="text-slate-400 mt-0.5 shrink-0">
+                        <InfoIcon />
+                      </span>
+                      <span>
+                        This pair has low on-chain V3 liquidity — expect higher slippage or occasional quote failures.
+                      </span>
+                    </li>
+                  )}
+                </ul>
+              </div>
+            );
+          })()}
+
         {/* Quick Swap Presets */}
         <QuickSwapPresets
           chainId={currentChainId}
@@ -930,7 +1070,7 @@ export function SwapInterface() {
           insufficientBalanceForUi ? 'border-danger/50 shadow-glow-danger' : 'border-white/[0.06] hover:border-white/[0.1]'
         }`}>
           <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-            <span className="text-sm text-dark-400 shrink-0">You Pay</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-dark-500 shrink-0">You pay</span>
             <div
               className={`flex items-center gap-2 sm:gap-3 text-sm min-w-0 justify-end ${
                 insufficientBalanceForUi ? 'text-red-400' : 'text-dark-400'
@@ -1023,7 +1163,10 @@ export function SwapInterface() {
           showToSelector ? 'z-30' : 'z-10'
         }`}>
           <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-            <span className="text-sm text-dark-400 shrink-0">You Receive</span>
+            <div className="flex flex-col gap-0.5 shrink-0 min-w-0">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-dark-500">You receive</span>
+              <span className="text-[11px] text-dark-500">After fees · estimate</span>
+            </div>
             <span className="text-sm text-dark-400 tabular-nums whitespace-nowrap">
               Balance:{' '}
               <span className="font-medium text-dark-300">{formatBalance(getBalance(toAsset))}</span>
@@ -1093,10 +1236,13 @@ export function SwapInterface() {
           }
           if (lines.length === 0) return null;
           return (
-            <div className="relative z-10 mt-3 rounded-glass-sm border border-amber-800/50 bg-amber-900/15 px-3 py-2 text-xs text-amber-200/95 space-y-1">
+            <div className="relative z-10 mt-3 rounded-xl border border-slate-600/35 bg-slate-900/45 px-3 py-2.5 text-xs text-slate-200 space-y-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Imported token</p>
               {lines.map((line) => (
                 <p key={line} className="flex items-start gap-2">
-                  <WarningIcon />
+                  <span className="text-slate-400 mt-0.5 shrink-0">
+                    <InfoIcon />
+                  </span>
                   <span>{line}</span>
                 </p>
               ))}
@@ -1132,9 +1278,9 @@ export function SwapInterface() {
 
         {/* Quote Details (when quote available) */}
         {swapQuote && (status === 'previewing' || isQuotePipelineLoading) && !showPreview && (
-          <div className="relative z-10 mt-4 p-4 bg-electro-bgAlt/60 rounded-glass-sm text-sm space-y-2 border border-white/[0.06]">
+          <div className="relative z-10 mt-4 p-4 bg-electro-bgAlt/70 rounded-xl text-sm space-y-2 border border-white/[0.1] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
             {/* Best Route Banner with Countdown */}
-            <div className="flex items-center justify-between pb-2 mb-2 border-b border-dark-700">
+            <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/[0.06] rounded-lg bg-white/[0.03] px-2 py-2">
               <div className="flex items-center gap-2">
                 <div className="w-5 h-5 rounded-full bg-green-900/50 flex items-center justify-center">
                   <svg className="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1183,12 +1329,12 @@ export function SwapInterface() {
                   )
                 ) : (
                   <div
-                    className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium ${
+                    className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium border ${
                       quoteSecondsRemaining <= 5
-                        ? 'bg-red-900/30 text-red-400'
+                        ? 'bg-red-900/30 text-red-400 border-red-700/40'
                         : quoteSecondsRemaining <= 10
-                        ? 'bg-yellow-900/30 text-yellow-400'
-                        : 'bg-dark-700 text-dark-300'
+                        ? 'bg-yellow-900/30 text-yellow-400 border-yellow-700/35'
+                        : 'bg-emerald-950/40 text-emerald-200/90 border-emerald-600/25'
                     }`}
                     title={SWAP_SURFACE_COPY.quoteTtlTooltip}
                   >
@@ -1248,6 +1394,7 @@ export function SwapInterface() {
               </div>
             )}
 
+            <div className="rounded-xl border border-white/[0.07] bg-black/20 p-3 space-y-2 mt-1">
             {/* Exchange rate */}
             <div className="flex justify-between">
               <span className="text-dark-400">Exchange rate</span>
@@ -1429,12 +1576,16 @@ export function SwapInterface() {
                 <ProviderBadge provider={swapQuote.provider} />
               </div>
             </div>
+            <p className="text-[10px] text-dark-500 leading-snug pt-2 mt-1 border-t border-white/[0.05]">
+              {SWAP_SURFACE_COPY.quoteFeesFootnote}
+            </p>
+            </div>
 
             {/* Approval Notice — hidden in Phase 2 quote-only (execution impossible) */}
             {swapQuote.needsApproval && !isEthNativeV2QuoteOnlyNoExec && (
-              <div className="flex items-center gap-2 p-2 bg-blue-900/20 rounded-lg mt-2">
+              <div className="flex items-center gap-2 p-2 bg-blue-900/20 rounded-lg mt-2 text-blue-400">
                 <InfoIcon />
-                <span className="text-blue-400 text-xs">
+                <span className="text-xs">
                   Token approval required (2 transactions)
                 </span>
               </div>
@@ -1506,10 +1657,18 @@ export function SwapInterface() {
 
         {/* Security Footer */}
         {isConnected && (
-          <div className="relative z-10 flex items-center justify-center gap-2 mt-3">
-            <ShieldIcon />
-            <p className="text-xs text-gray-500">
-              All transactions are signed locally in your wallet
+          <div className="relative z-10 mt-4 pt-3 border-t border-white/[0.06] space-y-2">
+            <div className="flex items-start gap-2 justify-center text-center max-w-sm mx-auto">
+              <ShieldIcon />
+              <div className="text-left">
+                <p className="text-[11px] font-medium text-dark-300">Signed in your wallet</p>
+                <p className="text-[11px] text-dark-500 leading-relaxed mt-0.5">
+                  {SWAP_SURFACE_COPY.footerTrustLocalSigning}
+                </p>
+              </div>
+            </div>
+            <p className="text-[10px] text-dark-500 text-center leading-relaxed px-1">
+              {SWAP_SURFACE_COPY.swapCardTrustMicroLine}
             </p>
           </div>
         )}
@@ -1523,6 +1682,7 @@ export function SwapInterface() {
         error={error}
         txHash={txHash}
         explorerUrl={explorerUrl}
+        receiptSettlement={receiptSettlement}
         approvalMode={approvalMode}
         chainId={currentChainId}
         onConfirm={handleConfirmSwap}
@@ -1599,7 +1759,7 @@ function TokenButton({
       type="button"
       onClick={onClick}
       title={title}
-      className="flex items-center gap-2.5 px-3 py-2.5 bg-electro-panel/80 rounded-xl hover:bg-electro-panelHover transition-all duration-200 border border-white/[0.06] hover:border-white/[0.1] min-w-0 max-w-[min(100%,11rem)] sm:max-w-[13rem]"
+      className="flex items-center gap-2.5 px-3 py-2.5 bg-electro-panel/80 rounded-xl hover:bg-electro-panelHover transition-all duration-200 border border-white/[0.06] hover:border-white/[0.1] min-w-0 max-w-[min(100%,11rem)] sm:max-w-[13rem] ring-1 ring-white/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/45"
     >
       <TokenLogo url={asset?.logo_url} symbol={asset?.symbol} size="sm" />
       <div className="flex flex-col items-start min-w-0 flex-1 text-left gap-0.5">
@@ -1937,6 +2097,17 @@ function TokenSelectorDropdown({
                         Fav
                       </span>
                     )}
+                    {!isCustom &&
+                      chainId &&
+                      asset.contract_address &&
+                      isStaticToken(asset.contract_address, chainId) && (
+                        <span
+                          className="text-[10px] px-1 py-0.5 rounded flex-shrink-0 bg-emerald-900/30 text-emerald-400/95"
+                          title="Swaperex curated list — verify contracts on an explorer before large trades."
+                        >
+                          Listed
+                        </span>
+                      )}
                     {isCustom && (
                       <span className={`text-[10px] px-1 py-0.5 rounded flex-shrink-0 ${
                         verified
@@ -2263,7 +2434,7 @@ function WarningIcon() {
 
 function InfoIcon() {
   return (
-    <svg className="w-4 h-4 flex-shrink-0 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   );
