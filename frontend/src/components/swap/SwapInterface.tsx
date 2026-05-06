@@ -12,7 +12,7 @@ import { useWallet } from '@/hooks/useWallet';
 import { useSwap } from '@/hooks/useSwap';
 import { useSwapStore, type ApprovalMode } from '@/stores/swapStore';
 import { toast } from '@/stores/toastStore';
-import { useBalanceStore } from '@/stores/balanceStore';
+import { useBalances } from '@/hooks/useBalances';
 import { useCustomTokenStore, type CustomToken } from '@/stores/customTokenStore';
 import { useFavoriteTokensStore } from '@/stores/favoriteTokensStore';
 import { usePresetStore, type SwapPreset, type GuardEvaluation } from '@/stores/presetStore';
@@ -133,7 +133,12 @@ function nativeWrappedBadgeKind(asset: AssetInfo, chainId: number): 'native' | '
 
 export function SwapInterface() {
   const { isConnected, address, isWrongChain, chainId, provider, isReadOnly } = useWallet();
-  const { getTokenBalance } = useBalanceStore();
+  const {
+    getTokenBalance,
+    balancesPendingForCurrentChain,
+    currentChainUnsupported,
+    currentChainKey,
+  } = useBalances();
   const { getTokens: getCustomTokens, addToken: addCustomToken, removeToken: removeCustomToken } =
     useCustomTokenStore();
   const hasTokenInStore = useCustomTokenStore((s) => s.hasToken);
@@ -489,17 +494,33 @@ export function SwapInterface() {
   }, [swapQuote, fromAsset, toAsset, fromAmount, status, currentChainId, slippage]);
 
   // Get balance for selected asset
-  const getBalance = useCallback((asset: AssetInfo | null): string => {
-    if (!asset || !address) return '0.00';
-    const tokenBalance = getTokenBalance(asset.chain, asset.symbol);
-    return tokenBalance?.balance || '0.00';
-  }, [getTokenBalance, address]);
+  const getBalance = useCallback(
+    (asset: AssetInfo | null): string => {
+      if (!asset || !address) return '—';
+      if (currentChainUnsupported) return '—';
+      const pendingHere = balancesPendingForCurrentChain && asset.chain === currentChainKey;
+      if (pendingHere) return '…';
+      const tokenBalance = getTokenBalance(asset.chain, asset.symbol);
+      return tokenBalance?.balance ?? '0.00';
+    },
+    [
+      getTokenBalance,
+      address,
+      balancesPendingForCurrentChain,
+      currentChainUnsupported,
+      currentChainKey,
+    ],
+  );
 
   // Check for insufficient balance
   const fromBalance = getBalance(fromAsset);
-  const insufficientBalance = fromAmount &&
+  const fromBalanceNum = parseFloat(fromBalance);
+  const insufficientBalance =
+    fromAmount &&
     parseFloat(fromAmount) > 0 &&
-    parseFloat(fromAmount) > parseFloat(fromBalance);
+    !Number.isNaN(fromBalanceNum) &&
+    fromBalance !== '…' &&
+    parseFloat(fromAmount) > fromBalanceNum;
   /** Hide main-card insufficient warning while the preview modal is open — balances can update mid-flow and confuse users. */
   const insufficientBalanceForUi =
     insufficientBalance &&
@@ -508,8 +529,9 @@ export function SwapInterface() {
 
   // Calculate MAX amount (subtract gas buffer for native tokens)
   const getMaxAmount = useCallback((): string => {
+    if (fromBalance === '…' || fromBalance === '—') return '0';
     const balance = parseFloat(fromBalance);
-    if (balance <= 0) return '0';
+    if (!Number.isFinite(balance) || balance <= 0) return '0';
 
     // If sending native token, subtract gas buffer
     if (fromAsset?.is_native) {
@@ -1079,10 +1101,16 @@ export function SwapInterface() {
               <span className="tabular-nums whitespace-nowrap">
                 Balance:{' '}
                 <span className={`font-medium ${insufficientBalanceForUi ? 'text-red-300' : 'text-dark-300'}`}>
-                  {formatBalance(fromBalance)}
+                  {fromBalance === '…' ? (
+                    <span className="text-dark-500 font-normal not-italic">Loading…</span>
+                  ) : fromBalance === '—' ? (
+                    <span className="text-dark-500 font-normal">—</span>
+                  ) : (
+                    formatBalance(fromBalance)
+                  )}
                 </span>
               </span>
-              {isConnected && parseFloat(fromBalance) > 0 && (
+              {isConnected && fromBalanceNum > 0 && Number.isFinite(fromBalanceNum) && (
                 <button
                   type="button"
                   onClick={() => {
@@ -1169,7 +1197,14 @@ export function SwapInterface() {
             </div>
             <span className="text-sm text-dark-400 tabular-nums whitespace-nowrap">
               Balance:{' '}
-              <span className="font-medium text-dark-300">{formatBalance(getBalance(toAsset))}</span>
+              <span className="font-medium text-dark-300">
+                {(() => {
+                  const b = getBalance(toAsset);
+                  if (b === '…') return <span className="text-dark-500 font-normal">Loading…</span>;
+                  if (b === '—') return <span className="text-dark-500 font-normal">—</span>;
+                  return formatBalance(b);
+                })()}
+              </span>
             </span>
           </div>
           <div className="flex items-start gap-4">
@@ -1657,19 +1692,14 @@ export function SwapInterface() {
 
         {/* Security Footer */}
         {isConnected && (
-          <div className="relative z-10 mt-4 pt-3 border-t border-white/[0.06] space-y-2">
-            <div className="flex items-start gap-2 justify-center text-center max-w-sm mx-auto">
+          <div className="relative z-10 mt-4 pt-3 border-t border-white/[0.06]">
+            <div className="flex items-center gap-2 justify-center text-center max-w-md mx-auto">
               <ShieldIcon />
-              <div className="text-left">
-                <p className="text-[11px] font-medium text-dark-300">Signed in your wallet</p>
-                <p className="text-[11px] text-dark-500 leading-relaxed mt-0.5">
-                  {SWAP_SURFACE_COPY.footerTrustLocalSigning}
-                </p>
-              </div>
+              <p className="text-[11px] text-dark-400 leading-snug text-left">
+                <span className="text-dark-300 font-medium">{SWAP_SURFACE_COPY.swapCardTrustCompact}</span>
+                <span className="text-dark-500"> {SWAP_SURFACE_COPY.swapCardTrustMicroLine}</span>
+              </p>
             </div>
-            <p className="text-[10px] text-dark-500 text-center leading-relaxed px-1">
-              {SWAP_SURFACE_COPY.swapCardTrustMicroLine}
-            </p>
           </div>
         )}
       </div>

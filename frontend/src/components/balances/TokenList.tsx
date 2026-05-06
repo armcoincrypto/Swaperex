@@ -9,6 +9,7 @@
  */
 
 import { useMemo } from 'react';
+import { useWalletStore } from '@/stores/walletStore';
 import { useBalances } from '@/hooks/useBalances';
 import { BalanceCard } from './BalanceCard';
 import { formatUsd } from '@/utils/format';
@@ -26,13 +27,18 @@ const STABLECOINS = ['USDT', 'USDC', 'BUSD', 'DAI', 'FDUSD', 'TUSD'];
 const MIN_DISPLAY_BALANCE = 0.0001;
 
 export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListProps) {
+  const address = useWalletStore((s) => s.address);
+  const isConnected = useWalletStore((s) => s.isConnected);
   const {
     currentChainBalances,
     isLoading,
     totalUsdValue,
     refresh,
     hideZeroBalances,
-    setHideZeroBalances
+    setHideZeroBalances,
+    balancesPendingForCurrentChain,
+    currentChainUnsupported,
+    currentChainKey,
   } = useBalances();
 
   // Sort and filter balances
@@ -77,25 +83,10 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
     });
   }, [currentChainBalances, hideZeroBalances]);
 
-  // Loading state
-  if (isLoading && !currentChainBalances) {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold">Your Tokens</h2>
-          <div className="text-sm text-dark-400">Loading...</div>
-        </div>
-        <div className="animate-pulse space-y-3">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-16 bg-dark-800 rounded-xl" />
-          ))}
-        </div>
-      </div>
-    );
-  }
+  const showConnectPrompt = !isConnected || !address;
 
-  // Not connected state
-  if (!currentChainBalances) {
+  // Truly disconnected — never show this when an address exists
+  if (showConnectPrompt) {
     return (
       <div className="space-y-4">
         <h2 className="text-xl font-bold">Your Tokens</h2>
@@ -107,6 +98,64 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
         </div>
       </div>
     );
+  }
+
+  // Connected but this chain is not in our balance RPC map
+  if (currentChainUnsupported) {
+    return (
+      <div className="space-y-4">
+        <h2 className="text-xl font-bold">Your Tokens</h2>
+        <div className="p-6 bg-dark-800 rounded-xl text-center border border-amber-800/30">
+          <p className="text-amber-200/90 text-sm">
+            Balances for this network are not available in the sidebar yet.
+          </p>
+          <p className="text-dark-500 text-xs mt-2">
+            Switch to Ethereum, BSC, or Polygon to see token balances here, or use your wallet for amounts.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Loading / waiting for first row for this chain (avoid fake empty state)
+  if (balancesPendingForCurrentChain || (isLoading && !currentChainBalances)) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold">Your Tokens</h2>
+          <div className="text-sm text-dark-400">Loading balances…</div>
+        </div>
+        <div className="animate-pulse space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-16 bg-dark-800 rounded-xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Fetch finished but this chain failed or returned nothing — don’t look like “connect wallet”
+  if (!currentChainBalances && currentChainKey) {
+    return (
+      <div className="space-y-4">
+        <h2 className="text-xl font-bold">Your Tokens</h2>
+        <div className="p-6 bg-dark-800 rounded-xl text-center border border-amber-800/25">
+          <p className="text-dark-300 text-sm">Couldn’t load balances for this network.</p>
+          <p className="text-dark-500 text-xs mt-2">RPC may be busy — try again in a moment.</p>
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            className="mt-3 text-sm text-primary-400 hover:text-primary-300"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentChainBalances) {
+    return null;
   }
 
   // Empty state (connected but no tokens)

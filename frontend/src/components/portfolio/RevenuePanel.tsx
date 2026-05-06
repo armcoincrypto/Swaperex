@@ -149,15 +149,17 @@ export function RevenuePanel() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between mb-1">
-        <h2 className="text-lg font-bold">Revenue</h2>
+      <div className="flex items-start justify-between gap-3 mb-1">
+        <p className="text-xs text-dark-500 leading-relaxed max-w-md">
+          Estimates from commission-tracked swaps in this browser, priced with spot rates. Not audited on-chain revenue.
+        </p>
         {rows.length > 0 && (
           <button
             type="button"
             onClick={() => {
               if (typeof window !== 'undefined' && window.confirm('Clear local revenue history?')) clear();
             }}
-            className="text-xs text-dark-400 hover:text-amber-300/90"
+            className="text-xs text-dark-400 hover:text-amber-300/90 shrink-0"
           >
             Clear local data
           </button>
@@ -174,7 +176,7 @@ export function RevenuePanel() {
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="bg-gradient-to-b from-dark-800 to-dark-800/80 rounded-xl p-4 border border-white/[0.08] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+            <div className="rounded-xl p-4 border border-white/[0.08] bg-dark-800/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
               <p className="text-[10px] uppercase tracking-wider text-dark-500 mb-1 font-semibold">Total earned</p>
               <p className="text-2xl font-semibold text-white tabular-nums tracking-tight">
                 {formatUsdTotal(totalUsd, swapCount)}
@@ -183,19 +185,19 @@ export function RevenuePanel() {
                 Estimated · {pricedFeeCount}/{swapCount} swaps with price
               </p>
             </div>
-            <div className="bg-gradient-to-b from-dark-800 to-dark-800/80 rounded-xl p-4 border border-white/[0.08] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+            <div className="rounded-xl p-4 border border-white/[0.08] bg-dark-800/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
               <p className="text-[10px] uppercase tracking-wider text-dark-500 mb-1 font-semibold">Swaps</p>
               <p className="text-2xl font-semibold text-white tabular-nums tracking-tight">{swapCount}</p>
               <p className="text-[11px] text-dark-500 mt-2 leading-snug">Commission-tracked fills (this browser)</p>
             </div>
-            <div className="bg-gradient-to-b from-dark-800 to-dark-800/80 rounded-xl p-4 border border-white/[0.08] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+            <div className="rounded-xl p-4 border border-white/[0.08] bg-dark-800/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
               <p className="text-[10px] uppercase tracking-wider text-dark-500 mb-1 font-semibold">Avg fee</p>
               <p className="text-2xl font-semibold text-white tabular-nums tracking-tight">
                 {avgBps != null ? `${avgBps.toFixed(1)} bps` : '—'}
               </p>
               <p className="text-[11px] text-dark-500 mt-2 leading-snug">Mean quoted fee on recorded swaps</p>
             </div>
-            <div className="bg-gradient-to-b from-dark-800 to-dark-800/80 rounded-xl p-4 border border-white/[0.08] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+            <div className="rounded-xl p-4 border border-white/[0.08] bg-dark-800/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
               <p className="text-[10px] uppercase tracking-wider text-dark-500 mb-1 font-semibold">Chains</p>
               <p className="text-2xl font-semibold text-white tabular-nums tracking-tight">{sortedChains.length}</p>
               <p className="text-[11px] text-dark-500 mt-2 leading-snug">Networks with revenue events</p>
@@ -249,8 +251,7 @@ export function RevenuePanel() {
       )}
 
       <p className="text-[10px] leading-relaxed text-dark-500 px-0.5">
-        Figures are estimates from local swap history and live token prices. They are not audited on-chain revenue
-        and may omit or mis-price tokens missing from price feeds.
+        Tokens missing from price feeds may show as $0 — totals are indicative only.
       </p>
     </div>
   );

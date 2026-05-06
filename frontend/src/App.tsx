@@ -409,10 +409,8 @@ export function App() {
       <footer className="border-t border-white/[0.06] mt-auto bg-electro-bg/40">
         <div className="max-w-6xl mx-auto px-4 py-6 text-center text-sm text-gray-500">
           <p className="text-gray-300 font-medium">Swaperex</p>
-          <p className="mt-3 text-xs text-gray-500 leading-relaxed max-w-lg mx-auto space-y-1.5">
-            <span className="block">{SWAP_SURFACE_COPY.footerTrustNonCustodial}</span>
-            <span className="block">{SWAP_SURFACE_COPY.footerTrustLocalSigning}</span>
-            <span className="block">{SWAP_SURFACE_COPY.footerTrustWrapperFee}</span>
+          <p className="mt-3 text-xs text-gray-500 leading-relaxed max-w-lg mx-auto">
+            {SWAP_SURFACE_COPY.footerTrustCompact}
           </p>
           <div className="mt-3 flex justify-center gap-4">
             <button

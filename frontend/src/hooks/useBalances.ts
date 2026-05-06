@@ -11,6 +11,22 @@ import { useBalanceStore } from '@/stores/balanceStore';
 const DEFAULT_CHAINS = ['ethereum', 'bsc', 'polygon'];
 const REFRESH_INTERVAL = 30000; // 30 seconds
 
+/** Map wallet chainId → balanceStore chain key (must match balanceStore RPC keys). */
+export function getBalanceChainName(chainId: number): string | null {
+  const chainMap: Record<number, string> = {
+    1: 'ethereum',
+    56: 'bsc',
+    137: 'polygon',
+    42161: 'arbitrum',
+    10: 'optimism',
+    43114: 'avalanche',
+    100: 'gnosis',
+    250: 'fantom',
+    8453: 'base',
+  };
+  return chainMap[chainId] ?? null;
+}
+
 export function useBalances(autoRefresh: boolean = true) {
   const { address, isConnected, chainId } = useWalletStore();
   const {
@@ -27,11 +43,21 @@ export function useBalances(autoRefresh: boolean = true) {
     getVisibleTokens,
   } = useBalanceStore();
 
+  const chainsToFetch = useCallback(() => {
+    const current = getBalanceChainName(chainId);
+    const set = new Set<string>(DEFAULT_CHAINS);
+    if (current) set.add(current);
+    return [...set];
+  }, [chainId]);
+
   // Refresh balances
   const refresh = useCallback(async () => {
     if (!address) return;
-    await fetchBalances(address, DEFAULT_CHAINS);
-  }, [address, fetchBalances]);
+    const list = chainsToFetch();
+    const cur = getBalanceChainName(chainId);
+    const needSpinner = !!(cur && !useBalanceStore.getState().balances[cur]);
+    await fetchBalances(address, list, { loading: needSpinner ? 'always' : 'auto' });
+  }, [address, chainId, fetchBalances, chainsToFetch]);
 
   // Refresh single chain
   const refreshChain = useCallback(
@@ -43,10 +69,19 @@ export function useBalances(autoRefresh: boolean = true) {
   );
 
   // Get current chain balances
-  const currentChainBalances = useCallback(() => {
-    const chainName = getChainName(chainId);
-    return balances[chainName] || null;
-  }, [balances, chainId]);
+  const currentChainKey = getBalanceChainName(chainId);
+  const currentChainBalances = currentChainKey ? balances[currentChainKey] ?? null : null;
+
+  /** True while first load or refresh has not yet written this chain's row. */
+  const balancesPendingForCurrentChain =
+    isConnected &&
+    !!address &&
+    !!currentChainKey &&
+    !balances[currentChainKey] &&
+    isLoading;
+
+  /** Connected on a chain we don't map to RPC balance fetch (e.g. unsupported testnet). */
+  const currentChainUnsupported = isConnected && !!address && currentChainKey === null;
 
   // Auto-refresh on mount and interval
   useEffect(() => {
@@ -63,7 +98,7 @@ export function useBalances(autoRefresh: boolean = true) {
       const interval = setInterval(refresh, REFRESH_INTERVAL);
       return () => clearInterval(interval);
     }
-  }, [isConnected, address, autoRefresh, refresh, clearBalances]);
+  }, [isConnected, address, chainId, autoRefresh, refresh, clearBalances]);
 
   return {
     balances,
@@ -71,26 +106,16 @@ export function useBalances(autoRefresh: boolean = true) {
     lastUpdated,
     totalUsdValue,
     hideZeroBalances,
-    currentChainBalances: currentChainBalances(),
+    currentChainBalances,
+    balancesPendingForCurrentChain,
+    currentChainUnsupported,
+    currentChainKey,
     refresh,
     refreshChain,
     getTokenBalance,
     setHideZeroBalances,
     getVisibleTokens,
   };
-}
-
-// Helper to get chain name from chain ID
-function getChainName(chainId: number): string {
-  const chainMap: Record<number, string> = {
-    1: 'ethereum',
-    56: 'bsc',
-    137: 'polygon',
-    42161: 'arbitrum',
-    10: 'optimism',
-    43114: 'avalanche',
-  };
-  return chainMap[chainId] || 'ethereum';
 }
 
 export default useBalances;

@@ -157,7 +157,7 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
 
       {/* Activity vs Revenue (local / commission estimates) */}
       <div
-        className="flex w-full sm:w-auto rounded-xl border border-white/[0.08] bg-dark-900/60 p-1 gap-0.5"
+        className="grid grid-cols-2 gap-2 w-full rounded-2xl border border-white/[0.08] bg-dark-900/70 p-1.5"
         role="tablist"
         aria-label="Portfolio sections"
       >
@@ -168,13 +168,22 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
             role="tab"
             aria-selected={portfolioSubTab === t}
             onClick={() => setPortfolioSubTab(t)}
-            className={`flex-1 sm:flex-none min-w-0 px-4 py-2 text-xs rounded-lg font-semibold transition-all duration-200 ${
+            className={`min-w-0 rounded-xl px-3 py-2.5 text-left transition-all duration-200 ${
               portfolioSubTab === t
-                ? 'bg-electro-panel text-white shadow-sm border border-white/[0.1]'
-                : 'text-dark-400 hover:text-dark-200 border border-transparent'
+                ? 'bg-electro-panel text-white shadow-md ring-1 ring-white/[0.12]'
+                : 'text-dark-400 hover:text-dark-200 hover:bg-dark-800/50'
             }`}
           >
-            {t === 'activity' ? 'Activity' : 'Revenue'}
+            <span className="block text-sm font-semibold leading-tight">
+              {t === 'activity' ? 'Activity' : 'Revenue'}
+            </span>
+            <span
+              className={`mt-0.5 block text-[11px] font-normal leading-snug ${
+                portfolioSubTab === t ? 'text-dark-200/90' : 'text-dark-500'
+              }`}
+            >
+              {t === 'activity' ? 'Swaps & transfers' : 'Commission estimates'}
+            </span>
           </button>
         ))}
       </div>
@@ -189,9 +198,8 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
       {debugMode && <DiagnosticsPanel />}
 
       {/* Footer */}
-      <div className="text-center text-[11px] text-dark-500 pb-4">
-        <p>Balances auto-refresh every 30s. Prices from CoinGecko.</p>
-        <p className="mt-1">All data is read-only. Your keys never leave your wallet.</p>
+      <div className="text-center text-[11px] text-dark-500 pb-4 leading-relaxed max-w-md mx-auto">
+        Balances refresh about every 30s (CoinGecko prices). Read-only — keys stay in your wallet.
       </div>
     </div>
   );

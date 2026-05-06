@@ -20,6 +20,8 @@ import {
 } from '@/services/activityService';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 import { swapAggregatorProviderLabel } from '@/utils/format';
+import { isCommissionRequiredMode } from '@/config';
+import { isCommissionWrapperExecutionProvider } from '@/services/quoteAggregator';
 
 /** Explorer-supported chain IDs (FIX-6: added Polygon 137) */
 const ACTIVITY_CHAIN_IDS = [1, 56, 137];
@@ -98,10 +100,9 @@ export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelPro
   };
 
   return (
-    <div className={className}>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-lg font-bold">Activity</h2>
+    <div className={className} role="region" aria-label="Swaps, transfers, and approvals">
+      {/* Toolbar — section title comes from portfolio tabs */}
+      <div className="flex items-center justify-end mb-3 flex-wrap gap-2">
         <div className="flex items-center gap-2">
           {/* Tabs */}
           <div className="flex gap-1 p-0.5 bg-dark-800 rounded-lg">
@@ -205,6 +206,25 @@ export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelPro
   );
 }
 
+function SwapRouteContextNote({ type, provider }: { type: ActivityType; provider?: string }) {
+  if (type !== 'swap' || !provider || provider === 'transfer') return null;
+  if (isCommissionWrapperExecutionProvider(provider)) {
+    return (
+      <p className="text-[10px] text-primary-400/85 mt-0.5 leading-snug font-medium">
+        {SWAP_SURFACE_COPY.activityCommissionRouteLabel}
+      </p>
+    );
+  }
+  if (isCommissionRequiredMode()) {
+    return (
+      <p className="text-[10px] text-amber-200/75 mt-0.5 leading-snug">
+        {SWAP_SURFACE_COPY.activityHistoricalRouteLabel}
+      </p>
+    );
+  }
+  return null;
+}
+
 // ─── Activity Row ──────────────────────────────────────────────────
 
 function ActivityRow({
@@ -238,13 +258,14 @@ function ActivityRow({
           </div>
           <div className="text-[11px] text-dark-500 truncate">
             {item.detail}
-            {item.provider && (
+            {item.provider && item.provider !== 'transfer' && (
               <span className="text-dark-600">
                 {' '}
                 · {SWAP_SURFACE_COPY.routeViaLabel} {swapAggregatorProviderLabel(item.provider)}
               </span>
             )}
           </div>
+          <SwapRouteContextNote type={item.type} provider={item.provider} />
           {item.type === 'swap' && item.status === 'pending' && (
             <p className="text-[10px] text-amber-200/80 mt-0.5 leading-snug">
               Pending — verify on the explorer before retrying.

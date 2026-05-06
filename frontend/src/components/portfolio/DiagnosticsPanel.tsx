@@ -111,21 +111,22 @@ export function DiagnosticsPanel() {
     : 0;
 
   return (
-    <div className="bg-dark-900/90 border border-white/[0.08] rounded-xl text-[11px] font-mono shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+    <div className="bg-dark-900/90 border border-white/[0.08] rounded-xl text-[13px] font-sans text-dark-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
       {/* Toggle Header */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-3 py-2 text-dark-400 hover:text-dark-200 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 text-dark-300 hover:text-white transition-colors rounded-xl"
       >
-        <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-yellow-500" />
-          Diagnostics (debug)
+        <span className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-amber-400/90" aria-hidden />
+          <span className="font-medium text-sm text-dark-200">Diagnostics</span>
+          <span className="text-[11px] text-dark-500 font-normal">debug session</span>
         </span>
-        <span>{expanded ? '▲' : '▼'}</span>
+        <span className="text-dark-500 text-xs">{expanded ? 'Hide' : 'Show'}</span>
       </button>
 
       {expanded && (
-        <div className="px-3 pb-3 space-y-3 border-t border-dark-700/50">
+        <div className="px-4 pb-4 pt-1 space-y-4 border-t border-white/[0.06] text-[12px] leading-snug">
           {/* ─── Global ─────────────────────────── */}
           <Section title="Global">
             <Row label="Wallet" value={redactAddress(address)} />
@@ -212,51 +213,56 @@ export function DiagnosticsPanel() {
                 <div className="text-dark-600">No confirmed swaps recorded yet.</div>
               )}
             </div>
-            <div className="mt-2 text-dark-500">Last 10 commission traces:</div>
-            <div className="max-h-48 overflow-y-auto rounded border border-dark-700/60 bg-dark-950/50 p-2 space-y-2">
-              {lastTraces.length === 0 ? (
-                <div className="text-dark-600">No traces yet.</div>
-              ) : (
-                lastTraces.map((t) => (
-                  <div key={t.id} className="border-b border-dark-800 pb-2 last:border-0 last:pb-0 text-[10px] leading-tight space-y-0.5">
-                    <div className="flex justify-between gap-2">
-                      <span className="text-dark-500">provider</span>
-                      <span className="text-dark-200 truncate text-right">{t.provider}</span>
+            <details className="mt-2 rounded-lg border border-white/[0.06] bg-dark-950/40">
+              <summary className="cursor-pointer select-none px-3 py-2 text-[11px] font-medium text-dark-400 hover:text-dark-200">
+                Raw commission traces (last 10)
+              </summary>
+              <div className="max-h-48 overflow-y-auto px-3 pb-3 space-y-2 border-t border-dark-800/80">
+                {lastTraces.length === 0 ? (
+                  <div className="text-dark-500 text-[11px] pt-2">No traces yet.</div>
+                ) : (
+                  lastTraces.map((t) => (
+                    <div
+                      key={t.id}
+                      className="border-b border-dark-800/80 pb-2 last:border-0 last:pb-0 text-[11px] leading-tight space-y-0.5 font-mono"
+                    >
+                      <div className="flex justify-between gap-2">
+                        <span className="text-dark-500 font-sans">provider</span>
+                        <span className="text-dark-200 truncate text-right">{t.provider}</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-dark-500 font-sans">chainId</span>
+                        <span className="text-dark-200">{t.chainId}</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-dark-500 font-sans">txHash</span>
+                        <span className="text-dark-200 truncate text-right" title={t.txHash}>
+                          {t.txHash}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-dark-500 font-sans">txTo</span>
+                        <span className="text-dark-200 truncate text-right" title={t.txTo}>
+                          {t.txTo ? redactAddress(t.txTo) : '—'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-dark-500 font-sans">commissionKind</span>
+                        <span className="text-dark-200">{t.commissionKind}</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-dark-500 font-sans">nativeLane</span>
+                        <span className="text-dark-200">{t.nativeLane}</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-dark-500 font-sans">timestamp</span>
+                        <span className="text-dark-200">{t.timestamp ? new Date(t.timestamp).toISOString() : '—'}</span>
+                      </div>
                     </div>
-                    <div className="flex justify-between gap-2">
-                      <span className="text-dark-500">chainId</span>
-                      <span className="text-dark-200">{t.chainId}</span>
-                    </div>
-                    <div className="flex justify-between gap-2">
-                      <span className="text-dark-500">txHash</span>
-                      <span className="text-dark-200 truncate text-right font-mono" title={t.txHash}>
-                        {t.txHash}
-                      </span>
-                    </div>
-                    <div className="flex justify-between gap-2">
-                      <span className="text-dark-500">txTo</span>
-                      <span className="text-dark-200 truncate text-right font-mono" title={t.txTo}>
-                        {t.txTo ? redactAddress(t.txTo) : '—'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between gap-2">
-                      <span className="text-dark-500">commissionKind</span>
-                      <span className="text-dark-200">{t.commissionKind}</span>
-                    </div>
-                    <div className="flex justify-between gap-2">
-                      <span className="text-dark-500">nativeLane</span>
-                      <span className="text-dark-200">{t.nativeLane}</span>
-                    </div>
-                    <div className="flex justify-between gap-2">
-                      <span className="text-dark-500">timestamp</span>
-                      <span className="text-dark-200 font-mono">
-                        {t.timestamp ? new Date(t.timestamp).toISOString() : '—'}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+                  ))
+                )}
+              </div>
+            </details>
           </Section>
         </div>
       )}
@@ -269,9 +275,7 @@ export function DiagnosticsPanel() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-dark-400 font-semibold uppercase tracking-wider mb-1 mt-2 text-[10px]">
-        {title}
-      </div>
+      <div className="text-dark-200 font-semibold mb-2 mt-1 text-xs tracking-tight">{title}</div>
       {children}
     </div>
   );

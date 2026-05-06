@@ -165,7 +165,8 @@ export interface SwapReceiptSettlement {
   receivedSymbol: string;
   feeHuman: string | null;
   feeSymbol: string | null;
-  feeSource: 'receipt' | 'estimate' | 'unknown';
+  /** How the protocol fee number was derived — drives success-modal copy. */
+  feeProvenance: 'treasury_transfer' | 'inferred_from_receipt_net' | 'inferred_from_quote' | 'none';
   userReceivedSource: 'receipt' | 'quote';
 }
 
@@ -2062,10 +2063,10 @@ export function useSwap() {
           if (decoded && decoded.userNetWei > 0n) {
             const recvHuman = formatBalance(parseFloat(formatUnits(decoded.userNetWei, dec)), 8);
             let feeHuman: string | null = null;
-            let feeSource: SwapReceiptSettlement['feeSource'] = 'unknown';
+            let feeProvenance: SwapReceiptSettlement['feeProvenance'] = 'none';
             if (decoded.feeToTreasuryWei > 0n) {
               feeHuman = formatBalance(parseFloat(formatUnits(decoded.feeToTreasuryWei, dec)), 8);
-              feeSource = 'receipt';
+              feeProvenance = 'treasury_transfer';
               feeAmountTokenWei = decoded.feeToTreasuryWei.toString();
               feeTokenSymbol = swapQuote.toSymbol;
             } else if (
@@ -2080,7 +2081,7 @@ export function useSwap() {
                 );
                 if (feeW > 0n) {
                   feeHuman = formatBalance(parseFloat(formatUnits(feeW, dec)), 8);
-                  feeSource = 'estimate';
+                  feeProvenance = 'inferred_from_receipt_net';
                   feeAmountTokenWei = feeW.toString();
                   feeTokenSymbol = swapQuote.toSymbol;
                 }
@@ -2109,7 +2110,7 @@ export function useSwap() {
               receivedSymbol: swapQuote.toSymbol,
               feeHuman,
               feeSymbol: swapQuote.toSymbol,
-              feeSource,
+              feeProvenance,
               userReceivedSource: 'receipt',
             };
           } else {
@@ -2117,7 +2118,7 @@ export function useSwap() {
           }
         } catch {
           let feeHuman: string | null = null;
-          let feeSource: SwapReceiptSettlement['feeSource'] = 'unknown';
+          let feeProvenance: SwapReceiptSettlement['feeProvenance'] = 'none';
           if (
             isCommissionWrapperExecutionProvider(swapQuote.provider) &&
             commissionTraceForSwap?.commissionKind === 'wrapper' &&
@@ -2131,7 +2132,7 @@ export function useSwap() {
               );
               if (feeW > 0n) {
                 feeHuman = formatBalance(parseFloat(formatUnits(feeW, dec)), 8);
-                feeSource = 'estimate';
+                feeProvenance = 'inferred_from_quote';
                 feeAmountTokenWei = feeW.toString();
                 feeTokenSymbol = swapQuote.toSymbol;
               }
@@ -2144,7 +2145,7 @@ export function useSwap() {
             receivedSymbol: swapQuote.toSymbol,
             feeHuman,
             feeSymbol: swapQuote.toSymbol,
-            feeSource,
+            feeProvenance,
             userReceivedSource: 'quote',
           };
         }

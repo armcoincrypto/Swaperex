@@ -191,7 +191,11 @@ interface BalanceState {
   hideZeroBalances: boolean;
 
   // Actions
-  fetchBalances: (address: string, chains: string[]) => Promise<void>;
+  fetchBalances: (
+    address: string,
+    chains: string[],
+    opts?: { loading?: 'auto' | 'always' },
+  ) => Promise<void>;
   fetchChainBalance: (address: string, chain: string) => Promise<void>;
   clearBalances: () => void;
   getTokenBalance: (chain: string, symbol: string) => TokenBalance | null;
@@ -244,10 +248,10 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
   hideZeroBalances: true,  // Default to hiding zero balances
 
   // Fetch balances for multiple chains
-  fetchBalances: async (address: string, chains: string[]) => {
-    // Only show loading spinner on initial fetch (not background auto-refresh)
+  fetchBalances: async (address: string, chains: string[], opts?: { loading?: 'auto' | 'always' }) => {
+    const loadingMode = opts?.loading ?? 'auto';
     const hasExistingData = Object.keys(get().balances).length > 0;
-    if (!hasExistingData) set({ isLoading: true });
+    if (loadingMode === 'always' || !hasExistingData) set({ isLoading: true });
 
     try {
       const balanceMap: Record<string, ChainBalance> = {};

@@ -270,7 +270,7 @@ export function SwapPreviewModal({
           </div>
 
           <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 mb-4">
-            <p className="text-[11px] text-dark-400 leading-relaxed">{SWAP_SURFACE_COPY.trustLineQuoteEstimate}</p>
+            <p className="text-[11px] text-dark-400 leading-relaxed">{SWAP_SURFACE_COPY.trustLineQuoteEstimateShort}</p>
           </div>
 
           {/* Pre-sign confidence summary (preview only; display-only; no new quote math) */}
@@ -334,7 +334,7 @@ export function SwapPreviewModal({
                   title="Swaperex platform fee via 1inch — taken from the output token when the swap executes"
                 />
                 <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
-                  Not a network (gas) fee. Quote amounts and route fees above are estimated before this fee.
+                  Not gas — applied to output when the swap executes (quote is pre-fee).
                 </p>
               </>
             )}
@@ -350,9 +350,6 @@ export function SwapPreviewModal({
                     {SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}
                   </p>
                 )}
-                <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
-                  Not a network (gas) fee. Expected and minimum received reflect net output after this fee.
-                </p>
               </>
             )}
             {quote.provider === 'uniswap-v3-wrapper-v2' && (
@@ -367,9 +364,6 @@ export function SwapPreviewModal({
                     {SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}
                   </p>
                 )}
-                <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
-                  Not a network (gas) fee. Expected and minimum received reflect net output after this fee.
-                </p>
               </>
             )}
             {quote.provider === 'pancakeswap-v3-wrapper' && (
@@ -384,9 +378,6 @@ export function SwapPreviewModal({
                     {SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}
                   </p>
                 )}
-                <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
-                  Not a network (gas) fee. Expected and minimum received reflect net output after this fee.
-                </p>
               </>
             )}
             {quote.provider === 'pancakeswap-v3-wrapper-v2' && (
@@ -401,10 +392,12 @@ export function SwapPreviewModal({
                     {SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}
                   </p>
                 )}
-                <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
-                  Not a network (gas) fee. Expected and minimum received reflect net output after this fee.
-                </p>
               </>
+            )}
+            {isCommissionWrapperExecutionProvider(quote.provider) && (
+              <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
+                {SWAP_SURFACE_COPY.previewWrapperNetFeeNote}
+              </p>
             )}
             {step !== 'preview' && (
               <>
@@ -782,6 +775,11 @@ function PreSignConfidenceBlock({
             )}
           </div>
         )}
+        {isCommissionWrapperExecutionProvider(quote.provider) && (
+          <div className="pt-0.5">
+            <p className="text-[10px] text-dark-500 leading-snug">{SWAP_SURFACE_COPY.previewWrapperNetFeeNote}</p>
+          </div>
+        )}
         <div className="flex justify-between gap-3">
           <dt className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.gasLimitEstimateLabel}</dt>
           <dd className="text-right font-mono text-dark-100">{gasUnitsDisplay ?? '—'}</dd>
@@ -940,6 +938,22 @@ function SuccessContent({
     }
   };
 
+  const feeProvenanceSuffix =
+    receiptSettlement?.feeProvenance === 'treasury_transfer'
+      ? SWAP_SURFACE_COPY.successFeeOnChainTreasury
+      : receiptSettlement?.feeProvenance === 'inferred_from_receipt_net'
+        ? SWAP_SURFACE_COPY.successFeeEstimatedFromOnChainNet
+        : receiptSettlement?.feeProvenance === 'inferred_from_quote'
+          ? SWAP_SURFACE_COPY.successFeeEstimated
+          : null;
+
+  const showProtocolFeeAmount =
+    !!receiptSettlement &&
+    receiptSettlement.feeProvenance !== 'none' &&
+    receiptSettlement.feeHuman != null &&
+    receiptSettlement.feeSymbol &&
+    feeProvenanceSuffix != null;
+
   return (
     <div className="text-center">
       {/* Success Icon with animated check */}
@@ -983,39 +997,15 @@ function SuccessContent({
                 <span className="text-dark-500"> (on-chain)</span>
               ) : null}
             </p>
-            <p>
-              {receiptSettlement.feeHuman != null && receiptSettlement.feeSymbol ? (
-                <>
-                  Protocol fee:{' '}
-                  <span className="text-white font-medium tabular-nums">
-                    {receiptSettlement.feeHuman} {receiptSettlement.feeSymbol}
-                  </span>
-                  {receiptSettlement.feeSource === 'receipt' ? (
-                    <span className="text-dark-500 font-normal"> (on-chain)</span>
-                  ) : receiptSettlement.feeSource === 'estimate' ? (
-                    <span className="text-dark-500 font-normal"> (estimated)</span>
-                  ) : null}{' '}
-                  <span
-                    className="text-dark-400 underline decoration-dotted decoration-dark-500 cursor-help underline-offset-2"
-                    title="Collected by the Swaperex fee wrapper contract and transferred to the on-chain treasury address. Your wallet never custody-trades through a centralized exchange."
-                  >
-                    (sent to treasury)
-                  </span>
-                </>
-              ) : (
-                <>
-                  Protocol fee: <span className="text-dark-500">—</span>
-                </>
-              )}
-            </p>
-            {isCommissionWrapperExecutionProvider(quote.provider) && (
-              <p
-                className="text-dark-400 pt-0.5 border-t border-dark-700/60"
-                title="Swaps are routed through an audited-style on-chain wrapper that enforces the protocol fee in the transaction itself, not via off-chain rebates."
-              >
-                Executed via secure on-chain wrapper
+            {showProtocolFeeAmount ? (
+              <p>
+                Protocol fee:{' '}
+                <span className="text-white font-medium tabular-nums">
+                  {receiptSettlement!.feeHuman} {receiptSettlement!.feeSymbol}
+                </span>
+                <span className="text-dark-500 font-normal"> {feeProvenanceSuffix}</span>
               </p>
-            )}
+            ) : null}
           </div>
         ) : (
           <p className="text-[11px] text-dark-500 text-center mb-3 leading-snug">
