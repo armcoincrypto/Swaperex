@@ -126,7 +126,7 @@ export function PortfolioTokenTable({ onSwapToken, className = '' }: PortfolioTo
       </div>
 
       {/* Token rows */}
-      <div className="space-y-1.5">
+      <div className="rounded-xl border border-white/[0.06] bg-dark-900/30 p-2 space-y-1.5">
         {displayTokens.map((token, i) => (
           <PortfolioTokenRow
             key={`${token.chain}-${token.address}-${i}`}
@@ -182,7 +182,7 @@ function PortfolioTokenRow({
   const explorerBase = getExplorerBase(chainId);
 
   return (
-    <div className="flex items-center justify-between p-3 bg-dark-800 rounded-xl hover:bg-dark-700/50 transition-colors group">
+    <div className="flex items-center justify-between p-3 bg-dark-800/90 rounded-lg border border-white/[0.04] hover:border-white/[0.08] hover:bg-dark-800 transition-colors group">
       {/* Left: logo + symbol + chain */}
       <div className="flex items-center gap-3 min-w-0 flex-1">
         {/* Token Logo */}

@@ -5,7 +5,7 @@
 export const SWAP_SURFACE_COPY = {
   /** One line under the Swap title — first-screen trust without duplicating the footer verbatim */
   firstVisitTrustLine:
-    'Non-custodial swap. Review and sign locally in your wallet — quotes are estimates until confirmed on-chain.',
+    'Non-custodial: Swaperex never holds your funds. You review every swap and sign in your wallet — on-chain settlement is final.',
 
   trustLineQuoteEstimate:
     'Amounts reflect this quote (estimate). Final tokens received are confirmed on-chain.',
@@ -90,4 +90,23 @@ export const SWAP_SURFACE_COPY = {
   /** We do not show a native-token fee estimate unless the wallet provides it at signing */
   networkFeeWalletFallback: 'Network fee is shown in your wallet before confirmation.',
   quoteFreshnessStale: 'Stale — refresh quote',
+
+  /** Global footer — short trust detail (below primary tagline) */
+  footerTrustNonCustodial:
+    'Non-custodial: tokens stay in your wallet until you approve a transaction.',
+  footerTrustLocalSigning: 'Transactions are signed locally in your wallet — Swaperex never receives your keys.',
+  footerTrustWrapperFee:
+    'Wrapper routes may include a small protocol fee taken from output on-chain; quoted receive amounts are already net where applicable.',
+
+  /** Calmer title when risk is routing/liquidity only (not unverified contract) */
+  tokenSafetyTitleInfo: 'Route & liquidity',
+  tokenSafetyTitleCaution: 'Verify before you swap',
+
+  /** Micro copy under swap card security row */
+  swapCardTrustMicroLine:
+    'Quotes refresh often — confirm the final amounts in your wallet before signing.',
+
+  /** Muted footnote under grouped rate & fee rows on the swap card */
+  quoteFeesFootnote:
+    'Pool and route costs are reflected in the path; wrapper protocol fees (when shown) are taken from gross output on-chain — your quoted receive is already net.',
 } as const;

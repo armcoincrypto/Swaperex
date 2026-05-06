@@ -80,7 +80,7 @@ export function PortfolioHeader({ onRefresh, className = '' }: PortfolioHeaderPr
   }, [chainHealth]);
 
   return (
-    <div className={`bg-dark-800/50 rounded-xl border border-dark-700/50 p-4 ${className}`}>
+    <div className={`bg-dark-800/50 rounded-xl border border-white/[0.08] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] ${className}`}>
       {/* Partial Failure Banner — smooth transition instead of abrupt appear/disappear */}
       <div
         className={`overflow-hidden transition-all duration-300 ease-in-out ${

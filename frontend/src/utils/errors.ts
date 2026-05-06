@@ -237,11 +237,18 @@ export function parseTransactionError(error: unknown): ParsedError {
 
 /**
  * Parse quote/API errors
+ *
+ * Maps low-level failures to short, actionable copy (logic upstream unchanged).
  */
 export function parseQuoteError(error: unknown): ParsedError {
-  const err = error as { message?: string; response?: { data?: { error?: string } } };
+  const err = error as {
+    message?: string;
+    response?: { data?: { error?: string } };
+    code?: string | number;
+  };
   const raw = (err.message || err.response?.data?.error || '').trim();
   const message = raw.toLowerCase();
+  const codeStr = String(err.code ?? '');
 
   // Preserve explicit 1inch / aggregator messages (avoid replacing with generic "pricing unavailable")
   if (
@@ -260,6 +267,102 @@ export function parseQuoteError(error: unknown): ParsedError {
     };
   }
 
+  // Slippage / min-out (before generic "reverted")
+  if (
+    message.includes('slippage') ||
+    message.includes('price moved') ||
+    message.includes('too little received') ||
+    (message.includes('amount out') && message.includes('minimum')) ||
+    message.includes('returned amount') ||
+    message.includes('min return') ||
+    message.includes('minamount') ||
+    message.includes('minimum received') ||
+    message.includes('output is less')
+  ) {
+    return {
+      category: 'quote_error',
+      message: 'Price moved, refresh quote',
+      isRecoverable: true,
+      shouldShowRetry: true,
+    };
+  }
+
+  // Liquidity / no pool / no route
+  if (
+    message.includes('no liquidity') ||
+    message.includes('no pool') ||
+    message.includes('insufficient liquidity') ||
+    message.includes('no valid uniswap v3 pool') ||
+    message.includes('no pool found') ||
+    message.includes('spl') ||
+    message.includes('no route') ||
+    (message.includes('execution reverted') &&
+      (message.includes('liquidity') || message.includes('pool') || message.includes('swap')))
+  ) {
+    return {
+      category: 'quote_error',
+      message: 'No liquidity for this pair',
+      isRecoverable: true,
+      shouldShowRetry: true,
+    };
+  }
+
+  // RPC / transport (browser + JSON-RPC)
+  if (
+    message.includes('unsupported_operation') ||
+    message.includes('missing revert data') ||
+    message.includes('could not coalesce error') ||
+    message.includes('failed to fetch') ||
+    message.includes('networkerror') ||
+    message.includes('load failed') ||
+    message.includes('fetch failed') ||
+    message.includes('timeout') ||
+    message.includes('timed out') ||
+    message.includes('econnreset') ||
+    message.includes('econnrefused') ||
+    message.includes('socket hang up') ||
+    message.includes('429') ||
+    message.includes('rate limit') ||
+    message.includes('502') ||
+    message.includes('503') ||
+    message.includes('504') ||
+    message.includes('bad gateway') ||
+    message.includes('service unavailable') ||
+    message.includes('internal error') ||
+    codeStr === '-32603' ||
+    message.includes('json-rpc') ||
+    message.includes('eth_call') ||
+    (message.includes('network') && !message.includes('wrong chain'))
+  ) {
+    return {
+      category: 'network_error',
+      message: 'Network issue, retrying...',
+      isRecoverable: true,
+      shouldShowRetry: true,
+    };
+  }
+
+  // Commission / wrapper-only routing
+  if (
+    message.includes('commission required') ||
+    message.includes('commission route') ||
+    message.includes('wrapper_quote_failed') ||
+    message.includes('wrapper quote failed') ||
+    message.includes('no wrapper') ||
+    message.includes('uniswap wrapper v2') ||
+    message.includes('pancake wrapper') ||
+    message.includes('eth native swaps require') ||
+    message.includes('native swaps require') ||
+    (raw.includes('Commission') && message.includes('wrapper'))
+  ) {
+    return {
+      category: 'quote_error',
+      message: 'Commission route not available for this pair',
+      isRecoverable: true,
+      shouldShowRetry: true,
+    };
+  }
+
   // Quote expired
   if (message.includes('expired') || message.includes('stale')) {
     return {
@@ -267,16 +370,6 @@ export function parseQuoteError(error: unknown): ParsedError {
       message: SWAP_SURFACE_COPY.quoteExpiredDetail,
       isRecoverable: true,
       shouldShowRetry: true,
-    };
-  }
-
-  // No route found
-  if (message.includes('no route') || message.includes('no liquidity')) {
-    return {
-      category: 'quote_error',
-      message: 'No swap route available for this token pair. The token may have insufficient liquidity or is not supported.',
-      isRecoverable: false,
-      shouldShowRetry: false,
     };
   }
 
@@ -290,17 +383,7 @@ export function parseQuoteError(error: unknown): ParsedError {
     };
   }
 
-  // Network error
-  if (message.includes('network') || message.includes('fetch')) {
-    return {
-      category: 'network_error',
-      message: 'Failed to fetch quote from the aggregator. Check your connection and try again.',
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
-  }
-
-  // Commission / wrapper configuration (preserve explicit wording for ops + UX)
+  // Commission / wrapper configuration (legacy explicit strings)
   if (
     raw &&
     (raw.includes('Commission route unavailable') ||
@@ -308,7 +391,7 @@ export function parseQuoteError(error: unknown): ParsedError {
   ) {
     return {
       category: 'quote_error',
-      message: raw,
+      message: 'Commission route not available for this pair',
       isRecoverable: true,
       shouldShowRetry: true,
     };
@@ -316,7 +399,7 @@ export function parseQuoteError(error: unknown): ParsedError {
 
   return {
     category: 'quote_error',
-    message: 'Quote request failed. The pricing service is temporarily unavailable. Please try again in a few seconds.',
+    message: "Couldn't get a price. Wait a moment and try again.",
     isRecoverable: true,
     shouldShowRetry: true,
   };

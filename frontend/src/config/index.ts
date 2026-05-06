@@ -11,6 +11,15 @@
  * NO private keys, NO signing logic, NO custodial code.
  */
 
+// Public RPC helpers (Ethereum read fallbacks / timeouts)
+export {
+  ETHEREUM_READ_RPC_URLS,
+  getEthereumReadRpcCandidates,
+  getPrimaryEthereumReadRpcUrl,
+  JSONRPC_TIMEOUT_MS,
+  raceWithTimeout,
+} from './rpc';
+
 // Chain configurations
 export {
   CHAINS,

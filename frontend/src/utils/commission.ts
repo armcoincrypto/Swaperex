@@ -1,6 +1,6 @@
 import { getAddress, isAddress } from 'ethers';
 import type { QuoteRouteMode } from '@/services/quoteAggregator';
-import { getTokenBySymbol, isNativeToken } from '@/tokens';
+import { getTokenBySymbol, isNativeToken, isNativeSwapInput, isNativeSwapOutput } from '@/tokens';
 import {
   getMonetizationConfig,
   getPancakeWrapperConfig,
@@ -78,6 +78,9 @@ export function classifyCommissionRoute(input: {
   txTo?: string | null;
   tokenInSymbol?: string | null;
   tokenOutSymbol?: string | null;
+  /** When set, aligns native lane with `isNativeSwapInput` (UI may use ETH/BNB metadata not in static list). */
+  fromAsset?: { is_native?: boolean; contract_address?: string } | null;
+  toAsset?: { is_native?: boolean; contract_address?: string } | null;
 }): CommissionTrace {
   const provider = input.provider;
   const routeMode = input.routeMode;
@@ -89,11 +92,18 @@ export function classifyCommissionRoute(input: {
   let nativeLane: NativeLane = 'none';
   try {
     if (chainId != null && tokenInSymbol && tokenOutSymbol) {
-      const a = getTokenBySymbol(tokenInSymbol, chainId);
-      const b = getTokenBySymbol(tokenOutSymbol, chainId);
-      const inNative = a ? isNativeToken(a.address) : false;
-      const outNative = b ? isNativeToken(b.address) : false;
-      nativeLane = inNative ? 'native_in' : outNative ? 'native_out' : 'none';
+      const cid = Number(chainId);
+      if (isNativeSwapInput(input.fromAsset ?? null, tokenInSymbol, cid)) {
+        nativeLane = 'native_in';
+      } else if (isNativeSwapOutput(input.toAsset ?? null, tokenOutSymbol, cid)) {
+        nativeLane = 'native_out';
+      } else {
+        const a = getTokenBySymbol(tokenInSymbol, cid);
+        const b = getTokenBySymbol(tokenOutSymbol, cid);
+        const inNative = a ? isNativeToken(a.address) : false;
+        const outNative = b ? isNativeToken(b.address) : false;
+        nativeLane = inNative ? 'native_in' : outNative ? 'native_out' : 'none';
+      }
     }
   } catch {
     nativeLane = 'none';

@@ -26,6 +26,7 @@ import { startWatchlistMonitor } from '@/services/watchlistMonitor';
 import { useWalletBootstrapStore } from '@/stores/walletBootstrapStore';
 import { subscribeWalletBootstrapRequest } from '@/services/wallet/appKitActionsRegistry';
 import { SHOW_OPTIONAL_PRIMARY_NAV } from '@/config/productShell';
+import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 
 const LazySendPage = lazy(() => import('@/components/send/SendPage'));
 const LazyPortfolioPage = lazy(() => import('@/components/portfolio/PortfolioPage'));
@@ -313,9 +314,9 @@ export function App() {
       )}
 
       {/* Main Content */}
-      <main className="max-w-6xl mx-auto px-4 py-8">
+      <main className="max-w-6xl mx-auto px-4 py-8 sm:py-10">
         {currentPage === 'swap' && (
-          <div className="flex flex-col lg:flex-row gap-8">
+          <div className="flex flex-col lg:flex-row gap-10 lg:items-start">
             {/* Swap Panel */}
             <div className="flex-1 flex justify-center">
               <SwapInterface />
@@ -405,10 +406,14 @@ export function App() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-white/[0.06] mt-auto">
+      <footer className="border-t border-white/[0.06] mt-auto bg-electro-bg/40">
         <div className="max-w-6xl mx-auto px-4 py-6 text-center text-sm text-gray-500">
-          <p>Swaperex - Web3 Non-Custodial Swap Platform</p>
-          <p className="mt-1">All transactions are signed locally in your wallet.</p>
+          <p className="text-gray-300 font-medium">Swaperex</p>
+          <p className="mt-3 text-xs text-gray-500 leading-relaxed max-w-lg mx-auto space-y-1.5">
+            <span className="block">{SWAP_SURFACE_COPY.footerTrustNonCustodial}</span>
+            <span className="block">{SWAP_SURFACE_COPY.footerTrustLocalSigning}</span>
+            <span className="block">{SWAP_SURFACE_COPY.footerTrustWrapperFee}</span>
+          </p>
           <div className="mt-3 flex justify-center gap-4">
             <button
               onClick={() => setCurrentPage('about')}

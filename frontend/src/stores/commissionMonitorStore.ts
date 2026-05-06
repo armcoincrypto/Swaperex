@@ -25,6 +25,12 @@ export interface CommissionEvent {
   nativeLane: NativeLane;
   expectedFeeBps: number | null;
   expectedRecipient: string | null;
+  /** Output token symbol (fee taken from output on wrapper routes). */
+  feeTokenSymbol?: string;
+  /** Estimated protocol fee in fee token (wei), wrapper output-side fee only. */
+  feeAmountTokenWei?: string;
+  /** Quoted net output amount (human) for context. */
+  outputAmountFormatted?: string;
 }
 
 interface CommissionMonitorState {
@@ -58,18 +64,24 @@ export const useCommissionMonitorStore = create<CommissionMonitorState>()(
     }),
     {
       name: 'swaperex-commission-monitor',
-      version: 2,
+      version: 3,
       partialize: (state) => ({ events: state.events }),
       migrate: (persisted, fromVersion) => {
         const p = persisted as { events?: CommissionEvent[] };
-        const ev = p.events ?? [];
+        let ev = p.events ?? [];
         if (fromVersion < 2) {
-          return {
-            events: ev.map((e) => ({
-              ...e,
-              nativeLane: (e as CommissionEvent).nativeLane ?? 'none',
-            })),
-          };
+          ev = ev.map((e) => ({
+            ...e,
+            nativeLane: (e as CommissionEvent).nativeLane ?? 'none',
+          }));
+        }
+        if (fromVersion < 3) {
+          ev = ev.map((e) => ({
+            ...e,
+            feeTokenSymbol: (e as CommissionEvent).feeTokenSymbol,
+            feeAmountTokenWei: (e as CommissionEvent).feeAmountTokenWei,
+            outputAmountFormatted: (e as CommissionEvent).outputAmountFormatted,
+          }));
         }
         return { events: ev };
       },

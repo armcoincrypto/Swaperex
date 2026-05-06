@@ -5,6 +5,9 @@ interface ImportMetaEnv {
   readonly VITE_API_URL: string
   readonly VITE_SIGNALS_API_URL?: string
 
+  /** Optional override for Ethereum read-only JSON-RPC (https). When unset, public fallbacks from `config/rpc` are used. */
+  readonly VITE_ETHEREUM_RPC_URL?: string
+
   // WalletConnect Cloud project ID — required for QR/mobile wallets (get at cloud.walletconnect.com)
   readonly VITE_WC_PROJECT_ID?: string
   readonly VITE_WALLETCONNECT_PROJECT_ID?: string  // legacy alias

@@ -12,7 +12,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { Modal } from '@/components/common/Modal';
 import { Button } from '@/components/common/Button';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
-import { formatQuoteRoutePreferenceLabel } from '@/services/quoteAggregator';
+import {
+  formatQuoteRoutePreferenceLabel,
+  isCommissionWrapperExecutionProvider,
+} from '@/services/quoteAggregator';
 import {
   formatBalance,
   formatGasLimitUnits,
@@ -34,7 +37,7 @@ import {
   isCommissionRequiredMode,
 } from '@/config';
 import { getChainById, getExplorerTxUrl } from '@/config/chains';
-import type { SwapQuote } from '@/hooks/useSwap';
+import type { SwapQuote, SwapReceiptSettlement } from '@/hooks/useSwap';
 import type { ApprovalMode } from '@/stores/swapStore';
 import { classifyCommissionRoute } from '@/utils/commission';
 import { isDebugMode } from '@/utils/chainHealth';
@@ -60,6 +63,8 @@ interface SwapPreviewModalProps {
   error: string | null;
   txHash: string | null;
   explorerUrl?: string | null;  // PHASE 9: Explorer URL from useSwap
+  /** Decoded receipt (on-chain) when available; otherwise null and success card falls back to quote. */
+  receiptSettlement?: SwapReceiptSettlement | null;
   approvalMode?: ApprovalMode;
   /** Refresh/reopen after page reload with only chain + tx trace */
   recoveredTrace?: RecoveredSwapTrace | null;
@@ -80,6 +85,7 @@ export function SwapPreviewModal({
   error,
   txHash,
   explorerUrl,
+  receiptSettlement = null,
   approvalMode = 'exact',
   recoveredTrace = null,
   onClearPendingSwap,
@@ -239,6 +245,7 @@ export function SwapPreviewModal({
           quote={quote}
           txHash={txHash}
           explorerUrl={explorerUrl}
+          receiptSettlement={receiptSettlement}
           onClose={onCancel}
         />
       )}
@@ -258,13 +265,13 @@ export function SwapPreviewModal({
       {step !== 'success' && step !== 'error' && (
         <>
           {/* Swap Summary */}
-          <div className="bg-dark-800 rounded-xl p-4 mb-4">
+          <div className="bg-dark-800/90 rounded-xl p-4 mb-4 border border-white/[0.08] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
             <SwapSummary quote={quote} />
           </div>
 
-          <p className="text-[11px] text-dark-500 leading-snug mb-4">
-            {SWAP_SURFACE_COPY.trustLineQuoteEstimate}
-          </p>
+          <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 mb-4">
+            <p className="text-[11px] text-dark-400 leading-relaxed">{SWAP_SURFACE_COPY.trustLineQuoteEstimate}</p>
+          </div>
 
           {/* Pre-sign confidence summary (preview only; display-only; no new quote math) */}
           {step === 'preview' && (
@@ -673,11 +680,11 @@ function PreSignConfidenceBlock({
 
   const freshnessDisplay = isExpired
     ? SWAP_SURFACE_COPY.quoteFreshnessStale
-    : `Fresh · ${secondsRemaining}s left on quote`;
+    : `Fresh · ${secondsRemaining}s remaining`;
 
   return (
     <div
-      className="rounded-xl border border-white/[0.08] bg-dark-900/40 p-4 mb-4"
+      className="rounded-xl border border-white/[0.1] bg-dark-900/50 p-4 mb-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
       role="region"
       aria-label={SWAP_SURFACE_COPY.reviewBeforeSignTitle}
     >
@@ -689,7 +696,13 @@ function PreSignConfidenceBlock({
         </div>
         <div className="flex justify-between gap-3">
           <dt className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.quoteFreshnessLabel}</dt>
-          <dd className={`text-right ${isExpired ? 'text-red-400' : 'text-dark-100'}`}>{freshnessDisplay}</dd>
+          <dd
+            className={`text-right font-medium tabular-nums ${
+              isExpired ? 'text-red-400' : 'text-emerald-300/90'
+            }`}
+          >
+            {freshnessDisplay}
+          </dd>
         </div>
         <div className="flex justify-between gap-3">
           <dt className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.routePreferenceLabel}</dt>
@@ -785,29 +798,31 @@ function PreSignConfidenceBlock({
 function SwapSummary({ quote }: { quote: SwapQuote }) {
   return (
     <div className="text-center">
-      <div className="text-sm text-dark-400 mb-2">You're swapping</div>
-      <div className="flex items-center justify-center gap-4">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-dark-500 mb-3">Review swap</div>
+      <div className="flex items-center justify-center gap-4 sm:gap-6">
         {/* From */}
-        <div className="text-center">
-          <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-dark-700 flex items-center justify-center">
+        <div className="text-center min-w-0 flex-1">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-dark-500 mb-1.5">You pay</div>
+          <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-dark-700 flex items-center justify-center ring-1 ring-white/[0.08]">
             <span className="text-lg font-bold">{quote.from_asset[0]}</span>
           </div>
-          <div className="text-xl font-bold">{formatBalance(quote.from_amount)}</div>
-          <div className="text-dark-400 text-sm">{quote.from_asset}</div>
+          <div className="text-xl font-bold tabular-nums">{formatBalance(quote.from_amount)}</div>
+          <div className="text-dark-400 text-sm font-medium">{quote.from_asset}</div>
         </div>
 
         {/* Arrow */}
-        <div className="flex-shrink-0">
+        <div className="flex-shrink-0 text-dark-500 pt-5">
           <ArrowRightIcon />
         </div>
 
         {/* To */}
-        <div className="text-center">
-          <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-primary-900/50 flex items-center justify-center">
+        <div className="text-center min-w-0 flex-1">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-dark-500 mb-1.5">You receive</div>
+          <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-primary-900/50 flex items-center justify-center ring-1 ring-primary-500/25">
             <span className="text-lg font-bold text-primary-400">{quote.to_asset[0]}</span>
           </div>
-          <div className="text-xl font-bold text-primary-400">{formatBalance(quote.to_amount)}</div>
-          <div className="text-dark-400 text-sm">{quote.to_asset}</div>
+          <div className="text-xl font-bold text-primary-400 tabular-nums">{formatBalance(quote.to_amount)}</div>
+          <div className="text-dark-400 text-sm font-medium">{quote.to_asset}</div>
         </div>
       </div>
     </div>
@@ -849,15 +864,15 @@ function QuoteExpiryBanner({
   const isCritical = secondsRemaining <= 5;
 
   return (
-    <div className={`flex items-center justify-between rounded-lg px-3 py-2 mb-4 ${
+    <div className={`flex items-center justify-between rounded-xl px-3 py-2.5 mb-4 border ${
       isCritical
-        ? 'bg-red-900/20 border border-red-800'
+        ? 'bg-red-900/20 border-red-800/50'
         : isUrgent
-        ? 'bg-yellow-900/20 border border-yellow-800'
-        : 'bg-dark-800'
+        ? 'bg-yellow-900/20 border-yellow-800/45'
+        : 'bg-slate-900/50 border-slate-600/25'
     }`}>
       <div className={`flex items-center gap-2 ${
-        isCritical ? 'text-red-400' : isUrgent ? 'text-yellow-400' : 'text-dark-400'
+        isCritical ? 'text-red-400' : isUrgent ? 'text-yellow-400' : 'text-slate-300'
       }`}>
         <ClockIcon />
         <span className="text-sm">
@@ -880,11 +895,13 @@ function SuccessContent({
   quote,
   txHash,
   explorerUrl: providedExplorerUrl,
+  receiptSettlement,
   onClose,
 }: {
   quote: SwapQuote;
   txHash: string | null;
   explorerUrl?: string | null;
+  receiptSettlement?: SwapReceiptSettlement | null;
   onClose: () => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -955,9 +972,56 @@ function SuccessContent({
             <div className="text-dark-400 text-xs">{quote.to_asset}</div>
           </div>
         </div>
-        <p className="text-[11px] text-dark-500 text-center mb-3 leading-snug">
-          {SWAP_SURFACE_COPY.successQuoteBasisLine}
-        </p>
+        {receiptSettlement ? (
+          <div className="text-[11px] text-dark-300 text-center mb-3 leading-snug space-y-1.5">
+            <p>
+              You received:{' '}
+              <span className="text-white font-medium tabular-nums">
+                {receiptSettlement.receivedHuman} {receiptSettlement.receivedSymbol}
+              </span>
+              {receiptSettlement.userReceivedSource === 'receipt' ? (
+                <span className="text-dark-500"> (on-chain)</span>
+              ) : null}
+            </p>
+            <p>
+              {receiptSettlement.feeHuman != null && receiptSettlement.feeSymbol ? (
+                <>
+                  Protocol fee:{' '}
+                  <span className="text-white font-medium tabular-nums">
+                    {receiptSettlement.feeHuman} {receiptSettlement.feeSymbol}
+                  </span>
+                  {receiptSettlement.feeSource === 'receipt' ? (
+                    <span className="text-dark-500 font-normal"> (on-chain)</span>
+                  ) : receiptSettlement.feeSource === 'estimate' ? (
+                    <span className="text-dark-500 font-normal"> (estimated)</span>
+                  ) : null}{' '}
+                  <span
+                    className="text-dark-400 underline decoration-dotted decoration-dark-500 cursor-help underline-offset-2"
+                    title="Collected by the Swaperex fee wrapper contract and transferred to the on-chain treasury address. Your wallet never custody-trades through a centralized exchange."
+                  >
+                    (sent to treasury)
+                  </span>
+                </>
+              ) : (
+                <>
+                  Protocol fee: <span className="text-dark-500">—</span>
+                </>
+              )}
+            </p>
+            {isCommissionWrapperExecutionProvider(quote.provider) && (
+              <p
+                className="text-dark-400 pt-0.5 border-t border-dark-700/60"
+                title="Swaps are routed through an audited-style on-chain wrapper that enforces the protocol fee in the transaction itself, not via off-chain rebates."
+              >
+                Executed via secure on-chain wrapper
+              </p>
+            )}
+          </div>
+        ) : (
+          <p className="text-[11px] text-dark-500 text-center mb-3 leading-snug">
+            {SWAP_SURFACE_COPY.successQuoteBasisLine}
+          </p>
+        )}
 
         {/* Receipt Details — keep quoted output, min out, route; rate/slippage/impact stay on preview card */}
         <div className="space-y-2 text-sm">

@@ -7,6 +7,8 @@
  * Supports: Uniswap V3, PancakeSwap V3, 1inch Aggregator
  */
 
+import { getPrimaryEthereumReadRpcUrl } from './rpc';
+
 /**
  * Uniswap V3 Contract Addresses
  * Source: https://docs.uniswap.org/contracts/v3/reference/deployments
@@ -148,7 +150,7 @@ export const CHAINS: Record<ChainName, ChainConfig> = {
     id: 1,
     name: 'Ethereum',
     symbol: 'ETH',
-    rpcUrl: 'https://ethereum-rpc.publicnode.com',
+    rpcUrl: getPrimaryEthereumReadRpcUrl(),
     explorerUrl: 'https://etherscan.io',
     explorerTxPath: '/tx/',
     nativeToken: 'ETH',

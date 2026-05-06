@@ -111,7 +111,7 @@ export function DiagnosticsPanel() {
     : 0;
 
   return (
-    <div className="bg-dark-900 border border-dark-700 rounded-xl text-[11px] font-mono">
+    <div className="bg-dark-900/90 border border-white/[0.08] rounded-xl text-[11px] font-mono shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
       {/* Toggle Header */}
       <button
         onClick={() => setExpanded(!expanded)}

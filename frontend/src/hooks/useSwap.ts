@@ -31,6 +31,7 @@
 
 import { useCallback, useState, useEffect, useRef, useMemo } from 'react';
 import { formatUnits, parseUnits, type Provider } from 'ethers';
+import { formatBalance } from '@/utils/format';
 import { useWallet } from './useWallet';
 import { useSwapStore } from '@/stores/swapStore';
 import { useBalanceStore } from '@/stores/balanceStore';
@@ -57,6 +58,12 @@ import {
 } from '@/utils/swapValidation';
 import { swapObsLog } from '@/utils/swapObservability';
 import { classifyCommissionRoute } from '@/utils/commission';
+import { estimateWrapperFeeWeiFromNetOutput } from '@/utils/wrapperFee';
+import {
+  decodeNativeEthOutputAndFeeFromLogs,
+  decodeSwapOutputAndFeeFromLogs,
+} from '@/utils/swapReceiptDecode';
+import { logProductionEvent } from '@/utils/productionMonitoring';
 
 // Import Uniswap V3 services
 import {
@@ -105,7 +112,7 @@ import {
   buildPancakeApprovalTx,
 } from '@/services/pancakeSwapTxBuilder';
 import { PANCAKESWAP_V3_ADDRESSES } from '@/services/pancakeSwapQuote';
-import { getTokenBySymbol, isNativeToken, isNativeSwapInput } from '@/tokens';
+import { getSwapAddress, getTokenByAddress, getTokenBySymbol, isNativeToken, isNativeSwapInput } from '@/tokens';
 import {
   ensurePancakeWrapperChainFeeBps,
   ensurePancakeWrapperV2ChainFeeBps,
@@ -152,12 +159,23 @@ export type SwapStatus =
   | 'success'
   | 'error';
 
+/** On-chain or fallback settlement shown on the success receipt (display-only). */
+export interface SwapReceiptSettlement {
+  receivedHuman: string;
+  receivedSymbol: string;
+  feeHuman: string | null;
+  feeSymbol: string | null;
+  feeSource: 'receipt' | 'estimate' | 'unknown';
+  userReceivedSource: 'receipt' | 'quote';
+}
+
 interface SwapState {
   status: SwapStatus;
   quote: QuoteResult | null;
   txHash: string | null;
   explorerUrl: string | null;  // PHASE 9: Explorer link for confirmed tx
   error: string | null;
+  receiptSettlement: SwapReceiptSettlement | null;
 }
 
 // PHASE 10 + 11: Provider type for routing
@@ -324,6 +342,7 @@ export function useSwap() {
     txHash: null,
     explorerUrl: null,
     error: null,
+    receiptSettlement: null,
   });
 
   const [swapQuote, setSwapQuote] = useState<SwapQuote | null>(null);
@@ -410,7 +429,14 @@ export function useSwap() {
       });
 
       // Reset state
-      setState({ status: 'idle', quote: null, txHash: null, explorerUrl: null, error: null });
+      setState({
+        status: 'idle',
+        quote: null,
+        txHash: null,
+        explorerUrl: null,
+        error: null,
+        receiptSettlement: null,
+      });
       setSwapQuote(null);
       clearQuote();
 
@@ -430,7 +456,14 @@ export function useSwap() {
     swapTrace('[Swap] Reset - invalidating pending requests, new ID:', quoteRequestIdRef.current);
 
     logLifecycle(state.status, 'idle', { action: 'reset' });
-    setState({ status: 'idle', quote: null, txHash: null, explorerUrl: null, error: null });
+    setState({
+      status: 'idle',
+      quote: null,
+      txHash: null,
+      explorerUrl: null,
+      error: null,
+      receiptSettlement: null,
+    });
     setSwapQuote(null);
     clearQuote();
   // Note: state.status removed from deps to prevent reset identity from changing
@@ -487,7 +520,8 @@ export function useSwap() {
     logLifecycle(state.status, 'fetching_quote', { fromSymbol, toSymbol, fromAmount });
     setState((s) => ({ ...s, status: 'fetching_quote', error: null }));
 
-    try {
+    for (let quoteAttempt = 0; quoteAttempt < 2; quoteAttempt++) {
+      try {
       swapTrace('[Swap] Fetching quote via aggregator:', { fromSymbol, toSymbol, fromAmount });
       if (SWAP_TRACE_LOG) console.debug('route_mode_selected', { routeMode });
 
@@ -1288,21 +1322,50 @@ export function useSwap() {
 
       return extendedQuote;
     } catch (err) {
-      // Check if this request is still valid before showing error
       if (thisRequestId !== quoteRequestIdRef.current) {
         swapTrace('[Swap] Error ignored - stale request ID:', thisRequestId, 'current:', quoteRequestIdRef.current);
         return null;
       }
 
+      if (quoteAttempt === 0) {
+        logProductionEvent('quote_retry', {
+          chainId: chainId ?? 0,
+          from: fromSymbol,
+          to: toSymbol,
+        });
+        await new Promise((r) => setTimeout(r, 400 + Math.floor(Math.random() * 200)));
+        if (thisRequestId !== quoteRequestIdRef.current) return null;
+        continue;
+      }
+
       const parsed = parseQuoteError(err);
+      const quoteErrorDisplay =
+        parsed.category === 'network_error' || parsed.category === 'rpc_error'
+          ? 'Network issue. Please try again.'
+          : parsed.message;
+      logProductionEvent('quote_failure', {
+        reason: parsed.message,
+        category: parsed.category,
+        chainId: chainId ?? 0,
+        provider: 'quote_aggregator',
+      });
+      if (parsed.category === 'network_error' || parsed.category === 'rpc_error') {
+        logProductionEvent('rpc_failure', {
+          reason: parsed.message,
+          chainId: chainId ?? 0,
+          phase: 'quote',
+        });
+      }
       console.error('[Swap] Quote error:', err);
-      logLifecycle(state.status, 'error', { error: parsed.message });
+      logLifecycle(state.status, 'error', { error: quoteErrorDisplay });
       setSwapQuote(null);
       clearQuote();
-      setState((s) => ({ ...s, status: 'error', error: parsed.message }));
-      toast.error(parsed.message);
+      setState((s) => ({ ...s, status: 'error', error: quoteErrorDisplay }));
+      toast.error(quoteErrorDisplay);
       return null;
     }
+    }
+    return null;
   // Note: state.status removed from deps to prevent infinite loop - it's only used for logging
   }, [address, fromAsset, toAsset, fromAmount, chainId, slippage, routeMode, provider, setQuote, clearQuote]);
 
@@ -1887,6 +1950,8 @@ export function useSwap() {
           txTo: swapTx.to,
           tokenInSymbol: swapQuote.fromSymbol,
           tokenOutSymbol: swapQuote.toSymbol,
+          fromAsset: fromAsset && typeof fromAsset === 'object' ? (fromAsset as { is_native?: boolean; contract_address?: string }) : null,
+          toAsset: toAsset && typeof toAsset === 'object' ? (toAsset as { is_native?: boolean; contract_address?: string }) : null,
         });
         if (swapQuote.provider === '1inch') {
           commissionTraceForSwap.integratorFeeStatus = oneInchIntegratorFeeStatus ?? 'unknown';
@@ -1965,7 +2030,139 @@ export function useSwap() {
           explorerUrl,
           gasUsed: receipt.gasUsed?.toString()
         });
-        setState((s) => ({ ...s, status: 'success', txHash: tx.hash, explorerUrl }));
+
+        const treasuryRaw = commissionTraceForSwap?.expectedCommissionRecipient ?? null;
+        const cid = chainId || 1;
+        const tokenOutMeta =
+          getTokenBySymbol(swapQuote.toSymbol, cid) ||
+          (toAsset &&
+          typeof toAsset === 'object' &&
+          'contract_address' in toAsset &&
+          (toAsset as { contract_address?: string }).contract_address
+            ? getTokenByAddress((toAsset as { contract_address: string }).contract_address, cid)
+            : undefined);
+        const outputAddr = tokenOutMeta ? getSwapAddress(tokenOutMeta, cid) : null;
+        const dec = tokenOutMeta?.decimals ?? 18;
+
+        let feeAmountTokenWei: string | undefined;
+        let feeTokenSymbol: string | undefined;
+        let outputAmountForMonitor = swapQuote.amountOutFormatted;
+
+        const nativeOut = tokenOutMeta ? isNativeToken(tokenOutMeta.address) : false;
+
+        let receiptSettlement: SwapReceiptSettlement;
+        try {
+          const decoded =
+            nativeOut && outputAddr && address && receipt.logs
+              ? decodeNativeEthOutputAndFeeFromLogs(receipt.logs, address, treasuryRaw, outputAddr)
+              : outputAddr && address && receipt.logs
+                ? decodeSwapOutputAndFeeFromLogs(receipt.logs, address, treasuryRaw, outputAddr)
+                : null;
+
+          if (decoded && decoded.userNetWei > 0n) {
+            const recvHuman = formatBalance(parseFloat(formatUnits(decoded.userNetWei, dec)), 8);
+            let feeHuman: string | null = null;
+            let feeSource: SwapReceiptSettlement['feeSource'] = 'unknown';
+            if (decoded.feeToTreasuryWei > 0n) {
+              feeHuman = formatBalance(parseFloat(formatUnits(decoded.feeToTreasuryWei, dec)), 8);
+              feeSource = 'receipt';
+              feeAmountTokenWei = decoded.feeToTreasuryWei.toString();
+              feeTokenSymbol = swapQuote.toSymbol;
+            } else if (
+              isCommissionWrapperExecutionProvider(swapQuote.provider) &&
+              commissionTraceForSwap?.commissionKind === 'wrapper' &&
+              commissionTraceForSwap.expectedCommissionBps != null
+            ) {
+              try {
+                const feeW = estimateWrapperFeeWeiFromNetOutput(
+                  decoded.userNetWei,
+                  commissionTraceForSwap.expectedCommissionBps,
+                );
+                if (feeW > 0n) {
+                  feeHuman = formatBalance(parseFloat(formatUnits(feeW, dec)), 8);
+                  feeSource = 'estimate';
+                  feeAmountTokenWei = feeW.toString();
+                  feeTokenSymbol = swapQuote.toSymbol;
+                }
+              } catch {
+                // non-blocking
+              }
+            }
+
+            if (
+              commissionTraceForSwap?.commissionKind === 'wrapper' &&
+              (commissionTraceForSwap.expectedCommissionBps ?? 0) > 0 &&
+              treasuryRaw &&
+              decoded.feeToTreasuryWei === 0n
+            ) {
+              logProductionEvent('commission_missing', {
+                chainId: cid,
+                provider: swapQuote.provider,
+                txHash: tx.hash,
+                reason: 'no_treasury_transfer_in_output_token',
+              });
+            }
+
+            outputAmountForMonitor = formatUnits(decoded.userNetWei, dec);
+            receiptSettlement = {
+              receivedHuman: recvHuman,
+              receivedSymbol: swapQuote.toSymbol,
+              feeHuman,
+              feeSymbol: swapQuote.toSymbol,
+              feeSource,
+              userReceivedSource: 'receipt',
+            };
+          } else {
+            throw new Error('receipt_decode_fallback');
+          }
+        } catch {
+          let feeHuman: string | null = null;
+          let feeSource: SwapReceiptSettlement['feeSource'] = 'unknown';
+          if (
+            isCommissionWrapperExecutionProvider(swapQuote.provider) &&
+            commissionTraceForSwap?.commissionKind === 'wrapper' &&
+            commissionTraceForSwap?.expectedCommissionBps != null
+          ) {
+            try {
+              const netQ = BigInt(swapQuote.amountOut);
+              const feeW = estimateWrapperFeeWeiFromNetOutput(
+                netQ,
+                commissionTraceForSwap.expectedCommissionBps,
+              );
+              if (feeW > 0n) {
+                feeHuman = formatBalance(parseFloat(formatUnits(feeW, dec)), 8);
+                feeSource = 'estimate';
+                feeAmountTokenWei = feeW.toString();
+                feeTokenSymbol = swapQuote.toSymbol;
+              }
+            } catch {
+              // non-blocking
+            }
+          }
+          receiptSettlement = {
+            receivedHuman: formatBalance(parseFloat(swapQuote.to_amount), 8),
+            receivedSymbol: swapQuote.toSymbol,
+            feeHuman,
+            feeSymbol: swapQuote.toSymbol,
+            feeSource,
+            userReceivedSource: 'quote',
+          };
+        }
+
+        setState((s) => ({
+          ...s,
+          status: 'success',
+          txHash: tx.hash,
+          explorerUrl,
+          receiptSettlement,
+        }));
+        logProductionEvent('swap_success', {
+          chainId: cid,
+          provider: swapQuote.provider,
+          txHash: tx.hash,
+          userReceivedSource: receiptSettlement.userReceivedSource,
+          nativeOutput: nativeOut,
+        });
         toast.success('Swap confirmed');
 
         try {
@@ -2003,6 +2200,9 @@ export function useSwap() {
             nativeLane: commissionTraceForSwap.nativeLane ?? 'none',
             expectedFeeBps: commissionTraceForSwap.expectedCommissionBps,
             expectedRecipient: commissionTraceForSwap.expectedCommissionRecipient,
+            feeTokenSymbol,
+            feeAmountTokenWei,
+            outputAmountFormatted: outputAmountForMonitor,
           });
         }
 
@@ -2066,11 +2266,29 @@ export function useSwap() {
           markPendingSwapOutcomeUncertain();
           updateRecordStatus(broadcastTx.hash, 'uncertain');
         }
+        logProductionEvent('swap_failure', {
+          reason: parsed.message,
+          category: parsed.category,
+          chainId: chainId ?? 0,
+          provider: swapQuote?.provider ?? 'unknown',
+        });
+        if (parsed.category === 'network_error' || parsed.category === 'rpc_error') {
+          logProductionEvent('rpc_failure', {
+            reason: parsed.message,
+            chainId: chainId ?? 0,
+            phase: 'swap_execution',
+          });
+        }
         logLifecycle(state.status, 'error', {
           error: parsed.message,
           category: parsed.category,
         });
-        setState((s) => ({ ...s, status: 'error', error: parsed.message }));
+        setState((s) => ({
+          ...s,
+          status: 'error',
+          error: parsed.message,
+          receiptSettlement: null,
+        }));
         toast.error(parsed.message);
         console.error('[Swap] Transaction failed:', parsed);
       }
@@ -2090,6 +2308,7 @@ export function useSwap() {
     toAsset,
     addSwapRecord,
     updateRecordStatus,
+    addConfirmedSwapEvent,
     slippage,
     trackEvent,
     armSwapWalletSigningGuard,
@@ -2282,6 +2501,7 @@ export function useSwap() {
       txHash: null,
       explorerUrl: null,
       error: null,
+      receiptSettlement: null,
     });
     setSwapQuote(null);
     clearQuote();
@@ -2320,7 +2540,15 @@ export function useSwap() {
           }
           setState((s) => {
             if (s.txHash === pending.txHash && (s.status === 'confirming' || s.status === 'error')) {
-              return { ...s, status: 'idle', quote: null, txHash: null, explorerUrl: null, error: null };
+              return {
+                ...s,
+                status: 'idle',
+                quote: null,
+                txHash: null,
+                explorerUrl: null,
+                error: null,
+                receiptSettlement: null,
+              };
             }
             return s;
           });

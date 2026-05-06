@@ -31,15 +31,20 @@ const ERC20_BALANCE_ABI = [
 ];
 
 /**
- * RPC proxy - use central config (no HTTP fallbacks)
+ * Polygon/Arbitrum still use same-origin RPC proxy when configured.
+ * Ethereum uses public HTTPS RPCs only — `/rpc/eth` breaks ethers in the browser (UNSUPPORTED_OPERATION / invalid JSON-RPC).
  */
 import { RPC_PROXY_BASE } from '@/config/api';
+import {
+  getEthereumReadRpcCandidates,
+  raceWithTimeout,
+  JSONRPC_TIMEOUT_MS,
+} from '@/config/rpc';
 
 /**
- * RPC endpoints by chain (ETH/Polygon/Arbitrum via proxy; BSC direct)
+ * RPC endpoints by chain (Polygon/Arbitrum via proxy; BSC direct; Ethereum resolved async)
  */
 const RPC_ENDPOINTS: Record<string, string> = {
-  ethereum: `${RPC_PROXY_BASE}/eth`,
   bsc: 'https://bsc-dataseed.binance.org',
   polygon: `${RPC_PROXY_BASE}/polygon`,
   arbitrum: `${RPC_PROXY_BASE}/arbitrum`,
@@ -78,13 +83,22 @@ const NATIVE_ADDRESS = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
 const providerCache: Record<string, JsonRpcProvider> = {};
 const providerFailCount: Record<string, number> = {};
 
-function getProvider(chain: string): JsonRpcProvider {
+/** Ethereum: lazily pick first working RPC from candidates (retry + timeout per URL). */
+let ethereumReadProvider: JsonRpcProvider | null = null;
+let ethereumReadUrl: string | null = null;
+
+function invalidateEthereumReadProvider(): void {
+  ethereumReadProvider = null;
+  ethereumReadUrl = null;
+  delete providerCache.ethereum;
+}
+
+function getSyncProvider(chain: string): JsonRpcProvider {
   const rpc = RPC_ENDPOINTS[chain];
   if (!rpc) {
     throw new Error(`Unsupported chain: ${chain}`);
   }
 
-  // Recreate provider after 3 consecutive failures (clears stale connections)
   if (providerCache[chain] && (providerFailCount[chain] || 0) >= 3) {
     delete providerCache[chain];
     providerFailCount[chain] = 0;
@@ -96,6 +110,47 @@ function getProvider(chain: string): JsonRpcProvider {
     providerCache[chain] = new JsonRpcProvider(rpc, network, { staticNetwork: network });
   }
   return providerCache[chain];
+}
+
+/**
+ * Resilient Ethereum JsonRpcProvider: probes `eth_blockNumber` with timeout, cycles URLs on failure.
+ */
+async function getEthereumReadProvider(): Promise<JsonRpcProvider> {
+  const network = Network.from(1);
+  const candidates = getEthereumReadRpcCandidates();
+
+  if (ethereumReadProvider && ethereumReadUrl) {
+    try {
+      await raceWithTimeout(ethereumReadProvider.getBlockNumber(), JSONRPC_TIMEOUT_MS);
+      return ethereumReadProvider;
+    } catch {
+      invalidateEthereumReadProvider();
+    }
+  }
+
+  const errors: string[] = [];
+  for (const url of candidates) {
+    try {
+      const p = new JsonRpcProvider(url, network, { staticNetwork: network });
+      await raceWithTimeout(p.getBlockNumber(), JSONRPC_TIMEOUT_MS);
+      ethereumReadProvider = p;
+      ethereumReadUrl = url;
+      providerCache.ethereum = p;
+      providerFailCount.ethereum = 0;
+      return p;
+    } catch (e) {
+      errors.push(`${url}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  throw new Error(`Ethereum RPC unavailable: ${errors.join(' | ')}`);
+}
+
+async function getProviderForFetch(chain: string): Promise<JsonRpcProvider> {
+  if (chain === 'ethereum') {
+    return getEthereumReadProvider();
+  }
+  return getSyncProvider(chain);
 }
 
 /** Record provider success — reset failure count */
@@ -190,7 +245,7 @@ export async function fetchEvmChainBalance(
 ): Promise<ChainBalance> {
   logPortfolioLifecycle('Fetching EVM balances', { chain, address: address.slice(0, 10) + '...' });
 
-  const provider = getProvider(chain);
+  const provider = await getProviderForFetch(chain);
   const chainId = CHAIN_IDS[chain];
   const tokenList = getTokenList(chainId);
 
@@ -233,6 +288,9 @@ export async function fetchEvmChainBalance(
     };
   } catch (error) {
     recordProviderFailure(chain);
+    if (chain === 'ethereum') {
+      invalidateEthereumReadProvider();
+    }
     const message = error instanceof Error ? error.message : 'Failed to fetch balances';
     logPortfolioLifecycle('EVM balance error', { chain, error: message });
 

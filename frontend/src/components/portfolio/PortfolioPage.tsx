@@ -10,13 +10,14 @@
  * AUDIT FIX-5: Guards against concurrent refresh calls.
  */
 
-import { useEffect, useCallback, useRef, useMemo } from 'react';
+import { useEffect, useCallback, useRef, useMemo, useState } from 'react';
 import { useWalletStore } from '@/stores/walletStore';
 import { usePortfolioStore } from '@/stores/portfolioStore';
 import { usePortfolio } from '@/hooks/usePortfolio';
 import { PortfolioHeader } from './PortfolioHeader';
 import { PortfolioTokenTable } from './PortfolioTokenTable';
 import { ActivityPanel } from './ActivityPanel';
+import { RevenuePanel } from './RevenuePanel';
 import { DiagnosticsPanel } from './DiagnosticsPanel';
 import type { SwapRecord } from '@/stores/swapHistoryStore';
 import { isDebugMode } from '@/utils/chainHealth';
@@ -32,7 +33,10 @@ const REFRESH_INTERVAL = 30_000;
 /** Stable chain list — avoids new array reference on every render */
 const PORTFOLIO_EVM_CHAINS: ['ethereum', 'bsc', 'polygon'] = ['ethereum', 'bsc', 'polygon'];
 
+type PortfolioSubTab = 'activity' | 'revenue';
+
 export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps) {
+  const [portfolioSubTab, setPortfolioSubTab] = useState<PortfolioSubTab>('activity');
   // Individual selectors — only re-render when address/connection changes, NOT chainId
   const address = useWalletStore((s) => s.address);
   const isConnected = useWalletStore((s) => s.isConnected);
@@ -151,8 +155,35 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
       {/* Token Table (multi-chain, search, sort) */}
       <PortfolioTokenTable onSwapToken={onSwapToken} />
 
-      {/* Activity (merged local + explorer, tabs, export) */}
-      <ActivityPanel onRepeatSwap={onRepeatSwap} />
+      {/* Activity vs Revenue (local / commission estimates) */}
+      <div
+        className="flex w-full sm:w-auto rounded-xl border border-white/[0.08] bg-dark-900/60 p-1 gap-0.5"
+        role="tablist"
+        aria-label="Portfolio sections"
+      >
+        {(['activity', 'revenue'] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            role="tab"
+            aria-selected={portfolioSubTab === t}
+            onClick={() => setPortfolioSubTab(t)}
+            className={`flex-1 sm:flex-none min-w-0 px-4 py-2 text-xs rounded-lg font-semibold transition-all duration-200 ${
+              portfolioSubTab === t
+                ? 'bg-electro-panel text-white shadow-sm border border-white/[0.1]'
+                : 'text-dark-400 hover:text-dark-200 border border-transparent'
+            }`}
+          >
+            {t === 'activity' ? 'Activity' : 'Revenue'}
+          </button>
+        ))}
+      </div>
+
+      {portfolioSubTab === 'activity' ? (
+        <ActivityPanel onRepeatSwap={onRepeatSwap} />
+      ) : (
+        <RevenuePanel />
+      )}
 
       {/* Diagnostics (debug mode only: ?debug=1) */}
       {debugMode && <DiagnosticsPanel />}
