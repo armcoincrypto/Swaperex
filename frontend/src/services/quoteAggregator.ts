@@ -68,6 +68,19 @@ function getPancakeWrapperV2CanaryPct(): number {
 
 const CANARY_BUCKET_MOD = 10_000;
 
+function isAggregatorDebugEnabled(): boolean {
+  if (import.meta.env.DEV) return true;
+  const raw = import.meta.env.VITE_DEBUG_SWAP;
+  if (typeof raw !== 'string') return false;
+  return ['1', 'true', 'yes', 'on'].includes(raw.trim().toLowerCase());
+}
+
+/** Quote-aggregator debug lines (DEV or `VITE_DEBUG_SWAP` only). */
+function aggDebugLog(...args: unknown[]): void {
+  if (!isAggregatorDebugEnabled()) return;
+  aggDebugLog(...args);
+}
+
 function computeCanaryBucket(input: {
   wallet: string | null;
   chainId: number;
@@ -665,7 +678,7 @@ export async function getAggregatedQuote(
 
   if (routeMode !== 'best') {
     assertCommissionFixedRouteAllowed(routeMode, chainId);
-    console.log('[Aggregator] Fixed route mode:', routeMode, { tokenIn, tokenOut, amountIn, chainId });
+    aggDebugLog('[Aggregator] Fixed route mode:', routeMode, { tokenIn, tokenOut, amountIn, chainId });
     return getForcedProviderQuoteResult(tokenIn, tokenOut, amountIn, chainId, slippage, routeMode);
   }
 
@@ -688,7 +701,7 @@ export async function getAggregatedQuote(
 
   const apiKey = getOneInchApiKey();
 
-  console.log('[Aggregator] Fetching quotes...', { tokenIn, tokenOut, amountIn, chainId });
+  aggDebugLog('[Aggregator] Fetching quotes...', { tokenIn, tokenOut, amountIn, chainId });
 
   // Route based on chain
   if (chainId === 1) {
@@ -724,14 +737,14 @@ async function getEthereumQuote(
 
   if (oneInchResult.status === 'fulfilled' && oneInchResult.value) {
     oneInchQuote = normalizeOneInchQuote(oneInchResult.value, slippage, tokenOutDecimals, 1);
-    console.log('[Aggregator] 1inch quote:', oneInchQuote.amountOutFormatted, tokenOut);
+    aggDebugLog('[Aggregator] 1inch quote:', oneInchQuote.amountOutFormatted, tokenOut);
   } else {
     console.warn('[Aggregator] 1inch quote failed:', oneInchResult.status === 'rejected' ? oneInchResult.reason : 'No quote returned');
   }
 
   if (uniswapResult.status === 'fulfilled' && uniswapResult.value) {
     directQuote = normalizeUniswapQuote(uniswapResult.value, slippage, tokenOutDecimals);
-    console.log('[Aggregator] Uniswap quote:', directQuote.amountOutFormatted, tokenOut);
+    aggDebugLog('[Aggregator] Uniswap quote:', directQuote.amountOutFormatted, tokenOut);
   } else {
     console.warn('[Aggregator] Uniswap quote failed:', uniswapResult.status === 'rejected' ? uniswapResult.reason : 'No quote returned');
   }
@@ -739,7 +752,7 @@ async function getEthereumQuote(
   // Select best quote
   const comparison = selectBestQuote(oneInchQuote, directQuote, 'Uniswap');
 
-  console.log('[Aggregator] Selected:', comparison.best.provider, '|', comparison.selectionReason);
+  aggDebugLog('[Aggregator] Selected:', comparison.best.provider, '|', comparison.selectionReason);
 
   obsAggRoute({
     chainId: 1,
@@ -767,7 +780,7 @@ async function getBscQuote(
   apiKey?: string,
   walletAddress: string | null = null,
 ): Promise<AggregatedQuoteResult> {
-  console.log('[Aggregator] BSC quote request:', { tokenIn, tokenOut, amountIn });
+  aggDebugLog('[Aggregator] BSC quote request:', { tokenIn, tokenOut, amountIn });
 
   // Fetch both quotes in parallel
   const [oneInchResult, pancakeResult] = await Promise.allSettled([
@@ -781,14 +794,14 @@ async function getBscQuote(
 
   if (oneInchResult.status === 'fulfilled' && oneInchResult.value) {
     oneInchQuote = normalizeOneInchQuote(oneInchResult.value, slippage, tokenOutDecimals, 56);
-    console.log('[Aggregator] 1inch (BSC) quote:', oneInchQuote.amountOutFormatted, tokenOut);
+    aggDebugLog('[Aggregator] 1inch (BSC) quote:', oneInchQuote.amountOutFormatted, tokenOut);
   } else {
     console.warn('[Aggregator] 1inch (BSC) quote failed:', oneInchResult.status === 'rejected' ? oneInchResult.reason : 'No quote returned');
   }
 
   if (pancakeResult.status === 'fulfilled' && pancakeResult.value) {
     directQuote = normalizePancakeQuote(pancakeResult.value, slippage, tokenOutDecimals);
-    console.log('[Aggregator] PancakeSwap quote:', directQuote.amountOutFormatted, tokenOut);
+    aggDebugLog('[Aggregator] PancakeSwap quote:', directQuote.amountOutFormatted, tokenOut);
   } else {
     console.warn('[Aggregator] PancakeSwap quote failed:', pancakeResult.status === 'rejected' ? pancakeResult.reason : 'No quote returned');
   }
@@ -824,7 +837,7 @@ async function getBscQuote(
             tokenOut,
           });
           const selected = bucket / CANARY_BUCKET_MOD < canaryPct;
-          console.log('pancake_wrapper_v2_canary_decision', {
+          aggDebugLog('pancake_wrapper_v2_canary_decision', {
             wallet: walletAddress,
             bucket,
             canaryPct,
@@ -868,7 +881,7 @@ async function getBscQuote(
     console.warn('[Aggregator] Pancake wrapper V2 canary evaluation failed; ignoring.', err);
   }
 
-  console.log('[Aggregator] Selected:', comparison.best.provider, '|', comparison.selectionReason);
+  aggDebugLog('[Aggregator] Selected:', comparison.best.provider, '|', comparison.selectionReason);
 
   obsAggRoute({
     chainId: 56,
@@ -897,7 +910,7 @@ async function getOneInchOnlyQuote(
   tokenOutDecimals: number,
   apiKey?: string
 ): Promise<AggregatedQuoteResult> {
-  console.log('[Aggregator] 1inch-only quote request:', { tokenIn, tokenOut, amountIn, chainId });
+  aggDebugLog('[Aggregator] 1inch-only quote request:', { tokenIn, tokenOut, amountIn, chainId });
 
   const oneInchResult = await getBestOneInchQuote(tokenIn, tokenOut, amountIn, chainId, apiKey);
 
@@ -906,7 +919,7 @@ async function getOneInchOnlyQuote(
   }
 
   const best = normalizeOneInchQuote(oneInchResult, slippage, tokenOutDecimals, chainId);
-  console.log('[Aggregator] 1inch quote:', best.amountOutFormatted, tokenOut);
+  aggDebugLog('[Aggregator] 1inch quote:', best.amountOutFormatted, tokenOut);
 
   obsAggRoute({
     chainId,
@@ -1032,7 +1045,7 @@ export async function getQuoteFromProvider(
       throw new Error('Native ETH not supported in wrapper');
     }
 
-    console.log('uniswap_wrapper_quote_apply', {
+    aggDebugLog('uniswap_wrapper_quote_apply', {
       tokenIn,
       tokenOut,
       amountIn,
@@ -1089,7 +1102,7 @@ export async function getQuoteFromProvider(
     ) {
       const isManualRoute = routeMode === 'uniswap-v3-wrapper-v2';
       if (!isManualRoute || !nativeQuoteEnabled) {
-        console.log('uniswap_wrapper_v2_native_blocked', {
+        aggDebugLog('uniswap_wrapper_v2_native_blocked', {
           tokenIn,
           tokenOut,
           routeMode,
@@ -1100,7 +1113,7 @@ export async function getQuoteFromProvider(
           'Uniswap wrapper V2 native-leg quoting is not enabled for this deployment.',
         );
       }
-      console.log('uniswap_wrapper_v2_native_enabled', {
+      aggDebugLog('uniswap_wrapper_v2_native_enabled', {
         tokenIn,
         tokenOut,
         routeMode,
@@ -1119,7 +1132,7 @@ export async function getQuoteFromProvider(
       const tokenInIsNative = tokenInMeta ? isNativeToken(tokenInMeta.address) : false;
       const tokenOutIsNative = tokenOutMeta ? isNativeToken(tokenOutMeta.address) : false;
       if (tokenInIsNative || tokenOutIsNative) {
-        console.log('uniswap_wrapper_v2_native_forced', {
+        aggDebugLog('uniswap_wrapper_v2_native_forced', {
           tokenIn,
           tokenOut,
           routeMode,
@@ -1214,7 +1227,7 @@ export async function getQuoteFromProvider(
       // Native quoting is allowed ONLY for the manual fixed route `pancakeswap-v3-wrapper-v2`, behind a separate flag.
       const isManualRoute = routeMode === 'pancakeswap-v3-wrapper-v2';
       if (!isManualRoute || !nativeQuoteEnabled) {
-        console.log('pancake_wrapper_v2_native_blocked', {
+        aggDebugLog('pancake_wrapper_v2_native_blocked', {
           tokenIn,
           tokenOut,
           routeMode,
@@ -1225,7 +1238,7 @@ export async function getQuoteFromProvider(
           'Pancake wrapper V2 native-leg quoting is not enabled for this deployment.',
         );
       }
-      console.log('pancake_wrapper_v2_native_enabled', {
+      aggDebugLog('pancake_wrapper_v2_native_enabled', {
         tokenIn,
         tokenOut,
         routeMode,
@@ -1244,7 +1257,7 @@ export async function getQuoteFromProvider(
       const tokenInIsNative = tokenInMeta ? isNativeToken(tokenInMeta.address) : false;
       const tokenOutIsNative = tokenOutMeta ? isNativeToken(tokenOutMeta.address) : false;
       if (tokenInIsNative || tokenOutIsNative) {
-        console.log('pancake_wrapper_v2_native_forced', {
+        aggDebugLog('pancake_wrapper_v2_native_forced', {
           tokenIn,
           tokenOut,
           routeMode,

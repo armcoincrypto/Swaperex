@@ -24,6 +24,13 @@ export interface WalletEvent {
 
 type WalletEventListener = (event: WalletEvent) => void;
 
+function isWalletEventDebugEnabled(): boolean {
+  if (import.meta.env.DEV) return true;
+  const raw = import.meta.env.VITE_DEBUG_WALLET;
+  if (typeof raw !== 'string') return false;
+  return ['1', 'true', 'yes', 'on'].includes(raw.trim().toLowerCase());
+}
+
 /**
  * Wallet event emitter
  */
@@ -66,10 +73,12 @@ class WalletEventEmitter {
       ...data,
     };
 
-    console.log(`[Wallet] Event: ${type}`, {
-      timestamp: new Date(event.timestamp).toISOString(),
-      ...data,
-    });
+    if (isWalletEventDebugEnabled()) {
+      console.log(`[Wallet] Event: ${type}`, {
+        timestamp: new Date(event.timestamp).toISOString(),
+        ...data,
+      });
+    }
 
     // Notify specific listeners
     this.listeners.get(type)?.forEach((listener) => {

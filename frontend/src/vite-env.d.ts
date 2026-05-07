@@ -81,6 +81,15 @@ interface ImportMetaEnv {
   /** When truthy, enables verbose swap fetch / lifecycle / [swap:obs] console output. Default: off in production. */
   readonly VITE_DEBUG_SWAP?: string
 
+  /** When truthy, POST monitoring outbox to the ingest URL. Default off when unset (no production POST). */
+  readonly VITE_MONITORING_INGEST_ENABLED?: string
+
+  /** When truthy with DEV false, mirror `logProductionEvent` rows to the console. */
+  readonly VITE_DEBUG_MONITORING?: string
+
+  /** When truthy with DEV false, log walletEvents.emit details to the console. */
+  readonly VITE_DEBUG_WALLET?: string
+
   // Vite flags
   readonly DEV: boolean
   readonly PROD: boolean

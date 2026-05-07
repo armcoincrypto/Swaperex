@@ -5,6 +5,40 @@
 
 import { API_BASE_URL } from '@/config/api';
 
+function isTruthyEnvFlag(raw: string | undefined): boolean {
+  if (typeof raw !== 'string') return false;
+  return ['1', 'true', 'yes', 'on'].includes(raw.trim().toLowerCase());
+}
+
+/** POST ingest only when explicitly enabled (default off when unset). */
+export function isMonitoringIngestEnabled(): boolean {
+  return isTruthyEnvFlag(import.meta.env.VITE_MONITORING_INGEST_ENABLED);
+}
+
+function isDebugMonitoringConsole(): boolean {
+  return import.meta.env.DEV || isTruthyEnvFlag(import.meta.env.VITE_DEBUG_MONITORING);
+}
+
+const PAUSE_404_SESSION_KEY = 'swaperex-monitoring-ingest-paused-404';
+
+function isIngestPausedAfter404(): boolean {
+  if (typeof sessionStorage === 'undefined') return false;
+  try {
+    return sessionStorage.getItem(PAUSE_404_SESSION_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function setIngestPausedAfter404(): void {
+  if (typeof sessionStorage === 'undefined') return;
+  try {
+    sessionStorage.setItem(PAUSE_404_SESSION_KEY, '1');
+  } catch {
+    // ignore
+  }
+}
+
 export type ProductionMonitoringPayload = Record<string, unknown>;
 
 /** Persisted to the outbox and eligible for `POST /api/v1/monitoring/events`. */
@@ -208,6 +242,8 @@ let bridgeStarted = false;
  */
 export async function flushMonitoringOutbox(): Promise<void> {
   if (typeof fetch === 'undefined') return;
+  if (!isMonitoringIngestEnabled()) return;
+  if (isIngestPausedAfter404()) return;
   if (flushInFlight) return;
   const buf = readBuffer();
   if (buf.events.length === 0) return;
@@ -236,6 +272,10 @@ export async function flushMonitoringOutbox(): Promise<void> {
       signal: ctrl.signal,
     });
     clearTimeout(to);
+    if (res.status === 404) {
+      setIngestPausedAfter404();
+      return;
+    }
     if (res.ok) {
       acknowledgeMonitoringEventsUpTo(maxSeq);
     }
@@ -281,10 +321,12 @@ export function logProductionEvent(event: string, fields: ProductionMonitoringPa
     ts: Date.now(),
     ...fields,
   };
-  try {
-    console.log(JSON.stringify(row));
-  } catch {
-    // ignore
+  if (isDebugMonitoringConsole()) {
+    try {
+      console.log(JSON.stringify(row));
+    } catch {
+      // ignore
+    }
   }
 
   if (!isPersistedEventName(event)) return;
@@ -294,7 +336,9 @@ export function logProductionEvent(event: string, fields: ProductionMonitoringPa
       ...row,
       _clientSessionId: getOrCreateSessionId(),
     });
-    scheduleMonitoringFlush();
+    if (isMonitoringIngestEnabled() && !isIngestPausedAfter404()) {
+      scheduleMonitoringFlush();
+    }
   } catch {
     // ignore
   }
