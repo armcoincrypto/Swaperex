@@ -2,20 +2,24 @@
  * Radar Service - Signal Detection Logic
  *
  * Detects actionable signals from:
- * - Quote data (price moves, liquidity)
+ * - Quote data (pair quote-rate moves, liquidity)
  * - GoPlus risk data (safety changes)
- * - Price deltas over time
  *
- * No backend required - all frontend-only.
+ * No backend required — all frontend-only.
+ *
+ * Quote `rate` is pair-specific (e.g. 1 unit from → X units to), not USD price.
  */
 
 import { useRadarStore, type SignalSeverity } from '@/stores/radarStore';
 
-// Price history for detecting moves
-interface PricePoint {
-  tokenAddress: string;
+/** Samples for quote-rate drift (same chain + same from/to identity). */
+interface QuoteRatePoint {
   chainId: number;
-  price: number;
+  fromAddress: string;
+  fromSymbol: string;
+  toAddress: string;
+  toSymbol: string;
+  rate: number;
   timestamp: number;
 }
 
@@ -30,78 +34,128 @@ interface RiskSnapshot {
 }
 
 // In-memory caches (cleared on page refresh)
-const priceHistory: Map<string, PricePoint[]> = new Map();
+const pairQuoteRateHistory: Map<string, QuoteRatePoint[]> = new Map();
+/** To-token keys that have received at least one pair quote sample (for liquidity gating). */
+const toTokensWithPairQuoteSamples: Set<string> = new Set();
 const riskHistory: Map<string, RiskSnapshot> = new Map();
 
 // Thresholds for signal detection
-const PRICE_MOVE_THRESHOLD = 5; // 5% price change triggers signal
+const PRICE_MOVE_THRESHOLD = 5; // % change in quote rate triggers consideration
+const LARGE_MOVE_PCT = 30; // above this requires longer same-pair history
+const MIN_SAMPLES_FOR_SIGNAL = 3; // current + at least 2 prior samples
+const MIN_SAMPLES_FOR_LARGE_MOVE = 5; // "verified" same-pair window for |move| > LARGE_MOVE_PCT
 const LIQUIDITY_THRESHOLD = 10000; // $10k+ liquidity is significant
 const TAX_CHANGE_THRESHOLD = 2; // 2% tax change triggers signal
 
-// Generate cache key
+function tokenKeyPart(address: string, symbol: string): string {
+  const a = address?.trim().toLowerCase() ?? '';
+  if (a.startsWith('0x') && a.length >= 42) return a;
+  return `sym:${symbol.trim().toUpperCase()}`;
+}
+
+/** Stable key: same chain, from, to (direction matters). */
+function getPairQuoteCacheKey(
+  chainId: number,
+  fromAddress: string,
+  fromSymbol: string,
+  toAddress: string,
+  toSymbol: string,
+): string {
+  return [
+    chainId,
+    tokenKeyPart(fromAddress, fromSymbol),
+    tokenKeyPart(toAddress, toSymbol),
+  ].join('|');
+}
+
+// Generate cache key (risk / liquidity by single token)
 function getCacheKey(tokenAddress: string, chainId: number): string {
   return `${tokenAddress.toLowerCase()}-${chainId}`;
 }
 
+function toTokenQuoteSampleKey(chainId: number, toAddress: string, toSymbol: string): string {
+  return `${chainId}|${tokenKeyPart(toAddress, toSymbol)}`;
+}
+
 /**
- * Check for price movement signals
- * Called when a new quote is received
+ * Quote-rate movement (not USD price): compares oldest vs newest sample in the window
+ * for the same chain + fromToken + toToken + direction.
  */
-export function checkPriceMove(
-  tokenAddress: string,
-  tokenSymbol: string,
+function checkQuoteRateMove(
+  fromToken: { address: string; symbol: string },
+  toToken: { address: string; symbol: string },
   chainId: number,
-  currentPrice: number
+  currentRate: number,
 ): void {
-  const key = getCacheKey(tokenAddress, chainId);
-  const history = priceHistory.get(key) || [];
+  if (!Number.isFinite(currentRate) || currentRate <= 0) return;
+
+  const key = getPairQuoteCacheKey(
+    chainId,
+    fromToken.address,
+    fromToken.symbol,
+    toToken.address,
+    toToken.symbol,
+  );
+
+  const history = pairQuoteRateHistory.get(key) || [];
   const now = Date.now();
 
-  // Add current price to history
   history.push({
-    tokenAddress,
     chainId,
-    price: currentPrice,
+    fromAddress: fromToken.address,
+    fromSymbol: fromToken.symbol,
+    toAddress: toToken.address,
+    toSymbol: toToken.symbol,
+    rate: currentRate,
     timestamp: now,
   });
 
-  // Keep only last 10 minutes of data
   const tenMinutesAgo = now - 10 * 60 * 1000;
   const recentHistory = history.filter((p) => p.timestamp > tenMinutesAgo);
-  priceHistory.set(key, recentHistory);
+  pairQuoteRateHistory.set(key, recentHistory);
 
-  // Need at least 2 data points
-  if (recentHistory.length < 2) return;
+  toTokensWithPairQuoteSamples.add(toTokenQuoteSampleKey(chainId, toToken.address, toToken.symbol));
 
-  // Calculate price change from oldest to newest
+  if (recentHistory.length < MIN_SAMPLES_FOR_SIGNAL) return;
+
   const oldest = recentHistory[0];
   const newest = recentHistory[recentHistory.length - 1];
-  const percentChange = ((newest.price - oldest.price) / oldest.price) * 100;
 
-  // Check if significant move
-  if (Math.abs(percentChange) >= PRICE_MOVE_THRESHOLD) {
-    const isUp = percentChange > 0;
-    const severity: SignalSeverity = Math.abs(percentChange) > 10 ? 'alert' : 'warning';
+  if (!Number.isFinite(oldest.rate) || oldest.rate <= 0) return;
+  if (!Number.isFinite(newest.rate) || newest.rate <= 0) return;
 
-    useRadarStore.getState().addSignal({
-      type: 'price_move',
-      severity,
-      tokenSymbol,
-      tokenAddress,
-      chainId,
-      title: `${isUp ? 'Price Up' : 'Price Down'} ${Math.abs(percentChange).toFixed(1)}%`,
-      description: `${tokenSymbol} ${isUp ? 'gained' : 'dropped'} ${Math.abs(percentChange).toFixed(1)}% in the last 10 minutes`,
-      metadata: {
-        oldValue: oldest.price,
-        newValue: newest.price,
-        percentChange,
-        source: 'quote',
-      },
-    });
+  const percentChange = ((newest.rate - oldest.rate) / oldest.rate) * 100;
+  if (!Number.isFinite(percentChange)) return;
 
-    // Clear history after signal to avoid repeated signals
-    priceHistory.set(key, [newest]);
+  if (Math.abs(percentChange) < PRICE_MOVE_THRESHOLD) return;
+
+  if (Math.abs(percentChange) > LARGE_MOVE_PCT && recentHistory.length < MIN_SAMPLES_FOR_LARGE_MOVE) {
+    return;
   }
+
+  const isUp = percentChange > 0;
+  const severity: SignalSeverity = Math.abs(percentChange) > 10 ? 'alert' : 'warning';
+  const pairLabel = `${fromToken.symbol} → ${toToken.symbol}`;
+
+  useRadarStore.getState().addSignal({
+    type: 'price_move',
+    severity,
+    tokenSymbol: toToken.symbol,
+    tokenAddress: toToken.address,
+    chainId,
+    title: `${pairLabel} quote rate ${isUp ? 'up' : 'down'} ${Math.abs(percentChange).toFixed(1)}%`,
+    description: `Swap quote rate for ${pairLabel} ${isUp ? 'rose' : 'fell'} ${Math.abs(percentChange).toFixed(1)}% over recent quotes (not USD market price).`,
+    metadata: {
+      oldValue: oldest.rate,
+      newValue: newest.rate,
+      percentChange,
+      source: 'quote_pair_rate',
+      fromSymbol: fromToken.symbol,
+      toSymbol: toToken.symbol,
+    },
+  });
+
+  pairQuoteRateHistory.set(key, [newest]);
 }
 
 /**
@@ -227,11 +281,8 @@ export function checkLiquiditySignal(
   // Only signal for significant new liquidity
   if (liquidityUSD < LIQUIDITY_THRESHOLD) return;
 
-  const key = getCacheKey(tokenAddress, chainId);
-  const existingHistory = priceHistory.get(key);
-
-  // Only signal if this is a "new" token for us (no price history)
-  if (existingHistory && existingHistory.length > 0) return;
+  const toKey = toTokenQuoteSampleKey(chainId, tokenAddress, tokenSymbol);
+  if (toTokensWithPairQuoteSamples.has(toKey)) return;
 
   const severity: SignalSeverity =
     liquidityUSD > 100000 ? 'alert' : liquidityUSD > 50000 ? 'warning' : 'info';
@@ -256,7 +307,7 @@ export function checkLiquiditySignal(
  * Called after each successful quote
  */
 export function processQuoteForSignals(
-  _fromToken: { address: string; symbol: string },
+  fromToken: { address: string; symbol: string },
   toToken: { address: string; symbol: string },
   chainId: number,
   quote: {
@@ -266,13 +317,8 @@ export function processQuoteForSignals(
     liquidityUSD?: number;
   }
 ): void {
-  // Check price moves for both tokens
-  if (quote.rate > 0) {
-    // Rate is "1 fromToken = X toToken", so we track toToken price relative to fromToken
-    checkPriceMove(toToken.address, toToken.symbol, chainId, quote.rate);
-  }
+  checkQuoteRateMove(fromToken, toToken, chainId, quote.rate);
 
-  // Check liquidity if available
   if (quote.liquidityUSD && quote.liquidityUSD > 0) {
     checkLiquiditySignal(
       toToken.address,
@@ -313,6 +359,7 @@ export function processSecurityForSignals(
  * Useful for testing or when switching chains
  */
 export function clearRadarCache(): void {
-  priceHistory.clear();
+  pairQuoteRateHistory.clear();
+  toTokensWithPairQuoteSamples.clear();
   riskHistory.clear();
 }

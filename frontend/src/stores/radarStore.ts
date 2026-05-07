@@ -32,6 +32,9 @@ export interface RadarSignal {
     newValue?: string | number;
     percentChange?: number;
     source?: string;
+    /** Pair leg (quote-rate signals), not USD price */
+    fromSymbol?: string;
+    toSymbol?: string;
     // Smart signal fields
     confidence?: number; // 0-1 confidence score
     escalated?: boolean; // Signal escalated from lower severity
@@ -166,7 +169,7 @@ export function getSignalTypeInfo(type: RadarSignalType): {
     case 'risk_changed':
       return { icon: '🟡', label: 'Risk Change', color: 'text-yellow-400' };
     case 'price_move':
-      return { icon: '🔵', label: 'Price Move', color: 'text-blue-400' };
+      return { icon: '🔵', label: 'Quote rate change', color: 'text-blue-400' };
     default:
       return { icon: '⚪', label: 'Signal', color: 'text-gray-400' };
   }
