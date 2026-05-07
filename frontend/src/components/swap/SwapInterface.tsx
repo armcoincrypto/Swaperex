@@ -275,6 +275,9 @@ export function SwapInterface() {
 
   const [showSettings, setShowSettings] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [showAdvancedQuoteDetails, setShowAdvancedQuoteDetails] = useState(
+    () => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1',
+  );
   const [isRefreshingQuote, setIsRefreshingQuote] = useState(false);
   const [showFromSelector, setShowFromSelector] = useState(false);
   const [showToSelector, setShowToSelector] = useState(false);
@@ -975,7 +978,7 @@ export function SwapInterface() {
           currentChainId === 56 &&
           (fromAsset?.is_native || toAsset?.is_native) && (
             <div className="relative z-10 mb-3 rounded-lg bg-blue-900/15 border border-blue-800/35 px-3 py-2 text-[11px] text-blue-100/90 leading-snug">
-              Optimized route selected
+              Best route selected
             </div>
           )}
 
@@ -985,7 +988,7 @@ export function SwapInterface() {
           getUniswapWrapperV2Config().nativeEnabled &&
           getUniswapWrapperV2Config().nativeQuoteEnabled && (
             <div className="relative z-10 mb-3 rounded-lg bg-blue-900/15 border border-blue-800/35 px-3 py-2 text-[11px] text-blue-100/90 leading-snug">
-              Optimized route selected (Uniswap wrapper V2)
+              Best route selected
             </div>
           )}
 
@@ -1350,7 +1353,7 @@ export function SwapInterface() {
         {/* Quote Details (when quote available) */}
         {swapQuote && (status === 'previewing' || isQuotePipelineLoading) && !showPreview && (
           <div className="relative z-10 mt-4 p-4 bg-electro-bgAlt/70 rounded-xl text-sm space-y-2 border border-white/[0.1] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-            {/* Best Route Banner with Countdown */}
+            {/* Best route banner + quote TTL */}
             <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/[0.06] rounded-lg bg-white/[0.03] px-2 py-2">
               <div className="flex items-center gap-2">
                 <div className="w-5 h-5 rounded-full bg-green-900/50 flex items-center justify-center">
@@ -1358,19 +1361,10 @@ export function SwapInterface() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <span
-                  className="text-green-400 font-medium"
-                  title={
-                    swapQuote.runnerUpAggregatedQuote
-                      ? 'We compared two executable quotes and selected the better output for this size.'
-                      : 'One configured pricing source was used for this chain and size; amounts are still valid for ~30s.'
-                  }
-                >
-                  {swapQuote.runnerUpAggregatedQuote ? 'Best execution quote' : 'Quoted for this trade'}
+                <span className="text-green-400 font-medium" title="Quote is valid for a short time; refresh if the timer expires.">
+                  Best route selected
                 </span>
-                <RouteTooltip provider={swapQuote.provider} />
               </div>
-              {/* Quote Expiry Countdown */}
               {quoteSecondsRemaining !== null && (
                 quoteSecondsRemaining <= 0 ? (
                   isEthNativeV2QuoteOnlyNoExec && hasUsableQuote && isQuotePipelineLoading ? (
@@ -1416,240 +1410,336 @@ export function SwapInterface() {
               )}
             </div>
 
-            <p className="text-[11px] text-dark-500 leading-snug">
-              {SWAP_SURFACE_COPY.trustLineQuoteEstimate}
-            </p>
-
-            <div className="flex justify-between text-xs gap-2 pt-1 border-b border-white/[0.06] pb-2 mb-2">
-              <span className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.routePreferenceLabel}</span>
-              <span className="text-dark-200 text-right">{formatQuoteRoutePreferenceLabel(swapQuote.routeMode)}</span>
+            {/* Main summary — production-friendly */}
+            <div className="rounded-xl border border-white/[0.07] bg-black/20 p-3 space-y-2 mt-1">
+              <div className="flex justify-between">
+                <span className="text-dark-400">Exchange rate</span>
+                <span>1 {fromAsset?.symbol} = {formatBalance(swapQuote.rate, 6)} {toAsset?.symbol}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-dark-400">Minimum received</span>
+                <span>{formatBalance(swapQuote.minimum_received, 6)} {toAsset?.symbol}</span>
+              </div>
+              {(() => {
+                const q = swapQuote;
+                if (q.provider === '1inch' && isMonetizationActiveForProvider('1inch')) {
+                  return (
+                    <div className="flex justify-between gap-2">
+                      <span className="text-dark-400 shrink-0">Protocol fee</span>
+                      <span
+                        className="text-right text-dark-200"
+                        title="Output-token fee via 1inch on execution; quote output is estimated before this fee"
+                      >
+                        {(getMonetizationConfig().feeBps / 100).toFixed(2)}%
+                      </span>
+                    </div>
+                  );
+                }
+                if (q.provider === 'uniswap-v3-wrapper') {
+                  return (
+                    <div className="flex justify-between gap-2">
+                      <span className="text-dark-400 shrink-0">Protocol fee</span>
+                      <span
+                        className="text-right text-dark-200"
+                        title="Taken from gross swap output on-chain; quoted receive amount is net of this fee."
+                      >
+                        {(getUniswapWrapperFeeBpsForUi() / 100).toFixed(2)}%
+                      </span>
+                    </div>
+                  );
+                }
+                if (q.provider === 'uniswap-v3-wrapper-v2') {
+                  return (
+                    <div className="flex justify-between gap-2">
+                      <span className="text-dark-400 shrink-0">Protocol fee</span>
+                      <span
+                        className="text-right text-dark-200"
+                        title="Swaperex Uniswap wrapper V2 — taken from gross output on-chain; quoted receive amount is net."
+                      >
+                        {(getUniswapWrapperV2FeeBpsForUi() / 100).toFixed(2)}%
+                      </span>
+                    </div>
+                  );
+                }
+                if (q.provider === 'pancakeswap-v3-wrapper') {
+                  return (
+                    <div className="flex justify-between gap-2">
+                      <span className="text-dark-400 shrink-0">Protocol fee</span>
+                      <span
+                        className="text-right text-dark-200"
+                        title="Swaperex Pancake wrapper — taken from gross output on-chain; quoted receive amount is net."
+                      >
+                        {(getPancakeWrapperFeeBpsForUi() / 100).toFixed(2)}%
+                      </span>
+                    </div>
+                  );
+                }
+                if (q.provider === 'pancakeswap-v3-wrapper-v2') {
+                  return (
+                    <div className="flex justify-between gap-2">
+                      <span className="text-dark-400 shrink-0">Protocol fee</span>
+                      <span
+                        className="text-right text-dark-200"
+                        title="Swaperex Pancake wrapper V2 — taken from gross output on-chain; quoted receive amount is net."
+                      >
+                        {(getPancakeWrapperV2FeeBpsForUi() / 100).toFixed(2)}%
+                      </span>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="flex justify-between gap-2">
+                    <span className="text-dark-400 shrink-0">Protocol fee</span>
+                    <span className="text-dark-200 text-right" title="No separate Swaperex protocol fee on this route">
+                      None
+                    </span>
+                  </div>
+                );
+              })()}
+              <div className="border-t border-dark-700 pt-2 mt-2 space-y-1">
+                <div className="flex justify-between gap-2">
+                  <span className="text-dark-400 shrink-0">Est. network fee (gas)</span>
+                  <span className="text-dark-300 font-mono text-right">
+                    {formatGasLimitUnits(swapQuote.gasEstimate) ?? '—'} units
+                  </span>
+                </div>
+                <p className="text-[10px] text-dark-500 leading-snug">Your wallet sets the final gas limit and fee.</p>
+              </div>
             </div>
 
-            {/* Aggregator: real winner vs runner-up (execution quotes) */}
-            {swapQuote.quoteSelectionReason && (
-              <div className="rounded-lg bg-dark-800/40 border border-white/[0.05] px-3 py-2 space-y-2">
-                <div className="flex justify-between gap-2 items-start text-xs">
-                  <span className="text-dark-400 shrink-0">Quote selection</span>
-                  <span className="text-dark-200 text-right leading-snug">{swapQuote.quoteSelectionReason}</span>
-                </div>
-                {swapQuote.runnerUpAggregatedQuote ? (
-                  <>
-                    <div className="flex justify-between text-xs gap-2">
-                      <span className="text-dark-400">
-                        {SWAP_SURFACE_COPY.routeViaLabel} · {swapAggregatorProviderLabel(swapQuote.provider)}
-                      </span>
-                      <span className="text-primary-400 font-medium tabular-nums">
-                        {formatBalance(swapQuote.amountOutFormatted, 6)} {toAsset?.symbol}
-                      </span>
+            {/* Advanced details — full technical context; open by default with ?debug=1 */}
+            <div className="mt-2">
+              <button
+                type="button"
+                onClick={() => setShowAdvancedQuoteDetails((o) => !o)}
+                className="w-full flex items-center justify-between gap-2 text-xs font-medium text-dark-300 hover:text-dark-100 py-2.5 px-3 rounded-lg border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.05] transition-colors"
+                aria-expanded={showAdvancedQuoteDetails}
+              >
+                <span>Advanced details</span>
+                <span className="text-dark-500 tabular-nums" aria-hidden>
+                  {showAdvancedQuoteDetails ? '▲' : '▼'}
+                </span>
+              </button>
+              {showAdvancedQuoteDetails && (
+                <div className="mt-2 p-3 rounded-xl border border-white/[0.06] bg-black/15 space-y-3 text-xs">
+                  <p className="text-[11px] text-dark-500 leading-snug">{SWAP_SURFACE_COPY.trustLineQuoteEstimate}</p>
+
+                  <div className="flex justify-between text-xs gap-2 pt-1 border-b border-white/[0.06] pb-2">
+                    <span className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.routePreferenceLabel}</span>
+                    <span className="text-dark-200 text-right">{formatQuoteRoutePreferenceLabel(swapQuote.routeMode)}</span>
+                  </div>
+
+                  {swapQuote.quoteSelectionReason && (
+                    <div className="rounded-lg bg-dark-800/40 border border-white/[0.05] px-3 py-2 space-y-2">
+                      <div className="flex justify-between gap-2 items-start text-xs">
+                        <span className="text-dark-400 shrink-0">Quote selection</span>
+                        <span className="text-dark-200 text-right leading-snug">{swapQuote.quoteSelectionReason}</span>
+                      </div>
+                      {swapQuote.runnerUpAggregatedQuote ? (
+                        <>
+                          <div className="flex justify-between text-xs gap-2">
+                            <span className="text-dark-400">
+                              {SWAP_SURFACE_COPY.routeViaLabel} · {swapAggregatorProviderLabel(swapQuote.provider)}
+                            </span>
+                            <span className="text-primary-400 font-medium tabular-nums">
+                              {formatBalance(swapQuote.amountOutFormatted, 6)} {toAsset?.symbol}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-xs gap-2 text-dark-400">
+                            <span>
+                              Runner-up · {swapAggregatorProviderLabel(swapQuote.runnerUpAggregatedQuote.provider)}
+                            </span>
+                            <span className="tabular-nums">
+                              {formatBalance(swapQuote.runnerUpAggregatedQuote.amountOut, 6)} {toAsset?.symbol}
+                            </span>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex justify-between text-xs gap-2">
+                          <span className="text-dark-400">
+                            {SWAP_SURFACE_COPY.routeViaLabel} · {swapAggregatorProviderLabel(swapQuote.provider)}
+                          </span>
+                          <span className="text-primary-400 font-medium tabular-nums">
+                            {formatBalance(swapQuote.amountOutFormatted, 6)} {toAsset?.symbol}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex justify-between text-xs gap-2 text-dark-400">
-                      <span>
-                        Runner-up · {swapAggregatorProviderLabel(swapQuote.runnerUpAggregatedQuote.provider)}
-                      </span>
-                      <span className="tabular-nums">
-                        {formatBalance(swapQuote.runnerUpAggregatedQuote.amountOut, 6)}{' '}
-                        {toAsset?.symbol}
-                      </span>
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex justify-between text-xs gap-2">
-                    <span className="text-dark-400">
-                      {SWAP_SURFACE_COPY.routeViaLabel} · {swapAggregatorProviderLabel(swapQuote.provider)}
-                    </span>
-                    <span className="text-primary-400 font-medium tabular-nums">
+                  )}
+
+                  <div className="flex justify-between">
+                    <span className="text-dark-400">Expected output</span>
+                    <span className="text-primary-400 font-medium">
                       {formatBalance(swapQuote.amountOutFormatted, 6)} {toAsset?.symbol}
                     </span>
                   </div>
-                )}
-              </div>
-            )}
 
-            <div className="rounded-xl border border-white/[0.07] bg-black/20 p-3 space-y-2 mt-1">
-            {/* Exchange rate */}
-            <div className="flex justify-between">
-              <span className="text-dark-400">Exchange rate</span>
-              <span>1 {fromAsset?.symbol} = {formatBalance(swapQuote.rate, 6)} {toAsset?.symbol}</span>
-            </div>
-
-            {/* Expected Output */}
-            <div className="flex justify-between">
-              <span className="text-dark-400">Expected Output</span>
-              <span className="text-primary-400 font-medium">
-                {formatBalance(swapQuote.amountOutFormatted, 6)} {toAsset?.symbol}
-              </span>
-            </div>
-
-            {/* Minimum received */}
-            <div className="flex justify-between">
-              <span className="text-dark-400">Minimum received</span>
-              <span>{formatBalance(swapQuote.minimum_received, 6)} {toAsset?.symbol}</span>
-            </div>
-
-            {/* Price Impact — always visible for trust */}
-            {(() => {
-              const pi = getPriceImpactUi(swapQuote.price_impact);
-              const impactClass =
-                pi.severity === 'unavailable'
-                  ? 'text-dark-400'
-                  : pi.severity === 'critical' || pi.severity === 'high'
-                  ? 'text-red-400'
-                  : pi.severity === 'medium'
-                  ? 'text-yellow-400'
-                  : pi.severity === 'low' || pi.severity === 'negligible'
-                  ? 'text-green-400'
-                  : 'text-dark-300';
-              return (
-                <div className="flex justify-between items-baseline gap-2">
-                  <span className="text-dark-400 shrink-0">Price impact</span>
-                  <span
-                    className={`text-right ${impactClass}`}
-                    title={
+                  {(() => {
+                    const pi = getPriceImpactUi(swapQuote.price_impact);
+                    const impactClass =
                       pi.severity === 'unavailable'
-                        ? 'No trustworthy impact % for this direct Uniswap quote; use size, slippage, and execution preview.'
-                        : 'Estimated move vs. mid price before fees — not slippage tolerance'
-                    }
-                  >
-                    {pi.label}
-                  </span>
-                </div>
-              );
-            })()}
+                        ? 'text-dark-400'
+                        : pi.severity === 'critical' || pi.severity === 'high'
+                        ? 'text-red-400'
+                        : pi.severity === 'medium'
+                        ? 'text-yellow-400'
+                        : pi.severity === 'low' || pi.severity === 'negligible'
+                        ? 'text-green-400'
+                        : 'text-dark-300';
+                    return (
+                      <div className="flex justify-between items-baseline gap-2">
+                        <span className="text-dark-400 shrink-0">Price impact</span>
+                        <span
+                          className={`text-right ${impactClass}`}
+                          title={
+                            pi.severity === 'unavailable'
+                              ? 'No trustworthy impact % for this direct Uniswap quote; use size, slippage, and execution preview.'
+                              : 'Estimated move vs. mid price before fees — not slippage tolerance'
+                          }
+                        >
+                          {pi.label}
+                        </span>
+                      </div>
+                    );
+                  })()}
 
-            {/* Pool fee (direct routes) vs aggregator (1inch bundles many pool fees into the quote) */}
-            <div className="flex justify-between">
-              <span className="text-dark-400">
-                {swapQuote.provider === '1inch' ? 'Route fees' : 'Pool Fee'}
-              </span>
-              <span>
-                {swapQuote.provider === '1inch'
-                  ? 'Included in quote (multi-pool)'
-                  : swapQuote.provider === 'uniswap-v3-wrapper' ||
-                      swapQuote.provider === 'uniswap-v3-wrapper-v2' ||
-                      swapQuote.provider === 'pancakeswap-v3-wrapper' ||
-                      swapQuote.provider === 'pancakeswap-v3-wrapper-v2'
-                    ? `${getFeeTierDisplay(swapQuote.feeTier)} pool (wrapper route)`
-                    : `${getFeeTierDisplay(swapQuote.feeTier)} fee tier`}
-              </span>
-            </div>
+                  <div className="flex justify-between">
+                    <span className="text-dark-400">{swapQuote.provider === '1inch' ? 'Route fees' : 'Pool fee'}</span>
+                    <span>
+                      {swapQuote.provider === '1inch'
+                        ? 'Included in quote (multi-pool)'
+                        : swapQuote.provider === 'uniswap-v3-wrapper' ||
+                            swapQuote.provider === 'uniswap-v3-wrapper-v2' ||
+                            swapQuote.provider === 'pancakeswap-v3-wrapper' ||
+                            swapQuote.provider === 'pancakeswap-v3-wrapper-v2'
+                          ? `${getFeeTierDisplay(swapQuote.feeTier)} pool (wrapper route)`
+                          : `${getFeeTierDisplay(swapQuote.feeTier)} fee tier`}
+                    </span>
+                  </div>
 
-            {swapQuote.provider === '1inch' && isMonetizationActiveForProvider('1inch') && (
-              <div className="flex justify-between gap-2">
-                <span className="text-dark-400 shrink-0">Platform fee</span>
-                <span
-                  className="text-right text-dark-200"
-                  title="Output-token fee via 1inch on execution; quote output is estimated before this fee"
-                >
-                  {(getMonetizationConfig().feeBps / 100).toFixed(2)}%
-                </span>
-              </div>
-            )}
+                  {swapQuote.provider === '1inch' && isMonetizationActiveForProvider('1inch') && (
+                    <div className="flex justify-between gap-2">
+                      <span className="text-dark-400 shrink-0">Platform fee (detail)</span>
+                      <span
+                        className="text-right text-dark-200"
+                        title="Output-token fee via 1inch on execution; quote output is estimated before this fee"
+                      >
+                        {(getMonetizationConfig().feeBps / 100).toFixed(2)}%
+                      </span>
+                    </div>
+                  )}
 
-            {swapQuote.provider === 'uniswap-v3-wrapper' && (
-              <div className="flex flex-col gap-0.5">
-                <div className="flex justify-between gap-2">
-                  <span className="text-dark-400 shrink-0">Wrapper protocol fee</span>
-                  <span
-                    className="text-right text-dark-200"
-                    title="Taken from gross swap output on-chain; quoted receive amount is net of this fee."
-                  >
-                    {(getUniswapWrapperFeeBpsForUi() / 100).toFixed(2)}%
-                  </span>
-                </div>
-                {isUniswapWrapperFeeBpsUnverified() && (
-                  <p className="text-[10px] text-dark-500 leading-snug pl-0">
-                    {SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}
+                  {swapQuote.provider === 'uniswap-v3-wrapper' && (
+                    <div className="flex flex-col gap-0.5">
+                      <div className="flex justify-between gap-2">
+                        <span className="text-dark-400 shrink-0">Wrapper protocol fee</span>
+                        <span
+                          className="text-right text-dark-200"
+                          title="Taken from gross swap output on-chain; quoted receive amount is net of this fee."
+                        >
+                          {(getUniswapWrapperFeeBpsForUi() / 100).toFixed(2)}%
+                        </span>
+                      </div>
+                      {isUniswapWrapperFeeBpsUnverified() && (
+                        <p className="text-[10px] text-dark-500 leading-snug pl-0">
+                          {SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {swapQuote.provider === 'uniswap-v3-wrapper-v2' && (
+                    <div className="flex flex-col gap-0.5">
+                      <div className="flex justify-between gap-2">
+                        <span className="text-dark-400 shrink-0">Wrapper V2 protocol fee</span>
+                        <span
+                          className="text-right text-dark-200"
+                          title="Swaperex Uniswap wrapper V2 — taken from gross output on-chain; quoted receive amount is net."
+                        >
+                          {(getUniswapWrapperV2FeeBpsForUi() / 100).toFixed(2)}%
+                        </span>
+                      </div>
+                      {isUniswapWrapperV2FeeBpsUnverified() && (
+                        <p className="text-[10px] text-dark-500 leading-snug pl-0">
+                          {SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {swapQuote.provider === 'pancakeswap-v3-wrapper' && (
+                    <div className="flex flex-col gap-0.5">
+                      <div className="flex justify-between gap-2">
+                        <span className="text-dark-400 shrink-0">Wrapper protocol fee</span>
+                        <span
+                          className="text-right text-dark-200"
+                          title="Swaperex Pancake wrapper — taken from gross output on-chain; quoted receive amount is net."
+                        >
+                          {(getPancakeWrapperFeeBpsForUi() / 100).toFixed(2)}%
+                        </span>
+                      </div>
+                      {isPancakeWrapperFeeBpsUnverified() && (
+                        <p className="text-[10px] text-dark-500 leading-snug pl-0">
+                          {SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {swapQuote.provider === 'pancakeswap-v3-wrapper-v2' && (
+                    <div className="flex flex-col gap-0.5">
+                      <div className="flex justify-between gap-2">
+                        <span className="text-dark-400 shrink-0">Wrapper V2 protocol fee</span>
+                        <span
+                          className="text-right text-dark-200"
+                          title="Swaperex Pancake wrapper V2 — taken from gross output on-chain; quoted receive amount is net."
+                        >
+                          {(getPancakeWrapperV2FeeBpsForUi() / 100).toFixed(2)}%
+                        </span>
+                      </div>
+                      {isPancakeWrapperV2FeeBpsUnverified() && (
+                        <p className="text-[10px] text-dark-500 leading-snug pl-0">
+                          {SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex justify-between">
+                    <span className="text-dark-400">Slippage tolerance</span>
+                    <span>{swapQuote.slippage}%</span>
+                  </div>
+
+                  <div className="border-t border-dark-700 pt-2 space-y-1">
+                    <div className="flex justify-between gap-2">
+                      <span className="text-dark-400 shrink-0">Est. gas (units)</span>
+                      <span className="text-dark-300 font-mono text-right">
+                        {formatGasLimitUnits(swapQuote.gasEstimate) ?? '—'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-dark-500 leading-snug">
+                      Simulation estimate from the quote route. Your wallet confirms the final gas limit and network fee.
+                    </p>
+                  </div>
+
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="text-dark-400 shrink-0">Route via</span>
+                    <div className="flex items-center gap-2 min-w-0 justify-end">
+                      <ProviderBadge provider={swapQuote.provider} />
+                      <RouteTooltip provider={swapQuote.provider} />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between gap-2 items-baseline font-mono text-[10px] text-dark-400 break-all">
+                    <span className="shrink-0 text-dark-500">Route id</span>
+                    <span className="text-right text-dark-300">{swapQuote.provider}</span>
+                  </div>
+
+                  <p className="text-[10px] text-dark-500 leading-snug pt-2 border-t border-white/[0.05]">
+                    {SWAP_SURFACE_COPY.quoteFeesFootnote}
                   </p>
-                )}
-              </div>
-            )}
-
-            {swapQuote.provider === 'uniswap-v3-wrapper-v2' && (
-              <div className="flex flex-col gap-0.5">
-                <div className="flex justify-between gap-2">
-                  <span className="text-dark-400 shrink-0">Wrapper V2 protocol fee</span>
-                  <span
-                    className="text-right text-dark-200"
-                    title="Swaperex Uniswap wrapper V2 — taken from gross output on-chain; quoted receive amount is net."
-                  >
-                    {(getUniswapWrapperV2FeeBpsForUi() / 100).toFixed(2)}%
-                  </span>
                 </div>
-                {isUniswapWrapperV2FeeBpsUnverified() && (
-                  <p className="text-[10px] text-dark-500 leading-snug pl-0">
-                    {SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {swapQuote.provider === 'pancakeswap-v3-wrapper' && (
-              <div className="flex flex-col gap-0.5">
-                <div className="flex justify-between gap-2">
-                  <span className="text-dark-400 shrink-0">Wrapper protocol fee</span>
-                  <span
-                    className="text-right text-dark-200"
-                    title="Swaperex Pancake wrapper — taken from gross output on-chain; quoted receive amount is net."
-                  >
-                    {(getPancakeWrapperFeeBpsForUi() / 100).toFixed(2)}%
-                  </span>
-                </div>
-                {isPancakeWrapperFeeBpsUnverified() && (
-                  <p className="text-[10px] text-dark-500 leading-snug pl-0">
-                    {SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {swapQuote.provider === 'pancakeswap-v3-wrapper-v2' && (
-              <div className="flex flex-col gap-0.5">
-                <div className="flex justify-between gap-2">
-                  <span className="text-dark-400 shrink-0">Wrapper V2 protocol fee</span>
-                  <span
-                    className="text-right text-dark-200"
-                    title="Swaperex Pancake wrapper V2 — taken from gross output on-chain; quoted receive amount is net."
-                  >
-                    {(getPancakeWrapperV2FeeBpsForUi() / 100).toFixed(2)}%
-                  </span>
-                </div>
-                {isPancakeWrapperV2FeeBpsUnverified() && (
-                  <p className="text-[10px] text-dark-500 leading-snug pl-0">
-                    {SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Slippage tolerance */}
-            <div className="flex justify-between">
-              <span className="text-dark-400">Slippage tolerance</span>
-              <span>{swapQuote.slippage}%</span>
-            </div>
-
-            {/* Gas limit (simulation) — wallet sets final fee */}
-            <div className="border-t border-dark-700 pt-2 mt-2 space-y-1">
-              <div className="flex justify-between gap-2">
-                <span className="text-dark-400 shrink-0">Est. gas (units)</span>
-                <span className="text-dark-300 font-mono text-right">
-                  {formatGasLimitUnits(swapQuote.gasEstimate) ?? '—'}
-                </span>
-              </div>
-              <p className="text-[11px] text-dark-500 leading-snug">
-                Simulation estimate from the quote route. Your wallet confirms the final gas limit and network fee.
-              </p>
-            </div>
-
-            {/* Route */}
-            <div className="flex justify-between items-center">
-              <span className="text-dark-400">{SWAP_SURFACE_COPY.routeViaLabel}</span>
-              <div className="flex items-center gap-2">
-                <ProviderBadge provider={swapQuote.provider} />
-              </div>
-            </div>
-            <p className="text-[10px] text-dark-500 leading-snug pt-2 mt-1 border-t border-white/[0.05]">
-              {SWAP_SURFACE_COPY.quoteFeesFootnote}
-            </p>
+              )}
             </div>
 
             {/* Approval Notice — hidden in Phase 2 quote-only (execution impossible) */}
@@ -2529,6 +2619,8 @@ function RouteTooltip({ provider }: { provider: string }) {
         return 'Direct swap through Uniswap V3 concentrated liquidity on this chain.';
       case 'uniswap-v3-wrapper':
         return 'Uniswap V3 execution via the Swaperex fee wrapper on Ethereum (ERC20→ERC20). Quoted output is net of the wrapper protocol fee.';
+      case 'uniswap-v3-wrapper-v2':
+        return 'Uniswap V3 via Swaperex fee wrapper V2 on Ethereum. Quoted output is net of the wrapper protocol fee.';
       case 'pancakeswap-v3':
         return 'Direct swap through PancakeSwap V3 on BNB Chain.';
       case 'pancakeswap-v3-wrapper':
