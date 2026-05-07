@@ -110,7 +110,6 @@ export async function ensurePancakeWrapperChainFeeBps(
   if (sessionChainPancakeWrapperFeeBps !== undefined || sessionPancakeWrapperFeeReadFinished) return;
   if (!provider) return;
 
-  sessionPancakeWrapperFeeReadFinished = true;
   try {
     const { Contract } = await import('ethers');
     const c = new Contract(cfg.wrapperAddress, WRAPPER_FEE_BPS_ABI, provider);
@@ -118,9 +117,11 @@ export async function ensurePancakeWrapperChainFeeBps(
     const n = Number(raw);
     if (!Number.isFinite(n) || n < 0 || n > 10_000) {
       console.warn('[PancakeWrapper] On-chain FEE_BPS out of range:', raw);
+      sessionPancakeWrapperFeeReadFinished = true;
       return;
     }
     sessionChainPancakeWrapperFeeBps = n;
+    sessionPancakeWrapperFeeReadFinished = true;
     if (n !== cfg.feeBpsDisplay) {
       console.warn(
         '[PancakeWrapper] VITE_PANCAKE_WRAPPER_FEE_BPS does not match on-chain FEE_BPS — UI uses on-chain value.',
@@ -128,6 +129,7 @@ export async function ensurePancakeWrapperChainFeeBps(
       );
     }
   } catch (err) {
+    sessionPancakeWrapperFeeReadFinished = true;
     console.warn('[PancakeWrapper] Could not read FEE_BPS from wrapper; UI falls back to env.', err);
   }
 }

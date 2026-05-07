@@ -244,6 +244,12 @@ interface BalanceState {
   /** Last fetch outcome per chain (drives loading / unavailable vs real zero). */
   chainStatus: Record<string, BalanceChainFetchStatus>;
 
+  /**
+   * Per chain: ERC20 symbols whose last `balanceOf` read failed (RPC) — do not treat as zero.
+   * Cleared when that chain completes a successful balance fetch.
+   */
+  balanceUnknownErc20s: Record<string, string[]>;
+
   // Loading state
   isLoading: boolean;
   lastUpdated: number | null;
@@ -292,14 +298,13 @@ async function fetchERC20Balance(
   tokenAddress: string,
   walletAddress: string,
   decimals: number
-): Promise<string> {
+): Promise<string | null> {
   try {
     const contract = new Contract(tokenAddress, ERC20_ABI, provider);
     const balanceRaw = await contract.balanceOf(walletAddress);
     return formatUnits(balanceRaw, decimals);
   } catch {
-    // Expected: token may not exist on-chain or user holds zero
-    return '0';
+    return null;
   }
 }
 
@@ -307,6 +312,7 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
   // Initial state
   balances: {},
   chainStatus: {},
+  balanceUnknownErc20s: {},
   isLoading: false,
   lastUpdated: null,
   totalUsdValue: null,
@@ -330,6 +336,7 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
     try {
       const balanceMap: Record<string, ChainBalance> = {};
       const statusMap: Record<string, BalanceChainFetchStatus> = {};
+      const unknownErc20ByChain: Record<string, string[]> = {};
 
       const fetchOneChain = async (chain: string) => {
         const nativeToken = NATIVE_TOKENS[chain];
@@ -349,6 +356,7 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
 
           const erc20Tokens = ERC20_TOKENS[chain] || [];
           const tokenBalances: TokenBalance[] = [];
+          const unknownSyms: string[] = [];
 
           await Promise.all(
             erc20Tokens.map(async (token) => {
@@ -359,6 +367,10 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
                 token.decimals
               );
 
+              if (tokenBalance === null) {
+                unknownSyms.push(token.symbol);
+                return;
+              }
               if (parseFloat(tokenBalance) > 0) {
                 tokenBalances.push({
                   symbol: token.symbol,
@@ -384,6 +396,10 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
                   token.decimals
                 );
 
+                if (tokenBalance === null) {
+                  unknownSyms.push(token.symbol);
+                  return;
+                }
                 if (parseFloat(tokenBalance) > 0) {
                   tokenBalances.push({
                     symbol: token.symbol,
@@ -413,6 +429,7 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
             token_balances: tokenBalances,
           };
           statusMap[chain] = 'ok';
+          unknownErc20ByChain[chain] = unknownSyms;
         } catch (err) {
           console.warn(`[Balance] Failed to fetch ${chain} balance:`, err);
           statusMap[chain] = 'error';
@@ -429,6 +446,10 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
         chainStatus: {
           ...state.chainStatus,
           ...statusMap,
+        },
+        balanceUnknownErc20s: {
+          ...state.balanceUnknownErc20s,
+          ...unknownErc20ByChain,
         },
         isLoading: false,
         lastUpdated: Date.now(),
@@ -470,6 +491,7 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
 
       const erc20Tokens = ERC20_TOKENS[chain] || [];
       const tokenBalances: TokenBalance[] = [];
+      const unknownSyms: string[] = [];
 
       await Promise.all(
         erc20Tokens.map(async (token) => {
@@ -480,6 +502,10 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
             token.decimals
           );
 
+          if (tokenBalance === null) {
+            unknownSyms.push(token.symbol);
+            return;
+          }
           if (parseFloat(tokenBalance) > 0) {
             tokenBalances.push({
               symbol: token.symbol,
@@ -505,6 +531,10 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
               token.decimals
             );
 
+            if (tokenBalance === null) {
+              unknownSyms.push(token.symbol);
+              return;
+            }
             tokenBalances.push({
               symbol: token.symbol,
               balance: tokenBalance,
@@ -536,6 +566,10 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
           },
         },
         chainStatus: { ...state.chainStatus, [chain]: 'ok' },
+        balanceUnknownErc20s: {
+          ...state.balanceUnknownErc20s,
+          [chain]: unknownSyms,
+        },
         isLoading: false,
         lastUpdated: Date.now(),
       }));
@@ -553,6 +587,7 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
     set({
       balances: {},
       chainStatus: {},
+      balanceUnknownErc20s: {},
       lastUpdated: null,
       totalUsdValue: null,
     });
@@ -561,26 +596,30 @@ export const useBalanceStore = create<BalanceState>((set, get) => ({
 
   // Get specific token balance
   getTokenBalance: (chain: string, symbol: string) => {
-    const { balances, chainStatus } = get();
+    const { balances, chainStatus, balanceUnknownErc20s } = get();
     const chainBalances = balances[chain];
 
     if (!chainBalances) return null;
     if (chainStatus[chain] === 'error') return null;
 
+    const symU = symbol.toUpperCase();
+    const unknownList = balanceUnknownErc20s[chain];
+    if (unknownList?.some((s) => s.toUpperCase() === symU)) {
+      return null;
+    }
+
     // Check native balance
-    if (chainBalances.native_balance.symbol === symbol) {
+    if (chainBalances.native_balance.symbol.toUpperCase() === symU) {
       return chainBalances.native_balance;
     }
 
-    const fromList = chainBalances.token_balances.find(
-      (t) => t.symbol.toUpperCase() === symbol.toUpperCase()
-    );
+    const fromList = chainBalances.token_balances.find((t) => t.symbol.toUpperCase() === symU);
     if (fromList) return fromList;
 
     // Catalog ERC20 with implicit zero (not stored in token_balances when zero)
     if (chainStatus[chain] === 'ok') {
       const catalog = ERC20_TOKENS[chain] || [];
-      const meta = catalog.find((t) => t.symbol.toUpperCase() === symbol.toUpperCase());
+      const meta = catalog.find((t) => t.symbol.toUpperCase() === symU);
       if (meta) {
         return {
           symbol: meta.symbol,

@@ -491,7 +491,7 @@ export function SwapInterface() {
     computeIntelligence();
   }, [swapQuote, fromAsset, toAsset, fromAmount, status, currentChainId, slippage]);
 
-  // Get balance for selected asset (sentinels: '…' loading, 'unavailable' fetch failed, '—' N/A)
+  // Get balance for selected asset (sentinels: '…' loading, 'unavailable' unknown/failed fetch, '—' N/A)
   const getBalance = useCallback(
     (asset: AssetInfo | null): string => {
       if (!asset || !address) return '—';
@@ -503,7 +503,10 @@ export function SwapInterface() {
       }
       if (st === 'error') return 'unavailable';
       const tokenBalance = getTokenBalance(ck, asset.symbol);
-      return tokenBalance?.balance ?? '0';
+      if (tokenBalance === null) {
+        return 'unavailable';
+      }
+      return tokenBalance.balance;
     },
     [getTokenBalance, address, currentChainUnsupported, chainStatus, balanceRows],
   );
@@ -1045,13 +1048,18 @@ export function SwapInterface() {
                       </span>
                     </li>
                   )}
-                  {tokenSafety.noV3Pool && (
+                  {tokenSafety.noV3Pool &&
+                    !(
+                      swapQuote?.provider &&
+                      String(swapQuote.provider).toLowerCase().includes('wrapper')
+                    ) && (
                     <li className="flex items-start gap-2">
                       <span className="text-slate-400 mt-0.5 shrink-0">
                         <InfoIcon />
                       </span>
                       <span>
-                        No V3 pool was found for this pair on this network — routing may use other venues.
+                        Direct V3 pool not found for this pair on this network — swaps may still route via other
+                        liquidity sources.
                       </span>
                     </li>
                   )}
@@ -1650,8 +1658,11 @@ export function SwapInterface() {
           </div>
         )}
 
-        {/* Error Display */}
-        {error && status !== 'previewing' && !isQuotePipelineLoading && (
+        {/* Error Display — avoid harsh banner while a good quote is still on screen */}
+        {error &&
+          status !== 'previewing' &&
+          !isQuotePipelineLoading &&
+          !(hasUsableQuote && swapQuote?.success) && (
           <div className="mt-4 p-3 bg-red-900/20 border border-red-800 rounded-xl text-sm text-red-400">
             {error}
           </div>

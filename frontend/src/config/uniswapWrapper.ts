@@ -122,7 +122,6 @@ export async function ensureUniswapWrapperChainFeeBps(
   if (sessionChainWrapperFeeBps !== undefined || sessionChainWrapperFeeReadFinished) return;
   if (!provider) return;
 
-  sessionChainWrapperFeeReadFinished = true;
   try {
     const { Contract } = await import('ethers');
     const c = new Contract(cfg.wrapperAddress, WRAPPER_FEE_BPS_ABI, provider);
@@ -130,9 +129,11 @@ export async function ensureUniswapWrapperChainFeeBps(
     const n = Number(raw);
     if (!Number.isFinite(n) || n < 0 || n > 10_000) {
       console.warn('[UniswapWrapper] On-chain FEE_BPS out of range:', raw);
+      sessionChainWrapperFeeReadFinished = true;
       return;
     }
     sessionChainWrapperFeeBps = n;
+    sessionChainWrapperFeeReadFinished = true;
     if (n !== cfg.feeBpsDisplay) {
       console.warn('[UniswapWrapper] VITE_UNISWAP_WRAPPER_FEE_BPS does not match on-chain FEE_BPS — UI uses on-chain value.', {
         onChainFeeBps: n,
@@ -140,6 +141,7 @@ export async function ensureUniswapWrapperChainFeeBps(
       });
     }
   } catch (err) {
+    sessionChainWrapperFeeReadFinished = true;
     console.warn('[UniswapWrapper] Could not read FEE_BPS from wrapper; UI falls back to env.', err);
   }
 }

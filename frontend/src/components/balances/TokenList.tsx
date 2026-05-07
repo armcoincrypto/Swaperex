@@ -137,7 +137,7 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
     );
   }
 
-  // Fetch failed for this chain — do not imply wrong chain; swaps still use the wallet
+  // Fetch failed for this chain — RPC/read issue; swaps and wallet are still valid
   if (currentChainKey && currentChainFetchStatus === 'error') {
     const networkName =
       currentChainKey in CHAINS
@@ -147,7 +147,12 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
       <div className="space-y-4">
         <h2 className="text-xl font-bold">Your Tokens</h2>
         <div className="p-6 bg-dark-800 rounded-xl text-center border border-amber-800/25">
-          <p className="text-dark-300 text-sm leading-relaxed">{SWAP_SURFACE_COPY.tokenListBalancesUnavailable(networkName)}</p>
+          <p className="text-dark-200 text-xs font-semibold uppercase tracking-wide">
+            {SWAP_SURFACE_COPY.tokenListNetworkIssueTitle}
+          </p>
+          <p className="text-dark-300 text-sm leading-relaxed mt-2">
+            {SWAP_SURFACE_COPY.tokenListBalancesUnavailable(networkName)}
+          </p>
           <button
             type="button"
             onClick={() => void refresh()}
@@ -166,8 +171,10 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
       <div className="space-y-4">
         <h2 className="text-xl font-bold">Your Tokens</h2>
         <div className="p-6 bg-dark-800 rounded-xl text-center border border-amber-800/25">
-          <p className="text-dark-300 text-sm">Couldn’t load balances for this network.</p>
-          <p className="text-dark-500 text-xs mt-2">RPC may be busy — try again in a moment.</p>
+          <p className="text-dark-200 text-xs font-semibold uppercase tracking-wide">
+            {SWAP_SURFACE_COPY.tokenListNetworkIssueTitle}
+          </p>
+          <p className="text-dark-300 text-sm mt-2">{SWAP_SURFACE_COPY.tokenListNetworkIssueDetail}</p>
           <button
             type="button"
             onClick={() => void refresh()}

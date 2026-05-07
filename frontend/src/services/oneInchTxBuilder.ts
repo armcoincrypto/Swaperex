@@ -220,14 +220,15 @@ export async function buildOneInchApproval(
 }
 
 /**
- * Check token allowance for 1inch Router
+ * Check token allowance for 1inch Router.
+ * Returns `null` when the allowance API/RPC path fails — callers must not treat as zero allowance.
  */
 export async function checkOneInchAllowance(
   tokenSymbol: string,
   walletAddress: string,
   chainId: number = 1,
   _apiKey?: string
-): Promise<string> {
+): Promise<string | null> {
   const token = getTokenBySymbol(tokenSymbol, chainId);
   if (!token) {
     throw new Error(`Unknown token: ${tokenSymbol}`);
@@ -257,7 +258,7 @@ export async function checkOneInchAllowance(
     return data.allowance || '0';
   } catch (error) {
     console.error('[1inch] Failed to check allowance:', error);
-    return '0';
+    return null;
   }
 }
 

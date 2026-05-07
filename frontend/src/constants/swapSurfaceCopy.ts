@@ -140,4 +140,9 @@ export const SWAP_SURFACE_COPY = {
   /** Sidebar token list — RPC / balance fetch failed (wallet still connected) */
   tokenListBalancesUnavailable: (networkName: string) =>
     `Balances unavailable for ${networkName}. Swaps can still work — refresh or try again.`,
+
+  /** Sidebar — fetch error with no cached rows (full read failure) */
+  tokenListNetworkIssueTitle: 'Network issue',
+  tokenListNetworkIssueDetail:
+    'Could not refresh balances. Your wallet and swaps are unaffected — try again shortly.',
 } as const;

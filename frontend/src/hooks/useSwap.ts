@@ -1016,10 +1016,15 @@ export function useSwap() {
       // Native tokens don't need approval (no ERC20 allowance / spender flow)
       if (tokenIn && !isNativeToken(tokenIn.address)) {
         if (aggregatedQuote.provider === '1inch') {
-          // Check 1inch router allowance
+          // Check 1inch router allowance — API failure must not imply zero allowance
           const allowance = await checkOneInchAllowance(fromSymbol, address, chainId || 1);
           const amountInWei = BigInt(aggregatedQuote.amountIn);
-          hasAllowance = allowance === 'unlimited' || BigInt(allowance) >= amountInWei;
+          if (allowance === null) {
+            allowanceCheckUncertain = true;
+            hasAllowance = true;
+          } else {
+            hasAllowance = allowance === 'unlimited' || BigInt(allowance) >= amountInWei;
+          }
         } else if (aggregatedQuote.provider === 'pancakeswap-v3-wrapper-v2') {
           const wrapperAddr = getPancakeWrapperV2SpenderAddress();
           const amountInWei = BigInt(aggregatedQuote.amountIn);
@@ -1075,7 +1080,8 @@ export function useSwap() {
             const amountInWei = BigInt(aggregatedQuote.amountIn);
             hasAllowance = allowance >= amountInWei;
           } catch {
-            hasAllowance = false;
+            allowanceCheckUncertain = true;
+            hasAllowance = true;
           }
         } else if (aggregatedQuote.provider === 'uniswap-v3-wrapper') {
           const wrapperAddr = getUniswapWrapperSpenderAddress();
