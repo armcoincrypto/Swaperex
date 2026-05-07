@@ -8,6 +8,7 @@
  */
 
 import { Contract, JsonRpcProvider, Network, formatUnits, parseUnits } from 'ethers';
+import { CHAINS } from '@/config/chains';
 import { getTokenBySymbol } from '@/tokens';
 
 /**
@@ -27,7 +28,7 @@ export const PANCAKESWAP_V3_ADDRESSES = {
 export const BSC_CONFIG = {
   chainId: 56,
   name: 'BNB Chain',
-  rpcUrl: 'https://bsc-dataseed.binance.org/',
+  rpcUrl: CHAINS.bsc.rpcUrl,
   explorerUrl: 'https://bscscan.com',
   nativeToken: 'BNB',
   nativeDecimals: 18,

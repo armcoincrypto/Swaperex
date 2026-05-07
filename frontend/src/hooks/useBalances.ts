@@ -8,8 +8,20 @@ import { useCallback, useEffect } from 'react';
 import { useWalletStore } from '@/stores/walletStore';
 import { useBalanceStore } from '@/stores/balanceStore';
 
-const DEFAULT_CHAINS = ['ethereum', 'bsc', 'polygon'];
+/** Default chains for sidebar / swap balance refresh (Polygon only when connected on Polygon). */
+const DEFAULT_CHAINS = ['ethereum', 'bsc'];
 const REFRESH_INTERVAL = 30000; // 30 seconds
+
+const POLYGON_CHAIN_ID = 137;
+
+/**
+ * Initial `fetchBalances` list after connect: Ethereum + BSC only, plus Polygon when wallet is on Polygon.
+ */
+export function getWalletBootstrapBalanceChains(chainId: number | null | undefined): string[] {
+  const chains = [...DEFAULT_CHAINS];
+  if (chainId === POLYGON_CHAIN_ID) chains.push('polygon');
+  return chains;
+}
 
 /** Map wallet chainId → balanceStore chain key (must match balanceStore RPC keys). */
 export function getBalanceChainName(chainId: number): string | null {

@@ -5,6 +5,7 @@
  * Used by connectors, NetworkSelector, and chain validation.
  */
 
+import { getPrimaryBscReadRpcUrl, getPrimaryEthereumReadRpcUrl } from '@/config/rpc';
 import type { ChainConfig } from './types';
 
 function hexChainId(id: number): string {
@@ -40,8 +41,8 @@ function makeChain(
 
 /** All supported chains */
 export const CHAINS: ChainConfig[] = [
-  makeChain(1,     'Ethereum',  'ETH',  'ETH',  'https://eth.llamarpc.com',              'https://etherscan.io',                '/assets/chains/ethereum.svg'),
-  makeChain(56,    'BNB Chain', 'BSC',  'BNB',  'https://bsc-dataseed.binance.org/',     'https://bscscan.com',                 '/assets/chains/bnb.svg'),
+  makeChain(1,     'Ethereum',  'ETH',  'ETH',  getPrimaryEthereumReadRpcUrl(),          'https://etherscan.io',                '/assets/chains/ethereum.svg'),
+  makeChain(56,    'BNB Chain', 'BSC',  'BNB',  getPrimaryBscReadRpcUrl(),               'https://bscscan.com',                 '/assets/chains/bnb.svg'),
   makeChain(137,   'Polygon',   'MATIC','MATIC','https://polygon-rpc.com/',               'https://polygonscan.com',             '/assets/chains/polygon.svg'),
   makeChain(42161, 'Arbitrum',  'ARB',  'ETH',  'https://arb1.arbitrum.io/rpc',          'https://arbiscan.io',                 '/assets/chains/arbitrum.svg'),
   makeChain(10,    'Optimism',  'OP',   'ETH',  'https://mainnet.optimism.io',           'https://optimistic.etherscan.io',     '/assets/chains/optimism.svg'),

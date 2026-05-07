@@ -9,6 +9,7 @@ import { useAppKitAccount, useAppKitProvider } from '@reown/appkit/react';
 import { useWalletStore } from '@/stores/walletStore';
 import { useBalanceStore } from '@/stores/balanceStore';
 import { appKitProviderRef } from '@/services/wallet/appKitProviderRef';
+import { getWalletBootstrapBalanceChains } from '@/hooks/useBalances';
 
 export function AppKitBridge() {
   const { address, isConnected: appKitConnected } = useAppKitAccount({ namespace: 'eip155' });
@@ -43,7 +44,7 @@ export function AppKitBridge() {
         const chainId = Number(network.chainId);
 
         await connect(address, chainId, 'walletconnect');
-        fetchBalances(address, ['ethereum', 'bsc', 'polygon']).catch(() => {});
+        fetchBalances(address, getWalletBootstrapBalanceChains(chainId)).catch(() => {});
         prevConnected.current = true;
       } catch (err) {
         console.error('[AppKitBridge] Sync failed:', err);

@@ -37,6 +37,7 @@ const ERC20_BALANCE_ABI = [
 import { RPC_PROXY_BASE } from '@/config/api';
 import {
   getEthereumReadRpcCandidates,
+  getPrimaryBscReadRpcUrl,
   raceWithTimeout,
   JSONRPC_TIMEOUT_MS,
 } from '@/config/rpc';
@@ -45,7 +46,7 @@ import {
  * RPC endpoints by chain (Polygon/Arbitrum via proxy; BSC direct; Ethereum resolved async)
  */
 const RPC_ENDPOINTS: Record<string, string> = {
-  bsc: 'https://bsc-dataseed.binance.org',
+  bsc: getPrimaryBscReadRpcUrl(),
   polygon: `${RPC_PROXY_BASE}/polygon`,
   arbitrum: `${RPC_PROXY_BASE}/arbitrum`,
 };

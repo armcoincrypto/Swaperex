@@ -33,6 +33,7 @@ import {
   getChain,
 } from '@/wallet';
 import type { EIP1193Provider, ConnectorId } from '@/wallet';
+import { getWalletBootstrapBalanceChains } from '@/hooks/useBalances';
 
 const EXTENSION_WALLETS_DISABLED_MSG =
   'Browser extension wallets are disabled on this deployment. Use WalletConnect.';
@@ -96,7 +97,8 @@ export function useWallet() {
 
   const safeFetchBalances = useCallback(
     (addr: string) => {
-      fetchBalances(addr, ['ethereum', 'bsc', 'polygon']).catch((err) => {
+      const cid = useWalletStore.getState().chainId;
+      fetchBalances(addr, getWalletBootstrapBalanceChains(cid)).catch((err) => {
         console.warn('[Wallet] Balance fetch failed (non-critical):', err.message);
       });
     },

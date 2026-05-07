@@ -7,7 +7,7 @@
  * Supports: Uniswap V3, PancakeSwap V3, 1inch Aggregator
  */
 
-import { getPrimaryEthereumReadRpcUrl } from './rpc';
+import { getPrimaryBscReadRpcUrl, getPrimaryEthereumReadRpcUrl } from './rpc';
 
 /**
  * Uniswap V3 Contract Addresses
@@ -163,7 +163,7 @@ export const CHAINS: Record<ChainName, ChainConfig> = {
     id: 56,
     name: 'BNB Chain',
     symbol: 'BNB',
-    rpcUrl: 'https://bsc-dataseed.binance.org/',
+    rpcUrl: getPrimaryBscReadRpcUrl(),
     explorerUrl: 'https://bscscan.com',
     explorerTxPath: '/tx/',
     nativeToken: 'BNB',
