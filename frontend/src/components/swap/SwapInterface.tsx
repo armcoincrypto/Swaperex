@@ -69,6 +69,7 @@ import { analyzeSwapFromContext, type SwapIntelligence } from '@/services/dex';
 import type { AssetInfo } from '@/types/api';
 import { isAddress } from 'ethers';
 import { isDebugMode } from '@/utils/chainHealth';
+import { getSwapQuoteInputFingerprint } from '@/utils/swapQuoteInputFingerprint';
 
 // Chain ID to chain name mapping
 const CHAIN_NAMES: Record<number, string> = {
@@ -247,6 +248,30 @@ export function SwapInterface() {
 
   const statusRef = useRef(status);
   statusRef.current = status;
+
+  const quoteInputFingerprint = useMemo(
+    () =>
+      getSwapQuoteInputFingerprint({
+        chainId: currentChainId,
+        slippage,
+        fromAmount,
+        fromAsset,
+        toAsset,
+        routeMode,
+      }),
+    [currentChainId, slippage, fromAmount, fromAsset, toAsset, routeMode],
+  );
+
+  const prevQuoteInputFingerprintUiRef = useRef<string | null>(null);
+
+  /** Close preview modal when quote inputs change (useSwap clears quote + previewing in parallel). */
+  useEffect(() => {
+    const prev = prevQuoteInputFingerprintUiRef.current;
+    prevQuoteInputFingerprintUiRef.current = quoteInputFingerprint;
+    if (prev === null) return;
+    if (prev === quoteInputFingerprint) return;
+    setShowPreview(false);
+  }, [quoteInputFingerprint]);
 
   const [showSettings, setShowSettings] = useState(false);
   const [showPreview, setShowPreview] = useState(false);

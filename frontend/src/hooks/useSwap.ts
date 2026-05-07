@@ -38,6 +38,7 @@ import { useBalanceStore } from '@/stores/balanceStore';
 import { toast } from '@/stores/toastStore';
 import { walletEvents, getWalletEventMessage } from '@/services/walletEvents';
 import { processQuoteForSignals } from '@/services/radarService';
+import { getSwapQuoteInputFingerprint } from '@/utils/swapQuoteInputFingerprint';
 import { useSwapHistoryStore } from '@/stores/swapHistoryStore';
 import { useUsageStore } from '@/stores/usageStore';
 import { useCommissionMonitorStore } from '@/stores/commissionMonitorStore';
@@ -347,6 +348,48 @@ export function useSwap() {
   });
 
   const [swapQuote, setSwapQuote] = useState<SwapQuote | null>(null);
+
+  const quoteInputFingerprint = useMemo(
+    () =>
+      getSwapQuoteInputFingerprint({
+        chainId: chainId || 1,
+        slippage,
+        fromAmount,
+        fromAsset,
+        toAsset,
+        routeMode,
+      }),
+    [chainId, slippage, fromAmount, fromAsset, toAsset, routeMode],
+  );
+
+  const prevQuoteInputFingerprintRef = useRef<string | null>(null);
+
+  /**
+   * Phase 3: Clear hook + store quote as soon as amount, tokens, chain, slippage, or route mode change
+   * (before debounced refetch). Bump request id so in-flight responses cannot repopulate stale UI.
+   * Does not run during approving / swapping / confirming (execution must keep swapQuote).
+   */
+  useEffect(() => {
+    const prev = prevQuoteInputFingerprintRef.current;
+    prevQuoteInputFingerprintRef.current = quoteInputFingerprint;
+
+    if (prev === null) return;
+    if (prev === quoteInputFingerprint) return;
+
+    const statusBlocking =
+      state.status === 'approving' || state.status === 'swapping' || state.status === 'confirming';
+    if (statusBlocking) return;
+
+    quoteRequestIdRef.current += 1;
+    setSwapQuote(null);
+    clearQuote();
+    setState((s) => {
+      if (s.status === 'fetching_quote' || s.status === 'checking_allowance' || s.status === 'previewing') {
+        return { ...s, status: 'idle', error: null };
+      }
+      return { ...s, error: null };
+    });
+  }, [quoteInputFingerprint, clearQuote, state.status]);
 
   // Track if operation was cancelled by wallet event
   const isCancelledRef = useRef(false);
