@@ -1040,8 +1040,9 @@ export function SwapInterface() {
             </div>
           )}
 
-        {/* Settings Panel */}
-        {showSettings && (
+        {/* Settings Panel — collapsed by default. Closed state shows a compact, read-only summary
+            so normal users see current Slippage / Approval / Route at a glance without the full panel. */}
+        {showSettings ? (
           <SlippageSettings
             value={slippage}
             customValue={customSlippage}
@@ -1054,6 +1055,37 @@ export function SwapInterface() {
             chainId={currentChainId}
             onClose={() => setShowSettings(false)}
           />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowSettings(true)}
+            className="relative z-10 mb-3 w-full min-w-0 flex items-center justify-between gap-2 rounded-lg border border-white/[0.06] bg-white/[0.03] hover:bg-white/[0.05] hover:border-white/[0.12] px-3 py-2 text-[11px] text-dark-300 hover:text-dark-100 transition-colors"
+            title="Open swap settings"
+            aria-label="Open swap settings"
+            aria-expanded={false}
+          >
+            <span className="flex items-center gap-1.5 min-w-0 truncate">
+              <span className="text-[10px] uppercase tracking-wider text-dark-500 shrink-0">
+                Settings
+              </span>
+              <span className="text-dark-600 shrink-0">·</span>
+              <span className="truncate">
+                Slippage{' '}
+                <span className="text-dark-100 font-medium tabular-nums">{slippage}%</span>
+                <span className="text-dark-600 mx-1.5">·</span>
+                <span className="text-dark-100">
+                  {approvalMode === 'unlimited' ? 'Unlimited approval' : 'Exact approval'}
+                </span>
+                <span className="text-dark-600 mx-1.5">·</span>
+                <span className="text-dark-100">
+                  {formatQuoteRoutePreferenceLabel(routeMode)}
+                </span>
+              </span>
+            </span>
+            <span className="text-dark-500 shrink-0 text-[10px]" aria-hidden>
+              ▾
+            </span>
+          </button>
         )}
 
         {tokenSafety &&
@@ -2814,20 +2846,41 @@ function QuickSwapPresets({
 
   if (!hasTokens) return null;
 
+  // Collapsed by default: keeps the main swap card focused on the active swap.
+  // Power-user shortcut chips (Sell/Buy/Exit to Stable) remain one click away.
   return (
-    <div className="relative z-10 flex gap-2 mb-4 overflow-x-auto pb-1">
-      {presets.map((preset) => (
-        <button
-          key={preset.label}
-          onClick={() => onSelect(preset.from, preset.to)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-electro-bgAlt/60 hover:bg-electro-panel rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap border border-white/[0.04] hover:border-white/[0.08]"
-          title={`${preset.from} → ${preset.to}`}
+    <details className="group relative z-10 mb-3 rounded-lg border border-white/[0.06] bg-white/[0.03]">
+      <summary className="cursor-pointer list-none px-3 py-2 text-[11px] font-medium text-dark-300 hover:text-dark-100 flex items-center justify-between gap-2">
+        <span className="flex items-center gap-1.5 min-w-0 truncate">
+          <span className="text-[10px] uppercase tracking-wider text-dark-500 shrink-0">
+            Quick swap
+          </span>
+          <span className="text-dark-600 shrink-0">·</span>
+          <span className="truncate text-dark-400">
+            {presets.length} shortcut{presets.length === 1 ? '' : 's'}
+          </span>
+        </span>
+        <span
+          className="text-dark-500 shrink-0 text-[10px] transition-transform group-open:rotate-180"
+          aria-hidden
         >
-          <span>{preset.icon}</span>
-          <span className="text-gray-400">{preset.label}</span>
-        </button>
-      ))}
-    </div>
+          ▾
+        </span>
+      </summary>
+      <div className="flex gap-2 px-3 pb-3 pt-1 overflow-x-auto">
+        {presets.map((preset) => (
+          <button
+            key={preset.label}
+            onClick={() => onSelect(preset.from, preset.to)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-electro-bgAlt/60 hover:bg-electro-panel rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap border border-white/[0.04] hover:border-white/[0.08]"
+            title={`${preset.from} → ${preset.to}`}
+          >
+            <span>{preset.icon}</span>
+            <span className="text-gray-400">{preset.label}</span>
+          </button>
+        ))}
+      </div>
+    </details>
   );
 }
 
