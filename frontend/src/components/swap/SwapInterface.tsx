@@ -20,7 +20,6 @@ import { usePresetStore, type SwapPreset, type GuardEvaluation } from '@/stores/
 import { PresetDropdown } from '@/components/presets/PresetDropdown';
 import { SavePresetModal } from '@/components/presets/SavePresetModal';
 import { GuardWarningPanel } from '@/components/presets/GuardWarningPanel';
-import { SwapIntelligencePanel } from '@/components/swap/intelligence';
 import { evaluatePresetGuards } from '@/services/presetGuardService';
 import { TokenSafetyBadges } from '@/components/common/TokenSafetyBadges';
 import { SwapPreviewModal, SwapStep } from './SwapPreviewModal';
@@ -83,6 +82,19 @@ const CHAIN_NAMES: Record<number, string> = {
   250: 'fantom',
   8453: 'base',
 };
+
+/** USD liquidity heuristic for Advanced details — avoids bare "$0" in UI. */
+function formatIntelligenceLiquidityUsdLabel(usd: number): string {
+  if (!Number.isFinite(usd) || usd <= 0) return 'Not estimated';
+  if (usd >= 1_000_000) return `$${(usd / 1_000_000).toFixed(2)}M`;
+  if (usd >= 1_000) return `$${(usd / 1_000).toFixed(1)}K`;
+  return '< $1,000';
+}
+
+function formatIntelligenceAnalysisPriceImpact(impact: SwapIntelligence['priceImpact']): string {
+  if (impact.level === 'unknown') return 'Not estimated';
+  return `${impact.percentage.toFixed(2)}%`;
+}
 
 // Gas buffer for native tokens (to leave enough for transaction fees)
 // Use smaller of: fixed buffer OR 5% of balance
@@ -1324,15 +1336,7 @@ export function SwapInterface() {
           );
         })()}
 
-        {/* Swap Intelligence Panel (when quote available) */}
-        {swapIntelligence &&
-          status === 'previewing' &&
-          !showPreview &&
-          !isEthNativeV2QuoteOnlyNoExec && (
-          <div className="mt-4">
-            <SwapIntelligencePanel intelligence={swapIntelligence} compact />
-          </div>
-        )}
+        {/* Swap Intelligence compact strip removed (Phase 3.1): unlabeled score / % / $ confused users; see Advanced details. */}
 
         {/* Guard Warning Panel (when preset has guards and they fail) */}
         {guardEvaluation &&
@@ -1734,6 +1738,45 @@ export function SwapInterface() {
                     <span className="shrink-0 text-dark-500">Route id</span>
                     <span className="text-right text-dark-300">{swapQuote.provider}</span>
                   </div>
+
+                  {swapIntelligence && (
+                    <div className="space-y-2 pt-2 border-t border-white/[0.05]">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-dark-500">
+                        Heuristic analysis (not the live quote)
+                      </p>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-dark-400 shrink-0">Safety score</span>
+                        <span className="text-right text-dark-200">
+                          {swapIntelligence.safetyScore.score}{' '}
+                          <span className="text-dark-500">({swapIntelligence.safetyScore.level})</span>
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-dark-400 shrink-0">Analysis price impact</span>
+                        <span className="text-right text-dark-200">
+                          {formatIntelligenceAnalysisPriceImpact(swapIntelligence.priceImpact)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-dark-400 shrink-0">Est. pool liquidity (USD)</span>
+                        <span className="text-right text-dark-200">
+                          {formatIntelligenceLiquidityUsdLabel(swapIntelligence.liquidity.totalUSD)}
+                        </span>
+                      </div>
+                      {swapIntelligence.routes.length > 1 && (
+                        <div className="flex justify-between gap-2 items-start">
+                          <span className="text-dark-400 shrink-0">Route heuristic (best)</span>
+                          <span className="text-right text-dark-200 leading-snug">
+                            {swapIntelligence.routes[0].dexName ?? swapIntelligence.routes[0].provider}
+                            {typeof swapIntelligence.routeComparison?.savingsPercent === 'number' &&
+                            swapIntelligence.routeComparison.savingsPercent > 0.01
+                              ? ` · ~${swapIntelligence.routeComparison.savingsPercent.toFixed(2)}% vs alternatives`
+                              : ''}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <p className="text-[10px] text-dark-500 leading-snug pt-2 border-t border-white/[0.05]">
                     {SWAP_SURFACE_COPY.quoteFeesFootnote}
