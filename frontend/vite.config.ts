@@ -6,11 +6,22 @@ import path from 'path';
 /**
  * Vendor chunks for cache + parallel load. @reown/* and @walletconnect/* share one chunk to match
  * their coupled dependency graph (avoids Rollup circular chunk warnings when split separately).
+ *
+ * React / scheduler / use-sync-external-store must NOT share a chunk with Reown/WC — otherwise
+ * Rollup hoists React bindings into vendor-reown-walletconnect and the entry bundle statically
+ * imports the ~4MB wallet vendor on cold load.
  */
 function vendorManualChunks(id: string): string | undefined {
+  // Vite injects `\0vite/preload-helper.js` for wrapped dynamic imports. If it lands in the same
+  // Rollup chunk as @reown, the entry file imports vendor-reown-walletconnect only for __vitePreload.
+  if (id === '\0vite/preload-helper.js' || id.includes('vite/preload-helper')) return 'vendor-react';
   if (!id.includes('node_modules')) return undefined;
   const normalized = id.split(path.sep).join('/');
   if (normalized.includes('/node_modules/ethers/')) return 'vendor-ethers';
+  if (normalized.includes('/node_modules/react-dom/')) return 'vendor-react';
+  if (normalized.includes('/node_modules/react/')) return 'vendor-react';
+  if (normalized.includes('/node_modules/scheduler/')) return 'vendor-react';
+  if (normalized.includes('/node_modules/use-sync-external-store/')) return 'vendor-react';
   if (normalized.includes('/node_modules/@reown/')) return 'vendor-reown-walletconnect';
   if (normalized.includes('/node_modules/@walletconnect/')) return 'vendor-reown-walletconnect';
   return undefined;
