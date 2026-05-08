@@ -201,6 +201,45 @@ export function SwapPreviewModal({
 
   const stepDisplay = getStepDisplay();
 
+  // Sticky footer actions for the preview/loading flow — kept outside the
+  // scrollable body so the primary action (Confirm / Approve & Swap) is
+  // always reachable, including at 100% zoom on short laptops.
+  const previewFooterActions =
+    step !== 'success' && step !== 'error' ? (
+      <div className="flex gap-3">
+        <Button
+          variant="secondary"
+          onClick={onCancel}
+          fullWidth
+          disabled={isLoading}
+        >
+          Cancel
+        </Button>
+        <Button
+          onClick={() => {
+            if (allowanceUncertain) {
+              void onRefreshQuote();
+              return;
+            }
+            onConfirm();
+          }}
+          loading={isLoading}
+          disabled={isExpired || isLoading}
+          fullWidth
+        >
+          {isExpired
+            ? SWAP_SURFACE_COPY.quoteExpiredTitle
+            : isLoading
+              ? getLoadingText(step)
+              : allowanceUncertain
+                ? SWAP_SURFACE_COPY.allowanceCheckUncertainCta
+                : needsApproval
+                  ? 'Approve & Swap'
+                  : 'Confirm Swap'}
+        </Button>
+      </div>
+    ) : undefined;
+
   const walletNotice =
     step === 'broadcasting'
       ? {
@@ -238,6 +277,7 @@ export function SwapPreviewModal({
                 : 'Review Swap'
       }
       size="md"
+      footer={previewFooterActions}
     >
       {/* Success State */}
       {step === 'success' && (
@@ -301,7 +341,7 @@ export function SwapPreviewModal({
             </div>
           )}
 
-          {/* Quote Details */}
+          {/* Quote Details — critical review rows kept inline; non-critical rows collapsed below. */}
           <div className="space-y-2 text-sm mb-4">
             <DetailRow
               label="Exchange rate"
@@ -312,19 +352,6 @@ export function SwapPreviewModal({
               value={priceImpactUi.label}
               variant={priceImpactRowVariant}
               title="Estimated vs. mid price before fees — not your slippage setting"
-            />
-            <DetailRow
-              label={quote.provider === '1inch' ? 'Route fees' : 'Pool Fee'}
-              value={
-                quote.provider === '1inch'
-                  ? 'Included in quote (multi-pool)'
-                  : quote.provider === 'uniswap-v3-wrapper' ||
-                      quote.provider === 'uniswap-v3-wrapper-v2' ||
-                      quote.provider === 'pancakeswap-v3-wrapper' ||
-                      quote.provider === 'pancakeswap-v3-wrapper-v2'
-                    ? `${formatSwapFeeTierDisplay(quote.feeTier)} pool (wrapper route)`
-                    : `${formatSwapFeeTierDisplay(quote.feeTier)} fee tier`
-              }
             />
             {quote.provider === '1inch' && isMonetizationActiveForProvider('1inch') && (
               <>
@@ -420,18 +447,6 @@ export function SwapPreviewModal({
                 />
               </>
             )}
-            {quote.quoteSelectionReason && (
-              <DetailRow
-                label="Quote selection"
-                value={quote.quoteSelectionReason}
-              />
-            )}
-            {quote.runnerUpAggregatedQuote ? (
-              <DetailRow
-                label={`Runner-up (not selected) · ${swapAggregatorProviderLabel(quote.runnerUpAggregatedQuote.provider)}`}
-                value={`${formatBalance(quote.runnerUpAggregatedQuote.amountOut)} ${quote.to_asset}`}
-              />
-            ) : null}
             {needsApproval && (
               <DetailRow
                 label="Approval"
@@ -439,6 +454,45 @@ export function SwapPreviewModal({
                 variant={approvalMode === 'unlimited' ? 'warning' : 'normal'}
               />
             )}
+
+            {/* Advanced — non-critical context (pool fee, quote selection, runner-up).
+                Collapsed by default so the primary action stays reachable on short viewports.
+                All values are display-only and reuse the same fields as before. */}
+            <details className="group rounded-lg border border-white/[0.06] bg-white/[0.02] mt-3">
+              <summary className="cursor-pointer list-none px-3 py-2 text-xs font-medium text-dark-300 hover:text-dark-100 flex items-center justify-between">
+                <span>Route &amp; pool details</span>
+                <span
+                  className="text-dark-500 transition-transform group-open:rotate-180"
+                  aria-hidden
+                >
+                  ▾
+                </span>
+              </summary>
+              <div className="px-3 pb-3 pt-1 space-y-2 text-sm">
+                <DetailRow
+                  label={quote.provider === '1inch' ? 'Route fees' : 'Pool Fee'}
+                  value={
+                    quote.provider === '1inch'
+                      ? 'Included in quote (multi-pool)'
+                      : quote.provider === 'uniswap-v3-wrapper' ||
+                          quote.provider === 'uniswap-v3-wrapper-v2' ||
+                          quote.provider === 'pancakeswap-v3-wrapper' ||
+                          quote.provider === 'pancakeswap-v3-wrapper-v2'
+                        ? `${formatSwapFeeTierDisplay(quote.feeTier)} pool (wrapper route)`
+                        : `${formatSwapFeeTierDisplay(quote.feeTier)} fee tier`
+                  }
+                />
+                {quote.quoteSelectionReason && (
+                  <DetailRow label="Quote selection" value={quote.quoteSelectionReason} />
+                )}
+                {quote.runnerUpAggregatedQuote ? (
+                  <DetailRow
+                    label={`Runner-up (not selected) · ${swapAggregatorProviderLabel(quote.runnerUpAggregatedQuote.provider)}`}
+                    value={`${formatBalance(quote.runnerUpAggregatedQuote.amountOut)} ${quote.to_asset}`}
+                  />
+                ) : null}
+              </div>
+            </details>
           </div>
 
           {/* High Impact Warning */}
@@ -519,44 +573,10 @@ export function SwapPreviewModal({
             </div>
           )}
 
-          {/* Security Notice */}
-          <div className="flex items-center gap-2 text-dark-400 text-xs mb-4">
+          {/* Security Notice — last block in the scrollable body; primary actions live in the sticky footer */}
+          <div className="flex items-center gap-2 text-dark-400 text-xs">
             <ShieldIcon />
             <span>Transaction signed locally in your wallet, never on our servers</span>
-          </div>
-
-          {/* Actions */}
-          <div className="flex gap-3">
-            <Button
-              variant="secondary"
-              onClick={onCancel}
-              fullWidth
-              disabled={isLoading}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                if (allowanceUncertain) {
-                  void onRefreshQuote();
-                  return;
-                }
-                onConfirm();
-              }}
-              loading={isLoading}
-              disabled={isExpired || isLoading}
-              fullWidth
-            >
-              {isExpired
-                ? SWAP_SURFACE_COPY.quoteExpiredTitle
-                : isLoading
-                ? getLoadingText(step)
-                : allowanceUncertain
-                ? SWAP_SURFACE_COPY.allowanceCheckUncertainCta
-                : needsApproval
-                ? 'Approve & Swap'
-                : 'Confirm Swap'}
-            </Button>
           </div>
         </>
       )}
