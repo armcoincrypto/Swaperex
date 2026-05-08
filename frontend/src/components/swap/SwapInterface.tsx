@@ -944,10 +944,14 @@ export function SwapInterface() {
     !isQuoteExpired &&
     !swapQuote.allowanceCheckUncertain;
 
+  /** Quote card already shows "Best route selected" — hide duplicate top banners while it is visible. */
+  const quoteDetailsCardVisible =
+    Boolean(swapQuote && (status === 'previewing' || isQuotePipelineLoading) && !showPreview);
+
   // Render swap form
   return (
     <>
-      <div className="w-full max-w-md mx-auto bg-electro-panel/90 backdrop-blur-glass rounded-2xl p-5 sm:p-6 border border-white/[0.1] shadow-[0_20px_60px_rgba(0,0,0,0.45)] relative overflow-hidden">
+      <div className="w-full max-w-md mx-auto bg-electro-panel/90 backdrop-blur-glass rounded-2xl p-5 sm:p-6 border border-white/[0.1] shadow-[0_20px_60px_rgba(0,0,0,0.45)] relative overflow-x-hidden overflow-y-visible min-w-0">
         {/* Subtle gradient overlay */}
         <div className="absolute inset-0 bg-glass-gradient pointer-events-none" />
         {/* Header */}
@@ -988,7 +992,8 @@ export function SwapInterface() {
 
         {isCommissionRequiredMode() &&
           currentChainId === 56 &&
-          (fromAsset?.is_native || toAsset?.is_native) && (
+          (fromAsset?.is_native || toAsset?.is_native) &&
+          !quoteDetailsCardVisible && (
             <div className="relative z-10 mb-3 rounded-lg bg-blue-900/15 border border-blue-800/35 px-3 py-2 text-[11px] text-blue-100/90 leading-snug">
               Best route selected
             </div>
@@ -998,7 +1003,8 @@ export function SwapInterface() {
           currentChainId === 1 &&
           (fromAsset?.is_native || toAsset?.is_native) &&
           getUniswapWrapperV2Config().nativeEnabled &&
-          getUniswapWrapperV2Config().nativeQuoteEnabled && (
+          getUniswapWrapperV2Config().nativeQuoteEnabled &&
+          !quoteDetailsCardVisible && (
             <div className="relative z-10 mb-3 rounded-lg bg-blue-900/15 border border-blue-800/35 px-3 py-2 text-[11px] text-blue-100/90 leading-snug">
               Best route selected
             </div>
@@ -1175,8 +1181,8 @@ export function SwapInterface() {
               )}
             </div>
           </div>
-          <div className="flex items-start gap-4">
-            <div className="relative">
+          <div className="flex flex-col gap-3 w-full min-w-0 sm:flex-row sm:items-start sm:gap-4">
+            <div className="relative shrink-0 self-stretch sm:self-auto min-w-0">
               <TokenButton
                 asset={fromAsset}
                 chainId={currentChainId}
@@ -1200,21 +1206,23 @@ export function SwapInterface() {
                 />
               )}
             </div>
-            <input
-              id="swap-from-amount"
-              name="swap-from-amount"
-              type="text"
-              placeholder="0.0"
-              value={fromAmount}
-              onChange={(e) => {
-                const val = e.target.value.replace(/[^0-9.]/g, '');
-                // Prevent multiple decimal points
-                if (val.split('.').length <= 2) {
-                  setFromAmount(val);
-                }
-              }}
-              className="flex-1 bg-transparent text-2xl font-medium text-right outline-none"
-            />
+            <div className="w-full min-w-0 flex-1 overflow-x-auto sm:overflow-x-visible [scrollbar-width:thin]">
+              <input
+                id="swap-from-amount"
+                name="swap-from-amount"
+                type="text"
+                placeholder="0.0"
+                value={fromAmount}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/[^0-9.]/g, '');
+                  // Prevent multiple decimal points
+                  if (val.split('.').length <= 2) {
+                    setFromAmount(val);
+                  }
+                }}
+                className="w-full min-w-0 bg-transparent text-xl sm:text-2xl font-medium text-right outline-none tabular-nums"
+              />
+            </div>
           </div>
         </div>
 
@@ -1256,8 +1264,8 @@ export function SwapInterface() {
               </span>
             </span>
           </div>
-          <div className="flex items-start gap-4">
-            <div className="relative">
+          <div className="flex flex-col gap-3 w-full min-w-0 sm:flex-row sm:items-start sm:gap-4">
+            <div className="relative shrink-0 self-stretch sm:self-auto min-w-0">
               <TokenButton
                 asset={toAsset}
                 chainId={currentChainId}
@@ -1282,22 +1290,22 @@ export function SwapInterface() {
               )}
             </div>
             {/* Fixed min-height keeps pay/receive rows aligned; quote vs placeholder */}
-            <div className="flex-1 min-h-[2.5rem] text-right flex flex-col items-end justify-center">
+            <div className="w-full min-w-0 flex-1 min-h-[2.5rem] text-right flex flex-col items-stretch sm:items-end justify-center overflow-x-auto sm:overflow-x-visible [scrollbar-width:thin]">
               {showSpinner && status !== 'error' && !hasUsableQuote ? (
-                <div className="flex items-center gap-2 justify-end">
+                <div className="flex items-center gap-2 justify-end min-w-0">
                   <LoadingSpinner />
-                  <span className="text-sm text-dark-400">{SWAP_SURFACE_COPY.gettingQuote}</span>
+                  <span className="text-sm text-dark-400 min-w-0">{SWAP_SURFACE_COPY.gettingQuote}</span>
                 </div>
               ) : swapQuote && swapQuote.amountOutFormatted ? (
-                <span className="text-2xl font-medium tabular-nums text-primary-400">
+                <span className="w-full min-w-0 text-right text-xl sm:text-2xl font-medium tabular-nums text-primary-400 break-all">
                   {formatBalance(swapQuote.amountOutFormatted, 6)}
                 </span>
               ) : fromAmount && parseFloat(fromAmount) > 0 && !insufficientBalance ? (
-                <span className="text-2xl font-medium text-dark-500 tabular-nums" title="Quote pending">
+                <span className="text-xl sm:text-2xl font-medium text-dark-500 tabular-nums" title="Quote pending">
                   —
                 </span>
               ) : (
-                <span className="text-xl font-medium text-dark-600/50 tabular-nums select-none" aria-hidden>
+                <span className="text-lg sm:text-xl font-medium text-dark-600/50 tabular-nums select-none" aria-hidden>
                   —
                 </span>
               )}
@@ -1415,23 +1423,27 @@ export function SwapInterface() {
             </div>
 
             {/* Main summary — production-friendly */}
-            <div className="rounded-xl border border-white/[0.07] bg-black/20 p-3 space-y-2 mt-1">
-              <div className="flex justify-between">
-                <span className="text-dark-400">Exchange rate</span>
-                <span>1 {fromAsset?.symbol} = {formatBalance(swapQuote.rate, 6)} {toAsset?.symbol}</span>
+            <div className="rounded-xl border border-white/[0.07] bg-black/20 p-3 space-y-2 mt-1 min-w-0">
+              <div className="flex justify-between gap-2 min-w-0 items-baseline">
+                <span className="text-dark-400 shrink-0">Exchange rate</span>
+                <span className="min-w-0 text-right text-dark-100 break-words tabular-nums">
+                  1 {fromAsset?.symbol} = {formatBalance(swapQuote.rate, 6)} {toAsset?.symbol}
+                </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-dark-400">Minimum received</span>
-                <span>{formatBalance(swapQuote.minimum_received, 6)} {toAsset?.symbol}</span>
+              <div className="flex justify-between gap-2 min-w-0 items-baseline">
+                <span className="text-dark-400 shrink-0">Minimum received</span>
+                <span className="min-w-0 text-right text-dark-100 break-words tabular-nums">
+                  {formatBalance(swapQuote.minimum_received, 6)} {toAsset?.symbol}
+                </span>
               </div>
               {(() => {
                 const q = swapQuote;
                 if (q.provider === '1inch' && isMonetizationActiveForProvider('1inch')) {
                   return (
-                    <div className="flex justify-between gap-2">
+                    <div className="flex justify-between gap-2 min-w-0 items-baseline">
                       <span className="text-dark-400 shrink-0">Protocol fee</span>
                       <span
-                        className="text-right text-dark-200"
+                        className="min-w-0 text-right text-dark-200 tabular-nums break-words"
                         title="Output-token fee via 1inch on execution; quote output is estimated before this fee"
                       >
                         {(getMonetizationConfig().feeBps / 100).toFixed(2)}%
@@ -1441,10 +1453,10 @@ export function SwapInterface() {
                 }
                 if (q.provider === 'uniswap-v3-wrapper') {
                   return (
-                    <div className="flex justify-between gap-2">
+                    <div className="flex justify-between gap-2 min-w-0 items-baseline">
                       <span className="text-dark-400 shrink-0">Protocol fee</span>
                       <span
-                        className="text-right text-dark-200"
+                        className="min-w-0 text-right text-dark-200 tabular-nums break-words"
                         title="Taken from gross swap output on-chain; quoted receive amount is net of this fee."
                       >
                         {(getUniswapWrapperFeeBpsForUi() / 100).toFixed(2)}%
@@ -1454,10 +1466,10 @@ export function SwapInterface() {
                 }
                 if (q.provider === 'uniswap-v3-wrapper-v2') {
                   return (
-                    <div className="flex justify-between gap-2">
+                    <div className="flex justify-between gap-2 min-w-0 items-baseline">
                       <span className="text-dark-400 shrink-0">Protocol fee</span>
                       <span
-                        className="text-right text-dark-200"
+                        className="min-w-0 text-right text-dark-200 tabular-nums break-words"
                         title="Swaperex Uniswap wrapper V2 — taken from gross output on-chain; quoted receive amount is net."
                       >
                         {(getUniswapWrapperV2FeeBpsForUi() / 100).toFixed(2)}%
@@ -1467,10 +1479,10 @@ export function SwapInterface() {
                 }
                 if (q.provider === 'pancakeswap-v3-wrapper') {
                   return (
-                    <div className="flex justify-between gap-2">
+                    <div className="flex justify-between gap-2 min-w-0 items-baseline">
                       <span className="text-dark-400 shrink-0">Protocol fee</span>
                       <span
-                        className="text-right text-dark-200"
+                        className="min-w-0 text-right text-dark-200 tabular-nums break-words"
                         title="Swaperex Pancake wrapper — taken from gross output on-chain; quoted receive amount is net."
                       >
                         {(getPancakeWrapperFeeBpsForUi() / 100).toFixed(2)}%
@@ -1480,10 +1492,10 @@ export function SwapInterface() {
                 }
                 if (q.provider === 'pancakeswap-v3-wrapper-v2') {
                   return (
-                    <div className="flex justify-between gap-2">
+                    <div className="flex justify-between gap-2 min-w-0 items-baseline">
                       <span className="text-dark-400 shrink-0">Protocol fee</span>
                       <span
-                        className="text-right text-dark-200"
+                        className="min-w-0 text-right text-dark-200 tabular-nums break-words"
                         title="Swaperex Pancake wrapper V2 — taken from gross output on-chain; quoted receive amount is net."
                       >
                         {(getPancakeWrapperV2FeeBpsForUi() / 100).toFixed(2)}%
@@ -1492,18 +1504,21 @@ export function SwapInterface() {
                   );
                 }
                 return (
-                  <div className="flex justify-between gap-2">
+                  <div className="flex justify-between gap-2 min-w-0 items-baseline">
                     <span className="text-dark-400 shrink-0">Protocol fee</span>
-                    <span className="text-dark-200 text-right" title="No separate Swaperex protocol fee on this route">
+                    <span
+                      className="min-w-0 text-right text-dark-200 tabular-nums break-words"
+                      title="No separate Swaperex protocol fee on this route"
+                    >
                       None
                     </span>
                   </div>
                 );
               })()}
               <div className="border-t border-dark-700 pt-2 mt-2 space-y-1">
-                <div className="flex justify-between gap-2">
+                <div className="flex justify-between gap-2 min-w-0 items-baseline">
                   <span className="text-dark-400 shrink-0">Est. network fee (gas)</span>
-                  <span className="text-dark-300 font-mono text-right">
+                  <span className="min-w-0 text-right text-dark-300 font-mono tabular-nums break-words">
                     {formatGasLimitUnits(swapQuote.gasEstimate) ?? '—'} units
                   </span>
                 </div>
