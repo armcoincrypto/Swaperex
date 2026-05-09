@@ -31,6 +31,8 @@ const MIN_DISPLAY_BALANCE = 0.0001;
 export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListProps) {
   const address = useWalletStore((s) => s.address);
   const isConnected = useWalletStore((s) => s.isConnected);
+  // `autoRefresh: false` — `<SwapInterface>` already owns the polling cycle; this
+  // sidebar only consumes the shared balance state to avoid duplicate RPC fan-out.
   const {
     currentChainBalances,
     isLoading,
@@ -42,7 +44,7 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
     currentChainUnsupported,
     currentChainKey,
     currentChainFetchStatus,
-  } = useBalances();
+  } = useBalances(false);
 
   // Sort and filter balances
   const sortedBalances = useMemo(() => {
@@ -269,7 +271,7 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
 
       {/* Last updated hint */}
       <div className="text-center text-xs text-dark-500">
-        Balances update automatically every 30s
+        Balances update automatically every 60s
       </div>
     </div>
   );

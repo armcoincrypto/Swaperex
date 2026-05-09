@@ -10,7 +10,12 @@ import { useBalanceStore } from '@/stores/balanceStore';
 
 /** Default chains for sidebar / swap balance refresh (Polygon only when connected on Polygon). */
 const DEFAULT_CHAINS = ['ethereum', 'bsc'];
-const REFRESH_INTERVAL = 30000; // 30 seconds
+/**
+ * Auto-refresh cadence for the connected wallet's balances.
+ * 60s is intentionally conservative — manual Refresh, post-swap refetch,
+ * chain switch, and `visibilitychange` give faster feedback when the user is active.
+ */
+const REFRESH_INTERVAL = 60_000;
 
 const POLYGON_CHAIN_ID = 137;
 
@@ -111,11 +116,38 @@ export function useBalances(autoRefresh: boolean = true) {
     // Initial fetch
     refresh();
 
-    // Set up interval if autoRefresh is enabled
-    if (autoRefresh) {
-      const interval = setInterval(refresh, REFRESH_INTERVAL);
-      return () => clearInterval(interval);
+    if (!autoRefresh) return;
+
+    /**
+     * Skip ticks while the tab is hidden — avoids burning RPC budget on inactive tabs.
+     * On `visibilitychange` back to visible we trigger exactly one refresh so the UI
+     * is fresh when the user returns.
+     */
+    const isHidden = () => typeof document !== 'undefined' && document.hidden;
+
+    const tick = () => {
+      if (isHidden()) return;
+      refresh();
+    };
+
+    const interval = setInterval(tick, REFRESH_INTERVAL);
+
+    const handleVisibilityChange = () => {
+      if (!isHidden()) {
+        refresh();
+      }
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
     }
+
+    return () => {
+      clearInterval(interval);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
+    };
   }, [isConnected, address, chainId, autoRefresh, refresh, clearBalances]);
 
   return {
