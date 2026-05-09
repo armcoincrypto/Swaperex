@@ -285,7 +285,8 @@ export function SwapInterface() {
     setShowPreview(false);
   }, [quoteInputFingerprint]);
 
-  const [showSettings, setShowSettings] = useState(false);
+  /** Power-user controls (settings, quick pairs, presets) — hidden until opened. */
+  const [showMoreOptions, setShowMoreOptions] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showAdvancedQuoteDetails, setShowAdvancedQuoteDetails] = useState(
     () => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1',
@@ -944,10 +945,6 @@ export function SwapInterface() {
     !isQuoteExpired &&
     !swapQuote.allowanceCheckUncertain;
 
-  /** Quote card already shows "Best route selected" — hide duplicate top banners while it is visible. */
-  const quoteDetailsCardVisible =
-    Boolean(swapQuote && (status === 'previewing' || isQuotePipelineLoading) && !showPreview);
-
   // Render swap form
   return (
     <>
@@ -957,30 +954,6 @@ export function SwapInterface() {
         {/* Header */}
         <div className="relative z-10 flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-white">Swap</h2>
-          <div className="flex items-center gap-2">
-            {/* Preset Dropdown */}
-            {isConnected && (
-              <PresetDropdown onSelectPreset={handlePresetSelect} />
-            )}
-            {/* Save Preset Button */}
-            {isConnected && canSavePreset && (
-              <button
-                onClick={() => setShowSavePreset(true)}
-                className="p-2 rounded-lg hover:bg-dark-800 transition-colors text-dark-400 hover:text-primary-400"
-                title="Save as preset"
-              >
-                <SaveIcon />
-              </button>
-            )}
-            {/* Settings Button */}
-            <button
-              onClick={() => setShowSettings(!showSettings)}
-              className="p-2 rounded-lg hover:bg-dark-800 transition-colors"
-              title="Settings"
-            >
-              <SettingsIcon />
-            </button>
-          </div>
         </div>
 
         <div className="relative z-10 mb-4 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2.5">
@@ -989,26 +962,6 @@ export function SwapInterface() {
             <span>{SWAP_SURFACE_COPY.firstVisitTrustLine}</span>
           </p>
         </div>
-
-        {isCommissionRequiredMode() &&
-          currentChainId === 56 &&
-          (fromAsset?.is_native || toAsset?.is_native) &&
-          !quoteDetailsCardVisible && (
-            <div className="relative z-10 mb-3 rounded-lg bg-blue-900/15 border border-blue-800/35 px-3 py-2 text-[11px] text-blue-100/90 leading-snug">
-              Best route selected
-            </div>
-          )}
-
-        {isCommissionRequiredMode() &&
-          currentChainId === 1 &&
-          (fromAsset?.is_native || toAsset?.is_native) &&
-          getUniswapWrapperV2Config().nativeEnabled &&
-          getUniswapWrapperV2Config().nativeQuoteEnabled &&
-          !quoteDetailsCardVisible && (
-            <div className="relative z-10 mb-3 rounded-lg bg-blue-900/15 border border-blue-800/35 px-3 py-2 text-[11px] text-blue-100/90 leading-snug">
-              Best route selected
-            </div>
-          )}
 
         {isCommissionRequiredMode() &&
           currentChainId === 1 &&
@@ -1040,51 +993,76 @@ export function SwapInterface() {
             </div>
           )}
 
-        {/* Settings Panel — collapsed by default. Closed state shows a compact, read-only summary
-            so normal users see current Slippage / Approval / Route at a glance without the full panel. */}
-        {showSettings ? (
-          <SlippageSettings
-            value={slippage}
-            customValue={customSlippage}
-            onChange={setSlippage}
-            onCustomChange={handleCustomSlippage}
-            approvalMode={approvalMode}
-            onApprovalModeChange={setApprovalMode}
-            routeMode={routeMode}
-            onRouteModeChange={setRouteMode}
-            chainId={currentChainId}
-            onClose={() => setShowSettings(false)}
-          />
+        {/* More options: presets, save, swap settings, quick pairs — closed by default */}
+        {showMoreOptions ? (
+          <div className="relative z-10 mb-3 rounded-xl border border-white/[0.08] bg-white/[0.03] overflow-hidden">
+            <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-white/[0.06] bg-black/20">
+              <span className="text-[11px] font-medium text-dark-200">More options</span>
+              <button
+                type="button"
+                onClick={() => setShowMoreOptions(false)}
+                className="p-1.5 rounded-lg text-dark-400 hover:text-white hover:bg-white/[0.06] transition-colors"
+                title="Close"
+                aria-label="Close more options"
+              >
+                <CloseIcon />
+              </button>
+            </div>
+            <div className="p-3 space-y-3">
+              {isConnected && (
+                <div className="flex flex-wrap items-center gap-2 min-w-0">
+                  <div className="min-w-0 flex-1 basis-[min(100%,12rem)]">
+                    <PresetDropdown onSelectPreset={handlePresetSelect} />
+                  </div>
+                  {canSavePreset && (
+                    <button
+                      type="button"
+                      onClick={() => setShowSavePreset(true)}
+                      className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-white/[0.08] bg-electro-bgAlt/60 text-[11px] text-dark-300 hover:text-primary-400 hover:border-primary-500/30 transition-colors"
+                      title="Save as preset"
+                    >
+                      <SaveIcon />
+                      <span>Save preset</span>
+                    </button>
+                  )}
+                </div>
+              )}
+              <SlippageSettings
+                value={slippage}
+                customValue={customSlippage}
+                onChange={setSlippage}
+                onCustomChange={handleCustomSlippage}
+                approvalMode={approvalMode}
+                onApprovalModeChange={setApprovalMode}
+                routeMode={routeMode}
+                onRouteModeChange={setRouteMode}
+                chainId={currentChainId}
+                onClose={() => setShowMoreOptions(false)}
+              />
+              <QuickSwapPresets
+                chainId={currentChainId}
+                tokens={AVAILABLE_TOKENS}
+                onSelect={(from, to) => {
+                  const fromToken = AVAILABLE_TOKENS.find((t) => t.symbol === from);
+                  const toToken = AVAILABLE_TOKENS.find((t) => t.symbol === to);
+                  if (fromToken) setFromAsset(fromToken);
+                  if (toToken) setToAsset(toToken);
+                  reset();
+                }}
+              />
+            </div>
+          </div>
         ) : (
           <button
             type="button"
-            onClick={() => setShowSettings(true)}
-            className="relative z-10 mb-3 w-full min-w-0 flex items-center justify-between gap-2 rounded-lg border border-white/[0.06] bg-white/[0.03] hover:bg-white/[0.05] hover:border-white/[0.12] px-3 py-2 text-[11px] text-dark-300 hover:text-dark-100 transition-colors"
-            title="Open swap settings"
-            aria-label="Open swap settings"
+            onClick={() => setShowMoreOptions(true)}
+            className="relative z-10 mb-3 w-full min-w-0 inline-flex items-center justify-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.03] hover:bg-white/[0.05] hover:border-white/[0.12] px-3 py-2 text-[11px] text-dark-300 hover:text-dark-100 transition-colors"
+            title="More swap options"
             aria-expanded={false}
+            aria-label="More options"
           >
-            <span className="flex items-center gap-1.5 min-w-0 truncate">
-              <span className="text-[10px] uppercase tracking-wider text-dark-500 shrink-0">
-                Settings
-              </span>
-              <span className="text-dark-600 shrink-0">·</span>
-              <span className="truncate">
-                Slippage{' '}
-                <span className="text-dark-100 font-medium tabular-nums">{slippage}%</span>
-                <span className="text-dark-600 mx-1.5">·</span>
-                <span className="text-dark-100">
-                  {approvalMode === 'unlimited' ? 'Unlimited approval' : 'Exact approval'}
-                </span>
-                <span className="text-dark-600 mx-1.5">·</span>
-                <span className="text-dark-100">
-                  {formatQuoteRoutePreferenceLabel(routeMode)}
-                </span>
-              </span>
-            </span>
-            <span className="text-dark-500 shrink-0 text-[10px]" aria-hidden>
-              ▾
-            </span>
+            <SettingsIcon />
+            <span>More options</span>
           </button>
         )}
 
@@ -1155,19 +1133,6 @@ export function SwapInterface() {
               </div>
             );
           })()}
-
-        {/* Quick Swap Presets */}
-        <QuickSwapPresets
-          chainId={currentChainId}
-          tokens={AVAILABLE_TOKENS}
-          onSelect={(from, to) => {
-            const fromToken = AVAILABLE_TOKENS.find((t) => t.symbol === from);
-            const toToken = AVAILABLE_TOKENS.find((t) => t.symbol === to);
-            if (fromToken) setFromAsset(fromToken);
-            if (toToken) setToAsset(toToken);
-            reset();
-          }}
-        />
 
         {/* From Token */}
         <div className={`relative bg-electro-bgAlt/80 rounded-glass-sm p-4 mb-2 border transition-all duration-200 ${
@@ -1397,18 +1362,11 @@ export function SwapInterface() {
         {/* Quote Details (when quote available) */}
         {swapQuote && (status === 'previewing' || isQuotePipelineLoading) && !showPreview && (
           <div className="relative z-10 mt-4 p-4 bg-electro-bgAlt/70 rounded-xl text-sm space-y-2 border border-white/[0.1] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-            {/* Best route banner + quote TTL */}
+            {/* Quote validity — route preference lives in summary + Advanced details */}
             <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/[0.06] rounded-lg bg-white/[0.03] px-2 py-2">
-              <div className="flex items-center gap-2">
-                <div className="w-5 h-5 rounded-full bg-green-900/50 flex items-center justify-center">
-                  <svg className="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <span className="text-green-400 font-medium" title="Quote is valid for a short time; refresh if the timer expires.">
-                  Best route selected
-                </span>
-              </div>
+              <span className="text-xs font-medium text-dark-400" title="Quote is valid for a short time; refresh if the timer expires.">
+                Quote
+              </span>
               {quoteSecondsRemaining !== null && (
                 quoteSecondsRemaining <= 0 ? (
                   isEthNativeV2QuoteOnlyNoExec && hasUsableQuote && isQuotePipelineLoading ? (
@@ -1466,6 +1424,12 @@ export function SwapInterface() {
                 <span className="text-dark-400 shrink-0">Minimum received</span>
                 <span className="min-w-0 text-right text-dark-100 break-words tabular-nums">
                   {formatBalance(swapQuote.minimum_received, 6)} {toAsset?.symbol}
+                </span>
+              </div>
+              <div className="flex justify-between gap-2 min-w-0 items-baseline">
+                <span className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.routePreferenceLabel}</span>
+                <span className="min-w-0 text-right text-dark-100 break-words">
+                  {formatQuoteRoutePreferenceLabel(swapQuote.routeMode)}
                 </span>
               </div>
               {(() => {
