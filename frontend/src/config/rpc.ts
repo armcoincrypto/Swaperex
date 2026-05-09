@@ -8,10 +8,20 @@
  * Optional comma-separated extras: `VITE_BSC_READ_RPC_URLS` (client-exposed via Vite).
  */
 
-/** Ordered fallbacks for Ethereum mainnet read traffic (after env override). */
+/**
+ * Ordered fallbacks for Ethereum mainnet read traffic (after env override).
+ *
+ * Order matters — the candidate loop in `getEthereumReadProvider` / `resolveReadProvider`
+ * probes URLs sequentially with `JSONRPC_TIMEOUT_MS` per attempt and keeps the first that
+ * answers. Add new public RPCs at the end to preserve hot-cache behavior on the existing
+ * winners.
+ */
 export const ETHEREUM_READ_RPC_URLS: readonly string[] = [
   'https://ethereum.publicnode.com',
   'https://rpc.ankr.com/eth',
+  'https://eth.llamarpc.com',
+  'https://eth-mainnet.public.blastapi.io',
+  'https://eth.drpc.org',
 ] as const;
 
 /** Ordered fallbacks for BSC read traffic (after env override). */

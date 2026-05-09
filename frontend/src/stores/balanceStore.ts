@@ -191,7 +191,9 @@ async function resolveReadProvider(chain: string): Promise<JsonRpcProvider | nul
         // try next candidate
       }
     }
-    console.warn('[Balance] All Ethereum read RPC candidates failed');
+    if (import.meta.env.DEV || isDebugMode()) {
+      console.warn('[Balance] All Ethereum read RPC candidates failed');
+    }
     return null;
   }
 
