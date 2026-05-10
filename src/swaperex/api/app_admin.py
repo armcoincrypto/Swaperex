@@ -97,7 +97,14 @@ def create_admin_app() -> FastAPI:
     # Whitelist: ONLY the monitoring router and the public health router.
     # Custodial routers (deposits / hdwallet / withdrawal / webhook / legacy
     # admin) are intentionally not imported above and not mounted here.
+    #
+    # Health is mounted twice on purpose:
+    #   /health and /health/detailed                  -> canonical, load balancers
+    #   /api/v1/health and /api/v1/health/detailed    -> operational alias so all
+    #   admin-app URLs share the /api/v1/... prefix used by nginx and curl smoke
+    #   tests. Same router instance is included twice; no extra route logic.
     app.include_router(health.router, tags=["Health"])
+    app.include_router(health.router, prefix="/api/v1", tags=["Health (alias)"])
     app.include_router(monitoring.router, prefix="/api/v1", tags=["Monitoring"])
 
     return app

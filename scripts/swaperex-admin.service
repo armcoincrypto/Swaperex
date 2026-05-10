@@ -7,40 +7,42 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=/root/Swaperex
-# Use the same venv as the rest of the project. If you use /opt/venv (matching
-# the existing swaperex-scanner units), point ExecStart there instead.
+
+# Project virtualenv. `python -m uvicorn` form is preferred over the bare
+# `uvicorn` shim so the systemd unit doesn't depend on PATH.
 Environment="PYTHONUNBUFFERED=1"
 Environment="PYTHONPATH=/root/Swaperex/src"
 Environment="ENVIRONMENT=production"
 Environment="ADMIN_DATABASE_URL=sqlite+aiosqlite:////root/Swaperex/data/swaperex_admin.db"
 # Optional shared secret for monitoring ingest. Leave unset to accept all batches
 # from the same-origin SPA (recommended for v1 — the endpoint is rate-limit-only
-# and persists at most 200 events × 512 KB per batch).
+# and persists at most 200 events x 512 KB per batch).
 # Environment="MONITORING_INGEST_SECRET=change-me"
 
+# IMPORTANT: ExecStart must be a single line. systemd treats the line ending
+# as the end of the directive; backslash-continuations are NOT honoured here.
 # Bind only to localhost; nginx terminates TLS and forwards a single exact path.
-ExecStart=/opt/venv/bin/uvicorn swaperex.api.app_admin:app \
-    --host 127.0.0.1 \
-    --port 8001 \
-    --workers 2 \
-    --proxy-headers \
-    --no-access-log
+ExecStart=/root/Swaperex/.venv/bin/python -m uvicorn swaperex.api.app_admin:app --host 127.0.0.1 --port 8001 --workers 2 --proxy-headers --no-access-log
 
 Restart=on-failure
 RestartSec=5s
 
-# Hardening
+# Hardening — pragmatic defaults that allow the project venv under /root to
+# load. `ProtectSystem=full` keeps /usr, /boot, /efi read-only without making
+# /root invisible. `MemoryDenyWriteExecute=true` was tried and rejected because
+# Python's multiprocessing / cffi / ctypes paths require write+exec mappings on
+# Ubuntu 24.04 kernels.
 NoNewPrivileges=true
 PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
+ProtectSystem=full
+ProtectHome=false
 ReadWritePaths=/root/Swaperex/data /root/Swaperex/logs
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
 RestrictRealtime=true
 LockPersonality=true
-MemoryDenyWriteExecute=true
+MemoryDenyWriteExecute=false
 
 # Logging
 StandardOutput=append:/root/Swaperex/logs/admin-api.log

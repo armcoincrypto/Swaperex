@@ -46,13 +46,20 @@ def _route_paths(app) -> list[str]:
 
 
 def test_admin_app_exposes_only_health_and_monitoring():
-    """Whitelist: ONLY /health, /health/detailed, and the monitoring ingest path."""
+    """Whitelist: health (canonical + /api/v1 alias) and the monitoring ingest path."""
     app = create_admin_app()
     paths = _route_paths(app)
 
-    # Required paths
+    # Canonical health (load balancer / direct curl)
     assert "/health" in paths, paths
     assert "/health/detailed" in paths, paths
+
+    # Operational alias under /api/v1 — keeps every admin-app URL on the same
+    # /api/v1/... prefix as the nginx route map and the monitoring ingest path.
+    assert "/api/v1/health" in paths, paths
+    assert "/api/v1/health/detailed" in paths, paths
+
+    # Monitoring ingest
     assert "/api/v1/monitoring/events" in paths, paths
 
 
@@ -146,6 +153,24 @@ async def admin_client(tmp_path, monkeypatch):
 
     await close_admin_db()
     get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_health_alias_under_api_v1(admin_client):
+    """Both `/health` and the `/api/v1/health` alias must answer 200."""
+    client, _ = admin_client
+
+    canonical = await client.get("/health")
+    assert canonical.status_code == 200, canonical.text
+    assert canonical.json()["status"] == "healthy"
+
+    alias = await client.get("/api/v1/health")
+    assert alias.status_code == 200, alias.text
+    assert alias.json()["status"] == "healthy"
+
+    detailed = await client.get("/api/v1/health/detailed")
+    assert detailed.status_code == 200, detailed.text
+    assert detailed.json()["status"] == "healthy"
 
 
 @pytest.mark.asyncio
