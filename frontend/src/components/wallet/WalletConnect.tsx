@@ -12,8 +12,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useWallet } from '@/hooks/useWallet';
 import { Button } from '@/components/common/Button';
+import { TermsGateModal } from '@/components/common/TermsGateModal';
 import { shortenAddress } from '@/utils/format';
 import { useBalanceStore } from '@/stores/balanceStore';
+import { useTermsStore } from '@/stores/termsStore';
 import { getChain, isSupportedChain, CHAINS } from '@/wallet';
 
 type WalletOption = 'walletconnect' | 'readonly';
@@ -51,6 +53,10 @@ export function WalletConnect() {
   const [copied, setCopied] = useState(false);
   const [selectedWallet, setSelectedWallet] = useState<WalletOption | null>(null);
 
+  // Terms acceptance gate state — blocks connect / view-only until accepted once.
+  const termsAccepted = useTermsStore((s) => s.accepted);
+  const [pendingWalletOption, setPendingWalletOption] = useState<WalletOption | null>(null);
+
   const dropdownRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -87,20 +93,49 @@ export function WalletConnect() {
     }
   }, [showWalletOptions, showMenu]);
 
+  /**
+   * Run the actual connect step for a chosen wallet option.
+   * Extracted so the Terms gate can resume after acceptance without
+   * re-entering the picker UI.
+   */
+  const performWalletSelect = useCallback(
+    async (option: WalletOption) => {
+      setSelectedWallet(option);
+      setShowWalletOptions(false);
+
+      if (option === 'walletconnect') {
+        try {
+          await connectWalletConnect();
+        } catch {
+          // Error handled in hook, shown in UI
+        }
+      } else if (option === 'readonly') {
+        setShowReadOnlyInput(true);
+      }
+    },
+    [connectWalletConnect],
+  );
+
   // Handle wallet selection
   const handleWalletSelect = async (option: WalletOption) => {
-    setSelectedWallet(option);
-    setShowWalletOptions(false);
-
-    if (option === 'walletconnect') {
-      try {
-        await connectWalletConnect();
-      } catch {
-        // Error handled in hook, shown in UI
-      }
-    } else if (option === 'readonly') {
-      setShowReadOnlyInput(true);
+    if (!termsAccepted) {
+      setPendingWalletOption(option);
+      setShowWalletOptions(false);
+      return;
     }
+    await performWalletSelect(option);
+  };
+
+  const handleTermsAccept = () => {
+    const option = pendingWalletOption;
+    setPendingWalletOption(null);
+    if (option) {
+      void performWalletSelect(option);
+    }
+  };
+
+  const handleTermsCancel = () => {
+    setPendingWalletOption(null);
   };
 
   // Handle read-only submission
@@ -338,12 +373,22 @@ export function WalletConnect() {
     clearError();
     setSelectedWallet(null);
     setShowWalletOptions(false);
+    if (!termsAccepted) {
+      setPendingWalletOption('readonly');
+      return;
+    }
     setShowReadOnlyInput(true);
   };
 
   // ===== DISCONNECTED — WALLET PICKER =====
   return (
     <div className="relative flex flex-wrap items-center justify-end gap-2" ref={dropdownRef}>
+      <TermsGateModal
+        isOpen={pendingWalletOption !== null}
+        onClose={handleTermsCancel}
+        onAccept={handleTermsAccept}
+        actionLabel="Accept & Connect"
+      />
       <button
         type="button"
         onClick={openReadOnlyFromHeader}

@@ -23,6 +23,8 @@ import { GuardWarningPanel } from '@/components/presets/GuardWarningPanel';
 import { evaluatePresetGuards } from '@/services/presetGuardService';
 import { TokenSafetyBadges } from '@/components/common/TokenSafetyBadges';
 import { SwapPreviewModal, SwapStep } from './SwapPreviewModal';
+import { TermsGateModal } from '@/components/common/TermsGateModal';
+import { useTermsStore } from '@/stores/termsStore';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 import {
   formatBalance,
@@ -288,6 +290,9 @@ export function SwapInterface() {
   /** Power-user controls (settings, quick pairs, presets) — hidden until opened. */
   const [showMoreOptions, setShowMoreOptions] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  /** Terms / Privacy gate — opens before preview when user has not accepted yet. */
+  const termsAccepted = useTermsStore((s) => s.accepted);
+  const [showTermsGate, setShowTermsGate] = useState(false);
   const [showAdvancedQuoteDetails, setShowAdvancedQuoteDetails] = useState(
     () => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1',
   );
@@ -722,7 +727,17 @@ export function SwapInterface() {
       await fetchSwapQuote();
       return;
     }
+    // Block preview/swap behind explicit Terms/Privacy acceptance (one-time per browser).
+    if (!useTermsStore.getState().accepted) {
+      setShowTermsGate(true);
+      return;
+    }
     await handlePreviewSwap();
+  };
+
+  const handleTermsGateAccept = () => {
+    setShowTermsGate(false);
+    void handlePreviewSwap();
   };
 
   // Open preview modal - ONLY if quote is valid and fresh
@@ -1883,9 +1898,20 @@ export function SwapInterface() {
                 <span className="text-dark-500"> {SWAP_SURFACE_COPY.swapCardTrustMicroLine}</span>
               </p>
             </div>
+            {termsAccepted && (
+              <p className="mt-1 text-center text-[10px] text-dark-500">Terms accepted</p>
+            )}
           </div>
         )}
       </div>
+
+      {/* Terms / Privacy gate — must be accepted before first preview */}
+      <TermsGateModal
+        isOpen={showTermsGate}
+        onClose={() => setShowTermsGate(false)}
+        onAccept={handleTermsGateAccept}
+        actionLabel="Accept & Continue"
+      />
 
       {/* Swap Preview Modal */}
       <SwapPreviewModal

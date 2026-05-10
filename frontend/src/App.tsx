@@ -97,6 +97,24 @@ export function App() {
     });
   }, []);
 
+  /**
+   * SPA navigation bus — components without prop access (e.g. the Terms gate
+   * inside `WalletConnect` / `SwapInterface`) emit `swaperex:navigate` with
+   * `detail.page` to route to a static page like Terms or Privacy.
+   */
+  useEffect(() => {
+    const allowed: Page[] = ['swap', 'send', 'portfolio', 'radar', 'screener', 'about', 'terms', 'privacy', 'disclaimer'];
+    const onNav = (event: Event) => {
+      const detail = (event as CustomEvent<{ page?: string }>).detail;
+      const target = detail?.page;
+      if (target && (allowed as string[]).includes(target)) {
+        setCurrentPage(target as Page);
+      }
+    };
+    window.addEventListener('swaperex:navigate', onNav as EventListener);
+    return () => window.removeEventListener('swaperex:navigate', onNav as EventListener);
+  }, []);
+
   // Handle chain switch from banner
   const handleBannerSwitch = async () => {
     try {
