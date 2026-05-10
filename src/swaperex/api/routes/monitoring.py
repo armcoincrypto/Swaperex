@@ -7,10 +7,11 @@ import logging
 import os
 from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from swaperex.ledger.database import get_db
+from swaperex.api.dependencies import get_session
 from swaperex.ledger.models import MonitoringIngestBatch
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,7 @@ class MonitoringBatchBody(BaseModel):
 async def post_monitoring_events(
     body: MonitoringBatchBody,
     x_swaperex_monitoring_key: str | None = Header(None, alias="X-Swaperex-Monitoring-Key"),
+    session: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """Store one batch row. Optional shared secret via MONITORING_INGEST_SECRET + header."""
     expected = os.environ.get("MONITORING_INGEST_SECRET", "").strip()
@@ -62,15 +64,14 @@ async def post_monitoring_events(
             detail="Batch too large",
         )
 
-    async with get_db() as session:
-        row = MonitoringIngestBatch(
-            schema_version=body.schema_version,
-            client_session_id=body.client_session_id,
-            exported_at_ms=body.exported_at,
-            event_count=len(body.events),
-            envelope=envelope_dict,
-        )
-        session.add(row)
+    row = MonitoringIngestBatch(
+        schema_version=body.schema_version,
+        client_session_id=body.client_session_id,
+        exported_at_ms=body.exported_at,
+        event_count=len(body.events),
+        envelope=envelope_dict,
+    )
+    session.add(row)
 
     logger.info(
         "monitoring_ingest client_session=%s events=%s schema=%s",

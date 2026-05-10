@@ -40,6 +40,14 @@ class Settings(BaseSettings):
         description="Database connection URL",
     )
 
+    # Admin / monitoring DB (isolated from the legacy custodial ledger).
+    # Only the FastAPI app exposed by `swaperex.api.app_admin` writes here, so the
+    # web-DEX monitoring stream cannot affect the legacy `swaperex.db` file.
+    admin_database_url: str = Field(
+        default="sqlite+aiosqlite:///./data/swaperex_admin.db",
+        description="Admin/monitoring database connection URL (separate file/DB from the legacy ledger)",
+    )
+
     # API
     api_host: str = Field(default="0.0.0.0", description="API server host")
     api_port: int = Field(default=8000, description="API server port")
@@ -135,6 +143,7 @@ class Settings(BaseSettings):
             "api_host": self.api_host,
             "api_port": self.api_port,
             "database_url": self._redact_url(self.database_url),
+            "admin_database_url": self._redact_url(self.admin_database_url),
             "telegram_bot_token": "***" if self.telegram_bot_token else "(not set)",
             "admin_user_ids": self.admin_user_ids or "(none)",
             "provider": self.provider,
