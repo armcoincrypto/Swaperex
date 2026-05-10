@@ -63,8 +63,12 @@ import { estimateWrapperFeeWeiFromNetOutput } from '@/utils/wrapperFee';
 import {
   decodeNativeEthOutputAndFeeFromLogs,
   decodeSwapOutputAndFeeFromLogs,
+  type DecodedOutputAndFee,
 } from '@/utils/swapReceiptDecode';
-import { logProductionEvent } from '@/utils/productionMonitoring';
+import {
+  logProductionEvent,
+  type ProductionMonitoringPayload,
+} from '@/utils/productionMonitoring';
 
 // Import Uniswap V3 services
 import {
@@ -148,6 +152,7 @@ import {
   readPendingSwap,
   writePendingSwap,
 } from '@/utils/pendingSwapStorage';
+import type { AssetInfo } from '@/types/api';
 
 export type SwapStatus =
   | 'idle'
@@ -284,6 +289,31 @@ function logLifecycle(
   const timestamp = new Date().toISOString();
   const transition = fromStatus ? `${fromStatus} → ${toStatus}` : `→ ${toStatus}`;
   console.log(`[Swap Lifecycle] ${timestamp} | ${transition}`, details || '');
+}
+
+/** Compact token snapshot for monitoring / admin ingest (no secrets). */
+function buildMonitoringTokenWire(
+  symbol: string,
+  chainId: number,
+  asset: AssetInfo | null,
+): { symbol: string; address: string | null; isNative: boolean } {
+  const meta =
+    getTokenBySymbol(symbol, chainId) ||
+    (asset?.contract_address ? getTokenByAddress(asset.contract_address, chainId) : undefined);
+  if (!meta) {
+    return { symbol, address: null, isNative: !!asset?.is_native };
+  }
+  let address: string | null = null;
+  try {
+    address = getSwapAddress(meta, chainId);
+  } catch {
+    address = meta.address ?? null;
+  }
+  return {
+    symbol: meta.symbol ?? symbol,
+    address,
+    isNative: isNativeToken(meta.address),
+  };
 }
 
 // ERC20 allowance ABI
@@ -2100,6 +2130,8 @@ export function useSwap() {
 
         const nativeOut = tokenOutMeta ? isNativeToken(tokenOutMeta.address) : false;
 
+        let receiptDecodedForMonitor: DecodedOutputAndFee | null = null;
+
         let receiptSettlement: SwapReceiptSettlement;
         try {
           const decoded =
@@ -2110,6 +2142,7 @@ export function useSwap() {
                 : null;
 
           if (decoded && decoded.userNetWei > 0n) {
+            receiptDecodedForMonitor = decoded;
             const recvHuman = formatBalance(parseFloat(formatUnits(decoded.userNetWei, dec)), 8);
             let feeHuman: string | null = null;
             let feeProvenance: SwapReceiptSettlement['feeProvenance'] = 'none';
@@ -2146,10 +2179,21 @@ export function useSwap() {
               decoded.feeToTreasuryWei === 0n
             ) {
               logProductionEvent('commission_missing', {
+                txHash: tx.hash,
                 chainId: cid,
                 provider: swapQuote.provider,
-                txHash: tx.hash,
+                routeMode: String(swapQuote.routeMode ?? 'best'),
                 reason: 'no_treasury_transfer_in_output_token',
+                expectedFeeTokenSymbol: swapQuote.toSymbol,
+                expectedFeeTokenAddress: outputAddr,
+                expectedFeeTokenNative: nativeOut,
+                commissionRoute: commissionTraceForSwap?.commissionKind,
+                ...(commissionTraceForSwap?.wrapperKey != null
+                  ? { wrapperRoute: commissionTraceForSwap.wrapperKey }
+                  : {}),
+                ...(commissionTraceForSwap?.expectedCommissionBps != null
+                  ? { protocolFeeBps: commissionTraceForSwap.expectedCommissionBps }
+                  : {}),
               });
             }
 
@@ -2206,13 +2250,39 @@ export function useSwap() {
           explorerUrl,
           receiptSettlement,
         }));
-        logProductionEvent('swap_success', {
+        const swapSuccessMonitoring: ProductionMonitoringPayload = {
+          txHash: tx.hash,
           chainId: cid,
           provider: swapQuote.provider,
-          txHash: tx.hash,
+          routeMode: String(swapQuote.routeMode ?? 'best'),
+          fromToken: buildMonitoringTokenWire(swapQuote.fromSymbol, cid, fromAsset),
+          toToken: buildMonitoringTokenWire(swapQuote.toSymbol, cid, toAsset),
+          fromAmount,
+          quotedOutput: swapQuote.amountOutFormatted,
+          minimumReceived: swapQuote.minimum_received,
           userReceivedSource: receiptSettlement.userReceivedSource,
+          ...(receiptDecodedForMonitor
+            ? {
+                userNetWei: receiptDecodedForMonitor.userNetWei.toString(),
+                feeToTreasuryWei: receiptDecodedForMonitor.feeToTreasuryWei.toString(),
+              }
+            : {}),
+          feeToken: buildMonitoringTokenWire(swapQuote.toSymbol, cid, toAsset),
+          ...(commissionTraceForSwap?.expectedCommissionBps != null
+            ? { protocolFeeBps: commissionTraceForSwap.expectedCommissionBps }
+            : {}),
+          ...(receipt.gasUsed != null ? { gasUsed: receipt.gasUsed.toString() } : {}),
+          ...(receipt.gasPrice != null ? { effectiveGasPrice: receipt.gasPrice.toString() } : {}),
+          receiptStatus: receipt.status ?? null,
+          ...(commissionTraceForSwap?.commissionKind
+            ? { commissionRoute: commissionTraceForSwap.commissionKind }
+            : {}),
+          ...(commissionTraceForSwap?.wrapperKey != null
+            ? { wrapperRoute: commissionTraceForSwap.wrapperKey }
+            : {}),
           nativeOutput: nativeOut,
-        });
+        };
+        logProductionEvent('swap_success', swapSuccessMonitoring);
         toast.success('Swap confirmed');
 
         try {

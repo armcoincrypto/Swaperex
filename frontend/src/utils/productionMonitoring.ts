@@ -41,6 +41,52 @@ function setIngestPausedAfter404(): void {
 
 export type ProductionMonitoringPayload = Record<string, unknown>;
 
+/** Token reference on monitoring wire payloads (no secrets). */
+export type MonitoringTokenWire = {
+  symbol: string;
+  address: string | null;
+  isNative: boolean;
+};
+
+/** Documented shape for `swap_success` revenue-oriented fields (best-effort; omit unknowns). */
+export type SwapSuccessMonitoringWire = ProductionMonitoringPayload & {
+  txHash: string;
+  chainId: number;
+  provider: string;
+  routeMode?: string;
+  fromToken?: MonitoringTokenWire;
+  toToken?: MonitoringTokenWire;
+  fromAmount?: string;
+  quotedOutput?: string;
+  minimumReceived?: string;
+  userReceivedSource?: string;
+  userNetWei?: string;
+  feeToTreasuryWei?: string;
+  feeToken?: MonitoringTokenWire;
+  protocolFeeBps?: number;
+  gasUsed?: string;
+  effectiveGasPrice?: string;
+  receiptStatus?: number | null;
+  commissionRoute?: string;
+  wrapperRoute?: string | null;
+  nativeOutput?: boolean;
+};
+
+/** Documented shape for `commission_missing` fields. */
+export type CommissionMissingMonitoringWire = ProductionMonitoringPayload & {
+  txHash: string;
+  chainId: number;
+  provider: string;
+  routeMode?: string;
+  reason: string;
+  expectedFeeTokenSymbol?: string;
+  expectedFeeTokenAddress?: string | null;
+  expectedFeeTokenNative?: boolean;
+  commissionRoute?: string;
+  wrapperRoute?: string | null;
+  protocolFeeBps?: number;
+};
+
 /** Persisted to the outbox and eligible for `POST /api/v1/monitoring/events`. */
 export const PERSISTED_MONITORING_EVENTS = [
   'swap_success',
