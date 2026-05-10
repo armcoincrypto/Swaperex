@@ -87,6 +87,12 @@ interface ImportMetaEnv {
   /** When truthy with DEV false, mirror `logProductionEvent` rows to the console. */
   readonly VITE_DEBUG_MONITORING?: string
 
+  /**
+   * Production-only: mirror wallet reconnect telemetry (`logWalletReconnectTelemetry`) to the console.
+   * Does not enable full `VITE_DEBUG_MONITORING`. DEV already logs persisted monitoring rows by default.
+   */
+  readonly VITE_DEBUG_WALLET_RECONNECT?: string
+
   /** When truthy with DEV false, log walletEvents.emit details to the console. */
   readonly VITE_DEBUG_WALLET?: string
 

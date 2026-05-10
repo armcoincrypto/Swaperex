@@ -19,6 +19,11 @@ function isDebugMonitoringConsole(): boolean {
   return import.meta.env.DEV || isTruthyEnvFlag(import.meta.env.VITE_DEBUG_MONITORING);
 }
 
+/** Production-only console mirror for wallet reconnect telemetry (does not enable full monitoring debug). */
+function isDebugWalletReconnectConsoleProd(): boolean {
+  return import.meta.env.PROD && isTruthyEnvFlag(import.meta.env.VITE_DEBUG_WALLET_RECONNECT);
+}
+
 const PAUSE_404_SESSION_KEY = 'swaperex-monitoring-ingest-paused-404';
 
 function isIngestPausedAfter404(): boolean {
@@ -87,6 +92,14 @@ export type CommissionMissingMonitoringWire = ProductionMonitoringPayload & {
   protocolFeeBps?: number;
 };
 
+/** Phase P1.1 — wallet reconnect telemetry (no addresses / secrets). See `logWalletReconnectTelemetry`. */
+export type WalletReconnectTelemetryEventName =
+  | 'wallet_autoreconnect_scan'
+  | 'legacy_wc_reconnect_attempt'
+  | 'legacy_wc_reconnect_success'
+  | 'legacy_wc_reconnect_failure'
+  | 'appkit_reconnect_success';
+
 /** Persisted to the outbox and eligible for `POST /api/v1/monitoring/events`. */
 export const PERSISTED_MONITORING_EVENTS = [
   'swap_success',
@@ -94,6 +107,11 @@ export const PERSISTED_MONITORING_EVENTS = [
   'quote_failure',
   'rpc_failure',
   'commission_missing',
+  'wallet_autoreconnect_scan',
+  'legacy_wc_reconnect_attempt',
+  'legacy_wc_reconnect_success',
+  'legacy_wc_reconnect_failure',
+  'appkit_reconnect_success',
 ] as const;
 
 export type PersistedMonitoringEventName = (typeof PERSISTED_MONITORING_EVENTS)[number];
@@ -385,6 +403,26 @@ export function logProductionEvent(event: string, fields: ProductionMonitoringPa
     if (isMonitoringIngestEnabled() && !isIngestPausedAfter404()) {
       scheduleMonitoringFlush();
     }
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Wallet reconnect / legacy WC observability (Phase P1.1).
+ * Always persists eligible events via the standard outbox when ingest is enabled.
+ * In production, logs to console only when `VITE_DEBUG_WALLET_RECONNECT` is truthy (no noisy default).
+ * DEV still mirrors persisted rows when `VITE_DEBUG_MONITORING` or dev defaults apply via `logProductionEvent`.
+ */
+export function logWalletReconnectTelemetry(
+  event: WalletReconnectTelemetryEventName,
+  fields: ProductionMonitoringPayload = {},
+): void {
+  logProductionEvent(event, fields);
+  if (!isDebugWalletReconnectConsoleProd()) return;
+  try {
+    const row: Record<string, unknown> = { event, ts: Date.now(), ...fields };
+    console.log(JSON.stringify(row));
   } catch {
     // ignore
   }

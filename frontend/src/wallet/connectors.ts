@@ -15,6 +15,7 @@
 import type { EIP1193Provider, ConnectorId, WalletInfo } from './types';
 import { SUPPORTED_CHAIN_IDS, RPC_MAP, DEFAULT_CHAIN_ID } from './chains';
 import { WALLETCONNECT_PROJECT_ID } from '@/utils/constants';
+import { logWalletReconnectTelemetry } from '@/utils/productionMonitoring';
 
 type WCEthereumProviderCtor = (typeof import('@walletconnect/ethereum-provider'))['default'];
 type WcProviderInstance = InstanceType<WCEthereumProviderCtor>;
@@ -209,12 +210,21 @@ function logLegacyWcAutoReconnect(
  * - The `lastConnector === 'walletconnect'` branch below uses `@walletconnect/ethereum-provider`
  *   for legacy/stale-key sessions and populates `wcProviderInstance` when successful. Do not remove
  *   without migration or telemetry planning.
+ *
+ * Phase P1.1 telemetry (`logWalletReconnectTelemetry`): records categorical `lastConnector` and
+ * legacy-branch outcomes only — no addresses, secrets, or provider payloads — so we can prove how
+ * often the legacy path runs before removing `@walletconnect/ethereum-provider`.
  */
 export async function autoReconnect(): Promise<{
   provider: EIP1193Provider;
   info: WalletInfo;
 } | null> {
   const lastConnector = getLastConnector();
+
+  logWalletReconnectTelemetry('wallet_autoreconnect_scan', {
+    lastConnector: lastConnector ?? null,
+    wcProjectIdConfigured: !WC_PROJECT_ID_IS_PLACEHOLDER,
+  });
 
   if (lastConnector === 'injected') {
     const selected = getPreferredInjectedProvider();
@@ -242,6 +252,7 @@ export async function autoReconnect(): Promise<{
 
   if (lastConnector === 'walletconnect' && !WC_PROJECT_ID_IS_PLACEHOLDER) {
     logLegacyWcAutoReconnect('entered');
+    logWalletReconnectTelemetry('legacy_wc_reconnect_attempt', {});
     try {
       const EthereumProvider = await getWcEthereumProviderCtor();
       const provider = await EthereumProvider.init({
@@ -262,6 +273,7 @@ export async function autoReconnect(): Promise<{
       if (provider.session && provider.accounts.length > 0) {
         wcProviderInstance = provider;
         logLegacyWcAutoReconnect('success');
+        logWalletReconnectTelemetry('legacy_wc_reconnect_success', {});
         return {
           provider: provider as unknown as EIP1193Provider,
           info: {
@@ -273,9 +285,15 @@ export async function autoReconnect(): Promise<{
         };
       }
       logLegacyWcAutoReconnect('no_restorable_session');
+      logWalletReconnectTelemetry('legacy_wc_reconnect_failure', {
+        reason: 'no_restorable_session',
+      });
     } catch {
       // Session expired or invalid
       logLegacyWcAutoReconnect('failed');
+      logWalletReconnectTelemetry('legacy_wc_reconnect_failure', {
+        reason: 'exception',
+      });
       clearLastConnector();
     }
   }
