@@ -156,6 +156,43 @@ async def admin_client(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_admin_db_contains_only_monitoring_table(admin_client):
+    """`init_admin_db` must NOT create the legacy custodial tables.
+
+    Regression guard for the `tables=[MonitoringIngestBatch.__table__]` scope
+    on `Base.metadata.create_all`. A clean admin DB should expose exactly one
+    user-defined table.
+    """
+    _, db_path = admin_client
+    engine = create_async_engine(f"sqlite+aiosqlite:///{db_path}")
+    async with engine.begin() as conn:
+        result = await conn.execute(
+            text(
+                "SELECT name FROM sqlite_master "
+                "WHERE type='table' AND name NOT LIKE 'sqlite_%' "
+                "ORDER BY name"
+            )
+        )
+        tables = [row[0] for row in result.fetchall()]
+    await engine.dispose()
+
+    assert tables == ["monitoring_ingest_batches"], (
+        f"admin DB should contain only `monitoring_ingest_batches`, found {tables}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_init_admin_db_is_idempotent_on_existing_table(admin_client):
+    """A second call must not raise even though the table already exists.
+
+    Defense-in-depth against the multi-worker race that crashed startup.
+    """
+    _, _ = admin_client
+    await init_admin_db()
+    await init_admin_db()
+
+
+@pytest.mark.asyncio
 async def test_health_alias_under_api_v1(admin_client):
     """Both `/health` and the `/api/v1/health` alias must answer 200."""
     client, _ = admin_client

@@ -147,15 +147,35 @@ async def get_admin_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_admin_db() -> None:
-    """Initialize the admin database by creating all tables.
+    """Initialize the admin database — creates ONLY the monitoring table.
 
-    Uses the same `Base.metadata` so the `monitoring_ingest_batches` table is
-    created. Other tables defined on `Base` are also created (empty) — this is
-    intentional and harmless; the admin app does not write to them.
+    Restricting the create_all call to `MonitoringIngestBatch.__table__` keeps
+    the admin DB free of the legacy custodial tables (`users`, `balances`,
+    `deposits`, ...) that share `Base.metadata`. The admin app never reads or
+    writes those tables, so they have no business being in `swaperex_admin.db`.
+
+    Race tolerance: when multiple uvicorn workers run the lifespan in parallel,
+    SQLite can raise `OperationalError: table ... already exists` even with
+    `checkfirst=True` because the two workers race the write transaction.
+    The current systemd unit pins `--workers 1` for this reason, but the
+    handler stays defensive so a future bump cannot crash startup.
     """
+    from sqlalchemy.exc import OperationalError
+
+    from swaperex.ledger.models import MonitoringIngestBatch
+
     engine = get_admin_engine()
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(
+                Base.metadata.create_all,
+                tables=[MonitoringIngestBatch.__table__],
+                checkfirst=True,
+            )
+    except OperationalError as exc:
+        msg = str(exc).lower()
+        if "already exists" not in msg:
+            raise
 
 
 async def close_admin_db() -> None:
