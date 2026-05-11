@@ -1,13 +1,13 @@
 """Isolated FastAPI app for the web-DEX admin / monitoring surface.
 
 Phase 1 scope: receive frontend monitoring batches at
-``POST /api/v1/monitoring/events`` and persist them in a *separate* database
-(`data/swaperex_admin.db` by default) so the legacy custodial ledger is never
-touched.
+``POST /api/v1/monitoring/events``, plus read-only operator routes under
+``GET /api/v1/admin/*`` (token: ``ADMIN_API_TOKEN`` / ``X-Admin-Token`` header).
 
 Strict isolation rules enforced by this module:
 
-* Mounts only the public health router and the monitoring router.
+* Mounts the public health router, monitoring ingest, and **read-only admin**
+  router only.
 * Does **not** import or include any custodial routers
   (deposits, hdwallet, withdrawal, webhook, legacy admin).
 * Does **not** call ``load_xpubs_from_db`` — the admin process never reads
@@ -27,7 +27,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from swaperex.api.dependencies import get_admin_session, get_session
-from swaperex.api.routes import health, monitoring
+from swaperex.api.routes import admin_readonly, health, monitoring
 from swaperex.config import get_settings
 from swaperex.ledger.database import close_admin_db, init_admin_db
 
@@ -94,7 +94,7 @@ def create_admin_app() -> FastAPI:
     # `data/swaperex_admin.db` (or whatever `ADMIN_DATABASE_URL` points to).
     app.dependency_overrides[get_session] = get_admin_session
 
-    # Whitelist: ONLY the monitoring router and the public health router.
+    # Whitelist: health (canonical + alias), monitoring ingest, read-only admin panel.
     # Custodial routers (deposits / hdwallet / withdrawal / webhook / legacy
     # admin) are intentionally not imported above and not mounted here.
     #
@@ -106,6 +106,7 @@ def create_admin_app() -> FastAPI:
     app.include_router(health.router, tags=["Health"])
     app.include_router(health.router, prefix="/api/v1", tags=["Health (alias)"])
     app.include_router(monitoring.router, prefix="/api/v1", tags=["Monitoring"])
+    app.include_router(admin_readonly.router, prefix="/api/v1", tags=["Admin (read-only)"])
 
     return app
 

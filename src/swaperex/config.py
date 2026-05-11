@@ -5,7 +5,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal, Optional
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -79,8 +79,15 @@ class Settings(BaseSettings):
     cryptoapis_key: str = Field(default="", description="CryptoAPIs API key")
     nowpayments_key: str = Field(default="", description="NOWPayments API key")
 
-    # Admin API
+    # Admin API (custodial app.py — legacy)
     admin_token: str = Field(default="", description="Admin API token for protected endpoints")
+
+    # Isolated admin panel (app_admin only) — **never** reuse custodial ADMIN_TOKEN in prod unless intended.
+    admin_api_token: str = Field(
+        default="",
+        description="Bearer-style secret for GET /api/v1/admin/* on the isolated admin app",
+        validation_alias=AliasChoices("ADMIN_API_TOKEN"),
+    )
 
     # Safety guards
     dry_run: bool = Field(default=True, description="Enable dry-run mode (no real transactions)")
@@ -150,6 +157,7 @@ class Settings(BaseSettings):
             "cryptoapis_key": "***" if self.cryptoapis_key else "(not set)",
             "nowpayments_key": "***" if self.nowpayments_key else "(not set)",
             "admin_token": "***" if self.admin_token else "(not set)",
+            "admin_api_token": "***" if self.admin_api_token else "(not set)",
             "hot_wallet_threshold": self.hot_wallet_threshold,
             "thorchain_api_url": self.thorchain_api_url or "(not set)",
             "dex_aggregator_api_url": self.dex_aggregator_api_url or "(not set)",

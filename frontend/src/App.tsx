@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect, lazy, Suspense } from 'react';
+import { Routes, Route } from 'react-router-dom';
 import { LazyWalletBootstrap, LazyWalletConnect } from '@/components/wallet/lazyWalletChunks';
 import { SwapInterface } from '@/components/swap/SwapInterface';
 import { TokenList } from '@/components/balances/TokenList';
@@ -46,6 +47,14 @@ const LazyDisclaimerPage = lazy(() =>
   import('@/components/pages/StaticPages').then((m) => ({ default: m.DisclaimerPage }))
 );
 
+const LazyAdminApp = lazy(() => import('@/components/admin/AdminApp'));
+
+const lazyAdminFallback = (
+  <div className="min-h-screen bg-dark-950 flex items-center justify-center">
+    <p className="text-sm text-dark-400">Loading admin…</p>
+  </div>
+);
+
 const lazyTabFallback = (
   <div className="flex justify-center py-16">
     <p className="text-sm text-dark-400">Loading…</p>
@@ -61,7 +70,23 @@ const lazyWalletConnectFallback = (
 
 type Page = 'swap' | 'send' | 'portfolio' | 'radar' | 'screener' | 'about' | 'terms' | 'privacy' | 'disclaimer';
 
-export function App() {
+export default function App() {
+  return (
+    <Routes>
+      <Route
+        path="/admin/*"
+        element={
+          <Suspense fallback={lazyAdminFallback}>
+            <LazyAdminApp />
+          </Suspense>
+        }
+      />
+      <Route path="/*" element={<DexMain />} />
+    </Routes>
+  );
+}
+
+function DexMain() {
   const [currentPage, setCurrentPage] = useState<Page>('swap');
   const walletHostNeeded = useWalletBootstrapStore((s) => s.needed);
   const { isConnected, isWrongChain, isReadOnly, chainId, switchNetwork } = useWallet();
@@ -503,4 +528,3 @@ function NavButton({
   );
 }
 
-export default App;

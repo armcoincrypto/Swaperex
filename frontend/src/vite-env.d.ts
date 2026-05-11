@@ -3,6 +3,8 @@
 interface ImportMetaEnv {
   // Existing app
   readonly VITE_API_URL: string
+  /** Override admin panel API root (default `/api/v1`). Production normally unchanged. */
+  readonly VITE_ADMIN_API_BASE_URL?: string
   readonly VITE_SIGNALS_API_URL?: string
 
   /** Optional override for Ethereum read-only JSON-RPC (https). When unset, public fallbacks from `config/rpc` are used. */

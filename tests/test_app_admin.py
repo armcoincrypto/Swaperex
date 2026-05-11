@@ -3,7 +3,7 @@
 These tests exist to make sure the safety boundaries of `app_admin` cannot
 silently regress:
 
-* Only the health and monitoring routers are mounted.
+* Only the health, monitoring ingest, and **read-only admin** routers are mounted.
 * Custodial routers (deposits, hdwallet, withdrawal, webhook, legacy admin)
   are NOT exposed.
 * The monitoring ingest endpoint accepts a valid envelope and writes to the
@@ -45,8 +45,8 @@ def _route_paths(app) -> list[str]:
     return paths
 
 
-def test_admin_app_exposes_only_health_and_monitoring():
-    """Whitelist: health (canonical + /api/v1 alias) and the monitoring ingest path."""
+def test_admin_app_exposes_health_monitoring_and_readonly_admin():
+    """Whitelist: health (canonical + /api/v1 alias), monitoring ingest, admin panel."""
     app = create_admin_app()
     paths = _route_paths(app)
 
@@ -61,6 +61,10 @@ def test_admin_app_exposes_only_health_and_monitoring():
 
     # Monitoring ingest
     assert "/api/v1/monitoring/events" in paths, paths
+
+    # Read-only admin (token-protected)
+    assert "/api/v1/admin/health" in paths, paths
+    assert "/api/v1/admin/overview" in paths, paths
 
 
 def test_admin_app_does_not_expose_custodial_routes():
@@ -287,3 +291,71 @@ async def test_monitoring_ingest_rejects_bad_secret(admin_client, monkeypatch):
         headers={"X-Swaperex-Monitoring-Key": "expected-secret"},
     )
     assert good.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_admin_panel_requires_token(admin_client, monkeypatch):
+    monkeypatch.setenv("ADMIN_API_TOKEN", "panel-secret-test")
+    from swaperex.config import get_settings
+
+    get_settings.cache_clear()
+
+    client, _ = admin_client
+    no_hdr = await client.get("/api/v1/admin/overview")
+    assert no_hdr.status_code == 401, no_hdr.text
+
+    bad = await client.get("/api/v1/admin/overview", headers={"X-Admin-Token": "wrong"})
+    assert bad.status_code == 401, bad.text
+
+    ok = await client.get("/api/v1/admin/overview", headers={"X-Admin-Token": "panel-secret-test"})
+    assert ok.status_code == 200, ok.text
+    body = ok.json()
+    assert body["service"] == "admin"
+    assert body["status"] == "ok"
+    assert "monitoring_batch_count" in body
+    assert body["frontend_health"]["status"] == "unknown"
+
+    health = await client.get("/api/v1/admin/health", headers={"X-Admin-Token": "panel-secret-test"})
+    assert health.status_code == 200
+    assert health.json()["status"] == "healthy"
+
+    get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_admin_panel_unconfigured_returns_503(admin_client, monkeypatch):
+    monkeypatch.delenv("ADMIN_API_TOKEN", raising=False)
+    from swaperex.config import get_settings
+
+    get_settings.cache_clear()
+    client, _ = admin_client
+    res = await client.get("/api/v1/admin/overview", headers={"X-Admin-Token": "anything"})
+    assert res.status_code == 503
+    get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_admin_overview_counts_batches(admin_client, monkeypatch):
+    monkeypatch.setenv("ADMIN_API_TOKEN", "panel-secret-test")
+    from swaperex.config import get_settings
+
+    get_settings.cache_clear()
+    client, _ = admin_client
+
+    await client.post(
+        "/api/v1/monitoring/events",
+        json={
+            "schemaVersion": 1,
+            "clientSessionId": "ov-test",
+            "exportedAt": 1,
+            "events": [{"event": "swap_success", "ts": 2}],
+        },
+    )
+
+    ov = await client.get("/api/v1/admin/overview", headers={"X-Admin-Token": "panel-secret-test"})
+    assert ov.status_code == 200
+    data = ov.json()
+    assert data["monitoring_batch_count"] >= 1
+    assert data["monitoring_latest_received_at"] is not None
+
+    get_settings.cache_clear()
