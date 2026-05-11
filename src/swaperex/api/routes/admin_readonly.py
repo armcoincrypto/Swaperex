@@ -1,7 +1,7 @@
 """Read-only admin panel HTTP API (mounted only on ``app_admin``).
 
-Phase P2.1+: authenticated overview + monitoring batch explorer from the isolated
-admin DB. No custodial routers, no signing, no key material.
+Phase P2.1+: overview, monitoring batches, swap_success analytics — all from the
+isolated admin DB. No custodial routers, no signing, no key material.
 
 Requires ``ADMIN_API_TOKEN`` and header ``X-Admin-Token`` on every route under
 ``/api/v1/admin/*``. Telemetry (P1.1) should confirm legacy WC usage before
@@ -11,8 +11,9 @@ admin process as monitoring ingest.
 
 from __future__ import annotations
 
+import copy
 import secrets
-from datetime import timezone
+from datetime import datetime, timezone
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
@@ -88,6 +89,160 @@ def _iso_received_at(dt: Any) -> str:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.isoformat()
+
+
+def _iso_from_ts_ms(ts_ms: Any, fallback_iso: str) -> str:
+    if isinstance(ts_ms, (int, float)):
+        try:
+            dt = datetime.fromtimestamp(float(ts_ms) / 1000.0, tz=timezone.utc)
+            return dt.isoformat()
+        except (OverflowError, OSError, ValueError):
+            return fallback_iso
+    return fallback_iso
+
+
+def _token_symbol(tok: Any) -> str | None:
+    if isinstance(tok, dict):
+        sym = tok.get("symbol")
+        if isinstance(sym, str) and sym.strip():
+            return sym.strip()
+        if sym is not None:
+            return str(sym)
+    return None
+
+
+def _safe_str(val: Any) -> str | None:
+    if val is None:
+        return None
+    if isinstance(val, str):
+        return val if val else None
+    try:
+        return str(val)
+    except Exception:
+        return None
+
+
+def _safe_opt_int(val: Any) -> int | None:
+    if val is None:
+        return None
+    try:
+        return int(val)
+    except (TypeError, ValueError):
+        return None
+
+
+def _safe_bool(val: Any) -> bool:
+    return bool(val)
+
+
+def _build_route_label(ev: dict[str, Any]) -> str:
+    parts: list[str] = []
+    prov = ev.get("provider")
+    if isinstance(prov, str) and prov.strip():
+        parts.append(prov.strip())
+    rm = ev.get("routeMode")
+    if isinstance(rm, str) and rm.strip():
+        parts.append(rm.strip())
+    wr = ev.get("wrapperRoute")
+    wrs = _safe_str(wr)
+    if wrs:
+        parts.append(f"wrapper:{wrs}")
+    cr = ev.get("commissionRoute")
+    crs = _safe_str(cr)
+    if crs:
+        parts.append(crs)
+    return " · ".join(parts) if parts else "unknown"
+
+
+def _estimate_fee_usd(_ev: dict[str, Any]) -> float | None:
+    """Reserved for future ETH/USD oracle wiring; telemetry has no USD price today."""
+    return None
+
+
+def _swap_success_row_from_event(
+    batch_id: int,
+    client_session_id: str,
+    batch_received_iso: str,
+    ev: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Flatten one ``swap_success`` monitoring row; return ``None`` if unusable."""
+    try:
+        if ev.get("event") != "swap_success":
+            return None
+
+        timestamp = _iso_from_ts_ms(ev.get("ts"), batch_received_iso)
+        chain = _safe_opt_int(ev.get("chainId"))
+        if chain is None:
+            return None
+
+        route_mode = ev.get("routeMode")
+        route_mode_s = route_mode.strip() if isinstance(route_mode, str) else _safe_str(route_mode)
+
+        wrapper_route = _safe_str(ev.get("wrapperRoute"))
+        commission_route = _safe_str(ev.get("commissionRoute"))
+
+        from_symbol = _token_symbol(ev.get("fromToken"))
+        to_symbol = _token_symbol(ev.get("toToken"))
+
+        receipt_status = _safe_opt_int(ev.get("receiptStatus"))
+
+        row: dict[str, Any] = {
+            "batch_id": batch_id,
+            "timestamp": timestamp,
+            "client_session_id": client_session_id,
+            "chain": chain,
+            "route_mode": route_mode_s,
+            "wrapper_route": wrapper_route,
+            "commission_route": commission_route,
+            "from_symbol": from_symbol,
+            "to_symbol": to_symbol,
+            "from_amount": _safe_str(ev.get("fromAmount")),
+            "quoted_output": _safe_str(ev.get("quotedOutput")),
+            "minimum_received": _safe_str(ev.get("minimumReceived")),
+            "protocol_fee_bps": _safe_opt_int(ev.get("protocolFeeBps")),
+            "user_received_source": _safe_str(ev.get("userReceivedSource")),
+            "gas_used": _safe_str(ev.get("gasUsed")),
+            "effective_gas_price": _safe_str(ev.get("effectiveGasPrice")),
+            "receipt_status": receipt_status,
+            "tx_hash": _safe_str(ev.get("txHash")),
+            "native_output": _safe_bool(ev.get("nativeOutput")),
+            "estimated_fee_usd": _estimate_fee_usd(ev),
+            "route_label": _build_route_label(ev),
+            "provider": _safe_str(ev.get("provider")),
+            "raw_event": copy.deepcopy(ev),
+        }
+        return row
+    except Exception:
+        return None
+
+
+def _swap_row_matches_filters(
+    row: dict[str, Any],
+    *,
+    chain: int | None,
+    route_mode: str | None,
+    token: str | None,
+    wallet_session: str | None,
+    success_only: bool,
+) -> bool:
+    if success_only and row.get("receipt_status") == 0:
+        return False
+    if chain is not None and row.get("chain") != chain:
+        return False
+    if route_mode is not None and route_mode.strip():
+        rm = (row.get("route_mode") or "").strip().lower()
+        if rm != route_mode.strip().lower():
+            return False
+    if token is not None and token.strip():
+        needle = token.strip().lower()
+        fs = (row.get("from_symbol") or "").lower()
+        tsym = (row.get("to_symbol") or "").lower()
+        if needle not in fs and needle not in tsym:
+            return False
+    if wallet_session is not None and wallet_session.strip():
+        if (row.get("client_session_id") or "") != wallet_session.strip():
+            return False
+    return True
 
 
 @router.get(
@@ -194,6 +349,75 @@ async def admin_events(
 
     return {
         "items": items,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+@router.get(
+    "/swaps",
+    summary="Swap analytics from swap_success monitoring events (read-only)",
+    dependencies=[Depends(require_admin_api_token)],
+)
+async def admin_swaps(
+    session: AsyncSession = Depends(get_session),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    chain: int | None = Query(default=None),
+    route_mode: str | None = Query(default=None, alias="routeMode"),
+    token: str | None = Query(default=None, description="Substring match on from/to symbol"),
+    wallet_session: str | None = Query(
+        default=None,
+        alias="walletSession",
+        max_length=80,
+        description="Exact batch client_session_id",
+    ),
+    success_only: bool = Query(default=True, alias="successOnly"),
+) -> dict[str, Any]:
+    stmt = select(MonitoringIngestBatch).order_by(MonitoringIngestBatch.id.desc())
+    batches = (await session.execute(stmt)).scalars().all()
+
+    scored: list[tuple[int, int, int, dict[str, Any]]] = []
+    seq = 0
+    for batch in batches:
+        batch_iso = _iso_received_at(batch.received_at)
+        env = batch.envelope if isinstance(batch.envelope, dict) else {}
+        events = env.get("events")
+        if not isinstance(events, list):
+            continue
+        for ev in events:
+            if not isinstance(ev, dict):
+                continue
+            row = _swap_success_row_from_event(
+                batch.id,
+                batch.client_session_id,
+                batch_iso,
+                ev,
+            )
+            if row is None:
+                continue
+            if not _swap_row_matches_filters(
+                row,
+                chain=chain,
+                route_mode=route_mode,
+                token=token,
+                wallet_session=wallet_session,
+                success_only=success_only,
+            ):
+                continue
+            ts_raw = ev.get("ts")
+            ts_ms = int(ts_raw) if isinstance(ts_raw, (int, float)) else 0
+            scored.append((-ts_ms, -batch.id, seq, row))
+            seq += 1
+
+    scored.sort(key=lambda x: (x[0], x[1], x[2]))
+    ordered = [t[3] for t in scored]
+    total = len(ordered)
+    page = ordered[offset : offset + limit]
+
+    return {
+        "items": page,
         "total": total,
         "limit": limit,
         "offset": offset,

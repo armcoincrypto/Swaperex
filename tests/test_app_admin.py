@@ -66,6 +66,7 @@ def test_admin_app_exposes_health_monitoring_and_readonly_admin():
     assert "/api/v1/admin/health" in paths, paths
     assert "/api/v1/admin/overview" in paths, paths
     assert "/api/v1/admin/events" in paths, paths
+    assert "/api/v1/admin/swaps" in paths, paths
 
 
 def test_admin_app_does_not_expose_custodial_routes():
@@ -332,6 +333,113 @@ async def test_admin_panel_unconfigured_returns_503(admin_client, monkeypatch):
     client, _ = admin_client
     res = await client.get("/api/v1/admin/overview", headers={"X-Admin-Token": "anything"})
     assert res.status_code == 503
+    get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_admin_swaps_analytics_from_monitoring(admin_client, monkeypatch):
+    monkeypatch.setenv("ADMIN_API_TOKEN", "panel-secret-test")
+    from swaperex.config import get_settings
+
+    get_settings.cache_clear()
+    client, _ = admin_client
+
+    assert (await client.get("/api/v1/admin/swaps")).status_code == 401
+
+    await client.post(
+        "/api/v1/monitoring/events",
+        json={
+            "schemaVersion": 1,
+            "clientSessionId": "swap-ws-1",
+            "exportedAt": 100,
+            "events": [
+                {"event": "rpc_failure", "ts": 1, "reason": "x"},
+                {
+                    "event": "swap_success",
+                    "ts": 1_700_000_000_000,
+                    "txHash": "0xabc123",
+                    "chainId": 42161,
+                    "provider": "quote_aggregator",
+                    "routeMode": "best",
+                    "fromToken": {"symbol": "ETH", "address": None, "isNative": True},
+                    "toToken": {"symbol": "USDC", "address": "0xusdc", "isNative": False},
+                    "fromAmount": "1.0",
+                    "quotedOutput": "3000",
+                    "minimumReceived": "2950",
+                    "protocolFeeBps": 25,
+                    "userReceivedSource": "quote",
+                    "gasUsed": "210000",
+                    "effectiveGasPrice": "1000000000",
+                    "receiptStatus": 1,
+                    "commissionRoute": "wrapper",
+                    "wrapperRoute": "uniswap-v3-wrapper",
+                    "nativeOutput": False,
+                },
+                {"event": "swap_success", "notValid": True},
+            ],
+        },
+    )
+
+    hdr = {"X-Admin-Token": "panel-secret-test"}
+    res = await client.get("/api/v1/admin/swaps", headers=hdr)
+    assert res.status_code == 200
+    body = res.json()
+    assert body["total"] == 1
+    assert len(body["items"]) == 1
+    row = body["items"][0]
+    assert row["batch_id"] >= 1
+    assert row["chain"] == 42161
+    assert row["route_mode"] == "best"
+    assert row["from_symbol"] == "ETH"
+    assert row["to_symbol"] == "USDC"
+    assert row["tx_hash"] == "0xabc123"
+    assert row["protocol_fee_bps"] == 25
+    assert row["native_output"] is False
+    assert row["estimated_fee_usd"] is None
+    assert "quote_aggregator" in row["route_label"]
+    assert row["raw_event"]["event"] == "swap_success"
+
+    chain_f = await client.get("/api/v1/admin/swaps?chain=1", headers=hdr)
+    assert chain_f.json()["total"] == 0
+
+    chain_ok = await client.get("/api/v1/admin/swaps?chain=42161", headers=hdr)
+    assert chain_ok.json()["total"] == 1
+
+    tok = await client.get("/api/v1/admin/swaps?token=usd", headers=hdr)
+    assert tok.json()["total"] == 1
+
+    rm = await client.get("/api/v1/admin/swaps?routeMode=WORST", headers=hdr)
+    assert rm.json()["total"] == 0
+
+    ws = await client.get("/api/v1/admin/swaps?walletSession=swap-ws-1", headers=hdr)
+    assert ws.json()["total"] == 1
+
+    await client.post(
+        "/api/v1/monitoring/events",
+        json={
+            "schemaVersion": 1,
+            "clientSessionId": "swap-ws-2",
+            "exportedAt": 101,
+            "events": [
+                {
+                    "event": "swap_success",
+                    "ts": 1_800_000_000_000,
+                    "txHash": "0xfail",
+                    "chainId": 1,
+                    "provider": "1inch",
+                    "routeMode": "fast",
+                    "receiptStatus": 0,
+                },
+            ],
+        },
+    )
+
+    success_only = await client.get("/api/v1/admin/swaps?successOnly=true", headers=hdr)
+    assert success_only.json()["total"] == 1
+
+    all_rows = await client.get("/api/v1/admin/swaps?successOnly=false", headers=hdr)
+    assert all_rows.json()["total"] == 2
+
     get_settings.cache_clear()
 
 

@@ -1,6 +1,6 @@
 /**
  * Isolated admin SPA shell (/admin). Token in sessionStorage only (P2.1).
- * Overview + Events explorer (P2.2).
+ * Overview, Events (P2.2), Swaps analytics (P2.3).
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
@@ -10,11 +10,14 @@ import {
   fetchAdminEvents,
   fetchAdminHealth,
   fetchAdminOverview,
+  fetchAdminSwaps,
   getStoredAdminToken,
   setStoredAdminToken,
   type AdminEventsBatchItem,
   type AdminEventsResponse,
   type AdminOverviewResponse,
+  type AdminSwapAnalyticsRow,
+  type AdminSwapsResponse,
 } from '@/admin/adminApi';
 
 const AdminTokenContext = createContext<{
@@ -129,7 +132,7 @@ function AdminLayout() {
       </aside>
       <div className="flex-1 flex flex-col min-w-0">
         <header className="border-b border-dark-800 px-6 py-4 flex justify-between items-center bg-dark-900/30">
-          <span className="text-sm text-dark-400">Read-only · P2.2</span>
+          <span className="text-sm text-dark-400">Read-only · P2.3</span>
           <NavLink to="/" className="text-xs text-dark-500 hover:text-white">
             Exit to DEX
           </NavLink>
@@ -147,6 +150,256 @@ function PlaceholderSection({ title }: { title: string }) {
     <div>
       <h2 className="text-lg font-medium mb-2">{title}</h2>
       <p className="text-sm text-dark-400">Coming in a later phase.</p>
+    </div>
+  );
+}
+
+function SwapRouteBadges({ row }: { row: AdminSwapAnalyticsRow }) {
+  const prov = (row.provider ?? '').toLowerCase();
+  const wrap =
+    Boolean(row.wrapper_route) ||
+    row.commission_route === 'wrapper' ||
+    prov.includes('wrapper');
+  const inch =
+    prov.includes('1inch') || (row.commission_route ?? '').toLowerCase().includes('1inch');
+  const failed = row.receipt_status === 0;
+  return (
+    <span className="flex flex-wrap gap-1 mt-1">
+      {wrap && (
+        <span className="rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide bg-amber-900/55 text-amber-200 border border-amber-800/50">
+          wrapper
+        </span>
+      )}
+      {inch && (
+        <span className="rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide bg-blue-900/55 text-blue-200 border border-blue-800/50">
+          1inch
+        </span>
+      )}
+      {!failed ? (
+        <span className="rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide bg-emerald-900/55 text-emerald-200 border border-emerald-800/50">
+          success
+        </span>
+      ) : (
+        <span className="rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide bg-red-900/55 text-red-200 border border-red-800/50">
+          failed
+        </span>
+      )}
+    </span>
+  );
+}
+
+function AdminSwapsPage() {
+  const { token } = useAdminToken();
+  const [tokenSym, setTokenSym] = useState('');
+  const [debouncedToken, setDebouncedToken] = useState('');
+  const [routeMode, setRouteMode] = useState('');
+  const [debouncedRoute, setDebouncedRoute] = useState('');
+  const [chainStr, setChainStr] = useState('');
+  const [debouncedChain, setDebouncedChain] = useState<number | undefined>(undefined);
+  const [successOnly, setSuccessOnly] = useState(true);
+  const [data, setData] = useState<AdminSwapsResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebouncedToken(tokenSym.trim()), 400);
+    return () => window.clearTimeout(id);
+  }, [tokenSym]);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebouncedRoute(routeMode.trim()), 400);
+    return () => window.clearTimeout(id);
+  }, [routeMode]);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      const t = chainStr.trim();
+      if (!t) {
+        setDebouncedChain(undefined);
+        return;
+      }
+      const n = Number.parseInt(t, 10);
+      setDebouncedChain(Number.isFinite(n) ? n : undefined);
+    }, 400);
+    return () => window.clearTimeout(id);
+  }, [chainStr]);
+
+  const fetchList = useCallback(
+    async (overrides?: { token?: string; routeMode?: string; chain?: number; successOnly?: boolean }) => {
+      setError(null);
+      setLoading(true);
+      try {
+        const chain =
+          overrides?.chain !== undefined ? overrides.chain : debouncedChain;
+        const res = await fetchAdminSwaps(token, {
+          limit: 50,
+          offset: 0,
+          token: (overrides?.token ?? debouncedToken) || undefined,
+          routeMode: (overrides?.routeMode ?? debouncedRoute) || undefined,
+          chain,
+          successOnly: overrides?.successOnly ?? successOnly,
+        });
+        setData(res);
+      } catch {
+        setError('Failed to load swap analytics.');
+        setData(null);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [token, debouncedToken, debouncedRoute, debouncedChain, successOnly],
+  );
+
+  useEffect(() => {
+    void fetchList();
+  }, [fetchList]);
+
+  const feePct = (bps: number | null) =>
+    bps != null && Number.isFinite(bps) ? `${(bps / 100).toFixed(2)}%` : '—';
+
+  const gasCell = (row: AdminSwapAnalyticsRow) => {
+    if (!row.gas_used && !row.effective_gas_price) return '—';
+    const g = row.gas_used ?? '—';
+    const p = row.effective_gas_price ?? '';
+    return p ? `${g} · ${p}` : g;
+  };
+
+  const statusText = (row: AdminSwapAnalyticsRow) => {
+    if (row.receipt_status === 0) return 'Reverted';
+    if (row.receipt_status === 1) return 'OK';
+    return '—';
+  };
+
+  return (
+    <div>
+      <h2 className="text-lg font-medium mb-4">Swaps</h2>
+      <p className="text-xs text-dark-500 mb-4">
+        Rows from <span className="font-mono text-dark-400">swap_success</span> monitoring events (read-only).
+      </p>
+      <div className="flex flex-wrap gap-3 items-end mb-4">
+        <label className="flex flex-col gap-1 text-xs text-dark-500">
+          Token symbol
+          <input
+            type="text"
+            value={tokenSym}
+            onChange={(e) => setTokenSym(e.target.value)}
+            placeholder="e.g. ETH"
+            className="rounded-lg bg-dark-900 border border-dark-600 px-2 py-1.5 text-sm text-white w-36"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-dark-500">
+          Route mode
+          <input
+            type="text"
+            value={routeMode}
+            onChange={(e) => setRouteMode(e.target.value)}
+            placeholder="e.g. best"
+            className="rounded-lg bg-dark-900 border border-dark-600 px-2 py-1.5 text-sm text-white w-36"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-dark-500">
+          Chain ID
+          <input
+            type="text"
+            inputMode="numeric"
+            value={chainStr}
+            onChange={(e) => setChainStr(e.target.value)}
+            placeholder="e.g. 42161"
+            className="rounded-lg bg-dark-900 border border-dark-600 px-2 py-1.5 text-sm text-white w-28"
+          />
+        </label>
+        <label className="flex items-center gap-2 text-sm text-dark-300 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={successOnly}
+            onChange={(e) => setSuccessOnly(e.target.checked)}
+            className="rounded border-dark-600"
+          />
+          Success receipts only
+        </label>
+        <button
+          type="button"
+          onClick={() => {
+            const t = chainStr.trim();
+            const n = t ? Number.parseInt(t, 10) : NaN;
+            void fetchList({
+              token: tokenSym.trim() || undefined,
+              routeMode: routeMode.trim() || undefined,
+              chain: Number.isFinite(n) ? n : undefined,
+              successOnly,
+            });
+          }}
+          disabled={loading}
+          className="rounded-lg bg-dark-700 hover:bg-dark-600 px-3 py-1.5 text-sm disabled:opacity-50"
+        >
+          {loading ? 'Refreshing…' : 'Refresh'}
+        </button>
+      </div>
+      {error && <p className="text-red-400 text-sm mb-3">{error}</p>}
+      {data && (
+        <p className="text-xs text-dark-500 mb-2">
+          Showing {data.items.length} of {data.total} swaps (limit {data.limit})
+        </p>
+      )}
+      <div className="overflow-x-auto rounded-lg border border-dark-700">
+        <table className="w-full text-sm text-left min-w-[720px]">
+          <thead className="bg-dark-900/80 text-dark-400 text-xs uppercase">
+            <tr>
+              <th className="px-3 py-2 font-medium">Time</th>
+              <th className="px-3 py-2 font-medium">Pair</th>
+              <th className="px-3 py-2 font-medium">Amount</th>
+              <th className="px-3 py-2 font-medium">Output</th>
+              <th className="px-3 py-2 font-medium">Route</th>
+              <th className="px-3 py-2 font-medium">Fee %</th>
+              <th className="px-3 py-2 font-medium">Gas</th>
+              <th className="px-3 py-2 font-medium">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-dark-800">
+            {!data || data.items.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="px-3 py-6 text-dark-500 text-center">
+                  {loading ? 'Loading…' : 'No swap_success rows yet.'}
+                </td>
+              </tr>
+            ) : (
+              data.items.map((row: AdminSwapAnalyticsRow, idx: number) => (
+                <tr
+                  key={`${row.batch_id}-${row.timestamp}-${row.tx_hash ?? idx}`}
+                  className="bg-dark-950/50 hover:bg-dark-900/40 align-top"
+                >
+                  <td className="px-3 py-2 font-mono text-[11px] whitespace-nowrap">{row.timestamp}</td>
+                  <td className="px-3 py-2 text-xs">
+                    <span className="text-dark-200">
+                      {row.from_symbol ?? '?'} → {row.to_symbol ?? '?'}
+                    </span>
+                    <div className="text-[10px] text-dark-500 mt-0.5">chain {row.chain ?? '—'}</div>
+                  </td>
+                  <td className="px-3 py-2 font-mono text-xs">{row.from_amount ?? '—'}</td>
+                  <td className="px-3 py-2 font-mono text-xs">{row.quoted_output ?? '—'}</td>
+                  <td className="px-3 py-2 text-xs max-w-[14rem]">
+                    <div className="text-dark-300 break-words">{row.route_label}</div>
+                    <SwapRouteBadges row={row} />
+                    <details className="mt-2">
+                      <summary className="cursor-pointer text-accent text-[11px]">Raw event</summary>
+                      <pre className="mt-2 p-2 rounded bg-dark-900 border border-dark-700 text-[10px] overflow-x-auto max-h-52 overflow-y-auto">
+                        {JSON.stringify(row.raw_event, null, 2)}
+                      </pre>
+                    </details>
+                  </td>
+                  <td className="px-3 py-2 font-mono text-xs">{feePct(row.protocol_fee_bps)}</td>
+                  <td className="px-3 py-2 font-mono text-[11px] break-all max-w-[10rem]">{gasCell(row)}</td>
+                  <td className="px-3 py-2 text-xs">
+                    <span className={row.receipt_status === 0 ? 'text-red-400' : 'text-emerald-400'}>
+                      {statusText(row)}
+                    </span>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -354,7 +607,7 @@ export default function AdminApp() {
         <Route element={<AdminLayout />}>
           <Route index element={<AdminOverviewPage />} />
           <Route path="events" element={<AdminEventsPage />} />
-          <Route path="swaps" element={<PlaceholderSection title="Swaps" />} />
+          <Route path="swaps" element={<AdminSwapsPage />} />
           <Route path="revenue" element={<PlaceholderSection title="Revenue" />} />
           <Route path="failures" element={<PlaceholderSection title="Failures" />} />
           <Route path="wallet" element={<PlaceholderSection title="Wallet" />} />

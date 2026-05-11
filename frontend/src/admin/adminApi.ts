@@ -102,3 +102,66 @@ export async function fetchAdminEvents(
   if (!res.ok) throw new Error(`admin events ${res.status}`);
   return (await res.json()) as AdminEventsResponse;
 }
+
+/** Flattened swap_success row from GET /api/v1/admin/swaps */
+export type AdminSwapAnalyticsRow = {
+  batch_id: number;
+  timestamp: string;
+  client_session_id: string;
+  chain: number | null;
+  route_mode: string | null;
+  wrapper_route: string | null;
+  commission_route: string | null;
+  from_symbol: string | null;
+  to_symbol: string | null;
+  from_amount: string | null;
+  quoted_output: string | null;
+  minimum_received: string | null;
+  protocol_fee_bps: number | null;
+  user_received_source: string | null;
+  gas_used: string | null;
+  effective_gas_price: string | null;
+  receipt_status: number | null;
+  tx_hash: string | null;
+  native_output: boolean;
+  estimated_fee_usd: number | null;
+  route_label: string;
+  provider: string | null;
+  raw_event: Record<string, unknown>;
+};
+
+export type AdminSwapsResponse = {
+  items: AdminSwapAnalyticsRow[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type AdminSwapsQuery = {
+  limit?: number;
+  offset?: number;
+  chain?: number;
+  routeMode?: string;
+  token?: string;
+  walletSession?: string;
+  successOnly?: boolean;
+};
+
+export async function fetchAdminSwaps(token: string, params: AdminSwapsQuery = {}): Promise<AdminSwapsResponse> {
+  const q = new URLSearchParams();
+  if (params.limit != null) q.set('limit', String(params.limit));
+  if (params.offset != null) q.set('offset', String(params.offset));
+  if (params.chain != null) q.set('chain', String(params.chain));
+  const rm = params.routeMode?.trim();
+  if (rm) q.set('routeMode', rm);
+  const tk = params.token?.trim();
+  if (tk) q.set('token', tk);
+  const ws = params.walletSession?.trim();
+  if (ws) q.set('walletSession', ws);
+  if (params.successOnly === false) q.set('successOnly', 'false');
+  const qs = q.toString();
+  const path = qs ? `admin/swaps?${qs}` : 'admin/swaps';
+  const res = await adminFetch(path, token);
+  if (!res.ok) throw new Error(`admin swaps ${res.status}`);
+  return (await res.json()) as AdminSwapsResponse;
+}
