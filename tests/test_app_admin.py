@@ -65,6 +65,7 @@ def test_admin_app_exposes_health_monitoring_and_readonly_admin():
     # Read-only admin (token-protected)
     assert "/api/v1/admin/health" in paths, paths
     assert "/api/v1/admin/overview" in paths, paths
+    assert "/api/v1/admin/events" in paths, paths
 
 
 def test_admin_app_does_not_expose_custodial_routes():
@@ -331,6 +332,96 @@ async def test_admin_panel_unconfigured_returns_503(admin_client, monkeypatch):
     client, _ = admin_client
     res = await client.get("/api/v1/admin/overview", headers={"X-Admin-Token": "anything"})
     assert res.status_code == 503
+    get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_admin_events_requires_token(admin_client, monkeypatch):
+    monkeypatch.setenv("ADMIN_API_TOKEN", "panel-secret-test")
+    from swaperex.config import get_settings
+
+    get_settings.cache_clear()
+    client, _ = admin_client
+
+    no_hdr = await client.get("/api/v1/admin/events")
+    assert no_hdr.status_code == 401
+
+    ok = await client.get("/api/v1/admin/events", headers={"X-Admin-Token": "panel-secret-test"})
+    assert ok.status_code == 200
+    body = ok.json()
+    assert body["items"] == []
+    assert body["total"] == 0
+    assert body["limit"] == 50
+    assert body["offset"] == 0
+
+    get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_admin_events_lists_batches_and_filters(admin_client, monkeypatch):
+    monkeypatch.setenv("ADMIN_API_TOKEN", "panel-secret-test")
+    from swaperex.config import get_settings
+
+    get_settings.cache_clear()
+    client, _ = admin_client
+
+    await client.post(
+        "/api/v1/monitoring/events",
+        json={
+            "schemaVersion": 1,
+            "clientSessionId": "sess-alpha",
+            "exportedAt": 10,
+            "events": [
+                {"event": "swap_success", "ts": 1},
+                {"event": "rpc_failure", "ts": 2},
+            ],
+        },
+    )
+    await client.post(
+        "/api/v1/monitoring/events",
+        json={
+            "schemaVersion": 1,
+            "clientSessionId": "sess-beta",
+            "exportedAt": 20,
+            "events": [{"event": "wallet_connect", "ts": 3}],
+        },
+    )
+
+    hdr = {"X-Admin-Token": "panel-secret-test"}
+
+    all_batches = await client.get("/api/v1/admin/events?limit=10&offset=0", headers=hdr)
+    assert all_batches.status_code == 200
+    data = all_batches.json()
+    assert data["total"] == 2
+    assert len(data["items"]) == 2
+    # Newest first (sess-beta posted second)
+    assert data["items"][0]["client_session_id"] == "sess-beta"
+    assert data["items"][0]["event_count"] == 1
+    assert data["items"][0]["event_names"] == ["wallet_connect"]
+    assert data["items"][0]["schema_version"] == 1
+    assert "raw" not in data["items"][0]
+
+    older = data["items"][1]
+    assert older["event_names"] == ["swap_success", "rpc_failure"]
+    assert "received_at" in older
+
+    by_session = await client.get(
+        "/api/v1/admin/events?clientSessionId=sess-alpha",
+        headers=hdr,
+    )
+    assert by_session.json()["total"] == 1
+    assert by_session.json()["items"][0]["client_session_id"] == "sess-alpha"
+
+    by_event = await client.get("/api/v1/admin/events?event=swap_success", headers=hdr)
+    assert by_event.json()["total"] == 1
+    assert by_event.json()["items"][0]["client_session_id"] == "sess-alpha"
+
+    with_raw = await client.get("/api/v1/admin/events?includeRaw=1&limit=1", headers=hdr)
+    assert with_raw.status_code == 200
+    first = with_raw.json()["items"][0]
+    assert "raw" in first
+    assert first["raw"]["clientSessionId"] == first["client_session_id"]
+
     get_settings.cache_clear()
 
 

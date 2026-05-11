@@ -58,3 +58,47 @@ export async function fetchAdminOverview(token: string): Promise<AdminOverviewRe
   if (!res.ok) throw new Error(`admin overview ${res.status}`);
   return (await res.json()) as AdminOverviewResponse;
 }
+
+export type AdminEventsBatchItem = {
+  id: number;
+  received_at: string;
+  client_session_id: string;
+  event_count: number;
+  schema_version: number;
+  event_names: string[];
+  raw?: Record<string, unknown>;
+};
+
+export type AdminEventsResponse = {
+  items: AdminEventsBatchItem[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type AdminEventsQuery = {
+  limit?: number;
+  offset?: number;
+  event?: string;
+  clientSessionId?: string;
+  includeRaw?: boolean;
+};
+
+export async function fetchAdminEvents(
+  token: string,
+  params: AdminEventsQuery = {},
+): Promise<AdminEventsResponse> {
+  const q = new URLSearchParams();
+  if (params.limit != null) q.set('limit', String(params.limit));
+  if (params.offset != null) q.set('offset', String(params.offset));
+  const ev = params.event?.trim();
+  if (ev) q.set('event', ev);
+  const sid = params.clientSessionId?.trim();
+  if (sid) q.set('clientSessionId', sid);
+  if (params.includeRaw) q.set('includeRaw', '1');
+  const qs = q.toString();
+  const path = qs ? `admin/events?${qs}` : 'admin/events';
+  const res = await adminFetch(path, token);
+  if (!res.ok) throw new Error(`admin events ${res.status}`);
+  return (await res.json()) as AdminEventsResponse;
+}
