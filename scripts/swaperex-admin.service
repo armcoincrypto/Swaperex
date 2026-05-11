@@ -32,7 +32,7 @@ Environment="ADMIN_DATABASE_URL=sqlite+aiosqlite:////root/Swaperex/data/swaperex
 # events × 512 KB each) is far below what one worker can serve. Bump to >=2
 # workers ONLY after `init_admin_db` is rewritten to be cross-process safe
 # (e.g. CREATE TABLE in a separate one-shot before forking).
-ExecStart=/root/Swaperex/.venv/bin/python -m uvicorn swaperex.api.app_admin:app --host 127.0.0.1 --port 8001 --workers 1 --proxy-headers --no-access-log
+ExecStart=/root/Swaperex/venv/bin/python -m uvicorn swaperex.api.app_admin:app --host 127.0.0.1 --port 8001 --workers 1 --proxy-headers --no-access-log
 
 Restart=on-failure
 RestartSec=5s
