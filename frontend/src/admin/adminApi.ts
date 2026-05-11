@@ -219,3 +219,48 @@ export async function fetchAdminRevenue(token: string): Promise<AdminRevenueResp
   if (!res.ok) throw new Error(`admin revenue ${res.status}`);
   return (await res.json()) as AdminRevenueResponse;
 }
+
+export type AdminWalletReconnectTotals = {
+  scans: number;
+  appkit_success: number;
+  legacy_attempts: number;
+  legacy_success: number;
+  legacy_failures: number;
+};
+
+export type AdminWalletReconnectFailureRow = {
+  timestamp: string;
+  client_session_id: string;
+  reason: string;
+  last_connector: string | null;
+  wc_project_id_configured: boolean | null;
+};
+
+export type AdminWalletReconnectSessionRow = {
+  client_session_id: string;
+  latest_event: string;
+  reconnect_count: number;
+  appkit_connected: boolean;
+  last_seen_at: string;
+};
+
+export type AdminWalletReconnectTimelineRow = {
+  minute_bucket: string;
+  scans: number;
+  successes: number;
+  failures: number;
+};
+
+export type AdminWalletReconnectResponse = {
+  totals: AdminWalletReconnectTotals;
+  reconnect_success_rate: number | null;
+  recent_failures: AdminWalletReconnectFailureRow[];
+  recent_sessions: AdminWalletReconnectSessionRow[];
+  reconnect_timeline: AdminWalletReconnectTimelineRow[];
+};
+
+export async function fetchAdminWalletReconnect(token: string): Promise<AdminWalletReconnectResponse> {
+  const res = await adminFetch('admin/wallet-reconnect', token);
+  if (!res.ok) throw new Error(`admin wallet-reconnect ${res.status}`);
+  return (await res.json()) as AdminWalletReconnectResponse;
+}

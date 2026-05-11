@@ -68,6 +68,7 @@ def test_admin_app_exposes_health_monitoring_and_readonly_admin():
     assert "/api/v1/admin/events" in paths, paths
     assert "/api/v1/admin/swaps" in paths, paths
     assert "/api/v1/admin/revenue" in paths, paths
+    assert "/api/v1/admin/wallet-reconnect" in paths, paths
 
 
 def test_admin_app_does_not_expose_custodial_routes():
@@ -527,6 +528,67 @@ async def test_admin_revenue_aggregation(admin_client, monkeypatch):
 
     assert "revenue_by_chain" in body and len(body["revenue_by_chain"]) == 2
     assert "revenue_by_route" in body and len(body["revenue_by_route"]) >= 1
+
+    get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_admin_wallet_reconnect_analytics(admin_client, monkeypatch):
+    monkeypatch.setenv("ADMIN_API_TOKEN", "panel-secret-test")
+    from swaperex.config import get_settings
+
+    get_settings.cache_clear()
+    client, _ = admin_client
+
+    assert (await client.get("/api/v1/admin/wallet-reconnect")).status_code == 401
+
+    hdr = {"X-Admin-Token": "panel-secret-test"}
+    z = await client.get("/api/v1/admin/wallet-reconnect", headers=hdr)
+    assert z.status_code == 200
+    assert z.json()["totals"]["scans"] == 0
+    assert z.json()["reconnect_success_rate"] is None
+
+    await client.post(
+        "/api/v1/monitoring/events",
+        json={
+            "schemaVersion": 1,
+            "clientSessionId": "wc-sess-1",
+            "exportedAt": 1,
+            "events": [
+                {
+                    "event": "wallet_autoreconnect_scan",
+                    "ts": 1000,
+                    "lastConnector": "walletconnect",
+                    "wcProjectIdConfigured": True,
+                },
+                {"event": "legacy_wc_reconnect_attempt", "ts": 1001},
+                {"event": "legacy_wc_reconnect_failure", "ts": 1002, "reason": "exception"},
+                {"event": "appkit_reconnect_success", "ts": 2000},
+            ],
+        },
+    )
+
+    r = await client.get("/api/v1/admin/wallet-reconnect", headers=hdr)
+    assert r.status_code == 200
+    b = r.json()
+    assert b["totals"]["scans"] == 1
+    assert b["totals"]["appkit_success"] == 1
+    assert b["totals"]["legacy_attempts"] == 1
+    assert b["totals"]["legacy_success"] == 0
+    assert b["totals"]["legacy_failures"] == 1
+    assert b["reconnect_success_rate"] == 50.0
+    assert len(b["recent_failures"]) == 1
+    assert b["recent_failures"][0]["reason"] == "exception"
+    assert b["recent_failures"][0]["last_connector"] == "walletconnect"
+    assert b["recent_failures"][0]["wc_project_id_configured"] is True
+
+    sess = next(s for s in b["recent_sessions"] if s["client_session_id"] == "wc-sess-1")
+    assert sess["reconnect_count"] == 1
+    assert sess["appkit_connected"] is True
+    assert sess["latest_event"] == "appkit_reconnect_success"
+
+    assert isinstance(b["reconnect_timeline"], list)
+    assert len(b["reconnect_timeline"]) >= 1
 
     get_settings.cache_clear()
 

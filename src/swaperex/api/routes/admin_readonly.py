@@ -1,6 +1,6 @@
 """Read-only admin panel HTTP API (mounted only on ``app_admin``).
 
-Phase P2.1+: overview, monitoring batches, swap analytics, revenue aggregates —
+Phase P2.1+: overview, monitoring, swaps, revenue, wallet reconnect analytics —
 all from the isolated admin DB. No custodial routers, no signing, no key material.
 
 Requires ``ADMIN_API_TOKEN`` and header ``X-Admin-Token`` on every route under
@@ -632,4 +632,227 @@ async def admin_revenue(session: AsyncSession = Depends(get_session)) -> dict[st
         "revenue_by_chain": revenue_by_chain,
         "revenue_by_route": revenue_by_route,
         "latest_fee_events": latest_fee_events,
+    }
+
+
+WALLET_RECONNECT_EVENT_NAMES = frozenset(
+    {
+        "wallet_autoreconnect_scan",
+        "appkit_reconnect_success",
+        "legacy_wc_reconnect_attempt",
+        "legacy_wc_reconnect_success",
+        "legacy_wc_reconnect_failure",
+    }
+)
+
+_WALLET_RECONNECT_CAP = 1000
+
+
+def _wallet_reconnect_ts_ms(ev: dict[str, Any], batch_iso: str) -> int:
+    ts_raw = ev.get("ts")
+    if isinstance(ts_raw, (int, float)):
+        return int(ts_raw)
+    # fallback: parse batch_iso — rough ordering only
+    return 0
+
+
+def _wallet_scan_meta_from_ev(ev: dict[str, Any]) -> tuple[str | None, bool | None]:
+    lc = ev.get("lastConnector")
+    last_c = lc.strip() if isinstance(lc, str) else (_safe_str(lc) if lc is not None else None)
+    wc = ev.get("wcProjectIdConfigured")
+    if isinstance(wc, bool):
+        wc_b: bool | None = wc
+    else:
+        wc_b = None
+    return last_c, wc_b
+
+
+@router.get(
+    "/wallet-reconnect",
+    summary="Wallet reconnect telemetry aggregates (read-only)",
+    dependencies=[Depends(require_admin_api_token)],
+)
+async def admin_wallet_reconnect(session: AsyncSession = Depends(get_session)) -> dict[str, Any]:
+    stmt = select(MonitoringIngestBatch).order_by(MonitoringIngestBatch.id.desc())
+    batches = (await session.execute(stmt)).scalars().all()
+
+    collected: list[tuple[int, str, str, dict[str, Any]]] = []
+    for batch in batches:
+        batch_iso = _iso_received_at(batch.received_at)
+        sid = batch.client_session_id
+        env = batch.envelope if isinstance(batch.envelope, dict) else {}
+        events = env.get("events")
+        if not isinstance(events, list):
+            continue
+        for ev in events:
+            try:
+                if not isinstance(ev, dict):
+                    continue
+                name = ev.get("event")
+                if not isinstance(name, str) or not name.strip():
+                    continue
+                ename = name.strip()
+                if ename not in WALLET_RECONNECT_EVENT_NAMES:
+                    continue
+                ts_ms = _wallet_reconnect_ts_ms(ev, batch_iso)
+                collected.append((ts_ms, sid, batch_iso, ev))
+            except Exception:
+                continue
+
+    collected.sort(key=lambda x: -x[0])
+    window = collected[:_WALLET_RECONNECT_CAP]
+
+    totals = {
+        "scans": 0,
+        "appkit_success": 0,
+        "legacy_attempts": 0,
+        "legacy_success": 0,
+        "legacy_failures": 0,
+    }
+    for ts_ms, _sid, _bio, ev in window:
+        try:
+            ename = str(ev.get("event", "")).strip()
+            if ename == "wallet_autoreconnect_scan":
+                totals["scans"] += 1
+            elif ename == "appkit_reconnect_success":
+                totals["appkit_success"] += 1
+            elif ename == "legacy_wc_reconnect_attempt":
+                totals["legacy_attempts"] += 1
+            elif ename == "legacy_wc_reconnect_success":
+                totals["legacy_success"] += 1
+            elif ename == "legacy_wc_reconnect_failure":
+                totals["legacy_failures"] += 1
+        except Exception:
+            continue
+
+    successes = totals["appkit_success"] + totals["legacy_success"]
+    failures = totals["legacy_failures"]
+    denom = successes + failures
+    reconnect_success_rate: float | None
+    if denom == 0:
+        reconnect_success_rate = None
+    else:
+        reconnect_success_rate = round(100.0 * successes / denom, 2)
+
+    # Per-session last scan fields for enriching failure rows (processed oldest-first)
+    scan_by_session: dict[str, dict[str, Any]] = {}
+    window_chrono = sorted(window, key=lambda x: (x[0], x[1]))
+    for ts_ms, sid, batch_iso, ev in window_chrono:
+        try:
+            ename = str(ev.get("event", "")).strip()
+            if ename == "wallet_autoreconnect_scan":
+                lc, wc_b = _wallet_scan_meta_from_ev(ev)
+                scan_by_session[sid] = {
+                    "last_connector": lc,
+                    "wc_project_id_configured": wc_b,
+                    "ts_ms": ts_ms,
+                    "batch_iso": batch_iso,
+                }
+        except Exception:
+            continue
+
+    recent_failures_work: list[tuple[int, dict[str, Any]]] = []
+    for ts_ms, sid, batch_iso, ev in window:
+        try:
+            if str(ev.get("event", "")).strip() != "legacy_wc_reconnect_failure":
+                continue
+            reason = _safe_str(ev.get("reason")) or "unknown"
+            meta = scan_by_session.get(sid, {})
+            last_c = _safe_str(ev.get("lastConnector")) or meta.get("last_connector")
+            wc_cfg = ev.get("wcProjectIdConfigured")
+            if isinstance(wc_cfg, bool):
+                wc_out: bool | None = wc_cfg
+            else:
+                w = meta.get("wc_project_id_configured")
+                wc_out = w if isinstance(w, bool) else None
+            ts_iso = _iso_from_ts_ms(ev.get("ts"), batch_iso)
+            recent_failures_work.append(
+                (
+                    ts_ms,
+                    {
+                        "timestamp": ts_iso,
+                        "client_session_id": sid,
+                        "reason": reason,
+                        "last_connector": last_c,
+                        "wc_project_id_configured": wc_out,
+                    },
+                )
+            )
+        except Exception:
+            continue
+    recent_failures_work.sort(key=lambda x: -x[0])
+    recent_failures = [r for _, r in recent_failures_work[:50]]
+
+    # Sessions aggregated over the processing window only
+    by_session: dict[str, list[tuple[int, str, str, dict[str, Any]]]] = {}
+    for ts_ms, sid, batch_iso, ev in window:
+        try:
+            ename = str(ev.get("event", "")).strip()
+            by_session.setdefault(sid, []).append((ts_ms, ename, batch_iso, ev))
+        except Exception:
+            continue
+
+    recent_sessions: list[dict[str, Any]] = []
+    for sid, evs in by_session.items():
+        try:
+            evs_sorted = sorted(evs, key=lambda x: x[0])
+            _last_ts, latest_name, last_batch_iso, last_ev_dict = evs_sorted[-1]
+            last_seen_at = _iso_from_ts_ms(last_ev_dict.get("ts"), last_batch_iso)
+
+            reconnect_count = sum(
+                1
+                for _t, n, _bio, _e in evs_sorted
+                if n in ("appkit_reconnect_success", "legacy_wc_reconnect_success")
+            )
+            appkit_connected = any(n == "appkit_reconnect_success" for _t, n, _bio, _e in evs_sorted)
+
+            recent_sessions.append(
+                {
+                    "client_session_id": sid,
+                    "latest_event": latest_name,
+                    "reconnect_count": reconnect_count,
+                    "appkit_connected": appkit_connected,
+                    "last_seen_at": last_seen_at,
+                }
+            )
+        except Exception:
+            continue
+
+    recent_sessions.sort(key=lambda r: r.get("last_seen_at") or "", reverse=True)
+    recent_sessions = recent_sessions[:50]
+
+    timeline_buckets: dict[str, dict[str, int]] = {}
+    for ts_ms, _sid, _batch_iso, ev in window:
+        try:
+            ename = str(ev.get("event", "")).strip()
+            dt = datetime.fromtimestamp(ts_ms / 1000.0, tz=timezone.utc).replace(
+                second=0, microsecond=0
+            )
+            bucket = dt.isoformat()
+            slot = timeline_buckets.setdefault(bucket, {"scans": 0, "successes": 0, "failures": 0})
+            if ename == "wallet_autoreconnect_scan":
+                slot["scans"] += 1
+            elif ename in ("appkit_reconnect_success", "legacy_wc_reconnect_success"):
+                slot["successes"] += 1
+            elif ename == "legacy_wc_reconnect_failure":
+                slot["failures"] += 1
+        except Exception:
+            continue
+
+    reconnect_timeline = [
+        {
+            "minute_bucket": k,
+            "scans": v["scans"],
+            "successes": v["successes"],
+            "failures": v["failures"],
+        }
+        for k, v in sorted(timeline_buckets.items(), key=lambda kv: kv[0], reverse=True)
+    ]
+
+    return {
+        "totals": totals,
+        "reconnect_success_rate": reconnect_success_rate,
+        "recent_failures": recent_failures,
+        "recent_sessions": recent_sessions,
+        "reconnect_timeline": reconnect_timeline,
     }

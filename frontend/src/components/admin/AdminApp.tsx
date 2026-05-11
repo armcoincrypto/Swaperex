@@ -1,6 +1,6 @@
 /**
  * Isolated admin SPA shell (/admin). Token in sessionStorage only (P2.1).
- * Overview, Events (P2.2), Swaps analytics (P2.3), Revenue (P2.4).
+ * Overview, Events (P2.2), Swaps analytics (P2.3), Revenue (P2.4), Wallet reconnect (P2.5).
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
@@ -12,6 +12,7 @@ import {
   fetchAdminOverview,
   fetchAdminRevenue,
   fetchAdminSwaps,
+  fetchAdminWalletReconnect,
   getStoredAdminToken,
   setStoredAdminToken,
   type AdminEventsBatchItem,
@@ -21,6 +22,9 @@ import {
   type AdminRevenueRouteBucket,
   type AdminSwapAnalyticsRow,
   type AdminSwapsResponse,
+  type AdminWalletReconnectFailureRow,
+  type AdminWalletReconnectResponse,
+  type AdminWalletReconnectSessionRow,
 } from '@/admin/adminApi';
 
 const AdminTokenContext = createContext<{
@@ -135,7 +139,7 @@ function AdminLayout() {
       </aside>
       <div className="flex-1 flex flex-col min-w-0">
         <header className="border-b border-dark-800 px-6 py-4 flex justify-between items-center bg-dark-900/30">
-          <span className="text-sm text-dark-400">Read-only · P2.4</span>
+          <span className="text-sm text-dark-400">Read-only · P2.5</span>
           <NavLink to="/" className="text-xs text-dark-500 hover:text-white">
             Exit to DEX
           </NavLink>
@@ -682,6 +686,233 @@ function AdminRevenuePage() {
   );
 }
 
+function WalletEventBadges({ event }: { event: string }) {
+  const appkit = event === 'appkit_reconnect_success';
+  const legacy = event.startsWith('legacy_wc_');
+  const success =
+    event === 'appkit_reconnect_success' || event === 'legacy_wc_reconnect_success';
+  const failed = event === 'legacy_wc_reconnect_failure';
+  return (
+    <span className="flex flex-wrap gap-1 mt-1">
+      {appkit && (
+        <span className="rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide bg-violet-900/55 text-violet-200 border border-violet-800/50">
+          appkit
+        </span>
+      )}
+      {legacy && (
+        <span className="rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide bg-slate-700/80 text-slate-200 border border-slate-600/50">
+          legacy
+        </span>
+      )}
+      {success && (
+        <span className="rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide bg-emerald-900/55 text-emerald-200 border border-emerald-800/50">
+          success
+        </span>
+      )}
+      {failed && (
+        <span className="rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide bg-red-900/55 text-red-200 border border-red-800/50">
+          failed
+        </span>
+      )}
+    </span>
+  );
+}
+
+function AdminWalletReconnectPage() {
+  const { token } = useAdminToken();
+  const [data, setData] = useState<AdminWalletReconnectResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const r = await fetchAdminWalletReconnect(token);
+      setData(r);
+    } catch {
+      setError('Failed to load wallet reconnect analytics.');
+      setData(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const okReconnects =
+    data != null ? data.totals.appkit_success + data.totals.legacy_success : 0;
+
+  return (
+    <div>
+      <h2 className="text-lg font-medium mb-2">Wallet reconnect</h2>
+      <p className="text-xs text-dark-500 mb-4">
+        Read-only telemetry from monitoring ingest (latest 1000 reconnect-related events per request).
+      </p>
+      {error && <p className="text-red-400 text-sm mb-3">{error}</p>}
+      <div className="flex gap-2 mb-4">
+        <button
+          type="button"
+          disabled={loading}
+          onClick={() => void load()}
+          className="rounded-lg bg-dark-700 hover:bg-dark-600 px-3 py-1.5 text-sm disabled:opacity-50"
+        >
+          {loading ? 'Refreshing…' : 'Refresh'}
+        </button>
+      </div>
+      {!data ? (
+        <p className="text-dark-400 text-sm">{loading ? 'Loading…' : 'No data.'}</p>
+      ) : (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+            <div className="rounded-lg border border-dark-700 bg-dark-900/40 p-4">
+              <div className="text-xs text-dark-500 uppercase tracking-wide">Reconnect scans</div>
+              <div className="text-2xl font-mono mt-1">{data.totals.scans}</div>
+            </div>
+            <div className="rounded-lg border border-dark-700 bg-dark-900/40 p-4">
+              <div className="text-xs text-dark-500 uppercase tracking-wide">Successful reconnects</div>
+              <div className="text-2xl font-mono mt-1 text-emerald-300">{okReconnects}</div>
+              <div className="text-[10px] text-dark-500 mt-1">
+                AppKit {data.totals.appkit_success} · Legacy {data.totals.legacy_success}
+              </div>
+            </div>
+            <div className="rounded-lg border border-dark-700 bg-dark-900/40 p-4">
+              <div className="text-xs text-dark-500 uppercase tracking-wide">Failed reconnects</div>
+              <div className="text-2xl font-mono mt-1 text-red-300">{data.totals.legacy_failures}</div>
+              <div className="text-[10px] text-dark-500 mt-1">Legacy WC failures only</div>
+            </div>
+            <div className="rounded-lg border border-dark-700 bg-dark-900/40 p-4">
+              <div className="text-xs text-dark-500 uppercase tracking-wide">Reconnect success %</div>
+              <div className="text-2xl font-mono mt-1">
+                {data.reconnect_success_rate != null ? `${data.reconnect_success_rate}%` : '—'}
+              </div>
+              <div className="text-[10px] text-dark-500 mt-1">
+                (AppKit + legacy success) / (successes + legacy failures)
+              </div>
+            </div>
+          </div>
+
+          <h3 className="text-sm font-medium text-dark-300 mb-2">Recent failures</h3>
+          <div className="overflow-x-auto rounded-lg border border-dark-700 mb-8">
+            <table className="w-full text-sm text-left min-w-[720px]">
+              <thead className="bg-dark-900/80 text-dark-400 text-xs uppercase">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Time</th>
+                  <th className="px-3 py-2 font-medium">Session</th>
+                  <th className="px-3 py-2 font-medium">Reason</th>
+                  <th className="px-3 py-2 font-medium">Last connector</th>
+                  <th className="px-3 py-2 font-medium">WC project ID</th>
+                  <th className="px-3 py-2 font-medium">Tags</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-dark-800">
+                {data.recent_failures.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-3 py-4 text-dark-500 text-center">
+                      No legacy reconnect failures in window.
+                    </td>
+                  </tr>
+                ) : (
+                  data.recent_failures.map((row: AdminWalletReconnectFailureRow, idx: number) => (
+                    <tr key={`${row.client_session_id}-${row.timestamp}-${idx}`} className="bg-dark-950/50 align-top">
+                      <td className="px-3 py-2 font-mono text-[11px] whitespace-nowrap">{row.timestamp}</td>
+                      <td className="px-3 py-2 font-mono text-[11px] max-w-[10rem] truncate" title={row.client_session_id}>
+                        {row.client_session_id}
+                      </td>
+                      <td className="px-3 py-2 text-xs">{row.reason}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{row.last_connector ?? '—'}</td>
+                      <td className="px-3 py-2 text-xs">
+                        {row.wc_project_id_configured == null ? '—' : row.wc_project_id_configured ? 'yes' : 'no'}
+                      </td>
+                      <td className="px-3 py-2">
+                        <WalletEventBadges event="legacy_wc_reconnect_failure" />
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <h3 className="text-sm font-medium text-dark-300 mb-2">Recent reconnect sessions</h3>
+          <div className="overflow-x-auto rounded-lg border border-dark-700 mb-8">
+            <table className="w-full text-sm text-left min-w-[720px]">
+              <thead className="bg-dark-900/80 text-dark-400 text-xs uppercase">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Session</th>
+                  <th className="px-3 py-2 font-medium">Latest event</th>
+                  <th className="px-3 py-2 font-medium">Reconnect count</th>
+                  <th className="px-3 py-2 font-medium">AppKit</th>
+                  <th className="px-3 py-2 font-medium">Last seen</th>
+                  <th className="px-3 py-2 font-medium">Tags</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-dark-800">
+                {data.recent_sessions.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-3 py-4 text-dark-500 text-center">
+                      No sessions in window.
+                    </td>
+                  </tr>
+                ) : (
+                  data.recent_sessions.map((row: AdminWalletReconnectSessionRow, idx: number) => (
+                    <tr key={`${row.client_session_id}-${idx}`} className="bg-dark-950/50 align-top">
+                      <td className="px-3 py-2 font-mono text-[11px] max-w-[12rem] truncate" title={row.client_session_id}>
+                        {row.client_session_id}
+                      </td>
+                      <td className="px-3 py-2 font-mono text-xs">{row.latest_event}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{row.reconnect_count}</td>
+                      <td className="px-3 py-2 text-xs">{row.appkit_connected ? 'yes' : 'no'}</td>
+                      <td className="px-3 py-2 font-mono text-[11px] whitespace-nowrap">{row.last_seen_at}</td>
+                      <td className="px-3 py-2">
+                        <WalletEventBadges event={row.latest_event} />
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <h3 className="text-sm font-medium text-dark-300 mb-2">Reconnect timeline (UTC minutes)</h3>
+          <div className="overflow-x-auto rounded-lg border border-dark-700">
+            <table className="w-full text-sm text-left min-w-[480px]">
+              <thead className="bg-dark-900/80 text-dark-400 text-xs uppercase">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Minute</th>
+                  <th className="px-3 py-2 font-medium">Scans</th>
+                  <th className="px-3 py-2 font-medium">Success</th>
+                  <th className="px-3 py-2 font-medium">Failure</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-dark-800">
+                {data.reconnect_timeline.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-3 py-4 text-dark-500 text-center">
+                      No timeline buckets yet.
+                    </td>
+                  </tr>
+                ) : (
+                  data.reconnect_timeline.map((row) => (
+                    <tr key={row.minute_bucket} className="bg-dark-950/50">
+                      <td className="px-3 py-2 font-mono text-[11px] whitespace-nowrap">{row.minute_bucket}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{row.scans}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-emerald-400">{row.successes}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-red-400">{row.failures}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function AdminOverviewPage() {
   const { token } = useAdminToken();
   const [data, setData] = useState<AdminOverviewResponse | null>(null);
@@ -762,7 +993,7 @@ export default function AdminApp() {
           <Route path="swaps" element={<AdminSwapsPage />} />
           <Route path="revenue" element={<AdminRevenuePage />} />
           <Route path="failures" element={<PlaceholderSection title="Failures" />} />
-          <Route path="wallet" element={<PlaceholderSection title="Wallet" />} />
+          <Route path="wallet" element={<AdminWalletReconnectPage />} />
           <Route path="system" element={<PlaceholderSection title="System" />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />
         </Route>
