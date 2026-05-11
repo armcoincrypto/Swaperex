@@ -67,6 +67,7 @@ def test_admin_app_exposes_health_monitoring_and_readonly_admin():
     assert "/api/v1/admin/overview" in paths, paths
     assert "/api/v1/admin/events" in paths, paths
     assert "/api/v1/admin/swaps" in paths, paths
+    assert "/api/v1/admin/revenue" in paths, paths
 
 
 def test_admin_app_does_not_expose_custodial_routes():
@@ -439,6 +440,93 @@ async def test_admin_swaps_analytics_from_monitoring(admin_client, monkeypatch):
 
     all_rows = await client.get("/api/v1/admin/swaps?successOnly=false", headers=hdr)
     assert all_rows.json()["total"] == 2
+
+    get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_admin_revenue_aggregation(admin_client, monkeypatch):
+    monkeypatch.setenv("ADMIN_API_TOKEN", "panel-secret-test")
+    from swaperex.config import get_settings
+
+    get_settings.cache_clear()
+    client, _ = admin_client
+
+    assert (await client.get("/api/v1/admin/revenue")).status_code == 401
+
+    hdr = {"X-Admin-Token": "panel-secret-test"}
+    empty = await client.get("/api/v1/admin/revenue", headers=hdr)
+    assert empty.status_code == 200
+    assert empty.json()["total_swaps"] == 0
+
+    await client.post(
+        "/api/v1/monitoring/events",
+        json={
+            "schemaVersion": 1,
+            "clientSessionId": "rev-1",
+            "exportedAt": 1,
+            "events": [
+                {
+                    "event": "swap_success",
+                    "ts": 1_900_000_000_000,
+                    "chainId": 1,
+                    "txHash": "0xaa",
+                    "provider": "p",
+                    "routeMode": "best",
+                    "feeToTreasuryWei": "150",
+                    "userNetWei": "999",
+                    "feeToken": {"symbol": "USDT", "address": "0xUSDT", "isNative": False},
+                    "protocolFeeBps": 10,
+                },
+                {
+                    "event": "swap_success",
+                    "ts": 1_900_000_000_001,
+                    "chainId": 1,
+                    "txHash": "0xbb",
+                    "provider": "p",
+                    "routeMode": "best",
+                },
+                {
+                    "event": "swap_success",
+                    "ts": 1_900_000_000_002,
+                    "chainId": 2,
+                    "txHash": "0xcc",
+                    "feeToTreasuryWei": "bad",
+                    "feeToken": {"symbol": "ETH", "address": None, "isNative": True},
+                },
+                {
+                    "event": "swap_success",
+                    "ts": 1_900_000_000_003,
+                    "chainId": 2,
+                    "txHash": "0xdd",
+                    "feeToTreasuryWei": "0",
+                    "feeToken": {"symbol": "ETH", "address": None, "isNative": True},
+                },
+            ],
+        },
+    )
+
+    r = await client.get("/api/v1/admin/revenue", headers=hdr)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["total_swaps"] == 4
+    assert body["enriched_swaps_count"] == 3
+    assert body["swaps_with_fee_data"] == 2
+    assert body["missing_fee_data"] == 2
+
+    usdt_row = next(x for x in body["total_fee_by_token"] if x["symbol"] == "USDT")
+    assert usdt_row["raw_total"] == "150"
+    assert usdt_row["address"] == "0xusdt"
+    eth_row = next(x for x in body["total_fee_by_token"] if x["symbol"] == "ETH")
+    assert eth_row["raw_total"] == "0"
+
+    assert len(body["latest_fee_events"]) == 2
+    assert body["latest_fee_events"][0]["tx_hash"] == "0xdd"
+    assert body["latest_fee_events"][1]["tx_hash"] == "0xaa"
+    assert body["latest_fee_events"][0]["raw_fee_wei"] == "0"
+
+    assert "revenue_by_chain" in body and len(body["revenue_by_chain"]) == 2
+    assert "revenue_by_route" in body and len(body["revenue_by_route"]) >= 1
 
     get_settings.cache_clear()
 

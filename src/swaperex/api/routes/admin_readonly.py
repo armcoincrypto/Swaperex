@@ -1,7 +1,7 @@
 """Read-only admin panel HTTP API (mounted only on ``app_admin``).
 
-Phase P2.1+: overview, monitoring batches, swap_success analytics — all from the
-isolated admin DB. No custodial routers, no signing, no key material.
+Phase P2.1+: overview, monitoring batches, swap analytics, revenue aggregates —
+all from the isolated admin DB. No custodial routers, no signing, no key material.
 
 Requires ``ADMIN_API_TOKEN`` and header ``X-Admin-Token`` on every route under
 ``/api/v1/admin/*``. Telemetry (P1.1) should confirm legacy WC usage before
@@ -157,6 +157,49 @@ def _build_route_label(ev: dict[str, Any]) -> str:
 def _estimate_fee_usd(_ev: dict[str, Any]) -> float | None:
     """Reserved for future ETH/USD oracle wiring; telemetry has no USD price today."""
     return None
+
+
+FEE_RAW_DECIMALS_NOTE = (
+    "raw token units from receipt; display conversion will be improved later"
+)
+
+
+def _parse_fee_wei_decimal(val: Any) -> int | None:
+    """Parse non-negative treasury fee wei from telemetry (decimal digits only)."""
+    if val is None:
+        return None
+    if isinstance(val, bool):
+        return None
+    if isinstance(val, int):
+        return val if val >= 0 else None
+    if isinstance(val, str):
+        s = val.strip()
+        if not s or not s.isdigit():
+            return None
+        return int(s)
+    return None
+
+
+def _fee_token_meta(ev: dict[str, Any]) -> tuple[str, str | None, bool]:
+    """Return (symbol, address_lower_or_none, is_native) for ``feeToken``."""
+    ft = ev.get("feeToken")
+    if isinstance(ft, dict):
+        sym = _token_symbol(ft) or "UNKNOWN"
+        addr_raw = ft.get("address")
+        if isinstance(addr_raw, str) and addr_raw.strip():
+            addr = addr_raw.strip().lower()
+        else:
+            addr = None
+        native = bool(ft.get("isNative"))
+        return sym, addr, native
+    return "UNKNOWN", None, False
+
+
+def _route_mode_str(ev: dict[str, Any]) -> str | None:
+    rm = ev.get("routeMode")
+    if isinstance(rm, str) and rm.strip():
+        return rm.strip()
+    return _safe_str(rm)
 
 
 def _swap_success_row_from_event(
@@ -421,4 +464,172 @@ async def admin_swaps(
         "total": total,
         "limit": limit,
         "offset": offset,
+    }
+
+
+@router.get(
+    "/revenue",
+    summary="Protocol revenue aggregates from swap_success fee telemetry (read-only)",
+    dependencies=[Depends(require_admin_api_token)],
+)
+async def admin_revenue(session: AsyncSession = Depends(get_session)) -> dict[str, Any]:
+    stmt = select(MonitoringIngestBatch).order_by(MonitoringIngestBatch.id.desc())
+    batches = (await session.execute(stmt)).scalars().all()
+
+    total_swaps = 0
+    enriched_swaps_count = 0
+    swaps_with_fee_data = 0
+
+    totals_by_token: dict[tuple[str, str | None, bool], int] = {}
+    totals_by_chain: dict[tuple[int, str, str | None, bool], int] = {}
+    totals_by_route: dict[tuple[int, str, str, str | None, bool], int] = {}
+    route_meta: dict[tuple[int, str, str, str | None, bool], dict[str, str | None]] = {}
+
+    latest_fee_events_working: list[tuple[int, dict[str, Any]]] = []
+
+    for batch in batches:
+        batch_iso = _iso_received_at(batch.received_at)
+        env = batch.envelope if isinstance(batch.envelope, dict) else {}
+        events = env.get("events")
+        if not isinstance(events, list):
+            continue
+        for ev in events:
+            try:
+                if not isinstance(ev, dict):
+                    continue
+                if ev.get("event") != "swap_success":
+                    continue
+                chain = _safe_opt_int(ev.get("chainId"))
+                if chain is None:
+                    continue
+
+                total_swaps += 1
+
+                if "feeToTreasuryWei" in ev or "userNetWei" in ev:
+                    enriched_swaps_count += 1
+
+                fee_parsed = _parse_fee_wei_decimal(ev.get("feeToTreasuryWei"))
+                has_fee = fee_parsed is not None
+                if has_fee:
+                    swaps_with_fee_data += 1
+
+                sym, addr, native = _fee_token_meta(ev)
+                route_label = _build_route_label(ev)
+                route_mode_s = _route_mode_str(ev)
+                provider_s = _safe_str(ev.get("provider"))
+                wrapper_s = _safe_str(ev.get("wrapperRoute"))
+                commission_s = _safe_str(ev.get("commissionRoute"))
+
+                if has_fee:
+                    tk = (sym, addr, native)
+                    totals_by_token[tk] = totals_by_token.get(tk, 0) + fee_parsed
+
+                    ck = (chain, sym, addr, native)
+                    totals_by_chain[ck] = totals_by_chain.get(ck, 0) + fee_parsed
+
+                    rk = (chain, route_label, sym, addr, native)
+                    totals_by_route[rk] = totals_by_route.get(rk, 0) + fee_parsed
+                    if rk not in route_meta:
+                        route_meta[rk] = {
+                            "provider": provider_s,
+                            "route_mode": route_mode_s,
+                            "wrapper_route": wrapper_s,
+                            "commission_route": commission_s,
+                        }
+
+                    ts_raw = ev.get("ts")
+                    ts_ms = int(ts_raw) if isinstance(ts_raw, (int, float)) else 0
+                    latest_fee_events_working.append(
+                        (
+                            ts_ms,
+                            {
+                                "timestamp": _iso_from_ts_ms(ev.get("ts"), batch_iso),
+                                "chain_id": chain,
+                                "route_label": route_label,
+                                "provider": provider_s,
+                                "route_mode": route_mode_s,
+                                "fee_token_symbol": sym,
+                                "fee_token_address": addr,
+                                "fee_token_is_native": native,
+                                "raw_fee_wei": str(fee_parsed),
+                                "protocol_fee_bps": _safe_opt_int(ev.get("protocolFeeBps")),
+                                "tx_hash": _safe_str(ev.get("txHash")),
+                                "commission_route": commission_s,
+                                "wrapper_route": wrapper_s,
+                            },
+                        )
+                    )
+            except Exception:
+                continue
+
+    missing_fee_data = total_swaps - swaps_with_fee_data
+
+    def _token_rows(totals: dict[tuple[Any, ...], int]) -> list[dict[str, Any]]:
+        rows_out: list[dict[str, Any]] = []
+        for key, raw_int in totals.items():
+            symbol = str(key[0])
+            address = key[1]
+            is_native = bool(key[2])
+            rows_out.append(
+                {
+                    "symbol": symbol,
+                    "address": address,
+                    "is_native": is_native,
+                    "raw_total": str(raw_int),
+                    "decimals_note": FEE_RAW_DECIMALS_NOTE,
+                }
+            )
+        rows_out.sort(key=lambda r: int(r["raw_total"]), reverse=True)
+        return rows_out
+
+    total_fee_by_token = _token_rows(totals_by_token)
+
+    revenue_by_chain: list[dict[str, Any]] = []
+    for (cid, sym, addr, native), raw_int in sorted(
+        totals_by_chain.items(),
+        key=lambda kv: (-kv[1], kv[0][0], kv[0][1]),
+    ):
+        revenue_by_chain.append(
+            {
+                "chain_id": cid,
+                "symbol": sym,
+                "address": addr,
+                "is_native": native,
+                "raw_total": str(raw_int),
+                "decimals_note": FEE_RAW_DECIMALS_NOTE,
+            }
+        )
+
+    revenue_by_route: list[dict[str, Any]] = []
+    for rk, raw_int in sorted(totals_by_route.items(), key=lambda kv: (-kv[1], kv[0])):
+        cid, route_label, sym, addr, native = rk
+        meta = route_meta.get(rk, {})
+        revenue_by_route.append(
+            {
+                "chain_id": cid,
+                "route_label": route_label,
+                "provider": meta.get("provider"),
+                "route_mode": meta.get("route_mode"),
+                "wrapper_route": meta.get("wrapper_route"),
+                "commission_route": meta.get("commission_route"),
+                "symbol": sym,
+                "address": addr,
+                "is_native": native,
+                "raw_total": str(raw_int),
+                "decimals_note": FEE_RAW_DECIMALS_NOTE,
+            }
+        )
+
+    latest_fee_events_working.sort(key=lambda x: (-x[0], x[1].get("tx_hash") or ""))
+    latest_fee_events = [row for _, row in latest_fee_events_working[:25]]
+
+    return {
+        "total_swaps": total_swaps,
+        "enriched_swaps_count": enriched_swaps_count,
+        "swaps_with_fee_data": swaps_with_fee_data,
+        "missing_fee_data": missing_fee_data,
+        "total_fee_by_token": total_fee_by_token,
+        "revenue_by_chain": revenue_by_chain,
+        "revenue_by_route": revenue_by_route,
+        "latest_fee_events": latest_fee_events,
     }

@@ -1,6 +1,6 @@
 /**
  * Isolated admin SPA shell (/admin). Token in sessionStorage only (P2.1).
- * Overview, Events (P2.2), Swaps analytics (P2.3).
+ * Overview, Events (P2.2), Swaps analytics (P2.3), Revenue (P2.4).
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
@@ -10,12 +10,15 @@ import {
   fetchAdminEvents,
   fetchAdminHealth,
   fetchAdminOverview,
+  fetchAdminRevenue,
   fetchAdminSwaps,
   getStoredAdminToken,
   setStoredAdminToken,
   type AdminEventsBatchItem,
   type AdminEventsResponse,
   type AdminOverviewResponse,
+  type AdminRevenueResponse,
+  type AdminRevenueRouteBucket,
   type AdminSwapAnalyticsRow,
   type AdminSwapsResponse,
 } from '@/admin/adminApi';
@@ -132,7 +135,7 @@ function AdminLayout() {
       </aside>
       <div className="flex-1 flex flex-col min-w-0">
         <header className="border-b border-dark-800 px-6 py-4 flex justify-between items-center bg-dark-900/30">
-          <span className="text-sm text-dark-400">Read-only · P2.3</span>
+          <span className="text-sm text-dark-400">Read-only · P2.4</span>
           <NavLink to="/" className="text-xs text-dark-500 hover:text-white">
             Exit to DEX
           </NavLink>
@@ -530,6 +533,155 @@ function AdminEventsPage() {
   );
 }
 
+function AdminRevenuePage() {
+  const { token } = useAdminToken();
+  const [data, setData] = useState<AdminRevenueResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const r = await fetchAdminRevenue(token);
+      setData(r);
+    } catch {
+      setError('Failed to load revenue aggregates.');
+      setData(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const coverageEnriched =
+    data && data.total_swaps > 0
+      ? ((100 * data.enriched_swaps_count) / data.total_swaps).toFixed(1)
+      : '0.0';
+
+  const note =
+    'Values are raw token units from receipt telemetry. USD conversion and token decimals normalization will be added later.';
+
+  return (
+    <div>
+      <h2 className="text-lg font-medium mb-2">Revenue</h2>
+      <p className="text-xs text-amber-200/90 bg-amber-950/40 border border-amber-900/50 rounded-lg px-3 py-2 mb-4">
+        {note}
+      </p>
+      {error && <p className="text-red-400 text-sm mb-3">{error}</p>}
+      <div className="flex gap-2 mb-4">
+        <button
+          type="button"
+          disabled={loading}
+          onClick={() => void load()}
+          className="rounded-lg bg-dark-700 hover:bg-dark-600 px-3 py-1.5 text-sm disabled:opacity-50"
+        >
+          {loading ? 'Refreshing…' : 'Refresh'}
+        </button>
+      </div>
+      {!data ? (
+        <p className="text-dark-400 text-sm">{loading ? 'Loading…' : 'No data.'}</p>
+      ) : (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+            <div className="rounded-lg border border-dark-700 bg-dark-900/40 p-4">
+              <div className="text-xs text-dark-500 uppercase tracking-wide">Total swaps</div>
+              <div className="text-2xl font-mono mt-1">{data.total_swaps}</div>
+            </div>
+            <div className="rounded-lg border border-dark-700 bg-dark-900/40 p-4">
+              <div className="text-xs text-dark-500 uppercase tracking-wide">Swaps with fee data</div>
+              <div className="text-2xl font-mono mt-1 text-emerald-300">{data.swaps_with_fee_data}</div>
+            </div>
+            <div className="rounded-lg border border-dark-700 bg-dark-900/40 p-4">
+              <div className="text-xs text-dark-500 uppercase tracking-wide">Missing fee data</div>
+              <div className="text-2xl font-mono mt-1 text-amber-200/90">{data.missing_fee_data}</div>
+            </div>
+            <div className="rounded-lg border border-dark-700 bg-dark-900/40 p-4">
+              <div className="text-xs text-dark-500 uppercase tracking-wide">Enriched coverage</div>
+              <div className="text-2xl font-mono mt-1">{coverageEnriched}%</div>
+              <div className="text-[10px] text-dark-500 mt-1">receipt fee / net wei fields present</div>
+            </div>
+          </div>
+
+          <h3 className="text-sm font-medium text-dark-300 mb-2">By route &amp; token</h3>
+          <div className="overflow-x-auto rounded-lg border border-dark-700 mb-8">
+            <table className="w-full text-sm text-left min-w-[640px]">
+              <thead className="bg-dark-900/80 text-dark-400 text-xs uppercase">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Fee token</th>
+                  <th className="px-3 py-2 font-medium">Raw total</th>
+                  <th className="px-3 py-2 font-medium">Chain</th>
+                  <th className="px-3 py-2 font-medium">Route</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-dark-800">
+                {data.revenue_by_route.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-3 py-4 text-dark-500 text-center">
+                      No fee aggregates yet.
+                    </td>
+                  </tr>
+                ) : (
+                  data.revenue_by_route.map((row: AdminRevenueRouteBucket, i: number) => (
+                    <tr key={`${row.chain_id}-${row.route_label}-${row.symbol}-${row.address ?? 'na'}-${i}`} className="bg-dark-950/50">
+                      <td className="px-3 py-2 font-mono text-xs">
+                        {row.symbol}
+                        {row.is_native && <span className="text-dark-500 ml-1">(native)</span>}
+                      </td>
+                      <td className="px-3 py-2 font-mono text-xs break-all">{row.raw_total}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{row.chain_id}</td>
+                      <td className="px-3 py-2 text-xs text-dark-300 max-w-md break-words">{row.route_label}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <h3 className="text-sm font-medium text-dark-300 mb-2">Latest fee events</h3>
+          <div className="overflow-x-auto rounded-lg border border-dark-700">
+            <table className="w-full text-sm text-left min-w-[720px]">
+              <thead className="bg-dark-900/80 text-dark-400 text-xs uppercase">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Time</th>
+                  <th className="px-3 py-2 font-medium">Chain</th>
+                  <th className="px-3 py-2 font-medium">Route</th>
+                  <th className="px-3 py-2 font-medium">Token</th>
+                  <th className="px-3 py-2 font-medium">Raw fee</th>
+                  <th className="px-3 py-2 font-medium">Tx hash</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-dark-800">
+                {data.latest_fee_events.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-3 py-4 text-dark-500 text-center">
+                      No parsed fee events yet.
+                    </td>
+                  </tr>
+                ) : (
+                  data.latest_fee_events.map((ev, idx) => (
+                    <tr key={`${ev.tx_hash ?? 'tx'}-${ev.timestamp}-${idx}`} className="bg-dark-950/50 align-top">
+                      <td className="px-3 py-2 font-mono text-[11px] whitespace-nowrap">{ev.timestamp}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{ev.chain_id}</td>
+                      <td className="px-3 py-2 text-xs text-dark-300 max-w-[14rem] break-words">{ev.route_label}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{ev.fee_token_symbol}</td>
+                      <td className="px-3 py-2 font-mono text-xs break-all">{ev.raw_fee_wei}</td>
+                      <td className="px-3 py-2 font-mono text-[11px] break-all max-w-[10rem]">{ev.tx_hash ?? '—'}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function AdminOverviewPage() {
   const { token } = useAdminToken();
   const [data, setData] = useState<AdminOverviewResponse | null>(null);
@@ -608,7 +760,7 @@ export default function AdminApp() {
           <Route index element={<AdminOverviewPage />} />
           <Route path="events" element={<AdminEventsPage />} />
           <Route path="swaps" element={<AdminSwapsPage />} />
-          <Route path="revenue" element={<PlaceholderSection title="Revenue" />} />
+          <Route path="revenue" element={<AdminRevenuePage />} />
           <Route path="failures" element={<PlaceholderSection title="Failures" />} />
           <Route path="wallet" element={<PlaceholderSection title="Wallet" />} />
           <Route path="system" element={<PlaceholderSection title="System" />} />

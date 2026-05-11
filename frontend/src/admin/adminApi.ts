@@ -165,3 +165,57 @@ export async function fetchAdminSwaps(token: string, params: AdminSwapsQuery = {
   if (!res.ok) throw new Error(`admin swaps ${res.status}`);
   return (await res.json()) as AdminSwapsResponse;
 }
+
+export type AdminRevenueTokenBucket = {
+  symbol: string;
+  address: string | null;
+  is_native: boolean;
+  raw_total: string;
+  decimals_note: string;
+};
+
+export type AdminRevenueChainBucket = AdminRevenueTokenBucket & {
+  chain_id: number;
+};
+
+export type AdminRevenueRouteBucket = AdminRevenueTokenBucket & {
+  chain_id: number;
+  route_label: string;
+  provider: string | null;
+  route_mode: string | null;
+  wrapper_route: string | null;
+  commission_route: string | null;
+};
+
+export type AdminRevenueLatestFeeEvent = {
+  timestamp: string;
+  chain_id: number;
+  route_label: string;
+  provider: string | null;
+  route_mode: string | null;
+  fee_token_symbol: string;
+  fee_token_address: string | null;
+  fee_token_is_native: boolean;
+  raw_fee_wei: string;
+  protocol_fee_bps: number | null;
+  tx_hash: string | null;
+  commission_route: string | null;
+  wrapper_route: string | null;
+};
+
+export type AdminRevenueResponse = {
+  total_swaps: number;
+  enriched_swaps_count: number;
+  swaps_with_fee_data: number;
+  missing_fee_data: number;
+  total_fee_by_token: AdminRevenueTokenBucket[];
+  revenue_by_chain: AdminRevenueChainBucket[];
+  revenue_by_route: AdminRevenueRouteBucket[];
+  latest_fee_events: AdminRevenueLatestFeeEvent[];
+};
+
+export async function fetchAdminRevenue(token: string): Promise<AdminRevenueResponse> {
+  const res = await adminFetch('admin/revenue', token);
+  if (!res.ok) throw new Error(`admin revenue ${res.status}`);
+  return (await res.json()) as AdminRevenueResponse;
+}
