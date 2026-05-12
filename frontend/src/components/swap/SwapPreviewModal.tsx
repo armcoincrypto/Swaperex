@@ -8,7 +8,7 @@
  * Swaperex only prepares unsigned transactions.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Modal } from '@/components/common/Modal';
 import { Button } from '@/components/common/Button';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
@@ -41,9 +41,7 @@ import type { SwapQuote, SwapReceiptSettlement } from '@/hooks/useSwap';
 import type { ApprovalMode } from '@/stores/swapStore';
 import { classifyCommissionRoute } from '@/utils/commission';
 import { isDebugMode } from '@/utils/chainHealth';
-
-// Quote expires after 30 seconds
-const QUOTE_EXPIRY_SECONDS = 30;
+import { emitSwapLifecycleStage } from '@/utils/swapLifecycleTelemetry';
 
 export type SwapStep = 'preview' | 'approving' | 'swapping' | 'broadcasting' | 'success' | 'error';
 
@@ -76,6 +74,13 @@ interface SwapPreviewModalProps {
   isRefreshing: boolean;
   /** Active chain for network label (from wallet / swap context; display-only) */
   chainId?: number | null;
+  /**
+   * Quote TTL seconds remaining — owned by `SwapInterface` (single 1s interval).
+   * `null` when the parent TTL ticker is inactive (e.g. non-preview swap status).
+   */
+  quoteTtlSecondsRemaining: number | null;
+  /** P3.3 — correlates modal step transitions with SwapInterface flow id. */
+  lifecycleFlowId?: string | null;
 }
 
 export function SwapPreviewModal({
@@ -94,42 +99,56 @@ export function SwapPreviewModal({
   onRefreshQuote,
   isRefreshing,
   chainId = null,
+  quoteTtlSecondsRemaining,
+  lifecycleFlowId = null,
 }: SwapPreviewModalProps) {
-  const [secondsRemaining, setSecondsRemaining] = useState(QUOTE_EXPIRY_SECONDS);
-  const [isExpired, setIsExpired] = useState(false);
+  const prevStepRef = useRef<SwapStep | null>(null);
 
-  // Compute remaining time from actual quoteTimestamp (not just reset to 30s)
   useEffect(() => {
-    if (isOpen && quote) {
-      const elapsed = Math.floor((Date.now() - quote.quoteTimestamp) / 1000);
-      const remaining = Math.max(0, QUOTE_EXPIRY_SECONDS - elapsed);
-      setSecondsRemaining(remaining);
-      setIsExpired(remaining <= 0);
+    if (!isOpen || !quote || !lifecycleFlowId) {
+      prevStepRef.current = step;
+      return;
     }
-  }, [isOpen, quote]);
+    const prev = prevStepRef.current;
+    prevStepRef.current = step;
+    if (prev === null) {
+      return;
+    }
+    if (prev === step) return;
 
-  // Countdown timer
-  useEffect(() => {
-    if (!isOpen || step !== 'preview' || isExpired) return;
+    const base = {
+      swapFlowId: lifecycleFlowId,
+      chainId: chainId ?? undefined,
+      provider: (quote as { provider?: string }).provider ?? null,
+      routeMode: null as string | null,
+    };
 
-    const interval = setInterval(() => {
-      setSecondsRemaining((prev) => {
-        if (prev <= 1) {
-          setIsExpired(true);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    if (step === 'approving') {
+      emitSwapLifecycleStage({ ...base, stage: 'approval_requested' });
+    }
+    if (step === 'swapping' && prev === 'approving') {
+      emitSwapLifecycleStage({ ...base, stage: 'approval_signed', priorStage: 'approving' });
+      emitSwapLifecycleStage({ ...base, stage: 'swap_signature_requested', priorStage: 'approving' });
+    }
+    if (step === 'swapping' && prev === 'preview') {
+      emitSwapLifecycleStage({ ...base, stage: 'swap_signature_requested', priorStage: 'preview' });
+    }
+    if (step === 'broadcasting' && prev === 'swapping') {
+      emitSwapLifecycleStage({ ...base, stage: 'swap_signed', priorStage: 'swapping' });
+      emitSwapLifecycleStage({ ...base, stage: 'tx_broadcasted', priorStage: 'swapping' });
+    }
+    if (step === 'error' && prev === 'approving') {
+      emitSwapLifecycleStage({ ...base, stage: 'approval_failed', priorStage: 'approving', reason: error });
+    }
+  }, [isOpen, quote, lifecycleFlowId, chainId, step, error]);
 
-    return () => clearInterval(interval);
-  }, [isOpen, step, isExpired]);
+  /** Parent-owned TTL tick — avoids a second 1s interval while the preview is open. */
+  const secondsRemaining = quoteTtlSecondsRemaining ?? 0;
+  const isExpired = quoteTtlSecondsRemaining !== null && quoteTtlSecondsRemaining <= 0;
 
   // Handle refresh
   const handleRefresh = useCallback(() => {
     onRefreshQuote();
-    setSecondsRemaining(QUOTE_EXPIRY_SECONDS);
-    setIsExpired(false);
   }, [onRefreshQuote]);
 
   const recoveredOnly =
@@ -470,7 +489,11 @@ export function SwapPreviewModal({
               </summary>
               <div className="px-3 pb-3 pt-1 space-y-2 text-sm">
                 <DetailRow
-                  label={quote.provider === '1inch' ? 'Route fees' : 'Pool Fee'}
+                  label={
+                    quote.provider === '1inch'
+                      ? SWAP_SURFACE_COPY.feeRouteCostLabel
+                      : SWAP_SURFACE_COPY.feePoolCostLabel
+                  }
                   value={
                     quote.provider === '1inch'
                       ? 'Included in quote (multi-pool)'
@@ -940,7 +963,7 @@ function SuccessContent({
     if (trace.commissionKind === '1inch_integrator_fee') return '1inch best-effort';
     return 'none';
   })();
-  if (commissionRequired && commissionRouteLabel === 'none') {
+  if (commissionRequired && commissionRouteLabel === 'none' && showCommissionDebug) {
     // Safety: in commission-required mode, receipt should never claim commission route is "none".
     // This is display-only; execution is already blocked upstream if no commission-capable route exists.
     // Keep it non-throwing to avoid breaking success receipts.

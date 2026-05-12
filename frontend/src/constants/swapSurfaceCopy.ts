@@ -3,12 +3,21 @@
  * Copy only — no runtime behavior.
  */
 export const SWAP_SURFACE_COPY = {
-  /** One line under the Swap title — first-screen trust (footer carries full non-custodial detail) */
+  /**
+   * @deprecated P4.3 — Trust consolidated into `swapCardTrustCompact` + footer; do not add new call sites.
+   * Kept for glossary / external references only.
+   */
   firstVisitTrustLine:
     'You sign every swap in your wallet. Settlement is final on-chain.',
 
   trustLineQuoteEstimate:
     'Amounts reflect this quote (estimate). Final tokens received are confirmed on-chain.',
+
+  /** Swap card / preview: 1inch path — aggregator route cost (not Swaperex protocol fee unless separately shown). */
+  feeRouteCostLabel: 'Route cost',
+
+  /** Swap card / preview: direct DEX pool fee tier (Uniswap / Pancake path). */
+  feePoolCostLabel: 'Pool fee',
 
   /** Primary CTA when a quote must be re-fetched */
   refreshQuoteCta: 'Refresh quote',
@@ -116,17 +125,20 @@ export const SWAP_SURFACE_COPY = {
   tokenSafetyTitleInfo: 'Route & liquidity',
   tokenSafetyTitleCaution: 'Verify before you swap',
 
-  /** Micro copy under swap card security row */
+  /** Micro copy under swap card primary trust (timing / signing reminder only). */
   swapCardTrustMicroLine:
-    'Confirm amounts in your wallet before signing — quotes expire quickly.',
+    'Confirm amounts in your wallet before signing — quotes expire in ~30s.',
 
-  /** Compact swap-card security footer (one visual block) */
+  /**
+   * Single primary trust line on the swap card (P4.3): signing, settlement, custody.
+   * Detail (wrapper output fees) stays in `quoteFeesFootnote` + preview rows where relevant.
+   */
   swapCardTrustCompact:
-    'Signed in your wallet — approvals and swaps are signed locally. Swaperex never holds your keys.',
+    'You sign every swap in your wallet; settlement is final on-chain. Non-custodial — Swaperex never has your keys.',
 
   /** Muted footnote under grouped rate & fee rows on the swap card */
   quoteFeesFootnote:
-    'Pool and route costs are reflected in the path; wrapper protocol fees (when shown) are taken from gross output on-chain — your quoted receive is already net.',
+    'Pool and route costs are in the DEX path. Swaperex wrapper protocol fees (when shown) come from gross output on-chain — quoted receive is already net.',
 
   /** Success modal — protocol fee parentheticals */
   successFeeOnChainTreasury: '(on-chain, sent to treasury)',

@@ -19,8 +19,11 @@ import { PortfolioTokenTable } from './PortfolioTokenTable';
 import { ActivityPanel } from './ActivityPanel';
 import { RevenuePanel } from './RevenuePanel';
 import { DiagnosticsPanel } from './DiagnosticsPanel';
+import { LifecycleObservabilityPanel } from '@/components/admin/LifecycleObservabilityPanel';
+import { OperationalHealthPanel } from '@/components/admin/OperationalHealthPanel';
 import type { SwapRecord } from '@/stores/swapHistoryStore';
 import { isDebugMode } from '@/utils/chainHealth';
+import { resolveAdminApiToken } from '@/utils/adminApi';
 
 interface PortfolioPageProps {
   onSwapToken?: (symbol: string, chainId: number) => void;
@@ -33,7 +36,7 @@ const REFRESH_INTERVAL = 30_000;
 /** Stable chain list — avoids new array reference on every render */
 const PORTFOLIO_EVM_CHAINS: ['ethereum', 'bsc', 'polygon'] = ['ethereum', 'bsc', 'polygon'];
 
-type PortfolioSubTab = 'activity' | 'revenue';
+type PortfolioSubTab = 'activity' | 'revenue' | 'lifecycle' | 'system';
 
 export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps) {
   const [portfolioSubTab, setPortfolioSubTab] = useState<PortfolioSubTab>('activity');
@@ -43,6 +46,62 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
 
   // Debug mode check (cached for session)
   const debugMode = useMemo(() => isDebugMode(), []);
+
+  const showAdminLifecycle = useMemo(() => {
+    try {
+      return (
+        new URLSearchParams(window.location.search).get('adminLifecycle') === '1' ||
+        import.meta.env.VITE_ADMIN_LIFECYCLE_UI === 'true'
+      );
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const showAdminSystem = useMemo(() => {
+    try {
+      return (
+        new URLSearchParams(window.location.search).get('adminSystem') === '1' ||
+        import.meta.env.VITE_ADMIN_SYSTEM_UI === 'true'
+      );
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const showAnyAdminPortal = showAdminLifecycle || showAdminSystem;
+
+  useEffect(() => {
+    if (!showAdminLifecycle && portfolioSubTab === 'lifecycle') {
+      setPortfolioSubTab('activity');
+    }
+  }, [showAdminLifecycle, portfolioSubTab]);
+
+  useEffect(() => {
+    if (!showAdminSystem && portfolioSubTab === 'system') {
+      setPortfolioSubTab('activity');
+    }
+  }, [showAdminSystem, portfolioSubTab]);
+
+  const adminTabs = useMemo((): Array<'lifecycle' | 'system'> => {
+    const a: Array<'lifecycle' | 'system'> = [];
+    if (showAdminLifecycle) a.push('lifecycle');
+    if (showAdminSystem) a.push('system');
+    return a;
+  }, [showAdminLifecycle, showAdminSystem]);
+
+  const portfolioTabCount = 2 + adminTabs.length;
+  const portfolioGridCols =
+    portfolioTabCount >= 4 ? 'grid-cols-4' : portfolioTabCount === 3 ? 'grid-cols-3' : 'grid-cols-2';
+
+  const portfolioTabs = useMemo(() => ['activity', 'revenue', ...adminTabs] as const, [adminTabs]);
+
+  const bridgeAdminToken = useMemo(() => {
+    if (!isConnected && showAdminLifecycle && showAdminSystem) return true;
+    return adminTabs.length >= 2;
+  }, [isConnected, showAdminLifecycle, showAdminSystem, adminTabs.length]);
+
+  const [adminSharedToken, setAdminSharedToken] = useState(() => resolveAdminApiToken());
 
   // Individual selectors — only re-render when specific values change (FIX-1)
   const setPortfolio = usePortfolioStore((s) => s.setPortfolio);
@@ -132,8 +191,8 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
     }
   }, [fetchPortfolio, setLoading]);
 
-  // Not connected
-  if (!isConnected) {
+  // Not connected — allow read-only admin panels when explicitly enabled via URL / env
+  if (!isConnected && !showAnyAdminPortal) {
     return (
       <div className="text-center py-16">
         <svg className="w-16 h-16 mx-auto text-dark-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -143,6 +202,29 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
         <p className="text-dark-400 text-sm max-w-sm mx-auto">
           Connect your wallet to view your multi-chain portfolio, token balances, and transaction history.
         </p>
+      </div>
+    );
+  }
+
+  if (!isConnected && showAnyAdminPortal) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-8 py-4">
+        {showAdminLifecycle && (
+          <LifecycleObservabilityPanel
+            adminToken={bridgeAdminToken ? adminSharedToken : undefined}
+            onAdminTokenChange={bridgeAdminToken ? setAdminSharedToken : undefined}
+          />
+        )}
+        {showAdminSystem && (
+          <OperationalHealthPanel
+            adminToken={bridgeAdminToken ? adminSharedToken : undefined}
+            onAdminTokenChange={bridgeAdminToken ? setAdminSharedToken : undefined}
+          />
+        )}
+        <div className="text-center text-[11px] text-dark-500 pb-4 leading-relaxed">
+          Read-only admin views. Use <code className="text-dark-400">?adminLifecycle=1</code> and/or{' '}
+          <code className="text-dark-400">?adminSystem=1</code> without connecting a wallet.
+        </div>
       </div>
     );
   }
@@ -157,11 +239,11 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
 
       {/* Activity vs Revenue (local / commission estimates) */}
       <div
-        className="grid grid-cols-2 gap-2 w-full rounded-2xl border border-white/[0.08] bg-dark-900/70 p-1.5"
+        className={`grid gap-2 w-full rounded-2xl border border-white/[0.08] bg-dark-900/70 p-1.5 ${portfolioGridCols}`}
         role="tablist"
         aria-label="Portfolio sections"
       >
-        {(['activity', 'revenue'] as const).map((t) => (
+        {portfolioTabs.map((t) => (
           <button
             key={t}
             type="button"
@@ -175,14 +257,20 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
             }`}
           >
             <span className="block text-sm font-semibold leading-tight">
-              {t === 'activity' ? 'Activity' : 'Revenue'}
+              {t === 'activity' ? 'Activity' : t === 'revenue' ? 'Revenue' : t === 'lifecycle' ? 'Lifecycle' : 'System'}
             </span>
             <span
               className={`mt-0.5 block text-[11px] font-normal leading-snug ${
                 portfolioSubTab === t ? 'text-dark-200/90' : 'text-dark-500'
               }`}
             >
-              {t === 'activity' ? 'Swaps & transfers' : 'Commission estimates'}
+              {t === 'activity'
+                ? 'Swaps & transfers'
+                : t === 'revenue'
+                  ? 'Commission estimates'
+                  : t === 'lifecycle'
+                    ? 'Swap flow telemetry'
+                    : 'Operational health'}
             </span>
           </button>
         ))}
@@ -190,8 +278,18 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
 
       {portfolioSubTab === 'activity' ? (
         <ActivityPanel onRepeatSwap={onRepeatSwap} />
-      ) : (
+      ) : portfolioSubTab === 'revenue' ? (
         <RevenuePanel />
+      ) : portfolioSubTab === 'lifecycle' ? (
+        <LifecycleObservabilityPanel
+          adminToken={bridgeAdminToken ? adminSharedToken : undefined}
+          onAdminTokenChange={bridgeAdminToken ? setAdminSharedToken : undefined}
+        />
+      ) : (
+        <OperationalHealthPanel
+          adminToken={bridgeAdminToken ? adminSharedToken : undefined}
+          onAdminTokenChange={bridgeAdminToken ? setAdminSharedToken : undefined}
+        />
       )}
 
       {/* Diagnostics (debug mode only: ?debug=1) */}

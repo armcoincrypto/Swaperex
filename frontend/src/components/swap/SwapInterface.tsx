@@ -71,6 +71,7 @@ import type { AssetInfo } from '@/types/api';
 import { isAddress } from 'ethers';
 import { isDebugMode } from '@/utils/chainHealth';
 import { getSwapQuoteInputFingerprint } from '@/utils/swapQuoteInputFingerprint';
+import { emitSwapLifecycleStage, newSwapFlowId } from '@/utils/swapLifecycleTelemetry';
 
 // Chain ID to chain name mapping
 const CHAIN_NAMES: Record<number, string> = {
@@ -263,6 +264,10 @@ export function SwapInterface() {
   const statusRef = useRef(status);
   statusRef.current = status;
 
+  const [swapLifecycleFlowId, setSwapLifecycleFlowId] = useState<string | null>(null);
+  const lastQuoteFingerprintForFlowRef = useRef<string | null>(null);
+  const lastQuoteReceivedKeyRef = useRef<string>('');
+
   const quoteInputFingerprint = useMemo(
     () =>
       getSwapQuoteInputFingerprint({
@@ -286,6 +291,103 @@ export function SwapInterface() {
     if (prev === quoteInputFingerprint) return;
     setShowPreview(false);
   }, [quoteInputFingerprint]);
+
+  /** P3.3 — quote_received when a new quote lands for the active flow. */
+  useEffect(() => {
+    if (!swapLifecycleFlowId || !swapQuote?.quoteTimestamp) return;
+    const key = `${swapLifecycleFlowId}:${swapQuote.quoteTimestamp}`;
+    if (lastQuoteReceivedKeyRef.current === key) return;
+    lastQuoteReceivedKeyRef.current = key;
+    emitSwapLifecycleStage({
+      swapFlowId: swapLifecycleFlowId,
+      stage: 'quote_received',
+      chainId: currentChainId,
+      provider: swapQuote.provider ?? null,
+      routeMode: String(routeMode),
+      quoteFingerprint: quoteInputFingerprint,
+    });
+  }, [
+    swapLifecycleFlowId,
+    swapQuote?.quoteTimestamp,
+    swapQuote?.provider,
+    currentChainId,
+    routeMode,
+    quoteInputFingerprint,
+  ]);
+
+  /** P3.3 — terminal lifecycle from swap status (tx_mined / receipt / reconciliation / failure). */
+  const successLifecycleDoneForFlowRef = useRef<string | null>(null);
+  const failureLifecycleDoneForFlowRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!swapLifecycleFlowId) return;
+
+    if (status === 'success') {
+      if (successLifecycleDoneForFlowRef.current === swapLifecycleFlowId) return;
+      successLifecycleDoneForFlowRef.current = swapLifecycleFlowId;
+      emitSwapLifecycleStage({
+        swapFlowId: swapLifecycleFlowId,
+        stage: 'tx_mined',
+        chainId: currentChainId,
+        provider: swapQuote?.provider ?? null,
+        routeMode: String(routeMode),
+        quoteFingerprint: quoteInputFingerprint,
+        txHash: txHash ?? null,
+      });
+      if (receiptSettlement?.feeProvenance === 'treasury_transfer') {
+        emitSwapLifecycleStage({
+          swapFlowId: swapLifecycleFlowId,
+          stage: 'receipt_decoded',
+          chainId: currentChainId,
+          provider: swapQuote?.provider ?? null,
+          routeMode: String(routeMode),
+          quoteFingerprint: quoteInputFingerprint,
+          txHash: txHash ?? null,
+        });
+        emitSwapLifecycleStage({
+          swapFlowId: swapLifecycleFlowId,
+          stage: 'reconciliation_completed',
+          chainId: currentChainId,
+          provider: swapQuote?.provider ?? null,
+          routeMode: String(routeMode),
+          quoteFingerprint: quoteInputFingerprint,
+          txHash: txHash ?? null,
+        });
+      }
+      return;
+    }
+
+    if (status !== 'success') {
+      successLifecycleDoneForFlowRef.current = null;
+    }
+
+    if (status === 'error') {
+      if (failureLifecycleDoneForFlowRef.current === swapLifecycleFlowId) return;
+      failureLifecycleDoneForFlowRef.current = swapLifecycleFlowId;
+      emitSwapLifecycleStage({
+        swapFlowId: swapLifecycleFlowId,
+        stage: 'swap_failed',
+        chainId: currentChainId,
+        provider: swapQuote?.provider ?? null,
+        routeMode: String(routeMode),
+        quoteFingerprint: quoteInputFingerprint,
+        txHash: txHash ?? null,
+        reason: error ?? null,
+      });
+    } else if (status !== 'error') {
+      failureLifecycleDoneForFlowRef.current = null;
+    }
+  }, [
+    status,
+    swapLifecycleFlowId,
+    currentChainId,
+    swapQuote?.provider,
+    routeMode,
+    quoteInputFingerprint,
+    txHash,
+    receiptSettlement?.feeProvenance,
+    error,
+  ]);
 
   /** Power-user controls (settings, quick pairs, presets) — hidden until opened. */
   const [showMoreOptions, setShowMoreOptions] = useState(false);
@@ -529,7 +631,7 @@ export function SwapInterface() {
         );
         setSwapIntelligence(intelligence);
       } catch (err) {
-        console.warn('[Intelligence] Failed to analyze swap:', err);
+        if (swapUiTrace) console.warn('[Intelligence] Failed to analyze swap:', err);
         // Don't block the swap if intelligence fails
       }
     };
@@ -646,8 +748,32 @@ export function SwapInterface() {
       if (swapUiTrace) {
         console.log('[Swap] Fetching quote for:', fromAmount, fromAsset.symbol, '→', toAsset.symbol);
       }
+      const fp = getSwapQuoteInputFingerprint({
+        chainId: currentChainId,
+        slippage,
+        fromAmount,
+        fromAsset,
+        toAsset,
+        routeMode,
+      });
+      let fid = swapLifecycleFlowId;
+      if (fp !== lastQuoteFingerprintForFlowRef.current) {
+        fid = newSwapFlowId();
+        lastQuoteFingerprintForFlowRef.current = fp;
+        setSwapLifecycleFlowId(fid);
+      } else if (!fid) {
+        fid = newSwapFlowId();
+        setSwapLifecycleFlowId(fid);
+      }
+      emitSwapLifecycleStage({
+        swapFlowId: fid,
+        stage: 'quote_requested',
+        chainId: currentChainId,
+        routeMode: String(routeMode),
+        quoteFingerprint: fp,
+      });
       fetchSwapQuote().catch((err) => {
-        console.warn('[Swap] Quote fetch failed:', err.message);
+        if (swapUiTrace) console.warn('[Swap] Quote fetch failed:', err.message);
       });
     }, QUOTE_DEBOUNCE_MS);
 
@@ -747,13 +873,13 @@ export function SwapInterface() {
     // Guard: Must have valid input
     const amount = parseFloat(fromAmount || '0');
     if (!fromAmount || isNaN(amount) || amount <= 0) {
-      console.warn('[Swap] Preview blocked - no valid input amount');
+      if (swapUiTrace) console.warn('[Swap] Preview blocked - no valid input amount');
       return;
     }
 
     // Guard: Must have a quote with output
     if (!swapQuote || !swapQuote.amountOutFormatted || parseFloat(swapQuote.amountOutFormatted) <= 0) {
-      console.warn('[Swap] Preview blocked - no valid quote');
+      if (swapUiTrace) console.warn('[Swap] Preview blocked - no valid quote');
       return;
     }
 
@@ -766,7 +892,7 @@ export function SwapInterface() {
 
     // Guard: Status must be previewing (quote ready)
     if (status !== 'previewing') {
-      console.warn('[Swap] Preview blocked - status is not previewing:', status);
+      if (swapUiTrace) console.warn('[Swap] Preview blocked - status is not previewing:', status);
       return;
     }
 
@@ -778,6 +904,16 @@ export function SwapInterface() {
     }
 
     try {
+      if (swapLifecycleFlowId) {
+        emitSwapLifecycleStage({
+          swapFlowId: swapLifecycleFlowId,
+          stage: 'preview_opened',
+          chainId: currentChainId,
+          provider: swapQuote?.provider ?? null,
+          routeMode: String(routeMode),
+          quoteFingerprint: quoteInputFingerprint,
+        });
+      }
       await swap();
       setShowPreview(true);
     } catch (err) {
@@ -796,6 +932,17 @@ export function SwapInterface() {
 
   // Cancel preview or close success modal
   const handleCancelPreview = () => {
+    if (showPreview && swapLifecycleFlowId && status !== 'success') {
+      emitSwapLifecycleStage({
+        swapFlowId: swapLifecycleFlowId,
+        stage: 'abandoned',
+        chainId: currentChainId,
+        provider: swapQuote?.provider ?? null,
+        routeMode: String(routeMode),
+        quoteFingerprint: quoteInputFingerprint,
+        reason: 'user_closed_preview',
+      });
+    }
     setShowPreview(false);
 
     // If swap was successful, clear the input for a fresh start
@@ -969,13 +1116,6 @@ export function SwapInterface() {
         {/* Header */}
         <div className="relative z-10 flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-white">Swap</h2>
-        </div>
-
-        <div className="relative z-10 mb-4 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-2.5">
-          <p className="flex items-start gap-2 text-[11px] leading-relaxed text-dark-300 sm:text-xs">
-            <ShieldIcon />
-            <span>{SWAP_SURFACE_COPY.firstVisitTrustLine}</span>
-          </p>
         </div>
 
         {isCommissionRequiredMode() &&
@@ -1634,7 +1774,11 @@ export function SwapInterface() {
                   })()}
 
                   <div className="flex justify-between">
-                    <span className="text-dark-400">{swapQuote.provider === '1inch' ? 'Route fees' : 'Pool fee'}</span>
+                    <span className="text-dark-400">
+                      {swapQuote.provider === '1inch'
+                        ? SWAP_SURFACE_COPY.feeRouteCostLabel
+                        : SWAP_SURFACE_COPY.feePoolCostLabel}
+                    </span>
                     <span>
                       {swapQuote.provider === '1inch'
                         ? 'Included in quote (multi-pool)'
@@ -1928,6 +2072,8 @@ export function SwapInterface() {
         onCancel={handleCancelPreview}
         onRefreshQuote={handleRefreshQuote}
         isRefreshing={isRefreshingQuote}
+        quoteTtlSecondsRemaining={quoteSecondsRemaining}
+        lifecycleFlowId={swapLifecycleFlowId}
       />
 
       {/* Save Preset Modal */}
