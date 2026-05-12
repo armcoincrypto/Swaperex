@@ -357,9 +357,7 @@ export function SwapInterface() {
       return;
     }
 
-    if (status !== 'success') {
-      successLifecycleDoneForFlowRef.current = null;
-    }
+    successLifecycleDoneForFlowRef.current = null;
 
     if (status === 'error') {
       if (failureLifecycleDoneForFlowRef.current === swapLifecycleFlowId) return;
@@ -374,7 +372,7 @@ export function SwapInterface() {
         txHash: txHash ?? null,
         reason: error ?? null,
       });
-    } else if (status !== 'error') {
+    } else {
       failureLifecycleDoneForFlowRef.current = null;
     }
   }, [
