@@ -25,7 +25,10 @@ import { type SwapRecord } from '@/stores/swapHistoryStore';
 import { getTokenBySymbol } from '@/tokens';
 import { startWatchlistMonitor } from '@/services/watchlistMonitor';
 import { useWalletBootstrapStore } from '@/stores/walletBootstrapStore';
-import { subscribeWalletBootstrapRequest } from '@/services/wallet/appKitActionsRegistry';
+import {
+  hasWalletConnectStorageHint,
+  subscribeWalletBootstrapRequest,
+} from '@/services/wallet/appKitActionsRegistry';
 import { SHOW_OPTIONAL_PRIMARY_NAV } from '@/config/productShell';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 
@@ -120,6 +123,39 @@ function DexMain() {
     return subscribeWalletBootstrapRequest(() => {
       useWalletBootstrapStore.getState().request();
     });
+  }, []);
+
+  /**
+   * P4.4.2 — Defer WalletBootstrap for WC/Reown persistence hints only so `vendor-reown-walletconnect`
+   * does not load in the same critical window as first paint. Explicit `request()` (connect /
+   * disconnect / waitForAppKitActions) stays immediate. Cleanup avoids activating after unmount
+   * (e.g. fast navigation to `/admin`).
+   */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!hasWalletConnectStorageHint()) return;
+
+    let cancelled = false;
+    const activate = () => {
+      if (cancelled) return;
+      useWalletBootstrapStore.getState().request();
+    };
+
+    let idleHandle: number | undefined;
+    if (typeof window.requestIdleCallback === 'function') {
+      idleHandle = window.requestIdleCallback(activate, { timeout: 400 });
+    } else {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(activate);
+      });
+    }
+
+    return () => {
+      cancelled = true;
+      if (idleHandle !== undefined && typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(idleHandle);
+      }
+    };
   }, []);
 
   /**
