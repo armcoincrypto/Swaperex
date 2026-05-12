@@ -73,6 +73,28 @@ const lazyWalletConnectFallback = (
 
 type Page = 'swap' | 'send' | 'portfolio' | 'radar' | 'screener' | 'about' | 'terms' | 'privacy' | 'disclaimer';
 
+/**
+ * P4.4.4 — Load the lazy `WalletConnect` header chunk only when the user is likely to need it,
+ * or when a wallet / AppKit host session is already active. Avoids pulling the header wallet UI
+ * bundle on passive routes (radar, screener, static pages) for cold, disconnected sessions.
+ *
+ * `walletHostNeeded` covers AppKit bootstrap + deferred storage-hint restore before `isConnected`
+ * flips true (AppKitBridge sync), so we do not regress reconnect UX in the header.
+ */
+function shouldLoadHeaderWalletChunk(params: {
+  currentPage: Page;
+  isConnected: boolean;
+  isReadOnly: boolean;
+  walletHostNeeded: boolean;
+}): boolean {
+  if (params.walletHostNeeded || params.isConnected || params.isReadOnly) return true;
+  return (
+    params.currentPage === 'swap' ||
+    params.currentPage === 'send' ||
+    params.currentPage === 'portfolio'
+  );
+}
+
 export default function App() {
   return (
     <Routes>
@@ -376,9 +398,24 @@ function DexMain() {
           {/* Network Selector and Wallet Connection */}
           <div className="flex items-center gap-3">
             <NetworkSelector />
-            <Suspense fallback={lazyWalletConnectFallback}>
-              <LazyWalletConnect />
-            </Suspense>
+            {shouldLoadHeaderWalletChunk({
+              currentPage,
+              isConnected,
+              isReadOnly,
+              walletHostNeeded,
+            }) ? (
+              <Suspense fallback={lazyWalletConnectFallback}>
+                <LazyWalletConnect />
+              </Suspense>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setCurrentPage('swap')}
+                className="h-10 px-4 rounded-lg border border-white/[0.08] bg-electro-panel/50 text-sm font-medium text-dark-300 hover:text-white hover:bg-electro-panel transition-colors"
+              >
+                Wallet
+              </button>
+            )}
           </div>
         </div>
       </header>
