@@ -70,6 +70,7 @@ def test_admin_app_exposes_health_monitoring_and_readonly_admin():
     assert "/api/v1/admin/revenue" in paths, paths
     assert "/api/v1/admin/wallet-reconnect" in paths, paths
     assert "/api/v1/admin/failures" in paths, paths
+    assert "/api/v1/admin/revenue-normalized" in paths, paths
 
 
 def test_admin_app_does_not_expose_custodial_routes():
@@ -525,6 +526,73 @@ async def test_admin_failures_endpoint(admin_client, monkeypatch):
     assert len(body["recent_commission_missing"]) == 1
     assert body["recent_commission_missing"][0]["tx_hash"] == "0xcomm1"
     assert "payload_excerpt" in body["recent_failures"][0]
+
+    get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_admin_revenue_normalized_endpoint(admin_client, monkeypatch):
+    monkeypatch.setenv("ADMIN_API_TOKEN", "rev-norm-test")
+    from swaperex.config import get_settings
+
+    get_settings.cache_clear()
+    client, _ = admin_client
+
+    assert (await client.get("/api/v1/admin/revenue-normalized")).status_code == 401
+
+    await client.post(
+        "/api/v1/monitoring/events",
+        json={
+            "schemaVersion": 1,
+            "clientSessionId": "rev-norm-1",
+            "exportedAt": 3_000_000,
+            "events": [
+                {
+                    "event": "swap_success",
+                    "ts": 3_000_000_001,
+                    "chainId": 1,
+                    "txHash": "0xfee1",
+                    "provider": "uniswap-v3-wrapper-v2",
+                    "routeMode": "best",
+                    "feeToTreasuryWei": "1000000",
+                    "feeToken": {
+                        "symbol": "USDC",
+                        "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+                        "isNative": False,
+                    },
+                    "protocolFeeBps": 20,
+                },
+                {
+                    "event": "swap_success",
+                    "ts": 3_000_000_002,
+                    "chainId": 1,
+                    "txHash": "0xfee2",
+                    "feeToTreasuryWei": "not-a-number",
+                    "feeToken": {
+                        "symbol": "USDC",
+                        "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+                        "isNative": False,
+                    },
+                },
+            ],
+        },
+    )
+
+    hdr = {"X-Admin-Token": "rev-norm-test"}
+    res = await client.get("/api/v1/admin/revenue-normalized", headers=hdr)
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["normalization_schema_version"]
+    assert body["coverage"]["total_fee_events"] == 2
+    assert body["coverage"]["normalized_count"] == 1
+    assert body["coverage"]["invalid_raw_value_count"] == 1
+    recent = body["recent_normalized_fee_events"]
+    assert len(recent) == 2
+    ok = [r for r in recent if r["normalization_status"] == "normalized"][0]
+    assert ok["decimals"] == 6
+    assert ok["decimals_source"] == "frontend_token_list"
+    assert ok["normalized_amount"] == "1"
+    assert ok["raw_fee_wei"] == "1000000"
 
     get_settings.cache_clear()
 

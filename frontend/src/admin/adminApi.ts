@@ -220,6 +220,82 @@ export async function fetchAdminRevenue(token: string): Promise<AdminRevenueResp
   return (await res.json()) as AdminRevenueResponse;
 }
 
+export type AdminRevenueNormalizedCoverage = {
+  total_fee_events: number;
+  normalized_count: number;
+  missing_decimals_count: number;
+  invalid_raw_value_count: number;
+  unsupported_token_count: number;
+  unknown_count: number;
+  coverage_pct: number;
+};
+
+export type AdminRevenueNormalizedTokenBucket = {
+  chain_id: number;
+  token_symbol: string;
+  token_address: string | null;
+  is_native: boolean;
+  raw_fee_wei_total: string;
+  normalized_amount_total: string | null;
+  normalized_event_count: number;
+  bucket_event_count: number;
+  normalization_status: string;
+  status_mix: Record<string, number>;
+};
+
+export type AdminRevenueNormalizedChainBucket = {
+  chain_id: number;
+  raw_fee_wei_total: string;
+  normalized_amount_total: string | null;
+};
+
+export type AdminRevenueNormalizedRouteBucket = {
+  chain_id: number;
+  route_label: string;
+  provider: string | null;
+  route_mode: string | null;
+  wrapper_route: string | null;
+  commission_route: string | null;
+  raw_fee_wei_total: string;
+  normalized_amount_total: string | null;
+};
+
+export type AdminRevenueNormalizedFeeEvent = {
+  timestamp: string;
+  chain_id: number;
+  token_symbol: string;
+  token_address: string | null;
+  fee_token_is_native: boolean;
+  raw_fee_wei: string | null;
+  normalized_amount: string | null;
+  decimals: number | null;
+  decimals_source: string | null;
+  normalization_status: string;
+  protocol_fee_bps: number | null;
+  provider: string | null;
+  route_mode: string | null;
+  wrapper_route: string | null;
+  commission_route: string | null;
+  route_label: string;
+  tx_hash: string | null;
+};
+
+export type AdminRevenueNormalizedResponse = {
+  normalization_schema_version: string;
+  coverage: AdminRevenueNormalizedCoverage;
+  totals_by_token: AdminRevenueNormalizedTokenBucket[];
+  totals_by_chain: AdminRevenueNormalizedChainBucket[];
+  totals_by_route: AdminRevenueNormalizedRouteBucket[];
+  recent_normalized_fee_events: AdminRevenueNormalizedFeeEvent[];
+  _meta: { notes: string[]; decimals_registry_chains: number[] };
+};
+
+export async function fetchAdminRevenueNormalized(token: string): Promise<AdminRevenueNormalizedResponse> {
+  const res = await adminFetch('admin/revenue-normalized', token);
+  if (!res.ok) throw new Error(`admin revenue-normalized ${res.status}`);
+  return (await res.json()) as AdminRevenueNormalizedResponse;
+}
+
 export type AdminWalletReconnectTotals = {
   scans: number;
   appkit_success: number;

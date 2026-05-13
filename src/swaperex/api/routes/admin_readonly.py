@@ -12,8 +12,12 @@ admin process as monitoring ingest.
 from __future__ import annotations
 
 import copy
+import json
 import secrets
+from collections import Counter
 from datetime import datetime, timezone
+from decimal import Decimal
+from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
@@ -632,6 +636,346 @@ async def admin_revenue(session: AsyncSession = Depends(get_session)) -> dict[st
         "revenue_by_chain": revenue_by_chain,
         "revenue_by_route": revenue_by_route,
         "latest_fee_events": latest_fee_events,
+    }
+
+
+# --- P3.1 fee telemetry normalization (read-only; no USD; explicit decimals sources) ---
+
+NORMALIZATION_SCHEMA_VERSION = "p3.1.0"
+
+_CHAIN_TOKEN_LIST_FILES: dict[int, str] = {
+    1: "ethereum.json",
+    56: "bsc.json",
+    137: "polygon.json",
+    42161: "arbitrum.json",
+    10: "optimism.json",
+    43114: "avalanche.json",
+    100: "gnosis.json",
+    250: "fantom.json",
+    8453: "base.json",
+}
+
+_NATIVE_SENTINEL = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+
+# Explicit EVM gas-token decimals only for chains we ship token lists for.
+_NATIVE_EVM_DECIMALS: dict[int, tuple[int, str]] = {
+    cid: (18, "chain_native_canonical")
+    for cid in _CHAIN_TOKEN_LIST_FILES.keys()
+}
+
+_token_address_decimals_cache: dict[tuple[int, str], tuple[int, str]] | None = None
+
+
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[4]
+
+
+def _load_token_address_decimals_registry() -> dict[tuple[int, str], tuple[int, str]]:
+    """Map (chain_id, token_address lower) -> (decimals, source_label)."""
+    global _token_address_decimals_cache
+    if _token_address_decimals_cache is not None:
+        return _token_address_decimals_cache
+    out: dict[tuple[int, str], tuple[int, str]] = {}
+    root = _repo_root()
+    for chain_id, fname in _CHAIN_TOKEN_LIST_FILES.items():
+        fp = root / "frontend" / "src" / "tokens" / fname
+        if not fp.is_file():
+            continue
+        try:
+            data = json.loads(fp.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        tokens = data.get("tokens")
+        if not isinstance(tokens, list):
+            continue
+        for t in tokens:
+            if not isinstance(t, dict):
+                continue
+            addr = t.get("address")
+            dec = t.get("decimals")
+            if not isinstance(addr, str) or not addr.startswith("0x"):
+                continue
+            if not isinstance(dec, int) or dec < 0 or dec > 36:
+                continue
+            out[(chain_id, addr.lower())] = (dec, "frontend_token_list")
+    _token_address_decimals_cache = out
+    return out
+
+
+def _resolve_fee_token_decimals(
+    chain_id: int,
+    fee_token: Any,
+) -> tuple[int | None, str | None]:
+    """Return (decimals, source) for fee token wire object; no silent defaults."""
+    if not isinstance(fee_token, dict):
+        return None, None
+    addr_raw = fee_token.get("address")
+    addr = addr_raw.strip().lower() if isinstance(addr_raw, str) and addr_raw.startswith("0x") else None
+    native = bool(fee_token.get("isNative"))
+    if native or (addr and addr == _NATIVE_SENTINEL):
+        hit = _NATIVE_EVM_DECIMALS.get(chain_id)
+        if hit:
+            return hit[0], hit[1]
+        return None, None
+    if addr:
+        reg = _load_token_address_decimals_registry().get((chain_id, addr))
+        if reg:
+            return reg[0], reg[1]
+    return None, None
+
+
+def _format_normalized_amount(wei: int, decimals: int) -> str:
+    if decimals < 0 or decimals > 36:
+        raise ValueError("decimals out of range")
+    q = Decimal(wei) / (Decimal(10) ** decimals)
+    s = format(q, "f")
+    if "." in s:
+        s = s.rstrip("0").rstrip(".")
+    return s or "0"
+
+
+def _classify_fee_telemetry_row(
+    *,
+    chain_id: int,
+    fee_token_obj: Any,
+    fee_raw_field: Any,
+) -> tuple[str, int | None, str | None, str | None, str | None]:
+    """Return (status, decimals|None, decimals_source, normalized_amount|None, raw_wei_str|None)."""
+    if not isinstance(fee_token_obj, dict):
+        parsed = _parse_fee_wei_decimal(fee_raw_field)
+        raw_s = str(parsed) if parsed is not None else None
+        return "unsupported_token", None, None, None, raw_s
+
+    parsed = _parse_fee_wei_decimal(fee_raw_field)
+    if parsed is None:
+        return "invalid_raw_value", None, None, None, None
+
+    raw_s = str(parsed)
+    dec, dsrc = _resolve_fee_token_decimals(chain_id, fee_token_obj)
+    if dec is None:
+        return "missing_decimals", None, None, None, raw_s
+    try:
+        norm = _format_normalized_amount(parsed, dec)
+    except Exception:
+        return "unknown", None, None, None, raw_s
+    return "normalized", dec, dsrc, norm, raw_s
+
+
+@router.get(
+    "/revenue-normalized",
+    summary="P3.1 fee telemetry with explicit decimals / normalization status (read-only)",
+    dependencies=[Depends(require_admin_api_token)],
+)
+async def admin_revenue_normalized(session: AsyncSession = Depends(get_session)) -> dict[str, Any]:
+    stmt = select(MonitoringIngestBatch).order_by(MonitoringIngestBatch.id.desc())
+    batches = (await session.execute(stmt)).scalars().all()
+
+    coverage_counter: Counter[str] = Counter()
+    total_fee_events = 0
+    recent_work: list[tuple[int, dict[str, Any]]] = []
+
+    bucket_raw: dict[tuple[int, str, str | None, bool], int] = {}
+    bucket_norm_sum: dict[tuple[int, str, str | None, bool], Decimal] = {}
+    bucket_norm_events: dict[tuple[int, str, str | None, bool], int] = {}
+    bucket_status_counts: dict[tuple[int, str, str | None, bool], Counter[str]] = {}
+
+    chain_raw: dict[int, int] = {}
+    chain_norm_sum: dict[int, Decimal] = {}
+
+    route_raw: dict[tuple[int, str], int] = {}
+    route_norm_sum: dict[tuple[int, str], Decimal] = {}
+    route_meta: dict[tuple[int, str], dict[str, str | None]] = {}
+
+    def bucket_key(
+        chain: int,
+        sym: str,
+        addr: str | None,
+        native: bool,
+    ) -> tuple[int, str, str | None, bool]:
+        return (chain, sym, addr.lower() if isinstance(addr, str) else None, native)
+
+    for batch in batches:
+        batch_iso = _iso_received_at(batch.received_at)
+        env = batch.envelope if isinstance(batch.envelope, dict) else {}
+        events = env.get("events")
+        if not isinstance(events, list):
+            continue
+        for ev in events:
+            try:
+                if not isinstance(ev, dict):
+                    continue
+                if ev.get("event") != "swap_success":
+                    continue
+                chain = _safe_opt_int(ev.get("chainId"))
+                if chain is None:
+                    continue
+                if "feeToTreasuryWei" not in ev:
+                    continue
+                total_fee_events += 1
+                fee_tok = ev.get("feeToken")
+                sym, addr, native = _fee_token_meta(ev)
+                status, dec, dsrc, norm_amt, raw_s = _classify_fee_telemetry_row(
+                    chain_id=chain,
+                    fee_token_obj=fee_tok,
+                    fee_raw_field=ev.get("feeToTreasuryWei"),
+                )
+                coverage_counter[status] += 1
+
+                parsed = _parse_fee_wei_decimal(ev.get("feeToTreasuryWei"))
+                bk = bucket_key(chain, sym, addr, native)
+                if bk not in bucket_status_counts:
+                    bucket_status_counts[bk] = Counter()
+                bucket_status_counts[bk][status] += 1
+
+                if parsed is not None:
+                    bucket_raw[bk] = bucket_raw.get(bk, 0) + parsed
+                    if status == "normalized" and norm_amt is not None and dec is not None:
+                        try:
+                            dnorm = Decimal(norm_amt)
+                            bucket_norm_sum[bk] = bucket_norm_sum.get(bk, Decimal(0)) + dnorm
+                            bucket_norm_events[bk] = bucket_norm_events.get(bk, 0) + 1
+                        except Exception:
+                            pass
+                    chain_raw[chain] = chain_raw.get(chain, 0) + parsed
+                    if status == "normalized" and norm_amt is not None:
+                        try:
+                            chain_norm_sum[chain] = chain_norm_sum.get(chain, Decimal(0)) + Decimal(norm_amt)
+                        except Exception:
+                            pass
+
+                    route_label = _build_route_label(ev)
+                    rk = (chain, route_label)
+                    route_raw[rk] = route_raw.get(rk, 0) + parsed
+                    if status == "normalized" and norm_amt is not None:
+                        try:
+                            route_norm_sum[rk] = route_norm_sum.get(rk, Decimal(0)) + Decimal(norm_amt)
+                        except Exception:
+                            pass
+                    if rk not in route_meta:
+                        route_meta[rk] = {
+                            "provider": _safe_str(ev.get("provider")),
+                            "route_mode": _route_mode_str(ev),
+                            "wrapper_route": _safe_str(ev.get("wrapperRoute")),
+                            "commission_route": _safe_str(ev.get("commissionRoute")),
+                        }
+                else:
+                    route_label = _build_route_label(ev)
+
+                ts_raw = ev.get("ts")
+                ts_ms = int(ts_raw) if isinstance(ts_raw, (int, float)) else 0
+                row_out: dict[str, Any] = {
+                    "timestamp": _iso_from_ts_ms(ev.get("ts"), batch_iso),
+                    "chain_id": chain,
+                    "token_symbol": sym,
+                    "token_address": addr.lower() if isinstance(addr, str) else None,
+                    "fee_token_is_native": native,
+                    "raw_fee_wei": raw_s if raw_s is not None else None,
+                    "normalized_amount": norm_amt,
+                    "decimals": dec,
+                    "decimals_source": dsrc,
+                    "normalization_status": status,
+                    "protocol_fee_bps": _safe_opt_int(ev.get("protocolFeeBps")),
+                    "provider": _safe_str(ev.get("provider")),
+                    "route_mode": _route_mode_str(ev),
+                    "wrapper_route": _safe_str(ev.get("wrapperRoute")),
+                    "commission_route": _safe_str(ev.get("commissionRoute")),
+                    "route_label": route_label,
+                    "tx_hash": _safe_str(ev.get("txHash")),
+                }
+                recent_work.append((ts_ms, row_out))
+            except Exception:
+                continue
+
+    normalized_n = int(coverage_counter.get("normalized", 0))
+    cov_pct = round(100.0 * float(normalized_n) / float(total_fee_events), 4) if total_fee_events else 0.0
+
+    totals_by_token: list[dict[str, Any]] = []
+    all_buckets = set(bucket_raw.keys()) | set(bucket_status_counts.keys())
+    for bk in sorted(all_buckets, key=lambda k: (-bucket_raw.get(k, 0), k)):
+        chain, symbol, address, is_native = bk
+        raw_sum = int(bucket_raw.get(bk, 0))
+        ns = bucket_norm_sum.get(bk, Decimal(0))
+        norm_total_s = str(ns) if bucket_norm_events.get(bk, 0) > 0 else None
+        stc = bucket_status_counts.get(bk, Counter())
+        dominant = stc.most_common(1)[0][0] if stc else "unknown"
+        if len(stc) > 1:
+            bucket_status_label = "unknown"
+        else:
+            bucket_status_label = dominant
+        totals_by_token.append(
+            {
+                "chain_id": chain,
+                "token_symbol": symbol,
+                "token_address": address,
+                "is_native": is_native,
+                "raw_fee_wei_total": str(raw_sum),
+                "normalized_amount_total": norm_total_s,
+                "normalized_event_count": int(bucket_norm_events.get(bk, 0)),
+                "bucket_event_count": int(sum(stc.values())),
+                "normalization_status": bucket_status_label,
+                "status_mix": dict(stc),
+            }
+        )
+
+    totals_by_chain: list[dict[str, Any]] = []
+    for cid in sorted(chain_raw.keys(), key=lambda c: -chain_raw[c]):
+        nr = chain_norm_sum.get(cid, Decimal(0))
+        totals_by_chain.append(
+            {
+                "chain_id": cid,
+                "raw_fee_wei_total": str(chain_raw[cid]),
+                "normalized_amount_total": str(nr) if cid in chain_norm_sum else None,
+            }
+        )
+
+    totals_by_route: list[dict[str, Any]] = []
+    for rk, raw_sum in sorted(route_raw.items(), key=lambda kv: (-kv[1], kv[0])):
+        cid, rlab = rk
+        nr = route_norm_sum.get(rk, Decimal(0))
+        meta = route_meta.get(rk, {})
+        totals_by_route.append(
+            {
+                "chain_id": cid,
+                "route_label": rlab,
+                "provider": meta.get("provider"),
+                "route_mode": meta.get("route_mode"),
+                "wrapper_route": meta.get("wrapper_route"),
+                "commission_route": meta.get("commission_route"),
+                "raw_fee_wei_total": str(raw_sum),
+                "normalized_amount_total": str(nr) if rk in route_norm_sum else None,
+            }
+        )
+
+    recent_work.sort(key=lambda x: (-x[0], x[1].get("tx_hash") or ""))
+    recent_normalized_fee_events = [r for _, r in recent_work[:40]]
+
+    notes = [
+        "USD conversion is intentionally not included.",
+        "Decimals for ERC-20/BEP-20 style fee tokens come from checked-in "
+        "`frontend/src/tokens/*.json` lists (address match on chain).",
+        "Native gas tokens use `chain_native_canonical` where the chain is in the supported list.",
+        "Buckets with multiple normalization statuses collapse aggregate `normalization_status` to `unknown`.",
+    ]
+
+    return {
+        "normalization_schema_version": NORMALIZATION_SCHEMA_VERSION,
+        "coverage": {
+            "total_fee_events": total_fee_events,
+            "normalized_count": int(coverage_counter.get("normalized", 0)),
+            "missing_decimals_count": int(coverage_counter.get("missing_decimals", 0)),
+            "invalid_raw_value_count": int(coverage_counter.get("invalid_raw_value", 0)),
+            "unsupported_token_count": int(coverage_counter.get("unsupported_token", 0)),
+            "unknown_count": int(coverage_counter.get("unknown", 0)),
+            "coverage_pct": cov_pct,
+        },
+        "totals_by_token": totals_by_token,
+        "totals_by_chain": totals_by_chain,
+        "totals_by_route": totals_by_route,
+        "recent_normalized_fee_events": recent_normalized_fee_events,
+        "_meta": {
+            "notes": notes,
+            "decimals_registry_chains": sorted(_CHAIN_TOKEN_LIST_FILES.keys()),
+        },
     }
 
 

@@ -12,6 +12,7 @@ import {
   fetchAdminHealth,
   fetchAdminOverview,
   fetchAdminRevenue,
+  fetchAdminRevenueNormalized,
   fetchAdminSwaps,
   fetchAdminWalletReconnect,
   getStoredAdminToken,
@@ -21,6 +22,8 @@ import {
   type AdminFailureRow,
   type AdminFailuresResponse,
   type AdminOverviewResponse,
+  type AdminRevenueNormalizedFeeEvent,
+  type AdminRevenueNormalizedResponse,
   type AdminRevenueResponse,
   type AdminRevenueRouteBucket,
   type AdminSwapAnalyticsRow,
@@ -540,21 +543,47 @@ function AdminEventsPage() {
   );
 }
 
+function NormStatusBadge({ status }: { status: string }) {
+  const cls =
+    status === 'normalized'
+      ? 'bg-emerald-900/55 text-emerald-200 border-emerald-800/50'
+      : status === 'missing_decimals'
+        ? 'bg-amber-900/55 text-amber-100 border-amber-800/40'
+        : status === 'invalid_raw_value'
+          ? 'bg-red-900/55 text-red-200 border-red-800/50'
+          : status === 'unsupported_token'
+            ? 'bg-violet-900/50 text-violet-200 border-violet-800/40'
+            : 'bg-slate-800 text-slate-200 border-slate-600/50';
+  return (
+    <span className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide border ${cls}`}>
+      {status}
+    </span>
+  );
+}
+
 function AdminRevenuePage() {
   const { token } = useAdminToken();
   const [data, setData] = useState<AdminRevenueResponse | null>(null);
+  const [norm, setNorm] = useState<AdminRevenueNormalizedResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [normError, setNormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
+    setNormError(null);
     setLoading(true);
     try {
-      const r = await fetchAdminRevenue(token);
-      setData(r);
+      setData(await fetchAdminRevenue(token));
     } catch {
       setError('Failed to load revenue aggregates.');
       setData(null);
+    }
+    try {
+      setNorm(await fetchAdminRevenueNormalized(token));
+    } catch {
+      setNormError('Failed to load normalized fee telemetry.');
+      setNorm(null);
     } finally {
       setLoading(false);
     }
@@ -570,7 +599,9 @@ function AdminRevenuePage() {
       : '0.0';
 
   const note =
-    'Values are raw token units from receipt telemetry. USD conversion and token decimals normalization will be added later.';
+    'Raw tables below are receipt wei totals. P3.1 adds explicit decimals + human amounts only when metadata is trustworthy — no USD yet.';
+
+  const cov = norm?.coverage;
 
   return (
     <div>
@@ -578,7 +609,12 @@ function AdminRevenuePage() {
       <p className="text-xs text-amber-200/90 bg-amber-950/40 border border-amber-900/50 rounded-lg px-3 py-2 mb-4">
         {note}
       </p>
+      <p className="text-xs text-dark-400 border border-dark-700 rounded-lg px-3 py-2 mb-4">
+        <span className="font-semibold text-dark-300">USD conversion is not included yet.</span> Normalized
+        amounts are human token units derived only from explicit decimals (token list or canonical native).
+      </p>
       {error && <p className="text-red-400 text-sm mb-3">{error}</p>}
+      {normError && <p className="text-amber-400 text-sm mb-2">{normError}</p>}
       <div className="flex gap-2 mb-4">
         <button
           type="button"
@@ -612,6 +648,196 @@ function AdminRevenuePage() {
               <div className="text-[10px] text-dark-500 mt-1">receipt fee / net wei fields present</div>
             </div>
           </div>
+
+          {norm && (
+            <div className="mb-10 rounded-xl border border-cyan-900/40 bg-cyan-950/15 p-4">
+              <h3 className="text-sm font-semibold text-cyan-200/90 mb-1">
+                Normalized fee telemetry (P3.1 · schema {norm.normalization_schema_version})
+              </h3>
+              <p className="text-[11px] text-dark-400 mb-4">
+                Registry chains: {norm._meta.decimals_registry_chains.join(', ')}
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-4">
+                <div className="rounded-lg border border-dark-700 bg-dark-900/50 p-3">
+                  <div className="text-[10px] text-dark-500 uppercase">Fee events (with field)</div>
+                  <div className="text-xl font-mono">{cov?.total_fee_events ?? 0}</div>
+                </div>
+                <div className="rounded-lg border border-dark-700 bg-dark-900/50 p-3">
+                  <div className="text-[10px] text-dark-500 uppercase">Normalized</div>
+                  <div className="text-xl font-mono text-emerald-300">{cov?.normalized_count ?? 0}</div>
+                </div>
+                <div className="rounded-lg border border-dark-700 bg-dark-900/50 p-3">
+                  <div className="text-[10px] text-dark-500 uppercase">Coverage %</div>
+                  <div className="text-xl font-mono">{cov?.coverage_pct ?? 0}%</div>
+                </div>
+                <div className="rounded-lg border border-dark-700 bg-dark-900/50 p-3">
+                  <div className="text-[10px] text-dark-500 uppercase">Issues</div>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {(cov?.missing_decimals_count ?? 0) > 0 && (
+                      <span className="rounded px-1.5 py-0.5 text-[10px] bg-amber-900/50 text-amber-100 border border-amber-800/40">
+                        missing_decimals {cov?.missing_decimals_count}
+                      </span>
+                    )}
+                    {(cov?.invalid_raw_value_count ?? 0) > 0 && (
+                      <span className="rounded px-1.5 py-0.5 text-[10px] bg-red-900/50 text-red-100 border border-red-800/40">
+                        invalid_raw {cov?.invalid_raw_value_count}
+                      </span>
+                    )}
+                    {(cov?.unsupported_token_count ?? 0) > 0 && (
+                      <span className="rounded px-1.5 py-0.5 text-[10px] bg-violet-900/40 text-violet-100 border border-violet-800/30">
+                        unsupported {cov?.unsupported_token_count}
+                      </span>
+                    )}
+                    {(cov?.unknown_count ?? 0) > 0 && (
+                      <span className="rounded px-1.5 py-0.5 text-[10px] bg-slate-800 text-slate-200 border border-slate-600/40">
+                        unknown {cov?.unknown_count}
+                      </span>
+                    )}
+                    {(cov?.missing_decimals_count ?? 0) === 0 &&
+                      (cov?.invalid_raw_value_count ?? 0) === 0 &&
+                      (cov?.unsupported_token_count ?? 0) === 0 &&
+                      (cov?.unknown_count ?? 0) === 0 && (
+                        <span className="text-[10px] text-dark-500">none</span>
+                      )}
+                  </div>
+                </div>
+              </div>
+
+              <h4 className="text-xs font-medium text-dark-300 mb-2">Totals by token (raw wei + normalized sum)</h4>
+              <div className="overflow-x-auto rounded-lg border border-dark-700 mb-4">
+                <table className="w-full text-sm min-w-[720px]">
+                  <thead className="bg-dark-900/80 text-dark-400 text-[10px] uppercase">
+                    <tr>
+                      <th className="px-2 py-2 text-left">Token</th>
+                      <th className="px-2 py-2 text-left">Chain</th>
+                      <th className="px-2 py-2 text-left">Raw wei Σ</th>
+                      <th className="px-2 py-2 text-left">Norm Σ</th>
+                      <th className="px-2 py-2 text-left">Bucket status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-dark-800">
+                    {norm.totals_by_token.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-2 py-4 text-center text-dark-500">
+                          No fee-token buckets yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      norm.totals_by_token.map((row) => (
+                        <tr key={`${row.chain_id}-${row.token_symbol}-${row.token_address ?? 'na'}`}>
+                          <td className="px-2 py-2 font-mono text-xs">
+                            {row.token_symbol}
+                            {row.is_native && <span className="text-dark-500 ml-1">(native)</span>}
+                          </td>
+                          <td className="px-2 py-2 font-mono text-xs">{row.chain_id}</td>
+                          <td className="px-2 py-2 font-mono text-[11px] break-all">{row.raw_fee_wei_total}</td>
+                          <td className="px-2 py-2 font-mono text-[11px]">
+                            {row.normalized_amount_total ?? '—'}
+                          </td>
+                          <td className="px-2 py-2">
+                            <NormStatusBadge status={row.normalization_status} />
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2 mb-4">
+                <div>
+                  <h4 className="text-xs font-medium text-dark-300 mb-2">By chain</h4>
+                  <div className="overflow-x-auto rounded-lg border border-dark-700 max-h-48 overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <tbody className="divide-y divide-dark-800">
+                        {norm.totals_by_chain.length === 0 ? (
+                          <tr>
+                            <td className="px-2 py-3 text-dark-500 text-center">Empty</td>
+                          </tr>
+                        ) : (
+                          norm.totals_by_chain.map((r) => (
+                            <tr key={r.chain_id}>
+                              <td className="px-2 py-1.5 font-mono text-xs">{r.chain_id}</td>
+                              <td className="px-2 py-1.5 font-mono text-[11px] break-all">{r.raw_fee_wei_total}</td>
+                              <td className="px-2 py-1.5 font-mono text-[11px]">{r.normalized_amount_total ?? '—'}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div>
+                  <h4 className="text-xs font-medium text-dark-300 mb-2">By route</h4>
+                  <div className="overflow-x-auto rounded-lg border border-dark-700 max-h-48 overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <tbody className="divide-y divide-dark-800">
+                        {norm.totals_by_route.length === 0 ? (
+                          <tr>
+                            <td className="px-2 py-3 text-dark-500 text-center">Empty</td>
+                          </tr>
+                        ) : (
+                          norm.totals_by_route.map((r) => (
+                            <tr key={`${r.chain_id}-${r.route_label}`}>
+                              <td className="px-2 py-1.5 text-[11px] text-dark-300 max-w-[12rem] break-words">
+                                {r.route_label}
+                              </td>
+                              <td className="px-2 py-1.5 font-mono text-[10px] break-all">{r.raw_fee_wei_total}</td>
+                              <td className="px-2 py-1.5 font-mono text-[10px]">{r.normalized_amount_total ?? '—'}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <h4 className="text-xs font-medium text-dark-300 mb-2">Recent fee events (all statuses)</h4>
+              <div className="overflow-x-auto rounded-lg border border-dark-700">
+                <table className="w-full text-sm min-w-[800px]">
+                  <thead className="bg-dark-900/80 text-dark-400 text-[10px] uppercase">
+                    <tr>
+                      <th className="px-2 py-2 text-left">Time</th>
+                      <th className="px-2 py-2 text-left">Status</th>
+                      <th className="px-2 py-2 text-left">Token</th>
+                      <th className="px-2 py-2 text-left">Raw wei</th>
+                      <th className="px-2 py-2 text-left">Norm</th>
+                      <th className="px-2 py-2 text-left">Dec</th>
+                      <th className="px-2 py-2 text-left">Tx</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-dark-800">
+                    {norm.recent_normalized_fee_events.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="px-2 py-4 text-center text-dark-500">
+                          No recent fee telemetry rows.
+                        </td>
+                      </tr>
+                    ) : (
+                      norm.recent_normalized_fee_events.map((ev: AdminRevenueNormalizedFeeEvent, idx: number) => (
+                        <tr key={`${ev.tx_hash ?? 'tx'}-${ev.timestamp}-${idx}`}>
+                          <td className="px-2 py-2 font-mono text-[10px] whitespace-nowrap">{ev.timestamp}</td>
+                          <td className="px-2 py-2">
+                            <NormStatusBadge status={ev.normalization_status} />
+                          </td>
+                          <td className="px-2 py-2 font-mono text-xs">{ev.token_symbol}</td>
+                          <td className="px-2 py-2 font-mono text-[10px] break-all">{ev.raw_fee_wei ?? '—'}</td>
+                          <td className="px-2 py-2 font-mono text-[10px]">{ev.normalized_amount ?? '—'}</td>
+                          <td className="px-2 py-2 font-mono text-[10px]">
+                            {ev.decimals != null ? `${ev.decimals} (${ev.decimals_source ?? '?'})` : '—'}
+                          </td>
+                          <td className="px-2 py-2 font-mono text-[10px] break-all max-w-[8rem]">
+                            {ev.tx_hash ?? '—'}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           <h3 className="text-sm font-medium text-dark-300 mb-2">By route &amp; token</h3>
           <div className="overflow-x-auto rounded-lg border border-dark-700 mb-8">
