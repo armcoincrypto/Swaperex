@@ -930,6 +930,12 @@ export function SwapInterface() {
 
   // Cancel preview or close success modal
   const handleCancelPreview = () => {
+    // Swap tx already broadcast — only hide the modal; confirmation pipeline keeps running.
+    if (txHash && status === 'confirming') {
+      setShowPreview(false);
+      return;
+    }
+
     if (showPreview && swapLifecycleFlowId && status !== 'success') {
       emitSwapLifecycleStage({
         swapFlowId: swapLifecycleFlowId,

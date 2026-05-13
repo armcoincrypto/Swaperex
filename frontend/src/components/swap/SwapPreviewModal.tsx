@@ -167,7 +167,7 @@ export function SwapPreviewModal({
     return (
       <Modal
         isOpen={isOpen}
-        onClose={step === 'error' ? onCancel : () => {}}
+        onClose={onCancel}
         title={title}
         size="md"
       >
@@ -200,6 +200,10 @@ export function SwapPreviewModal({
   const isVeryHighImpact = Number.isFinite(priceImpact) && priceImpact > 10;
   const gasUnitsDisplay = formatGasLimitUnits(quote.gasEstimate);
   const isLoading = step === 'approving' || step === 'swapping' || step === 'broadcasting';
+  /** Swap tx submitted — closing the modal must not imply the chain tx was cancelled. */
+  const swapTxBroadcast = !!txHash;
+  const footerSecondaryLabel =
+    swapTxBroadcast && step === 'broadcasting' ? 'Dismiss' : 'Cancel';
   const needsApproval = quote.needsApproval;
   const allowanceUncertain = !!quote.allowanceCheckUncertain;
 
@@ -230,9 +234,8 @@ export function SwapPreviewModal({
           variant="secondary"
           onClick={onCancel}
           fullWidth
-          disabled={isLoading}
         >
-          Cancel
+          {footerSecondaryLabel}
         </Button>
         <Button
           onClick={() => {
@@ -263,17 +266,17 @@ export function SwapPreviewModal({
     step === 'broadcasting'
       ? {
           boxClass: 'text-blue-300 bg-blue-900/20 border border-blue-800/40',
-          text: 'Submitted to the network. Waiting for confirmation.',
+          text: 'Submitted to the network. Waiting for confirmation. Closing this dialog does not cancel the transaction — use the explorer link below to monitor status.',
         }
       : step === 'approving'
         ? {
             boxClass: 'text-yellow-400 bg-yellow-900/20',
-            text: 'Check your wallet to approve token spending.',
+            text: 'Check your wallet to approve token spending. If a request is already open, complete or reject it there. You can close this dialog to return to the form — that does not cancel a pending wallet request.',
           }
         : step === 'swapping'
           ? {
               boxClass: 'text-yellow-400 bg-yellow-900/20',
-              text: 'Check your wallet to confirm the swap.',
+              text: 'Check your wallet to confirm the swap. If you see a “request already pending” (-32002) message, open your wallet and finish or reject the existing request. You can close this dialog to return to the form — that does not cancel a pending wallet request.',
             }
           : {
               boxClass: 'text-yellow-400 bg-yellow-900/20',
@@ -283,7 +286,7 @@ export function SwapPreviewModal({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={step === 'preview' || step === 'error' ? onCancel : () => {}}
+      onClose={onCancel}
       title={
         step === 'success'
           ? 'Swap Completed'
