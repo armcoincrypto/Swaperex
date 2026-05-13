@@ -979,6 +979,319 @@ async def admin_revenue_normalized(session: AsyncSession = Depends(get_session))
     }
 
 
+# --- P3.2 revenue telemetry reconciliation (read-only; not treasury receipt proof) ---
+
+RECONCILIATION_SCHEMA_VERSION = "p3.2.0"
+
+_ALLOWED_RECONCILIATION_STATUS = frozenset(
+    {
+        "reconciled",
+        "telemetry_zero_fee",
+        "telemetry_missing_fee",
+        "missing_expected_bps",
+        "missing_decimals",
+        "route_wrapper_mismatch",
+        "unsupported_route",
+        "unknown",
+    }
+)
+
+# Basis points aligned with `scripts/audit/verify-wrappers.sh` live checks and frontend
+# `DEFAULT_*_FEE_BPS` (immutable wrapper parameters at deploy time; drift is a separate audit concern).
+_WRAPPER_EXPECTED_FEE_BPS: dict[tuple[int, str], tuple[int, str]] = {
+    (1, "uniswap-v3-wrapper"): (20, "repo_default_uniswap_wrapper_v1_eth"),
+    (1, "uniswap-v3-wrapper-v2"): (20, "repo_default_uniswap_wrapper_v2_eth"),
+    (56, "pancakeswap-v3-wrapper"): (50, "repo_default_pancake_wrapper_v1_bsc"),
+    (56, "pancakeswap-v3-wrapper-v2"): (50, "repo_default_pancake_wrapper_v2_bsc"),
+}
+
+# Same treasury string asserted in verify-wrappers (display-only expectation; not a receipt proof).
+_TREASURY_EXPECTED_FROM_AUDIT_SCRIPT = "0x509Cfd32ce279E08010C143F90Cc1782a3520196"
+
+
+def _provider_key(ev: dict[str, Any]) -> str | None:
+    p = _safe_str(ev.get("provider"))
+    return p.strip() if p else None
+
+
+def _is_wrapper_swap_event(ev: dict[str, Any]) -> bool:
+    prov = (_provider_key(ev) or "").lower()
+    if "wrapper" in prov:
+        return True
+    cr = _lower_str(ev.get("commissionRoute"))
+    return cr == "wrapper"
+
+
+def _expected_fee_bps_from_static_table(chain_id: int, ev: dict[str, Any]) -> tuple[int | None, str | None]:
+    pk = _provider_key(ev)
+    if not pk:
+        return None, None
+    hit = _WRAPPER_EXPECTED_FEE_BPS.get((chain_id, pk))
+    if hit:
+        return hit[0], hit[1]
+    return None, None
+
+
+def _chain_wrapper_consistent(chain_id: int, ev: dict[str, Any]) -> bool:
+    prov = (_provider_key(ev) or "").lower()
+    if "uniswap" in prov and "wrapper" in prov:
+        return chain_id == 1
+    if "pancake" in prov and "wrapper" in prov:
+        return chain_id == 56
+    return True
+
+
+def _route_wrapper_consistent(ev: dict[str, Any]) -> bool:
+    prov = (_provider_key(ev) or "").lower()
+    is_wp = "wrapper" in prov
+    cr = _lower_str(ev.get("commissionRoute"))
+    if cr == "wrapper" and not is_wp:
+        return False
+    if is_wp and cr and cr != "wrapper":
+        return False
+    return True
+
+
+def _pair_label(ev: dict[str, Any]) -> str:
+    fs = _token_symbol(ev.get("fromToken")) or "?"
+    ts = _token_symbol(ev.get("toToken")) or "?"
+    return f"{fs}/{ts}"
+
+
+@router.get(
+    "/revenue-reconciliation",
+    summary="P3.2 reconcile wrapper fee expectations vs swap_success telemetry (read-only)",
+    dependencies=[Depends(require_admin_api_token)],
+)
+async def admin_revenue_reconciliation(session: AsyncSession = Depends(get_session)) -> dict[str, Any]:
+    stmt = select(MonitoringIngestBatch).order_by(MonitoringIngestBatch.id.desc())
+    batches = (await session.execute(stmt)).scalars().all()
+
+    total_swap_success = 0
+    wrapper_swap_events = 0
+    events_with_observed_fee = 0
+    events_with_zero_fee = 0
+    events_missing_fee_fields = 0
+    events_with_expected_fee_bps = 0
+    events_reconciled_ok = 0
+    events_warning = 0
+    events_critical = 0
+
+    recent_work: list[tuple[int, dict[str, Any]]] = []
+
+    expected_fee_config: list[dict[str, Any]] = []
+    seen_cfg: set[tuple[int, str]] = set()
+    for (cid, prov), (bps, src) in sorted(_WRAPPER_EXPECTED_FEE_BPS.items()):
+        key = (cid, prov)
+        if key in seen_cfg:
+            continue
+        seen_cfg.add(key)
+        expected_fee_config.append(
+            {
+                "chain_id": cid,
+                "provider": prov,
+                "expected_fee_bps": bps,
+                "source": src,
+                "treasury_address_expected": _TREASURY_EXPECTED_FROM_AUDIT_SCRIPT,
+            }
+        )
+
+    for batch in batches:
+        batch_iso = _iso_received_at(batch.received_at)
+        env = batch.envelope if isinstance(batch.envelope, dict) else {}
+        events = env.get("events")
+        if not isinstance(events, list):
+            continue
+        for ev in events:
+            try:
+                if not isinstance(ev, dict):
+                    continue
+                if ev.get("event") != "swap_success":
+                    continue
+                chain = _safe_opt_int(ev.get("chainId"))
+                if chain is None:
+                    continue
+                total_swap_success += 1
+
+                is_wrapper = _is_wrapper_swap_event(ev)
+                if is_wrapper:
+                    wrapper_swap_events += 1
+
+                fee_key_present = "feeToTreasuryWei" in ev
+                parsed_fee = _parse_fee_wei_decimal(ev.get("feeToTreasuryWei")) if fee_key_present else None
+
+                if fee_key_present and parsed_fee is not None:
+                    events_with_observed_fee += 1
+                    if parsed_fee == 0:
+                        events_with_zero_fee += 1
+                elif is_wrapper and not fee_key_present:
+                    events_missing_fee_fields += 1
+
+                expected_bps, expected_src = _expected_fee_bps_from_static_table(chain, ev)
+                if is_wrapper and expected_bps is not None:
+                    events_with_expected_fee_bps += 1
+
+                fee_tok = ev.get("feeToken")
+                norm_status, dec, dsrc, norm_amt, raw_s = _classify_fee_telemetry_row(
+                    chain_id=chain,
+                    fee_token_obj=fee_tok,
+                    fee_raw_field=ev.get("feeToTreasuryWei") if fee_key_present else None,
+                )
+
+                chain_ok = _chain_wrapper_consistent(chain, ev)
+                route_ok = _route_wrapper_consistent(ev)
+
+                checks: dict[str, bool] = {
+                    "wrapper_expected_bps_present": expected_bps is not None,
+                    "observed_fee_field_present": fee_key_present,
+                    "observed_fee_nonzero_when_expected": bool(
+                        expected_bps is not None and parsed_fee is not None and parsed_fee > 0
+                    ),
+                    "token_decimals_known": dec is not None,
+                    "normalized_amount_available": norm_status == "normalized" and norm_amt is not None,
+                    "route_wrapper_consistent": route_ok,
+                    "chain_wrapper_consistent": chain_ok,
+                }
+
+                reasons: list[str] = []
+                rec_status: str
+                severity: str
+
+                if not is_wrapper:
+                    rec_status = "unsupported_route"
+                    severity = "OK"
+                    reasons.append("non_wrapper_provider_no_static_fee_expectation_in_this_endpoint")
+                elif not chain_ok:
+                    rec_status = "route_wrapper_mismatch"
+                    severity = "HIGH"
+                    reasons.append(
+                        "chain_id_inconsistent_with_wrapper_family_uniswap_expects_1_pancake_expects_56"
+                    )
+                elif not route_ok:
+                    rec_status = "route_wrapper_mismatch"
+                    severity = "MEDIUM"
+                    reasons.append("commissionRoute_or_provider_wrapper_metadata_inconsistent")
+                elif expected_bps is None:
+                    rec_status = "missing_expected_bps"
+                    severity = "LOW"
+                    reasons.append("no_static_expected_fee_bps_row_for_chain_plus_provider")
+                elif not fee_key_present:
+                    rec_status = "telemetry_missing_fee"
+                    severity = "MEDIUM"
+                    reasons.append(
+                        "feeToTreasuryWei_absent_in_swap_success_payload_often_because_receipt_decode "
+                        "did_not_attach_decoded_fields_see_frontend_useSwap_swapSuccessMonitoring"
+                    )
+                elif parsed_fee is None:
+                    rec_status = "unknown"
+                    severity = "MEDIUM"
+                    reasons.append("feeToTreasuryWei_present_but_unparseable_non_decimal_digits")
+                elif parsed_fee == 0 and expected_bps and expected_bps > 0:
+                    rec_status = "telemetry_zero_fee"
+                    severity = "MEDIUM"
+                    reasons.append(
+                        "on_chain_fee_may_still_apply_via_wrapper_internal_accounting_but_log_decoder "
+                        "reported_zero_treasury_transfer_in_output_token"
+                    )
+                elif norm_status == "missing_decimals":
+                    rec_status = "missing_decimals"
+                    severity = "LOW"
+                    reasons.append("fee_token_decimals_not_in_registry")
+                elif norm_status not in ("normalized", "missing_decimals"):
+                    rec_status = "unknown"
+                    severity = "LOW"
+                    reasons.append(f"normalization_status_{norm_status}")
+                else:
+                    rec_status = "reconciled"
+                    severity = "OK"
+                    reasons.append("telemetry_fee_field_present_positive_and_decimals_known")
+
+                if rec_status not in _ALLOWED_RECONCILIATION_STATUS:
+                    rec_status = "unknown"
+                    severity = "LOW"
+                    reasons.append("reconciliation_classifier_fell_through")
+
+                if severity == "OK":
+                    events_reconciled_ok += 1
+                elif severity == "HIGH":
+                    events_critical += 1
+                elif severity == "MEDIUM":
+                    events_warning += 1
+                elif severity == "LOW":
+                    events_warning += 1
+
+                ts_raw = ev.get("ts")
+                ts_ms = int(ts_raw) if isinstance(ts_raw, (int, float)) else 0
+                row = {
+                    "time": _iso_from_ts_ms(ev.get("ts"), batch_iso),
+                    "tx_hash": _safe_str(ev.get("txHash")),
+                    "chain_id": chain,
+                    "provider": _provider_key(ev),
+                    "route_mode": _route_mode_str(ev),
+                    "wrapper_type": _safe_str(ev.get("wrapperRoute")),
+                    "pair": _pair_label(ev),
+                    "input_amount": _safe_str(ev.get("fromAmount")),
+                    "output_amount": _safe_str(ev.get("quotedOutput")),
+                    "expected_fee_bps": expected_bps,
+                    "expected_fee_bps_source": expected_src,
+                    "telemetry_protocol_fee_bps": _safe_opt_int(ev.get("protocolFeeBps")),
+                    "observed_fee_raw": raw_s if fee_key_present else None,
+                    "observed_fee_normalized": norm_amt,
+                    "fee_token": fee_tok if isinstance(fee_tok, dict) else None,
+                    "normalization_status": norm_status,
+                    "reconciliation_status": rec_status,
+                    "severity": severity,
+                    "reasons": reasons,
+                    "checks": checks,
+                }
+                recent_work.append((ts_ms, row))
+            except Exception:
+                continue
+
+    recent_work.sort(key=lambda x: (-x[0], x[1].get("tx_hash") or ""))
+    recent_reconciliation_events = [r for _, r in recent_work[:50]]
+
+    summary = {
+        "total_swap_success_events": total_swap_success,
+        "wrapper_swap_events": wrapper_swap_events,
+        "events_with_observed_fee": events_with_observed_fee,
+        "events_with_zero_fee": events_with_zero_fee,
+        "events_missing_fee_fields": events_missing_fee_fields,
+        "events_with_expected_fee_bps": events_with_expected_fee_bps,
+        "events_reconciled_ok": events_reconciled_ok,
+        "events_warning": events_warning,
+        "events_critical": events_critical,
+    }
+
+    checks_legend = {
+        "wrapper_expected_bps_present": "Static (chain, provider) row exists in repo-aligned fee bps table.",
+        "observed_fee_field_present": "swap_success payload includes feeToTreasuryWei key.",
+        "observed_fee_nonzero_when_expected": "Parsed fee wei > 0 while static expected bps exists.",
+        "token_decimals_known": "Fee token decimals resolved (token list or canonical native).",
+        "normalized_amount_available": "P3.1-style normalization produced a human amount.",
+        "route_wrapper_consistent": "commissionRoute vs provider string are not contradictory.",
+        "chain_wrapper_consistent": "Uniswap wrappers on chain 1; Pancake wrappers on chain 56.",
+    }
+
+    return {
+        "schema_version": RECONCILIATION_SCHEMA_VERSION,
+        "summary": summary,
+        "expected_fee_config": expected_fee_config,
+        "checks": checks_legend,
+        "recent_reconciliation_events": recent_reconciliation_events,
+        "_meta": {
+            "notes": [
+                "Telemetry reconciliation only: a positive fee field does not prove treasury receipt.",
+                "Zero feeToTreasuryWei with successful receipt decode is consistent with log-decoder not "
+                "seeing an output-token Transfer to treasury even when wrapper fee applies on-chain.",
+                "When receipt decode fails, the frontend may omit feeToTreasuryWei from swap_success "
+                "while still attaching feeToken/protocolFeeBps — compare with commission_missing events.",
+                f"Treasury address from wrapper audit script (informational): {_TREASURY_EXPECTED_FROM_AUDIT_SCRIPT}.",
+            ],
+        },
+    }
+
+
 # --- P2.6 failure observability (read-only aggregates from monitoring ingest) ---
 
 FAILURE_TAXONOMY_VERSION = "p2.6.0"

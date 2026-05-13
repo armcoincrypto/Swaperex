@@ -71,6 +71,7 @@ def test_admin_app_exposes_health_monitoring_and_readonly_admin():
     assert "/api/v1/admin/wallet-reconnect" in paths, paths
     assert "/api/v1/admin/failures" in paths, paths
     assert "/api/v1/admin/revenue-normalized" in paths, paths
+    assert "/api/v1/admin/revenue-reconciliation" in paths, paths
 
 
 def test_admin_app_does_not_expose_custodial_routes():
@@ -593,6 +594,117 @@ async def test_admin_revenue_normalized_endpoint(admin_client, monkeypatch):
     assert ok["decimals_source"] == "frontend_token_list"
     assert ok["normalized_amount"] == "1"
     assert ok["raw_fee_wei"] == "1000000"
+
+    get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_admin_revenue_reconciliation_endpoint(admin_client, monkeypatch):
+    monkeypatch.setenv("ADMIN_API_TOKEN", "rev-recon-test")
+    from swaperex.config import get_settings
+
+    get_settings.cache_clear()
+    client, _ = admin_client
+
+    assert (await client.get("/api/v1/admin/revenue-reconciliation")).status_code == 401
+
+    await client.post(
+        "/api/v1/monitoring/events",
+        json={
+            "schemaVersion": 1,
+            "clientSessionId": "rev-recon-1",
+            "exportedAt": 4_000_000,
+            "events": [
+                {
+                    "event": "swap_success",
+                    "ts": 4_000_000_001,
+                    "chainId": 1,
+                    "txHash": "0xzero1",
+                    "provider": "uniswap-v3-wrapper-v2",
+                    "routeMode": "best",
+                    "commissionRoute": "wrapper",
+                    "wrapperRoute": "uniswap-v3-wrapper-v2",
+                    "fromToken": {"symbol": "WETH", "address": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", "isNative": False},
+                    "toToken": {"symbol": "USDC", "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", "isNative": False},
+                    "fromAmount": "0.1",
+                    "quotedOutput": "300",
+                    "feeToTreasuryWei": "0",
+                    "feeToken": {
+                        "symbol": "USDC",
+                        "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+                        "isNative": False,
+                    },
+                    "protocolFeeBps": 20,
+                },
+                {
+                    "event": "swap_success",
+                    "ts": 4_000_000_002,
+                    "chainId": 1,
+                    "txHash": "0xmiss1",
+                    "provider": "uniswap-v3-wrapper-v2",
+                    "routeMode": "best",
+                    "commissionRoute": "wrapper",
+                    "wrapperRoute": "uniswap-v3-wrapper-v2",
+                    "fromToken": {"symbol": "WETH", "address": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", "isNative": False},
+                    "toToken": {"symbol": "USDC", "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", "isNative": False},
+                    "fromAmount": "0.1",
+                    "quotedOutput": "300",
+                    "feeToken": {
+                        "symbol": "USDC",
+                        "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+                        "isNative": False,
+                    },
+                    "protocolFeeBps": 20,
+                },
+                {
+                    "event": "swap_success",
+                    "ts": 4_000_000_003,
+                    "chainId": 1,
+                    "txHash": "0x1inch1",
+                    "provider": "1inch",
+                    "routeMode": "best",
+                    "feeToTreasuryWei": "0",
+                    "feeToken": {
+                        "symbol": "USDC",
+                        "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+                        "isNative": False,
+                    },
+                },
+            ],
+        },
+    )
+
+    allowed_status = {
+        "reconciled",
+        "telemetry_zero_fee",
+        "telemetry_missing_fee",
+        "missing_expected_bps",
+        "missing_decimals",
+        "route_wrapper_mismatch",
+        "unsupported_route",
+        "unknown",
+    }
+    hdr = {"X-Admin-Token": "rev-recon-test"}
+    res = await client.get("/api/v1/admin/revenue-reconciliation", headers=hdr)
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["schema_version"] == "p3.2.0"
+    summ = body["summary"]
+    assert summ["total_swap_success_events"] == 3
+    assert summ["wrapper_swap_events"] == 2
+    assert summ["events_with_zero_fee"] >= 1
+    assert summ["events_missing_fee_fields"] >= 1
+    assert isinstance(body["expected_fee_config"], list)
+    assert body["checks"]
+    recent = body["recent_reconciliation_events"]
+    assert len(recent) == 3
+    for row in recent:
+        assert row["reconciliation_status"] in allowed_status
+        assert row["severity"] in ("OK", "LOW", "MEDIUM", "HIGH")
+    by_tx = {r["tx_hash"]: r for r in recent}
+    assert by_tx["0xzero1"]["reconciliation_status"] == "telemetry_zero_fee"
+    assert by_tx["0xmiss1"]["reconciliation_status"] == "telemetry_missing_fee"
+    assert by_tx["0x1inch1"]["reconciliation_status"] == "unsupported_route"
 
     get_settings.cache_clear()
 

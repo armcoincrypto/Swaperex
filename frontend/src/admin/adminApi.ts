@@ -296,6 +296,66 @@ export async function fetchAdminRevenueNormalized(token: string): Promise<AdminR
   return (await res.json()) as AdminRevenueNormalizedResponse;
 }
 
+export type AdminRevenueReconciliationSummary = {
+  total_swap_success_events: number;
+  wrapper_swap_events: number;
+  events_with_observed_fee: number;
+  events_with_zero_fee: number;
+  events_missing_fee_fields: number;
+  events_with_expected_fee_bps: number;
+  events_reconciled_ok: number;
+  events_warning: number;
+  events_critical: number;
+};
+
+export type AdminRevenueReconciliationExpectedRow = {
+  chain_id: number;
+  provider: string;
+  expected_fee_bps: number;
+  source: string;
+  treasury_address_expected: string;
+};
+
+export type AdminRevenueReconciliationEventRow = {
+  time: string;
+  tx_hash: string | null;
+  chain_id: number;
+  provider: string | null;
+  route_mode: string | null;
+  wrapper_type: string | null;
+  pair: string;
+  input_amount: string | null;
+  output_amount: string | null;
+  expected_fee_bps: number | null;
+  expected_fee_bps_source: string | null;
+  telemetry_protocol_fee_bps: number | null;
+  observed_fee_raw: string | null;
+  observed_fee_normalized: string | null;
+  fee_token: Record<string, unknown> | null;
+  normalization_status: string;
+  reconciliation_status: string;
+  severity: string;
+  reasons: string[];
+  checks: Record<string, boolean>;
+};
+
+export type AdminRevenueReconciliationResponse = {
+  schema_version: string;
+  summary: AdminRevenueReconciliationSummary;
+  expected_fee_config: AdminRevenueReconciliationExpectedRow[];
+  checks: Record<string, string>;
+  recent_reconciliation_events: AdminRevenueReconciliationEventRow[];
+  _meta: { notes: string[] };
+};
+
+export async function fetchAdminRevenueReconciliation(
+  token: string,
+): Promise<AdminRevenueReconciliationResponse> {
+  const res = await adminFetch('admin/revenue-reconciliation', token);
+  if (!res.ok) throw new Error(`admin revenue-reconciliation ${res.status}`);
+  return (await res.json()) as AdminRevenueReconciliationResponse;
+}
+
 export type AdminWalletReconnectTotals = {
   scans: number;
   appkit_success: number;

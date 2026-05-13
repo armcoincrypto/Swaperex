@@ -13,6 +13,7 @@ import {
   fetchAdminOverview,
   fetchAdminRevenue,
   fetchAdminRevenueNormalized,
+  fetchAdminRevenueReconciliation,
   fetchAdminSwaps,
   fetchAdminWalletReconnect,
   getStoredAdminToken,
@@ -24,6 +25,8 @@ import {
   type AdminOverviewResponse,
   type AdminRevenueNormalizedFeeEvent,
   type AdminRevenueNormalizedResponse,
+  type AdminRevenueReconciliationEventRow,
+  type AdminRevenueReconciliationResponse,
   type AdminRevenueResponse,
   type AdminRevenueRouteBucket,
   type AdminSwapAnalyticsRow,
@@ -561,17 +564,60 @@ function NormStatusBadge({ status }: { status: string }) {
   );
 }
 
+function ReconSeverityBadge({ severity }: { severity: string }) {
+  const cls =
+    severity === 'OK'
+      ? 'bg-emerald-900/50 text-emerald-200 border-emerald-800/40'
+      : severity === 'LOW'
+        ? 'bg-slate-800 text-slate-200 border-slate-600/50'
+        : severity === 'MEDIUM'
+          ? 'bg-amber-900/50 text-amber-100 border-amber-800/40'
+          : 'bg-red-900/50 text-red-200 border-red-800/40';
+  return (
+    <span className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide border ${cls}`}>
+      {severity}
+    </span>
+  );
+}
+
+function ReconStatusBadge({ status }: { status: string }) {
+  const cls =
+    status === 'reconciled'
+      ? 'bg-emerald-900/45 text-emerald-100 border-emerald-800/40'
+      : status === 'unsupported_route'
+        ? 'bg-slate-800 text-slate-200 border-slate-600/50'
+        : status === 'telemetry_zero_fee'
+          ? 'bg-amber-900/50 text-amber-100 border-amber-800/40'
+          : status === 'telemetry_missing_fee'
+            ? 'bg-orange-950/60 text-orange-100 border-orange-900/40'
+            : status === 'missing_expected_bps'
+              ? 'bg-violet-900/45 text-violet-100 border-violet-800/35'
+              : status === 'missing_decimals'
+                ? 'bg-amber-900/40 text-amber-50 border-amber-800/30'
+                : status === 'route_wrapper_mismatch'
+                  ? 'bg-red-900/40 text-red-100 border-red-800/35'
+                  : 'bg-slate-800 text-slate-200 border-slate-600/50';
+  return (
+    <span className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide border ${cls}`}>
+      {status}
+    </span>
+  );
+}
+
 function AdminRevenuePage() {
   const { token } = useAdminToken();
   const [data, setData] = useState<AdminRevenueResponse | null>(null);
   const [norm, setNorm] = useState<AdminRevenueNormalizedResponse | null>(null);
+  const [recon, setRecon] = useState<AdminRevenueReconciliationResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [normError, setNormError] = useState<string | null>(null);
+  const [reconError, setReconError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
     setNormError(null);
+    setReconError(null);
     setLoading(true);
     try {
       setData(await fetchAdminRevenue(token));
@@ -584,6 +630,12 @@ function AdminRevenuePage() {
     } catch {
       setNormError('Failed to load normalized fee telemetry.');
       setNorm(null);
+    }
+    try {
+      setRecon(await fetchAdminRevenueReconciliation(token));
+    } catch {
+      setReconError('Failed to load revenue reconciliation.');
+      setRecon(null);
     } finally {
       setLoading(false);
     }
@@ -602,6 +654,7 @@ function AdminRevenuePage() {
     'Raw tables below are receipt wei totals. P3.1 adds explicit decimals + human amounts only when metadata is trustworthy — no USD yet.';
 
   const cov = norm?.coverage;
+  const sm = recon?.summary;
 
   return (
     <div>
@@ -615,6 +668,7 @@ function AdminRevenuePage() {
       </p>
       {error && <p className="text-red-400 text-sm mb-3">{error}</p>}
       {normError && <p className="text-amber-400 text-sm mb-2">{normError}</p>}
+      {reconError && <p className="text-amber-400 text-sm mb-2">{reconError}</p>}
       <div className="flex gap-2 mb-4">
         <button
           type="button"
@@ -828,6 +882,290 @@ function AdminRevenuePage() {
                             {ev.decimals != null ? `${ev.decimals} (${ev.decimals_source ?? '?'})` : '—'}
                           </td>
                           <td className="px-2 py-2 font-mono text-[10px] break-all max-w-[8rem]">
+                            {ev.tx_hash ?? '—'}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {recon && (
+            <div className="mb-10 rounded-xl border border-rose-900/35 bg-rose-950/10 p-4">
+              <h3 className="text-sm font-semibold text-rose-100/90 mb-1">
+                Revenue reconciliation (P3.2 · schema {recon.schema_version})
+              </h3>
+              <p className="text-xs text-amber-100/85 bg-amber-950/35 border border-amber-900/45 rounded-lg px-3 py-2 mb-4">
+                This is telemetry reconciliation only. It does not prove treasury receipt.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-4">
+                <div className="rounded-lg border border-dark-700 bg-dark-900/50 p-3">
+                  <div className="text-[10px] text-dark-500 uppercase">swap_success events</div>
+                  <div className="text-xl font-mono">{sm?.total_swap_success_events ?? 0}</div>
+                </div>
+                <div className="rounded-lg border border-dark-700 bg-dark-900/50 p-3">
+                  <div className="text-[10px] text-dark-500 uppercase">Wrapper swaps</div>
+                  <div className="text-xl font-mono text-cyan-200/90">{sm?.wrapper_swap_events ?? 0}</div>
+                </div>
+                <div className="rounded-lg border border-dark-700 bg-dark-900/50 p-3">
+                  <div className="text-[10px] text-dark-500 uppercase">Observed fee (parsed)</div>
+                  <div className="text-xl font-mono">{sm?.events_with_observed_fee ?? 0}</div>
+                  <div className="text-[10px] text-dark-500 mt-1">
+                    zero raw {sm?.events_with_zero_fee ?? 0} · missing field {sm?.events_missing_fee_fields ?? 0}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-dark-700 bg-dark-900/50 p-3">
+                  <div className="text-[10px] text-dark-500 uppercase">Severity mix</div>
+                  <div className="text-sm font-mono mt-1 text-emerald-200/90">OK {sm?.events_reconciled_ok ?? 0}</div>
+                  <div className="text-sm font-mono text-amber-100/90">Warn {sm?.events_warning ?? 0}</div>
+                  <div className="text-sm font-mono text-red-200/90">Crit {sm?.events_critical ?? 0}</div>
+                </div>
+              </div>
+
+              <h4 className="text-xs font-medium text-dark-300 mb-2">Expected fee bps (static table)</h4>
+              <div className="overflow-x-auto rounded-lg border border-dark-700 mb-4">
+                <table className="w-full text-sm min-w-[640px]">
+                  <thead className="bg-dark-900/80 text-dark-400 text-[10px] uppercase">
+                    <tr>
+                      <th className="px-2 py-2 text-left">Chain</th>
+                      <th className="px-2 py-2 text-left">Provider</th>
+                      <th className="px-2 py-2 text-left">Bps</th>
+                      <th className="px-2 py-2 text-left">Source</th>
+                      <th className="px-2 py-2 text-left">Treasury (audit)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-dark-800">
+                    {recon.expected_fee_config.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-2 py-3 text-dark-500 text-center">
+                          No static rows.
+                        </td>
+                      </tr>
+                    ) : (
+                      recon.expected_fee_config.map((row) => (
+                        <tr key={`${row.chain_id}-${row.provider}`}>
+                          <td className="px-2 py-2 font-mono text-xs">{row.chain_id}</td>
+                          <td className="px-2 py-2 font-mono text-[11px]">{row.provider}</td>
+                          <td className="px-2 py-2 font-mono text-xs">{row.expected_fee_bps}</td>
+                          <td className="px-2 py-2 text-[11px] text-dark-400 break-all">{row.source}</td>
+                          <td className="px-2 py-2 font-mono text-[10px] break-all">
+                            {row.treasury_address_expected}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <h4 className="text-xs font-medium text-dark-300 mb-2">Check definitions</h4>
+              <ul className="text-[11px] text-dark-400 space-y-1 mb-6 list-disc pl-4">
+                {Object.entries(recon.checks).map(([k, v]) => (
+                  <li key={k}>
+                    <span className="font-mono text-dark-300">{k}</span> — {v}
+                  </li>
+                ))}
+              </ul>
+
+              <h4 className="text-xs font-medium text-dark-300 mb-2">Recent reconciliation events</h4>
+              <div className="overflow-x-auto rounded-lg border border-dark-700">
+                <table className="w-full text-sm min-w-[960px]">
+                  <thead className="bg-dark-900/80 text-dark-400 text-[10px] uppercase">
+                    <tr>
+                      <th className="px-2 py-2 text-left">Time</th>
+                      <th className="px-2 py-2 text-left">Severity</th>
+                      <th className="px-2 py-2 text-left">Recon</th>
+                      <th className="px-2 py-2 text-left">Norm</th>
+                      <th className="px-2 py-2 text-left">Pair</th>
+                      <th className="px-2 py-2 text-left">Provider</th>
+                      <th className="px-2 py-2 text-left">Exp bps</th>
+                      <th className="px-2 py-2 text-left">Observed wei</th>
+                      <th className="px-2 py-2 text-left">Norm amt</th>
+                      <th className="px-2 py-2 text-left">Reasons</th>
+                      <th className="px-2 py-2 text-left">Tx</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-dark-800">
+                    {recon.recent_reconciliation_events.length === 0 ? (
+                      <tr>
+                        <td colSpan={11} className="px-2 py-4 text-center text-dark-500">
+                          No swap_success rows ingested yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      recon.recent_reconciliation_events.map((ev: AdminRevenueReconciliationEventRow, idx: number) => (
+                        <tr key={`${ev.tx_hash ?? 'tx'}-${ev.time}-${idx}`}>
+                          <td className="px-2 py-2 font-mono text-[10px] whitespace-nowrap">{ev.time}</td>
+                          <td className="px-2 py-2">
+                            <ReconSeverityBadge severity={ev.severity} />
+                          </td>
+                          <td className="px-2 py-2">
+                            <ReconStatusBadge status={ev.reconciliation_status} />
+                          </td>
+                          <td className="px-2 py-2">
+                            <NormStatusBadge status={ev.normalization_status} />
+                          </td>
+                          <td className="px-2 py-2 font-mono text-xs">{ev.pair}</td>
+                          <td className="px-2 py-2 font-mono text-[10px] break-all max-w-[7rem]">
+                            {ev.provider ?? '—'}
+                          </td>
+                          <td className="px-2 py-2 font-mono text-[10px]">
+                            {ev.expected_fee_bps != null ? String(ev.expected_fee_bps) : '—'}
+                          </td>
+                          <td className="px-2 py-2 font-mono text-[10px] break-all max-w-[6rem]">
+                            {ev.observed_fee_raw ?? '—'}
+                          </td>
+                          <td className="px-2 py-2 font-mono text-[10px]">{ev.observed_fee_normalized ?? '—'}</td>
+                          <td className="px-2 py-2 text-[10px] text-dark-400 max-w-[14rem]">
+                            {ev.reasons.slice(0, 2).join(' · ')}
+                            {ev.reasons.length > 2 ? '…' : ''}
+                          </td>
+                          <td className="px-2 py-2 font-mono text-[10px] break-all max-w-[6rem]">
+                            {ev.tx_hash ?? '—'}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {recon && (
+            <div className="mb-10 rounded-xl border border-rose-900/35 bg-rose-950/10 p-4">
+              <h3 className="text-sm font-semibold text-rose-100/90 mb-1">
+                Revenue reconciliation (P3.2 · schema {recon.schema_version})
+              </h3>
+              <p className="text-xs text-amber-100/85 bg-amber-950/35 border border-amber-900/45 rounded-lg px-3 py-2 mb-4">
+                This is telemetry reconciliation only. It does not prove treasury receipt.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-4">
+                <div className="rounded-lg border border-dark-700 bg-dark-900/50 p-3">
+                  <div className="text-[10px] text-dark-500 uppercase">swap_success events</div>
+                  <div className="text-xl font-mono">{sm?.total_swap_success_events ?? 0}</div>
+                </div>
+                <div className="rounded-lg border border-dark-700 bg-dark-900/50 p-3">
+                  <div className="text-[10px] text-dark-500 uppercase">Wrapper swaps</div>
+                  <div className="text-xl font-mono text-cyan-200/90">{sm?.wrapper_swap_events ?? 0}</div>
+                </div>
+                <div className="rounded-lg border border-dark-700 bg-dark-900/50 p-3">
+                  <div className="text-[10px] text-dark-500 uppercase">Observed fee (parsed)</div>
+                  <div className="text-xl font-mono">{sm?.events_with_observed_fee ?? 0}</div>
+                  <div className="text-[10px] text-dark-500 mt-1">
+                    zero raw {sm?.events_with_zero_fee ?? 0} · missing field {sm?.events_missing_fee_fields ?? 0}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-dark-700 bg-dark-900/50 p-3">
+                  <div className="text-[10px] text-dark-500 uppercase">Severity mix</div>
+                  <div className="text-sm font-mono mt-1 text-emerald-200/90">OK {sm?.events_reconciled_ok ?? 0}</div>
+                  <div className="text-sm font-mono text-amber-100/90">Warn {sm?.events_warning ?? 0}</div>
+                  <div className="text-sm font-mono text-red-200/90">Crit {sm?.events_critical ?? 0}</div>
+                </div>
+              </div>
+
+              <h4 className="text-xs font-medium text-dark-300 mb-2">Expected fee bps (static table)</h4>
+              <div className="overflow-x-auto rounded-lg border border-dark-700 mb-4">
+                <table className="w-full text-sm min-w-[640px]">
+                  <thead className="bg-dark-900/80 text-dark-400 text-[10px] uppercase">
+                    <tr>
+                      <th className="px-2 py-2 text-left">Chain</th>
+                      <th className="px-2 py-2 text-left">Provider</th>
+                      <th className="px-2 py-2 text-left">Bps</th>
+                      <th className="px-2 py-2 text-left">Source</th>
+                      <th className="px-2 py-2 text-left">Treasury (audit)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-dark-800">
+                    {recon.expected_fee_config.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-2 py-3 text-dark-500 text-center">
+                          No static rows.
+                        </td>
+                      </tr>
+                    ) : (
+                      recon.expected_fee_config.map((row) => (
+                        <tr key={`${row.chain_id}-${row.provider}`}>
+                          <td className="px-2 py-2 font-mono text-xs">{row.chain_id}</td>
+                          <td className="px-2 py-2 font-mono text-[11px]">{row.provider}</td>
+                          <td className="px-2 py-2 font-mono text-xs">{row.expected_fee_bps}</td>
+                          <td className="px-2 py-2 text-[11px] text-dark-400 break-all">{row.source}</td>
+                          <td className="px-2 py-2 font-mono text-[10px] break-all">
+                            {row.treasury_address_expected}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <h4 className="text-xs font-medium text-dark-300 mb-2">Check definitions</h4>
+              <ul className="text-[11px] text-dark-400 space-y-1 mb-6 list-disc pl-4">
+                {Object.entries(recon.checks).map(([k, v]) => (
+                  <li key={k}>
+                    <span className="font-mono text-dark-300">{k}</span> — {v}
+                  </li>
+                ))}
+              </ul>
+
+              <h4 className="text-xs font-medium text-dark-300 mb-2">Recent reconciliation events</h4>
+              <div className="overflow-x-auto rounded-lg border border-dark-700">
+                <table className="w-full text-sm min-w-[960px]">
+                  <thead className="bg-dark-900/80 text-dark-400 text-[10px] uppercase">
+                    <tr>
+                      <th className="px-2 py-2 text-left">Time</th>
+                      <th className="px-2 py-2 text-left">Severity</th>
+                      <th className="px-2 py-2 text-left">Recon</th>
+                      <th className="px-2 py-2 text-left">Norm</th>
+                      <th className="px-2 py-2 text-left">Pair</th>
+                      <th className="px-2 py-2 text-left">Provider</th>
+                      <th className="px-2 py-2 text-left">Exp bps</th>
+                      <th className="px-2 py-2 text-left">Observed wei</th>
+                      <th className="px-2 py-2 text-left">Norm amt</th>
+                      <th className="px-2 py-2 text-left">Reasons</th>
+                      <th className="px-2 py-2 text-left">Tx</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-dark-800">
+                    {recon.recent_reconciliation_events.length === 0 ? (
+                      <tr>
+                        <td colSpan={11} className="px-2 py-4 text-center text-dark-500">
+                          No swap_success rows ingested yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      recon.recent_reconciliation_events.map((ev: AdminRevenueReconciliationEventRow, idx: number) => (
+                        <tr key={`${ev.tx_hash ?? 'tx'}-${ev.time}-${idx}`}>
+                          <td className="px-2 py-2 font-mono text-[10px] whitespace-nowrap">{ev.time}</td>
+                          <td className="px-2 py-2">
+                            <ReconSeverityBadge severity={ev.severity} />
+                          </td>
+                          <td className="px-2 py-2">
+                            <ReconStatusBadge status={ev.reconciliation_status} />
+                          </td>
+                          <td className="px-2 py-2">
+                            <NormStatusBadge status={ev.normalization_status} />
+                          </td>
+                          <td className="px-2 py-2 font-mono text-xs">{ev.pair}</td>
+                          <td className="px-2 py-2 font-mono text-[10px] break-all max-w-[7rem]">
+                            {ev.provider ?? '—'}
+                          </td>
+                          <td className="px-2 py-2 font-mono text-[10px]">
+                            {ev.expected_fee_bps != null ? String(ev.expected_fee_bps) : '—'}
+                          </td>
+                          <td className="px-2 py-2 font-mono text-[10px] break-all max-w-[6rem]">
+                            {ev.observed_fee_raw ?? '—'}
+                          </td>
+                          <td className="px-2 py-2 font-mono text-[10px]">{ev.observed_fee_normalized ?? '—'}</td>
+                          <td className="px-2 py-2 text-[10px] text-dark-400 max-w-[14rem]">
+                            {ev.reasons.slice(0, 2).join(' · ')}
+                            {ev.reasons.length > 2 ? '…' : ''}
+                          </td>
+                          <td className="px-2 py-2 font-mono text-[10px] break-all max-w-[6rem]">
                             {ev.tx_hash ?? '—'}
                           </td>
                         </tr>
