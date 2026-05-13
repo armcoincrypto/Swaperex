@@ -2397,8 +2397,18 @@ export function useSwap() {
         throw new Error('Transaction was not successful. The blockchain rejected the swap. Check your transaction on the explorer for details.');
       }
     } catch (err) {
-      // PHASE 7: NO silent failures - log everything
-      logError('Swap Execution', err);
+      // Expected wallet outcomes: info/warn — not console.error (avoids false "critical" in DevTools).
+      if (isUserRejection(err)) {
+        console.info('[Swap Execution] Transaction rejected in wallet (expected); nothing broadcast.', {
+          code: (err as { code?: unknown }).code,
+        });
+      } else if (isWalletSignRequestPending(err)) {
+        console.warn('[Swap Execution] Wallet sign request already pending.', {
+          code: (err as { code?: unknown }).code,
+        });
+      } else {
+        logError('Swap Execution', err);
+      }
 
       // Distinguish 1inch /swap build, wallet/RPC, and broadcast without mislabeling
       const parsed = parseSwapExecutionError(err);
@@ -2412,7 +2422,7 @@ export function useSwap() {
         });
         logLifecycle(state.status, 'previewing', { reason: 'user_rejected' });
         setState((s) => ({ ...s, status: 'previewing' }));
-        toast.warning('Swap cancelled. No funds were moved.');
+        toast.warning('Transaction rejected in wallet. No transaction was broadcast.');
         swapTrace('[Swap] User rejected transaction');
       } else if (isWalletSignRequestPending(err)) {
         logProductionEvent('wallet_request_pending', {
