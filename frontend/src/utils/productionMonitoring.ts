@@ -107,6 +107,9 @@ export const PERSISTED_MONITORING_EVENTS = [
   'quote_failure',
   'rpc_failure',
   'commission_missing',
+  /** P2.6 — wallet cancel / pending sign (no raw error text; reasonCode only). */
+  'wallet_rejected',
+  'wallet_request_pending',
   'wallet_autoreconnect_scan',
   'legacy_wc_reconnect_attempt',
   'legacy_wc_reconnect_success',

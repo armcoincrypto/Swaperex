@@ -264,3 +264,54 @@ export async function fetchAdminWalletReconnect(token: string): Promise<AdminWal
   if (!res.ok) throw new Error(`admin wallet-reconnect ${res.status}`);
   return (await res.json()) as AdminWalletReconnectResponse;
 }
+
+export type AdminFailureRates = {
+  wallet_rejection_rate: number | null;
+  provider_timeout_rate: number | null;
+  rpc_failure_rate: number | null;
+  stale_quote_rate: number | null;
+};
+
+export type AdminFailureRow = {
+  timestamp: string;
+  failure_type: string;
+  severity: string;
+  event_name: string;
+  reason_code: string;
+  chain_id: number | null;
+  provider: string | null;
+  route_mode: string | null;
+  batch_id: number;
+  client_session_id: string;
+  tx_hash: string | null;
+  payload_excerpt: Record<string, unknown>;
+};
+
+export type AdminFailureTypeBucket = { failure_type: string; count: number };
+export type AdminFailureChainBucket = { chain_id: number; count: number };
+export type AdminFailureProviderBucket = { provider: string; count: number };
+
+export type AdminFailureTimelineRow = {
+  hour_bucket: string;
+  total: number;
+  by_type: Record<string, number>;
+};
+
+export type AdminFailuresResponse = {
+  failure_taxonomy_version: string;
+  total_failures: number;
+  failures_by_type: AdminFailureTypeBucket[];
+  failures_by_chain: AdminFailureChainBucket[];
+  failures_by_provider: AdminFailureProviderBucket[];
+  recent_failures: AdminFailureRow[];
+  recent_commission_missing: AdminFailureRow[];
+  failure_timeline: AdminFailureTimelineRow[];
+  rates: AdminFailureRates;
+  _meta: { notes: string[]; unavailable_metrics: string[] };
+};
+
+export async function fetchAdminFailures(token: string): Promise<AdminFailuresResponse> {
+  const res = await adminFetch('admin/failures', token);
+  if (!res.ok) throw new Error(`admin failures ${res.status}`);
+  return (await res.json()) as AdminFailuresResponse;
+}

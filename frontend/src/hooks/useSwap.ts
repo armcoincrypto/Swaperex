@@ -1404,6 +1404,12 @@ export function useSwap() {
     } catch (err) {
       if (thisRequestId !== quoteRequestIdRef.current) {
         swapTrace('[Swap] Error ignored - stale request ID:', thisRequestId, 'current:', quoteRequestIdRef.current);
+        logProductionEvent('quote_failure', {
+          category: 'stale_quote',
+          chainId: chainId ?? 0,
+          provider: 'quote_aggregator',
+          reasonCode: 'stale_request_id',
+        });
         return null;
       }
 
@@ -1626,13 +1632,32 @@ export function useSwap() {
       const parsed = parseTransactionError(err);
 
       if (isUserRejection(err)) {
+        logProductionEvent('wallet_rejected', {
+          phase: 'approval',
+          chainId: chainId ?? 0,
+          provider: swapQuote.provider,
+          reasonCode: 'user_rejected',
+        });
         logLifecycle('approving', 'previewing', { reason: 'user_rejected' });
         toast.warning('Approval cancelled');
         setState((s) => ({ ...s, status: 'previewing' }));
       } else if (isWalletSignRequestPending(err)) {
+        logProductionEvent('wallet_request_pending', {
+          phase: 'approval',
+          chainId: chainId ?? 0,
+          provider: swapQuote.provider,
+          reasonCode: 'wallet_sign_pending',
+        });
         logLifecycle('approving', 'previewing', { reason: 'wallet_sign_pending', code: -32002 });
         setState((s) => ({ ...s, status: 'previewing' }));
       } else {
+        logProductionEvent('swap_failure', {
+          phase: 'approval',
+          category: parsed.category,
+          chainId: chainId ?? 0,
+          provider: swapQuote.provider,
+          reasonCode: parsed.category,
+        });
         logLifecycle('approving', 'error', { error: parsed.message });
         toast.error(`Approval failed: ${parsed.message}`);
         setState((s) => ({ ...s, status: 'error', error: parsed.message }));
@@ -1658,6 +1683,13 @@ export function useSwap() {
     }
 
     if (swapQuote.allowanceCheckUncertain) {
+      logProductionEvent('swap_failure', {
+        phase: 'pre_swap',
+        category: 'allowance_failed',
+        chainId: chainId ?? 0,
+        provider: swapQuote.provider,
+        reasonCode: 'allowance_check_uncertain',
+      });
       const msg =
         'Could not verify token allowance (network). Refresh the quote and try again before swapping.';
       toast.warning(msg);
@@ -2372,11 +2404,23 @@ export function useSwap() {
       const parsed = parseSwapExecutionError(err);
 
       if (isUserRejection(err)) {
+        logProductionEvent('wallet_rejected', {
+          phase: 'swap',
+          chainId: chainId ?? 0,
+          provider: swapQuote?.provider ?? 'unknown',
+          reasonCode: 'user_rejected',
+        });
         logLifecycle(state.status, 'previewing', { reason: 'user_rejected' });
         setState((s) => ({ ...s, status: 'previewing' }));
         toast.warning('Swap cancelled. No funds were moved.');
         swapTrace('[Swap] User rejected transaction');
       } else if (isWalletSignRequestPending(err)) {
+        logProductionEvent('wallet_request_pending', {
+          phase: 'swap',
+          chainId: chainId ?? 0,
+          provider: swapQuote?.provider ?? 'unknown',
+          reasonCode: 'wallet_sign_pending',
+        });
         logLifecycle(state.status, 'previewing', { reason: 'wallet_sign_pending', code: -32002 });
         setState((s) => ({ ...s, status: 'previewing' }));
         toast.warning(WALLET_SIGN_REQUEST_PENDING_MESSAGE);

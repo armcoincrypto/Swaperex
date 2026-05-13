@@ -69,6 +69,7 @@ def test_admin_app_exposes_health_monitoring_and_readonly_admin():
     assert "/api/v1/admin/swaps" in paths, paths
     assert "/api/v1/admin/revenue" in paths, paths
     assert "/api/v1/admin/wallet-reconnect" in paths, paths
+    assert "/api/v1/admin/failures" in paths, paths
 
 
 def test_admin_app_does_not_expose_custodial_routes():
@@ -441,6 +442,89 @@ async def test_admin_swaps_analytics_from_monitoring(admin_client, monkeypatch):
 
     all_rows = await client.get("/api/v1/admin/swaps?successOnly=false", headers=hdr)
     assert all_rows.json()["total"] == 2
+
+    get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_admin_failures_endpoint(admin_client, monkeypatch):
+    """P2.6 GET /api/v1/admin/failures aggregates persisted failure-class events."""
+    monkeypatch.setenv("ADMIN_API_TOKEN", "failures-panel-test")
+    from swaperex.config import get_settings
+
+    get_settings.cache_clear()
+    client, _ = admin_client
+
+    assert (await client.get("/api/v1/admin/failures")).status_code == 401
+
+    await client.post(
+        "/api/v1/monitoring/events",
+        json={
+            "schemaVersion": 1,
+            "clientSessionId": "fail-sess-1",
+            "exportedAt": 2_000_000,
+            "events": [
+                {"event": "swap_success", "ts": 2_000_000_001, "chainId": 1},
+                {
+                    "event": "quote_failure",
+                    "ts": 2_000_000_002,
+                    "category": "stale_quote",
+                    "chainId": 56,
+                    "provider": "quote_aggregator",
+                    "reasonCode": "stale_request_id",
+                },
+                {
+                    "event": "wallet_rejected",
+                    "ts": 2_000_000_003,
+                    "phase": "swap",
+                    "chainId": 56,
+                    "provider": "1inch",
+                    "reasonCode": "user_rejected",
+                },
+                {
+                    "event": "rpc_failure",
+                    "ts": 2_000_000_004,
+                    "phase": "quote",
+                    "chainId": 1,
+                    "reason": "gateway timeout 504",
+                },
+                {
+                    "event": "commission_missing",
+                    "ts": 2_000_000_005,
+                    "chainId": 1,
+                    "provider": "uniswap-v3-wrapper-v2",
+                    "txHash": "0xcomm1",
+                    "routeMode": "best",
+                    "reason": "no_treasury_transfer_in_output_token",
+                },
+                {
+                    "event": "swap_failure",
+                    "ts": 2_000_000_006,
+                    "category": "transaction_error",
+                    "chainId": 1,
+                    "provider": "1inch",
+                    "reason": "reverted by the smart contract",
+                },
+            ],
+        },
+    )
+
+    hdr = {"X-Admin-Token": "failures-panel-test"}
+    res = await client.get("/api/v1/admin/failures", headers=hdr)
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["failure_taxonomy_version"]
+    assert body["total_failures"] == 5
+    assert body["rates"]["wallet_rejection_rate"] is None
+    by_type = {r["failure_type"]: r["count"] for r in body["failures_by_type"]}
+    assert by_type.get("stale_quote") == 1
+    assert by_type.get("wallet_rejected") == 1
+    assert by_type.get("provider_timeout") == 1
+    assert by_type.get("commission_missing") == 1
+    assert by_type.get("tx_reverted") == 1
+    assert len(body["recent_commission_missing"]) == 1
+    assert body["recent_commission_missing"][0]["tx_hash"] == "0xcomm1"
+    assert "payload_excerpt" in body["recent_failures"][0]
 
     get_settings.cache_clear()
 

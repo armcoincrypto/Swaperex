@@ -635,6 +635,359 @@ async def admin_revenue(session: AsyncSession = Depends(get_session)) -> dict[st
     }
 
 
+# --- P2.6 failure observability (read-only aggregates from monitoring ingest) ---
+
+FAILURE_TAXONOMY_VERSION = "p2.6.0"
+_FAILURE_EVENT_NAMES = frozenset(
+    {
+        "swap_failure",
+        "quote_failure",
+        "rpc_failure",
+        "commission_missing",
+        "wallet_rejected",
+        "wallet_request_pending",
+    }
+)
+_FAILURE_CAP = 2000
+_FAILURE_MIN_SAMPLES_RATE = 5
+
+
+def _lower_str(val: Any) -> str:
+    s = _safe_str(val)
+    return s.lower() if s else ""
+
+
+def _normalize_failure_event(ev: dict[str, Any]) -> tuple[str, str, str] | None:
+    """Map one monitoring event dict to (failure_type, severity, reason_code).
+
+    Deterministic: uses only ``event`` name plus ``category``, ``phase``, and
+    lowercase substrings of ``reason`` / ``reasonCode``. Returns ``None`` if
+    the row is not a recognized failure envelope.
+    """
+    try:
+        raw_name = ev.get("event")
+        if not isinstance(raw_name, str) or not raw_name.strip():
+            return None
+        name = raw_name.strip()
+        if name not in _FAILURE_EVENT_NAMES:
+            return None
+
+        cat = _lower_str(ev.get("category"))
+        phase = _lower_str(ev.get("phase"))
+        reason = _lower_str(ev.get("reason"))
+        rcode = _lower_str(ev.get("reasonCode"))
+        blob = f"{reason} {rcode}"
+
+        def has_timeout(s: str) -> bool:
+            return any(
+                x in s
+                for x in (
+                    "timeout",
+                    "timed out",
+                    "504",
+                    "503",
+                    "502",
+                    "deadline",
+                    "etimedout",
+                )
+            )
+
+        if name == "commission_missing":
+            return "commission_missing", "HIGH", "commission_missing"
+
+        if name == "wallet_rejected":
+            return "wallet_rejected", "LOW", "user_rejected"
+
+        if name == "wallet_request_pending":
+            return "wallet_request_pending", "LOW", "wallet_sign_pending"
+
+        if name == "rpc_failure":
+            if has_timeout(blob):
+                return "provider_timeout", "MEDIUM", "provider_timeout"
+            return "rpc_error", "MEDIUM", "rpc_failure"
+
+        if name == "quote_failure":
+            if cat == "stale_quote" or "stale_quote" in blob or "stale_request" in blob:
+                return "stale_quote", "LOW", "stale_quote"
+            if "expired" in blob or "expired" in cat:
+                return "quote_expired", "LOW", "quote_expired"
+            if cat in ("network_error", "rpc_error"):
+                if has_timeout(blob):
+                    return "provider_timeout", "MEDIUM", "quote_provider_timeout"
+                return "rpc_error", "MEDIUM", "quote_rpc"
+            if any(
+                x in blob
+                for x in (
+                    "no liquidity",
+                    "no pool",
+                    "insufficient liquidity",
+                    "liquidity",
+                )
+            ):
+                return "insufficient_liquidity", "LOW", "liquidity"
+            if any(
+                x in blob
+                for x in (
+                    "no route",
+                    "no quotes available",
+                    "does not support chain",
+                    "unsupported",
+                )
+            ):
+                return "unsupported_route", "LOW", "route"
+            return "quote_failed", "LOW", "quote_failed"
+
+        if name == "swap_failure":
+            if cat == "user_rejected":
+                return "wallet_rejected", "LOW", "user_rejected"
+            if cat == "wallet_sign_pending":
+                return "wallet_request_pending", "LOW", "wallet_sign_pending"
+            if cat == "allowance_failed" or (phase == "pre_swap" and "allowance" in blob):
+                return "allowance_failed", "MEDIUM", "allowance_failed"
+            if phase == "approval":
+                return "approval_failed", "MEDIUM", "approval_failed"
+            if "revert" in blob or "reverted" in blob:
+                return "tx_reverted", "HIGH", "tx_reverted"
+            if "not successful" in blob or "blockchain rejected" in blob:
+                return "tx_failed", "HIGH", "tx_failed"
+            if cat in ("network_error", "rpc_error"):
+                if has_timeout(blob):
+                    return "provider_timeout", "MEDIUM", "swap_provider_timeout"
+                return "rpc_error", "MEDIUM", "swap_rpc"
+            if cat == "quote_error":
+                return "quote_failed", "LOW", "swap_build"
+            if cat == "insufficient_balance":
+                return "unknown", "UNKNOWN", "insufficient_balance"
+            return "unknown", "UNKNOWN", "unclassified_swap_failure"
+
+        return None
+    except Exception:
+        return None
+
+
+def _failure_telemetry_excerpt(ev: dict[str, Any]) -> dict[str, Any]:
+    """Small subset for admin UI expand (no calldata / no provider objects)."""
+    keys = (
+        "event",
+        "ts",
+        "category",
+        "phase",
+        "reasonCode",
+        "provider",
+        "routeMode",
+        "chainId",
+        "txHash",
+        "reason",
+    )
+    out: dict[str, Any] = {}
+    for k in keys:
+        if k not in ev:
+            continue
+        val = ev.get(k)
+        if k == "reason" and isinstance(val, str) and len(val) > 240:
+            val = val[:240] + "…"
+        out[k] = val
+    return out
+
+
+def _failure_row_public(
+    *,
+    batch_id: int,
+    client_session_id: str,
+    batch_iso: str,
+    ev: dict[str, Any],
+    failure_type: str,
+    severity: str,
+    reason_code: str,
+) -> dict[str, Any]:
+    ts_iso = _iso_from_ts_ms(ev.get("ts"), batch_iso)
+    chain = _safe_opt_int(ev.get("chainId"))
+    prov = _safe_str(ev.get("provider"))
+    rm = _route_mode_str(ev)
+    raw_name = str(ev.get("event", "")).strip()
+    txh = _safe_str(ev.get("txHash"))
+    out: dict[str, Any] = {
+        "timestamp": ts_iso,
+        "failure_type": failure_type,
+        "severity": severity,
+        "event_name": raw_name,
+        "reason_code": reason_code,
+        "chain_id": chain,
+        "provider": prov,
+        "route_mode": rm,
+        "batch_id": batch_id,
+        "client_session_id": client_session_id,
+        "tx_hash": txh,
+        "payload_excerpt": _failure_telemetry_excerpt(ev),
+    }
+    return out
+
+
+@router.get(
+    "/failures",
+    summary="P2.6 failure / error observability from monitoring ingest (read-only)",
+    dependencies=[Depends(require_admin_api_token)],
+)
+async def admin_failures(session: AsyncSession = Depends(get_session)) -> dict[str, Any]:
+    stmt = select(MonitoringIngestBatch).order_by(MonitoringIngestBatch.id.desc())
+    batches = (await session.execute(stmt)).scalars().all()
+
+    failure_rows: list[dict[str, Any]] = []
+    swap_success_in_scope = 0
+    meta_notes: list[str] = []
+    unavailable: list[str] = []
+
+    for batch in batches:
+        if len(failure_rows) >= _FAILURE_CAP:
+            break
+        batch_iso = _iso_received_at(batch.received_at)
+        env = batch.envelope if isinstance(batch.envelope, dict) else {}
+        events = env.get("events")
+        if not isinstance(events, list):
+            continue
+        for ev in events:
+            try:
+                if not isinstance(ev, dict):
+                    continue
+                ev_name = ev.get("event")
+                if ev_name == "swap_success":
+                    swap_success_in_scope += 1
+                parsed = _normalize_failure_event(ev)
+                if parsed is None:
+                    continue
+                ftype, sev, rcode = parsed
+                failure_rows.append(
+                    _failure_row_public(
+                        batch_id=batch.id,
+                        client_session_id=batch.client_session_id,
+                        batch_iso=batch_iso,
+                        ev=ev,
+                        failure_type=ftype,
+                        severity=sev,
+                        reason_code=rcode,
+                    )
+                )
+                if len(failure_rows) >= _FAILURE_CAP:
+                    break
+            except Exception:
+                continue
+        if len(failure_rows) >= _FAILURE_CAP:
+            break
+
+    total_failures = len(failure_rows)
+
+    by_type: dict[str, int] = {}
+    by_chain: dict[int, int] = {}
+    by_provider: dict[str, int] = {}
+    for row in failure_rows:
+        ft = row.get("failure_type") or "unknown"
+        by_type[ft] = by_type.get(ft, 0) + 1
+        cid = row.get("chain_id")
+        if isinstance(cid, int):
+            by_chain[cid] = by_chain.get(cid, 0) + 1
+        pv = row.get("provider") or "unknown"
+        by_provider[pv] = by_provider.get(pv, 0) + 1
+
+    failures_by_type = [
+        {"failure_type": k, "count": v}
+        for k, v in sorted(by_type.items(), key=lambda kv: (-kv[1], kv[0]))
+    ]
+    failures_by_chain = [
+        {"chain_id": k, "count": v}
+        for k, v in sorted(by_chain.items(), key=lambda kv: (-kv[1], kv[0]))
+    ]
+    failures_by_provider = [
+        {"provider": k, "count": v}
+        for k, v in sorted(by_provider.items(), key=lambda kv: (-kv[1], kv[0]))
+    ]
+
+    recent_failures = list(reversed(failure_rows[-100:])) if failure_rows else []
+    recent_commission_missing = [
+        r
+        for r in reversed(failure_rows)
+        if r.get("failure_type") == "commission_missing"
+    ][:50]
+
+    timeline_buckets: dict[str, dict[str, int]] = {}
+    for row in failure_rows:
+        ts = row.get("timestamp")
+        if not isinstance(ts, str):
+            continue
+        try:
+            dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            bucket = dt.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0).isoformat()
+        except Exception:
+            continue
+        slot = timeline_buckets.setdefault(bucket, {})
+        ft = row.get("failure_type") or "unknown"
+        slot[ft] = slot.get(ft, 0) + 1
+
+    failure_timeline = [
+        {
+            "hour_bucket": k,
+            "total": sum(v.values()),
+            "by_type": dict(sorted(v.items(), key=lambda kv: (-kv[1], kv[0]))),
+        }
+        for k, v in sorted(timeline_buckets.items(), key=lambda kv: kv[0], reverse=True)
+    ]
+
+    def _rate(num: int, den: int) -> float | None:
+        if den < _FAILURE_MIN_SAMPLES_RATE:
+            return None
+        return round(100.0 * float(num) / float(den), 4)
+
+    wallet_rej = by_type.get("wallet_rejected", 0)
+    prov_to = by_type.get("provider_timeout", 0)
+    rpc_e = by_type.get("rpc_error", 0)
+    stale_q = by_type.get("stale_quote", 0)
+
+    wallet_rejection_rate = _rate(wallet_rej, wallet_rej + swap_success_in_scope)
+    provider_timeout_rate = _rate(prov_to, total_failures) if total_failures else None
+    rpc_failure_rate = _rate(rpc_e, total_failures) if total_failures else None
+    stale_quote_rate = _rate(stale_q, total_failures) if total_failures else None
+
+    meta_notes.append(
+        "Rates use deterministic definitions over the latest failure window "
+        f"(max {_FAILURE_CAP} failure events, newest batches first)."
+    )
+    meta_notes.append(
+        "wallet_rejection_rate numerator = wallet_rejected; denominator = "
+        "wallet_rejected + swap_success events seen while scanning those batches."
+    )
+    if total_failures < _FAILURE_MIN_SAMPLES_RATE:
+        unavailable.append(
+            "provider_timeout_rate / rpc_failure_rate / stale_quote_rate "
+            f"(insufficient failure samples; need >= {_FAILURE_MIN_SAMPLES_RATE})"
+        )
+    if wallet_rej + swap_success_in_scope < _FAILURE_MIN_SAMPLES_RATE:
+        unavailable.append(
+            "wallet_rejection_rate (insufficient wallet_rejected + swap_success samples)"
+        )
+
+    return {
+        "failure_taxonomy_version": FAILURE_TAXONOMY_VERSION,
+        "total_failures": total_failures,
+        "failures_by_type": failures_by_type,
+        "failures_by_chain": failures_by_chain,
+        "failures_by_provider": failures_by_provider,
+        "recent_failures": recent_failures,
+        "recent_commission_missing": recent_commission_missing,
+        "failure_timeline": failure_timeline,
+        "rates": {
+            "wallet_rejection_rate": wallet_rejection_rate,
+            "provider_timeout_rate": provider_timeout_rate,
+            "rpc_failure_rate": rpc_failure_rate,
+            "stale_quote_rate": stale_quote_rate,
+        },
+        "_meta": {
+            "notes": meta_notes,
+            "unavailable_metrics": unavailable,
+        },
+    }
+
+
 WALLET_RECONNECT_EVENT_NAMES = frozenset(
     {
         "wallet_autoreconnect_scan",

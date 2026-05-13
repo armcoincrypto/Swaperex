@@ -8,6 +8,7 @@ import { NavLink, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import {
   clearStoredAdminToken,
   fetchAdminEvents,
+  fetchAdminFailures,
   fetchAdminHealth,
   fetchAdminOverview,
   fetchAdminRevenue,
@@ -17,6 +18,8 @@ import {
   setStoredAdminToken,
   type AdminEventsBatchItem,
   type AdminEventsResponse,
+  type AdminFailureRow,
+  type AdminFailuresResponse,
   type AdminOverviewResponse,
   type AdminRevenueResponse,
   type AdminRevenueRouteBucket,
@@ -139,7 +142,7 @@ function AdminLayout() {
       </aside>
       <div className="flex-1 flex flex-col min-w-0">
         <header className="border-b border-dark-800 px-6 py-4 flex justify-between items-center bg-dark-900/30">
-          <span className="text-sm text-dark-400">Read-only · P2.5</span>
+          <span className="text-sm text-dark-400">Read-only · P2.6</span>
           <NavLink to="/" className="text-xs text-dark-500 hover:text-white">
             Exit to DEX
           </NavLink>
@@ -913,6 +916,383 @@ function AdminWalletReconnectPage() {
   );
 }
 
+function FailureSeverityBadge({ severity }: { severity: string }) {
+  const s = severity.toUpperCase();
+  const cls =
+    s === 'HIGH'
+      ? 'bg-red-900/55 text-red-200 border-red-800/50'
+      : s === 'MEDIUM'
+        ? 'bg-amber-900/55 text-amber-200 border-amber-800/50'
+        : s === 'LOW'
+          ? 'bg-slate-800 text-slate-200 border-slate-600/50'
+          : 'bg-violet-900/50 text-violet-200 border-violet-800/40';
+  return (
+    <span className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide border ${cls}`}>
+      {s}
+    </span>
+  );
+}
+
+function ChainBadge({ chainId }: { chainId: number | null }) {
+  if (chainId == null) return <span className="text-dark-500">—</span>;
+  return (
+    <span className="rounded px-1.5 py-0.5 text-[10px] font-mono bg-dark-800 border border-dark-600 text-dark-200">
+      {chainId}
+    </span>
+  );
+}
+
+function ProviderBadge({ provider }: { provider: string | null }) {
+  const p = (provider ?? 'unknown').slice(0, 48);
+  return (
+    <span className="rounded px-1.5 py-0.5 text-[10px] font-mono bg-dark-800/90 border border-dark-600 text-cyan-200/90 max-w-[200px] truncate inline-block align-middle">
+      {p}
+    </span>
+  );
+}
+
+function AdminFailuresPage() {
+  const { token } = useAdminToken();
+  const [data, setData] = useState<AdminFailuresResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetchAdminFailures(token);
+        if (!cancelled) setData(res);
+      } catch {
+        if (!cancelled) {
+          setError('Failed to load failure observability.');
+          setData(null);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  const toggleExcerpt = (key: string) => {
+    setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  if (loading && !data) return <p className="text-dark-400 text-sm">Loading…</p>;
+  if (error) return <p className="text-red-400 text-sm">{error}</p>;
+  if (!data) return <p className="text-dark-400 text-sm">No data.</p>;
+
+  const highSeverityTotal = data.recent_failures.filter((r) => r.severity === 'HIGH').length;
+
+  return (
+    <div>
+      <h2 className="text-lg font-medium mb-1">Failures</h2>
+      <p className="text-xs text-dark-500 mb-4">
+        P2.6 read-only aggregates from persisted monitoring (
+        <span className="font-mono text-dark-400">swap_failure</span>,{' '}
+        <span className="font-mono text-dark-400">quote_failure</span>,{' '}
+        <span className="font-mono text-dark-400">rpc_failure</span>,{' '}
+        <span className="font-mono text-dark-400">commission_missing</span>, wallet events). Taxonomy{' '}
+        <span className="font-mono">{data.failure_taxonomy_version}</span>.
+      </p>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+        <div className="rounded-lg border border-dark-700 bg-dark-900/40 p-4">
+          <div className="text-dark-500 text-xs">Total failures (window)</div>
+          <div className="text-2xl font-mono mt-1">{data.total_failures}</div>
+        </div>
+        <div className="rounded-lg border border-dark-700 bg-dark-900/40 p-4">
+          <div className="text-dark-500 text-xs">HIGH in recent slice</div>
+          <div className="text-2xl font-mono mt-1 text-red-300">{highSeverityTotal}</div>
+        </div>
+        <div className="rounded-lg border border-dark-700 bg-dark-900/40 p-4">
+          <div className="text-dark-500 text-xs">Distinct failure types</div>
+          <div className="text-2xl font-mono mt-1">{data.failures_by_type.length}</div>
+        </div>
+        <div className="rounded-lg border border-dark-700 bg-dark-900/40 p-4">
+          <div className="text-dark-500 text-xs">Commission missing (recent)</div>
+          <div className="text-2xl font-mono mt-1 text-amber-300">
+            {data.recent_commission_missing.length}
+          </div>
+        </div>
+      </div>
+
+      {data._meta.unavailable_metrics.length > 0 && (
+        <div className="mb-4 rounded-lg border border-amber-900/40 bg-amber-950/20 px-3 py-2 text-xs text-amber-200/90">
+          <div className="font-medium text-amber-100/90 mb-1">Unavailable metrics</div>
+          <ul className="list-disc pl-4 space-y-0.5">
+            {data._meta.unavailable_metrics.map((m) => (
+              <li key={m}>{m}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="mb-6 rounded-lg border border-dark-700 bg-dark-900/30 px-3 py-2 text-xs text-dark-400">
+        {data._meta.notes.map((n) => (
+          <p key={n} className="mb-1 last:mb-0">
+            {n}
+          </p>
+        ))}
+      </div>
+
+      <h3 className="text-sm font-medium text-dark-300 mb-2">Rates (%)</h3>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 mb-6 text-xs font-mono">
+        {(
+          [
+            ['wallet_rejection_rate', data.rates.wallet_rejection_rate],
+            ['provider_timeout_rate', data.rates.provider_timeout_rate],
+            ['rpc_failure_rate', data.rates.rpc_failure_rate],
+            ['stale_quote_rate', data.rates.stale_quote_rate],
+          ] as const
+        ).map(([k, v]) => (
+          <div key={k} className="rounded border border-dark-700 bg-dark-950/50 px-2 py-2">
+            <div className="text-dark-500 mb-1">{k}</div>
+            <div className="text-dark-200">{v == null ? 'null' : `${v}%`}</div>
+          </div>
+        ))}
+      </div>
+
+      <h3 className="text-sm font-medium text-dark-300 mb-2">Failures by type</h3>
+      <div className="overflow-x-auto mb-6 rounded-lg border border-dark-800">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs text-dark-500 border-b border-dark-800">
+              <th className="px-3 py-2">failure_type</th>
+              <th className="px-3 py-2">count</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.failures_by_type.length === 0 ? (
+              <tr>
+                <td colSpan={2} className="px-3 py-6 text-center text-dark-500">
+                  No failure events in the ingest window yet.
+                </td>
+              </tr>
+            ) : (
+              data.failures_by_type.map((row) => (
+                <tr key={row.failure_type} className="border-b border-dark-800/80">
+                  <td className="px-3 py-2 font-mono text-xs">{row.failure_type}</td>
+                  <td className="px-3 py-2 font-mono">{row.count}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2 mb-6">
+        <div>
+          <h3 className="text-sm font-medium text-dark-300 mb-2">By chain</h3>
+          <div className="overflow-x-auto rounded-lg border border-dark-800 max-h-56 overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-dark-500 border-b border-dark-800 sticky top-0 bg-dark-950">
+                  <th className="px-3 py-2">chain</th>
+                  <th className="px-3 py-2">count</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.failures_by_chain.length === 0 ? (
+                  <tr>
+                    <td colSpan={2} className="px-3 py-4 text-dark-500 text-center">
+                      Empty
+                    </td>
+                  </tr>
+                ) : (
+                  data.failures_by_chain.map((r) => (
+                    <tr key={r.chain_id} className="border-b border-dark-800/60">
+                      <td className="px-3 py-1.5">
+                        <ChainBadge chainId={r.chain_id} />
+                      </td>
+                      <td className="px-3 py-1.5 font-mono text-xs">{r.count}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div>
+          <h3 className="text-sm font-medium text-dark-300 mb-2">By provider</h3>
+          <div className="overflow-x-auto rounded-lg border border-dark-800 max-h-56 overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-dark-500 border-b border-dark-800 sticky top-0 bg-dark-950">
+                  <th className="px-3 py-2">provider</th>
+                  <th className="px-3 py-2">count</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.failures_by_provider.length === 0 ? (
+                  <tr>
+                    <td colSpan={2} className="px-3 py-4 text-dark-500 text-center">
+                      Empty
+                    </td>
+                  </tr>
+                ) : (
+                  data.failures_by_provider.map((r) => (
+                    <tr key={r.provider} className="border-b border-dark-800/60">
+                      <td className="px-3 py-1.5">
+                        <ProviderBadge provider={r.provider} />
+                      </td>
+                      <td className="px-3 py-1.5 font-mono text-xs">{r.count}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <h3 className="text-sm font-medium text-dark-300 mb-2">Failure timeline (UTC hour)</h3>
+      <div className="overflow-x-auto mb-6 rounded-lg border border-dark-800">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs text-dark-500 border-b border-dark-800">
+              <th className="px-3 py-2">hour_bucket</th>
+              <th className="px-3 py-2">total</th>
+              <th className="px-3 py-2">by_type</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.failure_timeline.length === 0 ? (
+              <tr>
+                <td colSpan={3} className="px-3 py-6 text-center text-dark-500">
+                  No timeline buckets yet.
+                </td>
+              </tr>
+            ) : (
+              data.failure_timeline.map((row) => (
+                <tr key={row.hour_bucket} className="border-b border-dark-800/80 align-top">
+                  <td className="px-3 py-2 font-mono text-[11px] whitespace-nowrap">{row.hour_bucket}</td>
+                  <td className="px-3 py-2 font-mono text-xs">{row.total}</td>
+                  <td className="px-3 py-2 font-mono text-[10px] text-dark-300 break-all">
+                    {Object.entries(row.by_type)
+                      .map(([k, v]) => `${k}:${v}`)
+                      .join(' · ')}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <h3 className="text-sm font-medium text-dark-300 mb-2">Recent commission_missing</h3>
+      <div className="overflow-x-auto mb-6 rounded-lg border border-dark-800">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs text-dark-500 border-b border-dark-800">
+              <th className="px-3 py-2">time</th>
+              <th className="px-3 py-2">chain</th>
+              <th className="px-3 py-2">provider</th>
+              <th className="px-3 py-2">tx</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.recent_commission_missing.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="px-3 py-6 text-center text-dark-500">
+                  No commission_missing events in the recent window.
+                </td>
+              </tr>
+            ) : (
+              data.recent_commission_missing.map((row: AdminFailureRow) => (
+                <tr
+                  key={`${row.batch_id}-${row.timestamp}-${row.tx_hash ?? ''}`}
+                  className="border-b border-dark-800/80"
+                >
+                  <td className="px-3 py-2 font-mono text-[11px] whitespace-nowrap">{row.timestamp}</td>
+                  <td className="px-3 py-2">
+                    <ChainBadge chainId={row.chain_id} />
+                  </td>
+                  <td className="px-3 py-2">
+                    <ProviderBadge provider={row.provider} />
+                  </td>
+                  <td className="px-3 py-2 font-mono text-[10px] break-all text-dark-300">
+                    {row.tx_hash ?? '—'}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <h3 className="text-sm font-medium text-dark-300 mb-2">Recent failures</h3>
+      <div className="overflow-x-auto rounded-lg border border-dark-800">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs text-dark-500 border-b border-dark-800">
+              <th className="px-3 py-2">time</th>
+              <th className="px-3 py-2">type</th>
+              <th className="px-3 py-2">severity</th>
+              <th className="px-3 py-2">event</th>
+              <th className="px-3 py-2">reason_code</th>
+              <th className="px-3 py-2">chain</th>
+              <th className="px-3 py-2">provider</th>
+              <th className="px-3 py-2">payload</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.recent_failures.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="px-3 py-6 text-center text-dark-500">
+                  No recent failure rows.
+                </td>
+              </tr>
+            ) : (
+              data.recent_failures.map((row: AdminFailureRow, idx: number) => {
+                const rk = `${row.batch_id}-${row.timestamp}-${idx}`;
+                const open = !!expanded[rk];
+                return (
+                  <tr key={rk} className="border-b border-dark-800/80 align-top">
+                    <td className="px-3 py-2 font-mono text-[11px] whitespace-nowrap">{row.timestamp}</td>
+                    <td className="px-3 py-2 font-mono text-[11px]">{row.failure_type}</td>
+                    <td className="px-3 py-2">
+                      <FailureSeverityBadge severity={row.severity} />
+                    </td>
+                    <td className="px-3 py-2 font-mono text-[10px] text-dark-300">{row.event_name}</td>
+                    <td className="px-3 py-2 font-mono text-[10px] text-dark-400">{row.reason_code}</td>
+                    <td className="px-3 py-2">
+                      <ChainBadge chainId={row.chain_id} />
+                    </td>
+                    <td className="px-3 py-2">
+                      <ProviderBadge provider={row.provider} />
+                    </td>
+                    <td className="px-3 py-2">
+                      <button
+                        type="button"
+                        className="text-xs text-accent hover:underline"
+                        onClick={() => toggleExcerpt(rk)}
+                      >
+                        {open ? 'Hide' : 'View'}
+                      </button>
+                      {open && (
+                        <pre className="mt-2 max-w-xl overflow-x-auto rounded bg-dark-950 border border-dark-700 p-2 text-[10px] text-dark-300">
+                          {JSON.stringify(row.payload_excerpt, null, 2)}
+                        </pre>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function AdminOverviewPage() {
   const { token } = useAdminToken();
   const [data, setData] = useState<AdminOverviewResponse | null>(null);
@@ -992,7 +1372,7 @@ export default function AdminApp() {
           <Route path="events" element={<AdminEventsPage />} />
           <Route path="swaps" element={<AdminSwapsPage />} />
           <Route path="revenue" element={<AdminRevenuePage />} />
-          <Route path="failures" element={<PlaceholderSection title="Failures" />} />
+          <Route path="failures" element={<AdminFailuresPage />} />
           <Route path="wallet" element={<AdminWalletReconnectPage />} />
           <Route path="system" element={<PlaceholderSection title="System" />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />
