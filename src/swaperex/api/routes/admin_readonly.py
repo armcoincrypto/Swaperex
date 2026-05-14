@@ -1496,6 +1496,17 @@ def _failure_telemetry_excerpt(ev: dict[str, Any]) -> dict[str, Any]:
         "chainId",
         "txHash",
         "reason",
+        "technicalReason",
+        "fromSymbol",
+        "toSymbol",
+        "fromAmount",
+        "fromTokenAddress",
+        "toTokenAddress",
+        "attemptedProvider",
+        "wrapperQuoteDiagnostic",
+        "fromRouteSupport",
+        "toRouteSupport",
+        "commissionRequired",
     )
     out: dict[str, Any] = {}
     for k in keys:

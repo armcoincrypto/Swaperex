@@ -179,13 +179,14 @@ export async function getPancakeWrapperV2Quote(
   };
 }
 
-/** Best wrapper V2 quote across fee tiers 500 / 2500 / 10000. */
+/** Best wrapper V2 quote across fee tiers 100 / 500 / 2500 / 10000. */
 export async function getBestPancakeWrapperV2Quote(
   tokenIn: string,
   tokenOut: string,
   amountIn: string,
 ): Promise<PancakeQuoteResult | null> {
   const feeTiers: PancakeFeeTier[] = [
+    PANCAKE_FEE_TIERS.LOWEST,
     PANCAKE_FEE_TIERS.LOW,
     PANCAKE_FEE_TIERS.MEDIUM,
     PANCAKE_FEE_TIERS.HIGH,

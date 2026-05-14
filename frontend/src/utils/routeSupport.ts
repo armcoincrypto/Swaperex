@@ -1,6 +1,8 @@
 /**
  * Commission-wrapper route support hints for the token picker (P4.1-B).
  * UX metadata only — execution and quotes remain enforced in `useSwap` / backend.
+ * P4.2: confirm tier assumptions against admin Failures (`wrapperQuoteDiagnostic`) and live wrapper quotes;
+ * do not promote symbols to stronger tiers without evidence.
  */
 
 import { getTokenBySymbol, isNativeToken, isStaticToken, NATIVE_SYMBOLS } from '@/tokens';

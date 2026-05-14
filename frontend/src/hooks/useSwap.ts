@@ -52,7 +52,9 @@ import {
   logError,
   WALLET_SIGN_REQUEST_PENDING_MESSAGE,
   type ParsedError,
+  type CommissionQuoteAttemptMeta,
 } from '@/utils/errors';
+import { classifyWrapperQuoteFailure } from '@/utils/wrapperQuoteDiagnostics';
 import {
   validateSwapInputs,
   isSameToken,
@@ -802,9 +804,20 @@ export function useSwap() {
               tokenIn: fromSymbol,
               tokenOut: toSymbol,
             });
+            const wrapMsg = (wrapperErr as Error)?.message ?? '';
             throw attachCommissionRouteFailure(
               'unsupported_commission_route',
-              (wrapperErr as Error)?.message,
+              wrapMsg,
+              {
+                attemptedProvider: 'pancakeswap-v3-wrapper-v2',
+                chainId: 56,
+                fromSymbol,
+                toSymbol,
+                fromAmount,
+                fromTokenAddress: getTokenBySymbol(fromSymbol, 56)?.address ?? null,
+                toTokenAddress: getTokenBySymbol(toSymbol, 56)?.address ?? null,
+                rawWrapperMessage: wrapMsg.slice(0, 512),
+              },
             );
           }
         } else if (cid === 1) {
@@ -880,9 +893,20 @@ export function useSwap() {
               tokenIn: fromSymbol,
               tokenOut: toSymbol,
             });
+            const wrapMsg = (wrapperErr as Error)?.message ?? '';
             throw attachCommissionRouteFailure(
               'unsupported_commission_route',
-              (wrapperErr as Error)?.message,
+              wrapMsg,
+              {
+                attemptedProvider: useV2 ? 'uniswap-v3-wrapper-v2' : 'uniswap-v3-wrapper',
+                chainId: 1,
+                fromSymbol,
+                toSymbol,
+                fromAmount,
+                fromTokenAddress: getTokenBySymbol(fromSymbol, 1)?.address ?? null,
+                toTokenAddress: getTokenBySymbol(toSymbol, 1)?.address ?? null,
+                rawWrapperMessage: wrapMsg.slice(0, 512),
+              },
             );
           }
         } else {
@@ -1462,6 +1486,10 @@ export function useSwap() {
       }
 
       const parsed = parseQuoteError(err);
+      const ce = (err as Error & { commissionQuoteAttempt?: CommissionQuoteAttemptMeta }).commissionQuoteAttempt;
+      const diagSource = ce?.rawWrapperMessage || parsed.technicalReason || parsed.message || '';
+      const wrapperQuoteDiagnostic = classifyWrapperQuoteFailure(diagSource);
+
       const quoteErrorDisplay =
         parsed.category === 'network_error' || parsed.category === 'rpc_error'
           ? 'Network issue. Please try again.'
@@ -1476,6 +1504,17 @@ export function useSwap() {
       if (parsed.technicalReason && parsed.technicalReason !== parsed.message) {
         quoteFailurePayload.technicalReason = parsed.technicalReason;
       }
+      if (ce) {
+        quoteFailurePayload.attemptedProvider = ce.attemptedProvider;
+        quoteFailurePayload.fromSymbol = ce.fromSymbol;
+        quoteFailurePayload.toSymbol = ce.toSymbol;
+        quoteFailurePayload.fromAmount = ce.fromAmount;
+        quoteFailurePayload.fromTokenAddress = ce.fromTokenAddress;
+        quoteFailurePayload.toTokenAddress = ce.toTokenAddress;
+        quoteFailurePayload.wrapperQuoteDiagnostic = wrapperQuoteDiagnostic;
+      } else if (parsed.reasonCode === 'unsupported_commission_route') {
+        quoteFailurePayload.wrapperQuoteDiagnostic = wrapperQuoteDiagnostic;
+      }
       logProductionEvent('quote_failure', quoteFailurePayload);
 
       if (parsed.reasonCode === 'unsupported_commission_route' && isCommissionRequiredMode()) {
@@ -1485,14 +1524,17 @@ export function useSwap() {
           chainId: chainId ?? 0,
           fromSymbol,
           toSymbol,
+          fromAmount,
           fromTokenAddress: fromTok?.address ?? null,
           toTokenAddress: toTok?.address ?? null,
           routeMode: String(routeMode),
-          provider: 'quote_aggregator',
+          provider: ce?.attemptedProvider ?? 'quote_aggregator',
           commissionRequired: true,
           reasonCode: 'unsupported_commission_route',
           fromRouteSupport: getTokenRouteSupport(chainId || 1, fromSymbol),
           toRouteSupport: getTokenRouteSupport(chainId || 1, toSymbol),
+          wrapperQuoteDiagnostic,
+          ...(parsed.technicalReason ? { technicalReason: parsed.technicalReason } : {}),
         });
       }
       if (parsed.category === 'network_error' || parsed.category === 'rpc_error') {

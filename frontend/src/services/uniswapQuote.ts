@@ -226,7 +226,7 @@ export async function getBestQuote(
   amountIn: string,
   chainId: number = 1
 ): Promise<QuoteResult | null> {
-  const feeTiers: FeeTier[] = [FEE_TIERS.LOW, FEE_TIERS.MEDIUM, FEE_TIERS.HIGH];
+  const feeTiers: FeeTier[] = [FEE_TIERS.LOWEST, FEE_TIERS.LOW, FEE_TIERS.MEDIUM, FEE_TIERS.HIGH];
   const quotes: QuoteResult[] = [];
 
   // Try all fee tiers in parallel
@@ -402,7 +402,7 @@ export async function getBestWrapperQuote(
   amountIn: string,
   chainId: number = 1
 ): Promise<QuoteResult | null> {
-  const feeTiers: FeeTier[] = [FEE_TIERS.LOW, FEE_TIERS.MEDIUM, FEE_TIERS.HIGH];
+  const feeTiers: FeeTier[] = [FEE_TIERS.LOWEST, FEE_TIERS.LOW, FEE_TIERS.MEDIUM, FEE_TIERS.HIGH];
   const quotes: QuoteResult[] = [];
 
   const results = await Promise.allSettled(

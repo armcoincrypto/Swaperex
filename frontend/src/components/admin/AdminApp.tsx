@@ -2203,6 +2203,9 @@ function AdminFailuresPage() {
               <th className="px-3 py-2">event</th>
               <th className="px-3 py-2">reason_code</th>
               <th className="px-3 py-2">chain</th>
+              <th className="px-3 py-2">pair</th>
+              <th className="px-3 py-2">amount</th>
+              <th className="px-3 py-2">diagnostic</th>
               <th className="px-3 py-2">provider</th>
               <th className="px-3 py-2">payload</th>
             </tr>
@@ -2210,7 +2213,7 @@ function AdminFailuresPage() {
           <tbody>
             {data.recent_failures.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-3 py-6 text-center text-dark-500">
+                <td colSpan={11} className="px-3 py-6 text-center text-dark-500">
                   No recent failure rows.
                 </td>
               </tr>
@@ -2218,6 +2221,14 @@ function AdminFailuresPage() {
               data.recent_failures.map((row: AdminFailureRow, idx: number) => {
                 const rk = `${row.batch_id}-${row.timestamp}-${idx}`;
                 const open = !!expanded[rk];
+                const ex = row.payload_excerpt as Record<string, unknown>;
+                const pair =
+                  typeof ex.fromSymbol === 'string' && typeof ex.toSymbol === 'string'
+                    ? `${ex.fromSymbol} → ${ex.toSymbol}`
+                    : '—';
+                const amt = typeof ex.fromAmount === 'string' ? ex.fromAmount : '—';
+                const diag =
+                  typeof ex.wrapperQuoteDiagnostic === 'string' ? ex.wrapperQuoteDiagnostic : '—';
                 return (
                   <tr key={rk} className="border-b border-dark-800/80 align-top">
                     <td className="px-3 py-2 font-mono text-[11px] whitespace-nowrap">{row.timestamp}</td>
@@ -2230,6 +2241,11 @@ function AdminFailuresPage() {
                     <td className="px-3 py-2">
                       <ChainBadge chainId={row.chain_id} />
                     </td>
+                    <td className="px-3 py-2 font-mono text-[10px] text-dark-300 max-w-[8rem] truncate" title={pair}>
+                      {pair}
+                    </td>
+                    <td className="px-3 py-2 font-mono text-[10px] text-dark-400">{amt}</td>
+                    <td className="px-3 py-2 font-mono text-[10px] text-amber-200/90">{diag}</td>
                     <td className="px-3 py-2">
                       <ProviderBadge provider={row.provider} />
                     </td>

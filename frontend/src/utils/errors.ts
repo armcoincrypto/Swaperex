@@ -74,9 +74,23 @@ export type CommissionRouteFailureCode = Exclude<
   'commission_route_mode_required'
 >;
 
+/** Optional telemetry: which wrapper path was attempted when commission routing fails. */
+export type CommissionQuoteAttemptMeta = {
+  attemptedProvider: string;
+  chainId: number;
+  fromSymbol: string;
+  toSymbol: string;
+  fromAmount: string;
+  fromTokenAddress?: string | null;
+  toTokenAddress?: string | null;
+  /** Raw revert / library message from the wrapper quote call (truncated by callers if huge). */
+  rawWrapperMessage?: string;
+};
+
 export function attachCommissionRouteFailure(
   code: CommissionRouteFailureCode,
   technicalReason?: string,
+  meta?: CommissionQuoteAttemptMeta,
 ): Error {
   const baseMessage =
     code === 'commission_eth_native_v2_required'
@@ -86,9 +100,11 @@ export function attachCommissionRouteFailure(
   const ext = err as Error & {
     swapErrorReasonCode?: CommissionRouteFailureCode;
     technicalReason?: string;
+    commissionQuoteAttempt?: CommissionQuoteAttemptMeta;
   };
   ext.swapErrorReasonCode = code;
   if (technicalReason) ext.technicalReason = technicalReason;
+  if (meta) ext.commissionQuoteAttempt = meta;
   return err;
 }
 
