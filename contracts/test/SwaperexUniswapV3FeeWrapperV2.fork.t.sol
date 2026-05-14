@@ -120,7 +120,9 @@ contract SwaperexUniswapV3FeeWrapperV2ForkTest is Test {
         uint256 minNet = (qNet * 95) / 100;
 
         vm.prank(user);
-        w.swapExactInputSingleEthForTokens{value: amountIn}(USDT, poolFeeWethUsdt, amountIn, minNet, block.timestamp + 3600, 0);
+        w.swapExactInputSingleEthForTokens{value: amountIn}(
+            USDT, poolFeeWethUsdt, amountIn, minNet, block.timestamp + 3600, 0
+        );
     }
 
     /// @dev D) Slippage: impossible minNet reverts.
@@ -135,6 +137,8 @@ contract SwaperexUniswapV3FeeWrapperV2ForkTest is Test {
         // before the wrapper’s net-out check triggers. We only assert "reverts" here to keep the fork test stable.
         vm.prank(user);
         vm.expectRevert();
-        w.swapExactInputSingleEthForTokens{value: amountIn}(USDT, poolFeeWethUsdt, amountIn, impossibleMin, block.timestamp + 3600, 0);
+        w.swapExactInputSingleEthForTokens{value: amountIn}(
+            USDT, poolFeeWethUsdt, amountIn, impossibleMin, block.timestamp + 3600, 0
+        );
     }
 }

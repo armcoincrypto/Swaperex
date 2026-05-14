@@ -48,8 +48,7 @@ contract SwaperexUniswapV3FeeWrapperForkTest is Test {
         vm.startPrank(user);
         IERC20(USDC).approve(address(w), type(uint256).max);
 
-        (uint256 qGross,, uint256 qNet,,,) =
-            w.quoteExactInputSingleERC20(USDC, WETH, POOL_FEE, amountIn, 0);
+        (uint256 qGross,, uint256 qNet,,,) = w.quoteExactInputSingleERC20(USDC, WETH, POOL_FEE, amountIn, 0);
         uint256 minNet = (qNet * 99) / 100;
 
         uint256 treasuryBefore = IERC20(WETH).balanceOf(treasury);

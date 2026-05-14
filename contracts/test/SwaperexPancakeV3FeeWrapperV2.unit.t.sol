@@ -104,9 +104,8 @@ contract SwaperexPancakeV3FeeWrapperV2UnitTest is Test {
 
         vm.startPrank(user);
         tokenIn.approve(address(w), type(uint256).max);
-        (uint256 outGross, uint256 feeAmt, uint256 outNet) = w.swapExactInputSingleTokensForEth(
-            address(tokenIn), 3000, amountIn, minNet, block.timestamp + 1 days, 0
-        );
+        (uint256 outGross, uint256 feeAmt, uint256 outNet) =
+            w.swapExactInputSingleTokensForEth(address(tokenIn), 3000, amountIn, minNet, block.timestamp + 1 days, 0);
         vm.stopPrank();
 
         assertEq(outGross, gross);
@@ -124,9 +123,7 @@ contract SwaperexPancakeV3FeeWrapperV2UnitTest is Test {
         vm.startPrank(user);
         tokenIn.approve(address(w), type(uint256).max);
         vm.expectRevert("MockRouter_Slippage");
-        w.swapExactInputSingleERC20(
-            address(tokenIn), address(tokenOut), 3000, 1e18, gross, block.timestamp + 1 days, 0
-        );
+        w.swapExactInputSingleERC20(address(tokenIn), address(tokenOut), 3000, 1e18, gross, block.timestamp + 1 days, 0);
         vm.stopPrank();
     }
 
@@ -149,9 +146,7 @@ contract SwaperexPancakeV3FeeWrapperV2UnitTest is Test {
         vm.startPrank(user);
         tokenIn.approve(address(w), type(uint256).max);
         vm.expectRevert();
-        w.swapExactInputSingleERC20(
-            address(tokenIn), address(tokenOut), 3000, 1e18, 1, block.timestamp + 1 days, 0
-        );
+        w.swapExactInputSingleERC20(address(tokenIn), address(tokenOut), 3000, 1e18, 1, block.timestamp + 1 days, 0);
         vm.stopPrank();
     }
 
@@ -185,9 +180,7 @@ contract SwaperexPancakeV3FeeWrapperV2UnitTest is Test {
         vm.startPrank(user);
         tokenIn.approve(address(w2), type(uint256).max);
         vm.expectRevert(ReentrancyGuard.ReentrancyGuardReentrantCall.selector);
-        w2.swapExactInputSingleERC20(
-            address(tokenIn), address(tokenOut), 3000, 1e18, 1, block.timestamp + 1 days, 0
-        );
+        w2.swapExactInputSingleERC20(address(tokenIn), address(tokenOut), 3000, 1e18, 1, block.timestamp + 1 days, 0);
         vm.stopPrank();
     }
 }

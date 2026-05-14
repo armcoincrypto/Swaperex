@@ -62,9 +62,14 @@ contract SwaperexUniswapV3FeeWrapperV2 is Ownable2Step, Pausable, ReentrancyGuar
     /// @notice Observability: native ETH received outside explicit swap entrypoints (donations / mis-sends).
     event UnexpectedETHReceived(address indexed sender, uint256 amount);
 
-    constructor(address initialOwner, address router_, address quoter_, address weth_, address treasury_, uint16 feeBps_)
-        Ownable(initialOwner)
-    {
+    constructor(
+        address initialOwner,
+        address router_,
+        address quoter_,
+        address weth_,
+        address treasury_,
+        uint16 feeBps_
+    ) Ownable(initialOwner) {
         if (router_ == address(0) || quoter_ == address(0) || weth_ == address(0) || treasury_ == address(0)) {
             revert ZeroAddress();
         }
@@ -169,7 +174,13 @@ contract SwaperexUniswapV3FeeWrapperV2 is Ownable2Step, Pausable, ReentrancyGuar
         uint256 amountOutMinNet,
         uint256 deadline,
         uint160 sqrtPriceLimitX96
-    ) external payable nonReentrant whenNotPaused returns (uint256 amountOutGross, uint256 feeAmount, uint256 amountOutNet) {
+    )
+        external
+        payable
+        nonReentrant
+        whenNotPaused
+        returns (uint256 amountOutGross, uint256 feeAmount, uint256 amountOutNet)
+    {
         if (msg.value != 0) revert InvalidMsgValue();
         if (amountIn == 0) revert ZeroAmount();
         if (deadline < block.timestamp) revert DeadlineExpired();
@@ -203,7 +214,9 @@ contract SwaperexUniswapV3FeeWrapperV2 is Ownable2Step, Pausable, ReentrancyGuar
 
         if (IERC20(tokenOut).balanceOf(address(this)) != balBefore) revert UnexpectedTokenOutBalance();
 
-        emit SwapExecuted(tokenIn, tokenOut, fee, msg.sender, amountIn, amountOutGross, feeAmount, amountOutNet, false, false);
+        emit SwapExecuted(
+            tokenIn, tokenOut, fee, msg.sender, amountIn, amountOutGross, feeAmount, amountOutNet, false, false
+        );
     }
 
     /// @notice ETH → ERC20. `msg.value` must equal `amountIn`.
@@ -214,7 +227,13 @@ contract SwaperexUniswapV3FeeWrapperV2 is Ownable2Step, Pausable, ReentrancyGuar
         uint256 amountOutMinNet,
         uint256 deadline,
         uint160 sqrtPriceLimitX96
-    ) external payable nonReentrant whenNotPaused returns (uint256 amountOutGross, uint256 feeAmount, uint256 amountOutNet) {
+    )
+        external
+        payable
+        nonReentrant
+        whenNotPaused
+        returns (uint256 amountOutGross, uint256 feeAmount, uint256 amountOutNet)
+    {
         if (msg.value != amountIn) revert InvalidMsgValue();
         if (amountIn == 0) revert ZeroAmount();
         if (deadline < block.timestamp) revert DeadlineExpired();
@@ -250,7 +269,9 @@ contract SwaperexUniswapV3FeeWrapperV2 is Ownable2Step, Pausable, ReentrancyGuar
 
         if (IERC20(tokenOut).balanceOf(address(this)) != balBefore) revert UnexpectedTokenOutBalance();
 
-        emit SwapExecuted(WETH, tokenOut, fee, msg.sender, amountIn, amountOutGross, feeAmount, amountOutNet, true, false);
+        emit SwapExecuted(
+            WETH, tokenOut, fee, msg.sender, amountIn, amountOutGross, feeAmount, amountOutNet, true, false
+        );
     }
 
     /// @notice ERC20 → ETH. Net ETH to `msg.sender`; fee ETH to treasury.
@@ -261,7 +282,13 @@ contract SwaperexUniswapV3FeeWrapperV2 is Ownable2Step, Pausable, ReentrancyGuar
         uint256 amountOutMinNet,
         uint256 deadline,
         uint160 sqrtPriceLimitX96
-    ) external payable nonReentrant whenNotPaused returns (uint256 amountOutGross, uint256 feeAmount, uint256 amountOutNet) {
+    )
+        external
+        payable
+        nonReentrant
+        whenNotPaused
+        returns (uint256 amountOutGross, uint256 feeAmount, uint256 amountOutNet)
+    {
         if (msg.value != 0) revert InvalidMsgValue();
         if (amountIn == 0) revert ZeroAmount();
         if (deadline < block.timestamp) revert DeadlineExpired();
@@ -302,7 +329,9 @@ contract SwaperexUniswapV3FeeWrapperV2 is Ownable2Step, Pausable, ReentrancyGuar
 
         if (address(this).balance != ethBefore) revert UnexpectedEthBalance();
 
-        emit SwapExecuted(tokenIn, WETH, fee, msg.sender, amountIn, amountOutGross, feeAmount, amountOutNet, false, true);
+        emit SwapExecuted(
+            tokenIn, WETH, fee, msg.sender, amountIn, amountOutGross, feeAmount, amountOutNet, false, true
+        );
     }
 
     function _feeSplit(uint256 amountOutGross) internal view returns (uint256 feeAmount, uint256 amountOutNet) {

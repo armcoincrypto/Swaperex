@@ -175,7 +175,13 @@ contract SwaperexPancakeV3FeeWrapperV2 is Ownable2Step, Pausable, ReentrancyGuar
         uint256 amountOutMinNet,
         uint256 deadline,
         uint160 sqrtPriceLimitX96
-    ) external payable nonReentrant whenNotPaused returns (uint256 amountOutGross, uint256 feeAmount, uint256 amountOutNet) {
+    )
+        external
+        payable
+        nonReentrant
+        whenNotPaused
+        returns (uint256 amountOutGross, uint256 feeAmount, uint256 amountOutNet)
+    {
         if (msg.value != 0) revert NativeEth_NotExpected();
         if (deadline < block.timestamp) revert ExpiredDeadline();
         _validateErc20Pair(tokenIn, tokenOut);
@@ -209,7 +215,9 @@ contract SwaperexPancakeV3FeeWrapperV2 is Ownable2Step, Pausable, ReentrancyGuar
 
         if (IERC20(tokenOut).balanceOf(address(this)) != balBefore) revert UnexpectedTokenOutBalance();
 
-        emit SwapExecuted(tokenIn, tokenOut, fee, msg.sender, amountIn, amountOutGross, feeAmount, amountOutNet, false, false);
+        emit SwapExecuted(
+            tokenIn, tokenOut, fee, msg.sender, amountIn, amountOutGross, feeAmount, amountOutNet, false, false
+        );
     }
 
     /// @notice Native BNB → ERC20. `msg.value` must equal `amountIn`. Output delivered to `msg.sender` as ERC20.
@@ -220,7 +228,13 @@ contract SwaperexPancakeV3FeeWrapperV2 is Ownable2Step, Pausable, ReentrancyGuar
         uint256 amountOutMinNet,
         uint256 deadline,
         uint160 sqrtPriceLimitX96
-    ) external payable nonReentrant whenNotPaused returns (uint256 amountOutGross, uint256 feeAmount, uint256 amountOutNet) {
+    )
+        external
+        payable
+        nonReentrant
+        whenNotPaused
+        returns (uint256 amountOutGross, uint256 feeAmount, uint256 amountOutNet)
+    {
         if (msg.value != amountIn) revert NativeAmountMismatch();
         if (deadline < block.timestamp) revert ExpiredDeadline();
         if (tokenOut == address(0) || tokenOut == WBNB) revert InvalidPath();
@@ -256,7 +270,9 @@ contract SwaperexPancakeV3FeeWrapperV2 is Ownable2Step, Pausable, ReentrancyGuar
 
         if (IERC20(tokenOut).balanceOf(address(this)) != balBefore) revert UnexpectedTokenOutBalance();
 
-        emit SwapExecuted(WBNB, tokenOut, fee, msg.sender, amountIn, amountOutGross, feeAmount, amountOutNet, true, false);
+        emit SwapExecuted(
+            WBNB, tokenOut, fee, msg.sender, amountIn, amountOutGross, feeAmount, amountOutNet, true, false
+        );
     }
 
     /// @notice ERC20 → native BNB. Output delivered to `msg.sender` as BNB (net after fee).
@@ -267,7 +283,13 @@ contract SwaperexPancakeV3FeeWrapperV2 is Ownable2Step, Pausable, ReentrancyGuar
         uint256 amountOutMinNet,
         uint256 deadline,
         uint160 sqrtPriceLimitX96
-    ) external payable nonReentrant whenNotPaused returns (uint256 amountOutGross, uint256 feeAmount, uint256 amountOutNet) {
+    )
+        external
+        payable
+        nonReentrant
+        whenNotPaused
+        returns (uint256 amountOutGross, uint256 feeAmount, uint256 amountOutNet)
+    {
         if (msg.value != 0) revert NativeEth_NotExpected();
         if (deadline < block.timestamp) revert ExpiredDeadline();
         if (tokenIn == address(0) || tokenIn == WBNB) revert InvalidPath();
@@ -309,7 +331,9 @@ contract SwaperexPancakeV3FeeWrapperV2 is Ownable2Step, Pausable, ReentrancyGuar
 
         if (address(this).balance != ethBefore) revert UnexpectedEthBalance();
 
-        emit SwapExecuted(tokenIn, WBNB, fee, msg.sender, amountIn, amountOutGross, feeAmount, amountOutNet, false, true);
+        emit SwapExecuted(
+            tokenIn, WBNB, fee, msg.sender, amountIn, amountOutGross, feeAmount, amountOutNet, false, true
+        );
     }
 
     // --- Internal ---

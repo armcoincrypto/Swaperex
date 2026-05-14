@@ -38,7 +38,9 @@ contract SwaperexUniswapV3FeeWrapperV2UnitTest is Test {
         tokenIn = new ERC20Mock();
         tokenOut = new ERC20Mock();
         treasury = new TreasuryStub();
-        w = new SwaperexUniswapV3FeeWrapperV2(owner, address(router), address(quoter), address(weth), address(treasury), FEE_BPS);
+        w = new SwaperexUniswapV3FeeWrapperV2(
+            owner, address(router), address(quoter), address(weth), address(treasury), FEE_BPS
+        );
     }
 
     function test_erc20_to_erc20_fee_in_tokenOut() public {
@@ -76,8 +78,9 @@ contract SwaperexUniswapV3FeeWrapperV2UnitTest is Test {
 
         vm.deal(user, 10 ether);
         vm.startPrank(user);
-        (uint256 outGross, uint256 feeAmt, uint256 outNet) =
-            w.swapExactInputSingleEthForTokens{value: amountIn}(address(tokenOut), 3000, amountIn, minNet, block.timestamp + 1 days, 0);
+        (uint256 outGross, uint256 feeAmt, uint256 outNet) = w.swapExactInputSingleEthForTokens{value: amountIn}(
+            address(tokenOut), 3000, amountIn, minNet, block.timestamp + 1 days, 0
+        );
         vm.stopPrank();
 
         assertEq(outGross, gross);
@@ -121,7 +124,9 @@ contract SwaperexUniswapV3FeeWrapperV2UnitTest is Test {
         vm.deal(user, 2 ether);
         vm.startPrank(user);
         vm.expectRevert(SwaperexUniswapV3FeeWrapperV2.InvalidMsgValue.selector);
-        w.swapExactInputSingleEthForTokens{value: 1 ether}(address(tokenOut), 3000, 2 ether, 1, block.timestamp + 1 days, 0);
+        w.swapExactInputSingleEthForTokens{value: 1 ether}(
+            address(tokenOut), 3000, 2 ether, 1, block.timestamp + 1 days, 0
+        );
         vm.stopPrank();
     }
 
@@ -132,7 +137,9 @@ contract SwaperexUniswapV3FeeWrapperV2UnitTest is Test {
         vm.deal(user, 5 ether);
         vm.startPrank(user);
         // No token approval — ETH path must not pull ERC20 from user.
-        w.swapExactInputSingleEthForTokens{value: 1 ether}(address(tokenOut), 3000, 1 ether, 1, block.timestamp + 1 days, 0);
+        w.swapExactInputSingleEthForTokens{value: 1 ether}(
+            address(tokenOut), 3000, 1 ether, 1, block.timestamp + 1 days, 0
+        );
         vm.stopPrank();
     }
 
@@ -142,9 +149,7 @@ contract SwaperexUniswapV3FeeWrapperV2UnitTest is Test {
         vm.startPrank(user);
         tokenIn.approve(address(w), type(uint256).max);
         vm.expectRevert();
-        w.swapExactInputSingleERC20(
-            address(tokenIn), address(tokenOut), 3000, 1e18, 1, block.timestamp + 1 days, 0
-        );
+        w.swapExactInputSingleERC20(address(tokenIn), address(tokenOut), 3000, 1e18, 1, block.timestamp + 1 days, 0);
         vm.stopPrank();
     }
 
@@ -188,7 +193,9 @@ contract SwaperexUniswapV3FeeWrapperV2UnitTest is Test {
         router.setGrossOut(gross);
         vm.deal(user, 10 ether);
         vm.startPrank(user);
-        w.swapExactInputSingleEthForTokens{value: 1 ether}(address(tokenOut), 3000, 1 ether, 1, block.timestamp + 1 days, 0);
+        w.swapExactInputSingleEthForTokens{value: 1 ether}(
+            address(tokenOut), 3000, 1 ether, 1, block.timestamp + 1 days, 0
+        );
         vm.stopPrank();
         assertEq(IERC20(weth).balanceOf(address(w)), 0);
     }
@@ -196,17 +203,16 @@ contract SwaperexUniswapV3FeeWrapperV2UnitTest is Test {
     function test_reentrancy_protection() public {
         MockReentrantRouterV2 badRouter = new MockReentrantRouterV2();
         MockQuoterV2 q = new MockQuoterV2();
-        SwaperexUniswapV3FeeWrapperV2 w2 =
-            new SwaperexUniswapV3FeeWrapperV2(owner, address(badRouter), address(q), address(weth), address(treasury), FEE_BPS);
+        SwaperexUniswapV3FeeWrapperV2 w2 = new SwaperexUniswapV3FeeWrapperV2(
+            owner, address(badRouter), address(q), address(weth), address(treasury), FEE_BPS
+        );
         badRouter.setWrapper(w2);
 
         tokenIn.mint(user, 10e18);
         vm.startPrank(user);
         tokenIn.approve(address(w2), type(uint256).max);
         vm.expectRevert(ReentrancyGuard.ReentrancyGuardReentrantCall.selector);
-        w2.swapExactInputSingleERC20(
-            address(tokenIn), address(tokenOut), 3000, 1e18, 1, block.timestamp + 1 days, 0
-        );
+        w2.swapExactInputSingleERC20(address(tokenIn), address(tokenOut), 3000, 1e18, 1, block.timestamp + 1 days, 0);
         vm.stopPrank();
     }
 
@@ -228,9 +234,7 @@ contract SwaperexUniswapV3FeeWrapperV2UnitTest is Test {
         vm.startPrank(user);
         tokenIn.approve(address(w), type(uint256).max);
         vm.expectRevert("MockRouter_Slippage");
-        w.swapExactInputSingleERC20(
-            address(tokenIn), address(tokenOut), 3000, 1e18, gross, block.timestamp + 1 days, 0
-        );
+        w.swapExactInputSingleERC20(address(tokenIn), address(tokenOut), 3000, 1e18, gross, block.timestamp + 1 days, 0);
         vm.stopPrank();
     }
 
