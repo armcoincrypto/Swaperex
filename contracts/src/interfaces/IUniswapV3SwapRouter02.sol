@@ -14,4 +14,14 @@ interface IUniswapV3SwapRouter02 {
     }
 
     function exactInputSingle(ExactInputSingleParams calldata params) external payable returns (uint256 amountOut);
+
+    /// @dev Uniswap `SwapRouter02` / `IV3SwapRouter` multi-hop exact input (no deadline in struct).
+    struct ExactInputParams {
+        bytes path;
+        address recipient;
+        uint256 amountIn;
+        uint256 amountOutMinimum;
+    }
+
+    function exactInput(ExactInputParams calldata params) external payable returns (uint256 amountOut);
 }

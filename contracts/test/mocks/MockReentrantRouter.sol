@@ -26,4 +26,8 @@ contract MockReentrantRouter is IUniswapV3SwapRouter02 {
         );
         return 0;
     }
+
+    function exactInput(ExactInputParams calldata) external payable returns (uint256) {
+        revert("MockReentrantRouter_exactInput");
+    }
 }

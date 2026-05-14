@@ -18,4 +18,19 @@ contract MockQuoterV2 is IUniswapV3QuoterV2 {
     {
         return (amountOutFixed, 0, 0, 0);
     }
+
+    function quoteExactInput(bytes memory, uint256)
+        external
+        view
+        returns (
+            uint256 amountOut,
+            uint160[] memory sqrtPriceX96AfterList,
+            uint32[] memory initializedTicksCrossedList,
+            uint256 gasEstimate
+        )
+    {
+        uint160[] memory sp = new uint160[](1);
+        uint32[] memory tc = new uint32[](1);
+        return (amountOutFixed, sp, tc, 0);
+    }
 }

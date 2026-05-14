@@ -16,4 +16,14 @@ interface IUniswapV3QuoterV2 {
     function quoteExactInputSingle(QuoteExactInputSingleParams memory params)
         external
         returns (uint256 amountOut, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate);
+
+    /// @dev Official `IQuoterV2.quoteExactInput` — not `view` (simulation via revert).
+    function quoteExactInput(bytes memory path, uint256 amountIn)
+        external
+        returns (
+            uint256 amountOut,
+            uint160[] memory sqrtPriceX96AfterList,
+            uint32[] memory initializedTicksCrossedList,
+            uint256 gasEstimate
+        );
 }

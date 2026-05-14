@@ -14,14 +14,12 @@ contract MockReentrantRouterV2 is IUniswapV3SwapRouter02 {
 
     function exactInputSingle(ExactInputSingleParams calldata) external payable returns (uint256) {
         wrapper.swapExactInputSingleERC20(
-            address(uint160(0x1111)),
-            address(uint160(0x2222)),
-            3000,
-            1,
-            1,
-            block.timestamp + 1 days,
-            0
+            address(uint160(0x1111)), address(uint160(0x2222)), 3000, 1, 1, block.timestamp + 1 days, 0
         );
         return 0;
+    }
+
+    function exactInput(ExactInputParams calldata) external payable returns (uint256) {
+        revert("MockReentrantRouterV2_exactInput");
     }
 }

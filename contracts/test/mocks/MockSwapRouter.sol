@@ -23,4 +23,19 @@ contract MockSwapRouter is IUniswapV3SwapRouter02 {
         ERC20Mock(p.tokenOut).mint(p.recipient, grossOut);
         return grossOut;
     }
+
+    function exactInput(ExactInputParams calldata p) external payable returns (uint256 amountOut) {
+        address token0 = _readAddr(p.path, 0);
+        IERC20(token0).safeTransferFrom(msg.sender, address(this), p.amountIn);
+        if (grossOut < p.amountOutMinimum) revert("MockRouter_Slippage");
+        address tokenLast = _readAddr(p.path, p.path.length - 20);
+        ERC20Mock(tokenLast).mint(p.recipient, grossOut);
+        return grossOut;
+    }
+
+    function _readAddr(bytes calldata data, uint256 pos) private pure returns (address a) {
+        assembly ("memory-safe") {
+            a := shr(96, calldataload(add(data.offset, pos)))
+        }
+    }
 }
