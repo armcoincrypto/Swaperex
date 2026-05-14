@@ -190,6 +190,103 @@ cd contracts
 forge test -vvv --match-path test/SwaperexUniswapV3FeeWrapperV2.unit.t.sol
 ```
 
+---
+
+## SwaperexUniswapV3FeeWrapperV3 (Ethereum, multi-hop)
+
+Multi-hop **V3** wrapper: same immutables and fee model as **V2** (`ROUTER`, `QUOTER`, `WETH`, `treasury`, `feeBps`), but swaps use Uniswap `exactInput` / `quoteExactInput` with a packed `path` and `MAX_HOPS = 2`. See `src/SwaperexUniswapV3FeeWrapperV3.sol` and `script/DeployUniswapWrapperV3.s.sol`.
+
+### Required environment variables
+
+| Variable | Example (Ethereum mainnet) |
+|----------|----------------------------|
+| `UNISWAP_V3_SWAP_ROUTER02` | `0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45` |
+| `UNISWAP_V3_QUOTER_V2` | `0x61fFE014bA17989E743c5F6cB21bF9697530B21e` |
+| `WETH` | `0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2` |
+| `TREASURY` | Swaperex treasury (same policy as V2) |
+| `FEE_BPS` | `1` … `1000` (e.g. `50` for 0.5%) |
+| `MAINNET_RPC_URL` (or `ETHEREUM_RPC_URL`) | JSON-RPC for `--rpc-url` |
+
+Optional: `OWNER` — defaults to `tx.origin` when omitted.
+
+### Dry-run (simulate — no broadcast)
+
+```bash
+cd contracts
+export MAINNET_RPC_URL="https://…"
+export UNISWAP_V3_SWAP_ROUTER02="0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"
+export UNISWAP_V3_QUOTER_V2="0x61fFE014bA17989E743c5F6cB21bF9697530B21e"
+export WETH="0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+export TREASURY="0x…"
+export FEE_BPS="50"
+# optional: export OWNER="0x…"
+forge script script/DeployUniswapWrapperV3.s.sol:DeployUniswapWrapperV3 \
+  --rpc-url "$MAINNET_RPC_URL" \
+  -vvvv
+```
+
+### Deploy (broadcast)
+
+Only when explicitly approved. Signer is **not** read inside the script; pass a Foundry signer flag (e.g. `--private-key`, `--ledger`).
+
+```bash
+cd contracts
+forge script script/DeployUniswapWrapperV3.s.sol:DeployUniswapWrapperV3 \
+  --rpc-url "$MAINNET_RPC_URL" \
+  --broadcast \
+  --slow \
+  --private-key "$PRIVATE_KEY" \
+  -vvvv
+```
+
+Copy the logged `SwaperexUniswapV3FeeWrapperV3:` address. For a **multisig** owner, simulate locally first, then deploy the same bytecode + constructor args via your Safe / deployment UI.
+
+### Verify on Etherscan
+
+Constructor ABI matches V2: `(address initialOwner, address router, address quoter, address weth, address treasury, uint16 feeBps)`.
+
+```bash
+cd contracts
+forge verify-contract "<DEPLOYED>" \
+  src/SwaperexUniswapV3FeeWrapperV3.sol:SwaperexUniswapV3FeeWrapperV3 \
+  --chain mainnet \
+  --compiler-version 0.8.26 \
+  --num-of-optimizations 200 \
+  --via-ir \
+  --constructor-args $(cast abi-encode "constructor(address,address,address,address,address,uint16)" \
+    "$OWNER_OR_DEPLOYER" \
+    "$UNISWAP_V3_SWAP_ROUTER02" \
+    "$UNISWAP_V3_QUOTER_V2" \
+    "$WETH" \
+    "$TREASURY" \
+    "$FEE_BPS") \
+  --etherscan-api-key "$ETHERSCAN_API_KEY" \
+  --watch
+```
+
+### On-chain audit helper
+
+From repo root (optional **V3** checks if `VITE_UNISWAP_WRAPPER_V3_ADDRESS` is exported or set in `frontend/.env.production`):
+
+```bash
+bash scripts/audit/verify-wrappers.sh
+```
+
+### Rollback / canary (off-chain)
+
+- **Do not** set frontend env flags to route production traffic to V3 until the canary plan is approved.
+- Leaving `VITE_UNISWAP_WRAPPER_V3_ADDRESS` unset keeps `verify-wrappers.sh` V3 checks skipped; **V1/V2** routing and custody are unchanged.
+- To roll back after a bad deploy: stop pointing the app at the new address; the old wrapper contracts remain immutable on-chain.
+
+### Unit / fork tests (V3)
+
+```bash
+cd contracts
+forge test -vvv --match-path test/SwaperexUniswapV3FeeWrapperV3.unit.t.sol
+# Fork (requires MAINNET_RPC_URL):
+forge test -vvv --match-contract SwaperexUniswapV3FeeWrapperV3ForkTest
+```
+
 ## Build notes
 
 - `via_ir = true` is enabled in `foundry.toml` to avoid “stack too deep” in the swap function while keeping a single external entrypoint.

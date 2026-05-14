@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# On-chain + env checks for Swaperex fee wrappers (BSC V2, ETH V2, ETH V1).
+# On-chain + env checks for Swaperex fee wrappers (BSC V2, ETH V2, ETH V1, optional ETH V3).
 # Usage: from repo root — bash scripts/audit/verify-wrappers.sh
 # Requires: cast (Foundry). No private keys; no secrets printed.
 # RPC: ETHEREUM_RPC_URL or MAINNET_RPC_URL, else https://ethereum.publicnode.com
 #       BSC_RPC_URL, else https://bsc-dataseed.binance.org
+# Optional ETH V3: set VITE_UNISWAP_WRAPPER_V3_ADDRESS in the environment, or define the same key in frontend/.env.production.
 
 set -uo pipefail
 
@@ -175,6 +176,63 @@ else
 fi
 
 check_paused_false_if_present "ETH V2" "$ETH_V2" "$ETH_RPC"
+
+echo ""
+echo "== 3b) ETH wrapper V3 (optional) — rpc $ETH_RPC =="
+ETH_V3="${VITE_UNISWAP_WRAPPER_V3_ADDRESS:-}"
+if [[ -z "$ETH_V3" && -f "$ENV_PROD" ]]; then
+  _line="$(grep -E '^[[:space:]]*VITE_UNISWAP_WRAPPER_V3_ADDRESS=' "$ENV_PROD" 2>/dev/null | tail -1 || true)"
+  if [[ -n "$_line" ]]; then
+    ETH_V3="${_line#*=}"
+    ETH_V3="${ETH_V3//\"/}"
+    ETH_V3="${ETH_V3//\'/}"
+    ETH_V3="$(echo -n "$ETH_V3" | tr -d '[:space:]')"
+  fi
+fi
+if [[ -z "$ETH_V3" ]]; then
+  warn_skip "ETH V3: VITE_UNISWAP_WRAPPER_V3_ADDRESS unset — skipping V3 checks"
+else
+  check_code "ETH V3" "$ETH_V3" "$ETH_RPC" || true
+  tr3="$(cast call "$ETH_V3" "treasury()(address)" --rpc-url "$ETH_RPC" 2>/dev/null)" || tr3=""
+  if [[ -n "$tr3" ]]; then
+    assert_addr_eq "ETH V3 treasury()" "$tr3" "$TREASURY_EXPECTED" || true
+  else
+    fail "ETH V3: treasury() call failed"
+  fi
+
+  fb3="$(cast call "$ETH_V3" "feeBps()(uint256)" --rpc-url "$ETH_RPC" 2>/dev/null)" || fb3=""
+  if [[ -n "$fb3" ]]; then
+    assert_uint_positive "ETH V3 feeBps()" "$fb3" || true
+  else
+    fail "ETH V3: feeBps() call failed"
+  fi
+
+  weth3="$(cast call "$ETH_V3" "WETH()(address)" --rpc-url "$ETH_RPC" 2>/dev/null)" || weth3=""
+  if [[ -n "$weth3" ]]; then
+    assert_addr_eq "ETH V3 WETH()" "$weth3" "$WETH_MAINNET" || true
+  else
+    fail "ETH V3: WETH() call failed"
+  fi
+
+  mh="$(cast call "$ETH_V3" "MAX_HOPS()(uint256)" --rpc-url "$ETH_RPC" 2>/dev/null)" || mh=""
+  if [[ -n "$mh" ]]; then
+    dec_mh=""
+    if dec_mh="$(cast to-dec "$mh" 2>/dev/null)"; then
+      :
+    else
+      dec_mh="$(echo -n "$mh" | tr -d '[:space:]')"
+    fi
+    if [[ "$dec_mh" == "2" ]]; then
+      ok "ETH V3 MAX_HOPS() = 2"
+    else
+      fail "ETH V3 MAX_HOPS(): expected 2, got ${dec_mh:-$mh}"
+    fi
+  else
+    fail "ETH V3: MAX_HOPS() call failed"
+  fi
+
+  check_paused_false_if_present "ETH V3" "$ETH_V3" "$ETH_RPC"
+fi
 
 echo ""
 echo "== 4) ETH wrapper V1 ($ETH_V1) — rpc $ETH_RPC =="
