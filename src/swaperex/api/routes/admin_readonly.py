@@ -25,6 +25,7 @@ from sqlalchemy import bindparam, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from swaperex.api.dependencies import get_session
+from swaperex.api.swap_lifecycle_reconstruction import build_swap_lifecycles_payload
 from swaperex.config import get_settings
 from swaperex.ledger.models import MonitoringIngestBatch
 
@@ -1290,6 +1291,41 @@ async def admin_revenue_reconciliation(session: AsyncSession = Depends(get_sessi
             ],
         },
     }
+
+
+@router.get(
+    "/swap-lifecycles",
+    summary="P3.3 swap lifecycle reconstruction from monitoring telemetry (read-only)",
+    dependencies=[Depends(require_admin_api_token)],
+)
+async def admin_swap_lifecycles(
+    session: AsyncSession = Depends(get_session),
+    status: str | None = Query(default=None, description="Filter: lifecycle status"),
+    provider: str | None = Query(default=None, description="Substring match on provider"),
+    chain: int | None = Query(default=None, description="Exact chain id"),
+    swap_lifecycle_id: str | None = Query(
+        default=None,
+        description="Substring match on lifecycle_id (swapFlowId or synthetic id)",
+    ),
+    tx_hash: str | None = Query(default=None, description="Substring match on tx hash"),
+    max_batches: int = Query(default=400, ge=1, le=2000, alias="maxBatches"),
+) -> dict[str, Any]:
+    stmt = (
+        select(MonitoringIngestBatch)
+        .order_by(MonitoringIngestBatch.id.desc())
+        .limit(max_batches)
+    )
+    batches = (await session.execute(stmt)).scalars().all()
+    return build_swap_lifecycles_payload(
+        list(batches),
+        status_filter=status.strip() if status and status.strip() else None,
+        provider_filter=provider.strip() if provider and provider.strip() else None,
+        chain_filter=chain,
+        lifecycle_id_filter=swap_lifecycle_id.strip()
+        if swap_lifecycle_id and swap_lifecycle_id.strip()
+        else None,
+        tx_hash_filter=tx_hash.strip() if tx_hash and tx_hash.strip() else None,
+    )
 
 
 # --- P2.6 failure observability (read-only aggregates from monitoring ingest) ---

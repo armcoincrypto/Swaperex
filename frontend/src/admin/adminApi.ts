@@ -356,6 +356,80 @@ export async function fetchAdminRevenueReconciliation(
   return (await res.json()) as AdminRevenueReconciliationResponse;
 }
 
+export type AdminSwapLifecyclePhaseRow = {
+  phase: string;
+  time: string;
+  event_name: string;
+  metadata: Record<string, unknown>;
+};
+
+export type AdminSwapLifecycleRow = {
+  lifecycle_id: string;
+  session_id: string;
+  status: string;
+  severity: string;
+  chain_id: number | null;
+  provider: string | null;
+  route_mode: string | null;
+  pair: string;
+  wallet_address: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  duration_ms: number;
+  tx_hash: string | null;
+  phases: AdminSwapLifecyclePhaseRow[];
+  issues: string[];
+  checks: Record<string, boolean>;
+};
+
+export type AdminSwapLifecyclesSummary = {
+  total_lifecycles: number;
+  completed: number;
+  rejected: number;
+  pending: number;
+  failed: number;
+  incomplete: number;
+  orphaned: number;
+  unknown: number;
+  avg_duration_ms: number;
+  p95_duration_ms: number;
+};
+
+export type AdminSwapLifecyclesQuery = {
+  status?: string;
+  provider?: string;
+  chain?: number;
+  swapLifecycleId?: string;
+  txHash?: string;
+  maxBatches?: number;
+};
+
+export type AdminSwapLifecyclesResponse = {
+  schema_version: string;
+  summary: AdminSwapLifecyclesSummary;
+  phase_definitions: Array<{ phase: string; description: string }>;
+  recent_lifecycles: AdminSwapLifecycleRow[];
+  _meta: { notes: string[] };
+};
+
+export async function fetchAdminSwapLifecycles(
+  token: string,
+  params: AdminSwapLifecyclesQuery = {},
+): Promise<AdminSwapLifecyclesResponse> {
+  const q = new URLSearchParams();
+  if (params.status?.trim()) q.set('status', params.status.trim());
+  if (params.provider?.trim()) q.set('provider', params.provider.trim());
+  if (params.chain != null) q.set('chain', String(params.chain));
+  if (params.swapLifecycleId?.trim()) q.set('swap_lifecycle_id', params.swapLifecycleId.trim());
+  if (params.txHash?.trim()) q.set('tx_hash', params.txHash.trim());
+  if (params.maxBatches != null) q.set('maxBatches', String(params.maxBatches));
+  const qs = q.toString();
+  const path = qs ? `admin/swap-lifecycles?${qs}` : 'admin/swap-lifecycles';
+  const res = await adminFetch(path, token);
+  if (!res.ok) throw new Error(`admin swap-lifecycles ${res.status}`);
+  return (await res.json()) as AdminSwapLifecyclesResponse;
+}
+
 export type AdminWalletReconnectTotals = {
   scans: number;
   appkit_success: number;

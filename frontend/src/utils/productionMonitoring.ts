@@ -107,6 +107,8 @@ export const PERSISTED_MONITORING_EVENTS = [
   'quote_failure',
   'rpc_failure',
   'commission_missing',
+  /** P3.3 — swap UI lifecycle stages (swapFlowId + stage); read-only reconstruction on admin. */
+  'swap_lifecycle',
   /** P2.6 — wallet cancel / pending sign (no raw error text; reasonCode only). */
   'wallet_rejected',
   'wallet_request_pending',

@@ -72,6 +72,7 @@ def test_admin_app_exposes_health_monitoring_and_readonly_admin():
     assert "/api/v1/admin/failures" in paths, paths
     assert "/api/v1/admin/revenue-normalized" in paths, paths
     assert "/api/v1/admin/revenue-reconciliation" in paths, paths
+    assert "/api/v1/admin/swap-lifecycles" in paths, paths
 
 
 def test_admin_app_does_not_expose_custodial_routes():
@@ -707,6 +708,135 @@ async def test_admin_revenue_reconciliation_endpoint(admin_client, monkeypatch):
     assert by_tx["0x1inch1"]["reconciliation_status"] == "unsupported_route"
 
     get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_admin_swap_lifecycles_endpoint(admin_client, monkeypatch):
+    monkeypatch.setenv("ADMIN_API_TOKEN", "lifecycle-test")
+    from swaperex.config import get_settings
+
+    get_settings.cache_clear()
+    client, _ = admin_client
+
+    assert (await client.get("/api/v1/admin/swap-lifecycles")).status_code == 401
+
+    await client.post(
+        "/api/v1/monitoring/events",
+        json={
+            "schemaVersion": 1,
+            "clientSessionId": "life-sess-1",
+            "exportedAt": 9_000_000_000_000,
+            "events": [
+                {
+                    "event": "swap_lifecycle",
+                    "ts": 5_000_001,
+                    "swapFlowId": "flow-done",
+                    "stage": "quote_requested",
+                    "chainId": 1,
+                    "provider": "uniswap-v3-wrapper-v2",
+                },
+                {
+                    "event": "swap_lifecycle",
+                    "ts": 5_000_100,
+                    "swapFlowId": "flow-done",
+                    "stage": "tx_broadcasted",
+                    "chainId": 1,
+                    "txHash": "0xdone1",
+                },
+                {
+                    "event": "swap_success",
+                    "ts": 5_000_200,
+                    "chainId": 1,
+                    "txHash": "0xdone1",
+                    "provider": "uniswap-v3-wrapper-v2",
+                    "fromToken": {"symbol": "ETH"},
+                    "toToken": {"symbol": "USDT"},
+                },
+                {
+                    "event": "swap_lifecycle",
+                    "ts": 5_000_300,
+                    "swapFlowId": "flow-bad",
+                    "stage": "tx_broadcasted",
+                    "chainId": 1,
+                },
+                {
+                    "event": "swap_lifecycle",
+                    "ts": 5_000_400,
+                    "swapFlowId": "flow-bad",
+                    "stage": "quote_requested",
+                    "chainId": 1,
+                },
+                {
+                    "event": "swap_lifecycle",
+                    "ts": 5_000_500,
+                    "swapFlowId": "flow-rej",
+                    "stage": "swap_signature_requested",
+                    "chainId": 56,
+                },
+                {
+                    "event": "wallet_rejected",
+                    "ts": 5_000_550,
+                    "chainId": 56,
+                    "phase": "swap",
+                    "reasonCode": "user_rejected",
+                },
+                {"event": "swap_lifecycle", "ts": 1_000, "swapFlowId": "flow-old", "stage": "quote_requested", "chainId": 1},
+            ],
+        },
+    )
+
+    hdr = {"X-Admin-Token": "lifecycle-test"}
+    res = await client.get("/api/v1/admin/swap-lifecycles", headers=hdr)
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["schema_version"] == "p3.3.0"
+    summ = body["summary"]
+    assert summ["total_lifecycles"] >= 4
+    assert isinstance(summ["avg_duration_ms"], int)
+    assert isinstance(summ["p95_duration_ms"], int)
+    assert len(body["phase_definitions"]) >= 5
+    recent = body["recent_lifecycles"]
+    by_id = {r["lifecycle_id"]: r for r in recent}
+    assert by_id["flow-done"]["status"] == "completed"
+    assert by_id["flow-done"]["checks"]["phase_order_valid"] is True
+    assert by_id["flow-bad"]["status"] == "orphaned"
+    assert by_id["flow-rej"]["status"] == "rejected"
+    assert by_id["flow-old"]["status"] == "incomplete"
+
+    get_settings.cache_clear()
+
+
+def test_swap_lifecycle_reconstruction_lifecycle_id_filter():
+    """Unit-test filter wiring (independent of httpx query serialization)."""
+    from datetime import datetime, timezone
+
+    from swaperex.api.swap_lifecycle_reconstruction import build_swap_lifecycles_payload
+
+    class FakeBatch:
+        received_at = datetime.now(timezone.utc)
+        client_session_id = "s1"
+        envelope = {
+            "events": [
+                {
+                    "event": "swap_lifecycle",
+                    "ts": 100,
+                    "swapFlowId": "aaa",
+                    "stage": "quote_requested",
+                    "chainId": 1,
+                },
+                {
+                    "event": "swap_lifecycle",
+                    "ts": 200,
+                    "swapFlowId": "bbb",
+                    "stage": "quote_requested",
+                    "chainId": 1,
+                },
+            ],
+        }
+
+    out = build_swap_lifecycles_payload([FakeBatch()], lifecycle_id_filter="aaa")
+    ids = {r["lifecycle_id"] for r in out["recent_lifecycles"]}
+    assert ids == {"aaa"}
 
 
 @pytest.mark.asyncio

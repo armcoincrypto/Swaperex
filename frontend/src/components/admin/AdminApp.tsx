@@ -14,6 +14,7 @@ import {
   fetchAdminRevenue,
   fetchAdminRevenueNormalized,
   fetchAdminRevenueReconciliation,
+  fetchAdminSwapLifecycles,
   fetchAdminSwaps,
   fetchAdminWalletReconnect,
   getStoredAdminToken,
@@ -30,6 +31,9 @@ import {
   type AdminRevenueResponse,
   type AdminRevenueRouteBucket,
   type AdminSwapAnalyticsRow,
+  type AdminSwapLifecyclesResponse,
+  type AdminSwapLifecycleRow,
+  type AdminSwapLifecyclePhaseRow,
   type AdminSwapsResponse,
   type AdminWalletReconnectFailureRow,
   type AdminWalletReconnectResponse,
@@ -128,6 +132,9 @@ function AdminLayout() {
           <NavLink to="/admin/revenue" className={navCls}>
             Revenue
           </NavLink>
+          <NavLink to="/admin/lifecycle" className={navCls}>
+            Lifecycle
+          </NavLink>
           <NavLink to="/admin/failures" className={navCls}>
             Failures
           </NavLink>
@@ -148,7 +155,7 @@ function AdminLayout() {
       </aside>
       <div className="flex-1 flex flex-col min-w-0">
         <header className="border-b border-dark-800 px-6 py-4 flex justify-between items-center bg-dark-900/30">
-          <span className="text-sm text-dark-400">Read-only · P2.6</span>
+          <span className="text-sm text-dark-400">Read-only · P3.3</span>
           <NavLink to="/" className="text-xs text-dark-500 hover:text-white">
             Exit to DEX
           </NavLink>
@@ -1515,6 +1522,245 @@ function ProviderBadge({ provider }: { provider: string | null }) {
   );
 }
 
+function LifecycleStatusBadge({ status }: { status: string }) {
+  const cls =
+    status === 'completed'
+      ? 'bg-emerald-900/45 text-emerald-100 border-emerald-800/35'
+      : status === 'rejected'
+        ? 'bg-slate-700 text-slate-100 border-slate-600/50'
+        : status === 'failed'
+          ? 'bg-red-900/40 text-red-100 border-red-800/35'
+          : status === 'pending'
+            ? 'bg-blue-900/40 text-blue-100 border-blue-800/35'
+            : status === 'orphaned'
+              ? 'bg-violet-900/40 text-violet-100 border-violet-800/35'
+              : status === 'incomplete'
+                ? 'bg-amber-900/40 text-amber-50 border-amber-800/30'
+                : 'bg-slate-800 text-slate-200 border-slate-600/40';
+  return (
+    <span className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide border ${cls}`}>
+      {status}
+    </span>
+  );
+}
+
+function AdminSwapLifecyclesPage() {
+  const { token } = useAdminToken();
+  const [data, setData] = useState<AdminSwapLifecyclesResponse | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState('');
+  const [provider, setProvider] = useState('');
+  const [chain, setChain] = useState('');
+  const [swapLifecycleId, setSwapLifecycleId] = useState('');
+  const [txHash, setTxHash] = useState('');
+
+  const load = useCallback(async () => {
+    setErr(null);
+    setLoading(true);
+    try {
+      let ch: number | undefined;
+      if (chain.trim()) {
+        const n = Number.parseInt(chain.trim(), 10);
+        if (Number.isFinite(n)) ch = n;
+      }
+      setData(
+        await fetchAdminSwapLifecycles(token, {
+          status: status || undefined,
+          provider: provider || undefined,
+          chain: ch,
+          swapLifecycleId: swapLifecycleId || undefined,
+          txHash: txHash || undefined,
+        }),
+      );
+    } catch (e) {
+      setData(null);
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [token, status, provider, chain, swapLifecycleId, txHash]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const explorerUrl = (cid: number | null, h: string | null) => {
+    if (!h) return null;
+    if (cid === 1) return `https://etherscan.io/tx/${h}`;
+    if (cid === 56) return `https://bscscan.com/tx/${h}`;
+    return null;
+  };
+
+  const summ = data?.summary;
+
+  return (
+    <div>
+      <h2 className="text-lg font-medium mb-2">Swap lifecycles</h2>
+      <p className="text-xs text-amber-100/85 bg-amber-950/30 border border-amber-900/45 rounded-lg px-3 py-2 mb-4">
+        Telemetry-derived lifecycle reconstruction. Not a settlement guarantee.
+      </p>
+      {err && <p className="text-red-400 text-sm mb-3">{err}</p>}
+      <div className="flex flex-wrap gap-2 mb-4 items-end">
+        <label className="text-[11px] text-dark-400 flex flex-col gap-0.5">
+          Status
+          <input
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            placeholder="completed"
+            className="rounded bg-dark-900 border border-dark-700 px-2 py-1 text-xs w-28"
+          />
+        </label>
+        <label className="text-[11px] text-dark-400 flex flex-col gap-0.5">
+          Provider
+          <input
+            value={provider}
+            onChange={(e) => setProvider(e.target.value)}
+            className="rounded bg-dark-900 border border-dark-700 px-2 py-1 text-xs w-36"
+          />
+        </label>
+        <label className="text-[11px] text-dark-400 flex flex-col gap-0.5">
+          Chain
+          <input
+            value={chain}
+            onChange={(e) => setChain(e.target.value)}
+            placeholder="1"
+            className="rounded bg-dark-900 border border-dark-700 px-2 py-1 text-xs w-16"
+          />
+        </label>
+        <label className="text-[11px] text-dark-400 flex flex-col gap-0.5">
+          Lifecycle id
+          <input
+            value={swapLifecycleId}
+            onChange={(e) => setSwapLifecycleId(e.target.value)}
+            className="rounded bg-dark-900 border border-dark-700 px-2 py-1 text-xs w-40"
+          />
+        </label>
+        <label className="text-[11px] text-dark-400 flex flex-col gap-0.5">
+          Tx hash
+          <input
+            value={txHash}
+            onChange={(e) => setTxHash(e.target.value)}
+            className="rounded bg-dark-900 border border-dark-700 px-2 py-1 text-xs w-44 font-mono"
+          />
+        </label>
+        <button
+          type="button"
+          disabled={loading}
+          onClick={() => void load()}
+          className="rounded-lg bg-dark-700 hover:bg-dark-600 px-3 py-1.5 text-sm disabled:opacity-50"
+        >
+          {loading ? 'Loading…' : 'Apply filters'}
+        </button>
+      </div>
+
+      {!data ? (
+        <p className="text-dark-400 text-sm">{loading ? 'Loading…' : 'No data.'}</p>
+      ) : (
+        <>
+          <p className="text-[11px] text-dark-500 mb-2">Schema {data.schema_version}</p>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+            <div className="rounded-lg border border-dark-700 bg-dark-900/40 p-3">
+              <div className="text-[10px] text-dark-500 uppercase">Total</div>
+              <div className="text-xl font-mono">{summ?.total_lifecycles ?? 0}</div>
+            </div>
+            <div className="rounded-lg border border-dark-700 bg-dark-900/40 p-3">
+              <div className="text-[10px] text-dark-500 uppercase">Completed / failed / orphaned</div>
+              <div className="text-sm font-mono mt-1 text-emerald-200">
+                {summ?.completed ?? 0} / <span className="text-red-200/90">{summ?.failed ?? 0}</span> /{' '}
+                <span className="text-violet-200/90">{summ?.orphaned ?? 0}</span>
+              </div>
+            </div>
+            <div className="rounded-lg border border-dark-700 bg-dark-900/40 p-3">
+              <div className="text-[10px] text-dark-500 uppercase">Avg duration (completed)</div>
+              <div className="text-xl font-mono">{summ?.avg_duration_ms ?? 0} ms</div>
+            </div>
+            <div className="rounded-lg border border-dark-700 bg-dark-900/40 p-3">
+              <div className="text-[10px] text-dark-500 uppercase">P95 duration</div>
+              <div className="text-xl font-mono">{summ?.p95_duration_ms ?? 0} ms</div>
+            </div>
+          </div>
+
+          <h3 className="text-sm font-medium text-dark-300 mb-2">Recent lifecycles</h3>
+          <div className="space-y-3">
+            {data.recent_lifecycles.length === 0 ? (
+              <p className="text-dark-500 text-sm">No rows match filters.</p>
+            ) : (
+              data.recent_lifecycles.map((row: AdminSwapLifecycleRow) => {
+                const ex = explorerUrl(row.chain_id, row.tx_hash);
+                const highlight = row.status === 'incomplete' || row.status === 'orphaned';
+                return (
+                  <details
+                    key={row.lifecycle_id}
+                    className={`rounded-lg border ${highlight ? 'border-amber-800/60 bg-amber-950/10' : 'border-dark-700 bg-dark-900/30'}`}
+                  >
+                    <summary className="cursor-pointer select-none px-3 py-2 flex flex-wrap items-center gap-2 text-sm">
+                      <LifecycleStatusBadge status={row.status} />
+                      <ReconSeverityBadge severity={row.severity} />
+                      <span className="font-mono text-[11px] text-dark-300 truncate max-w-[14rem]">{row.lifecycle_id}</span>
+                      <ChainBadge chainId={row.chain_id} />
+                      <ProviderBadge provider={row.provider} />
+                      <span className="text-dark-500 text-[11px]">{row.duration_ms} ms</span>
+                    </summary>
+                    <div className="px-3 pb-3 text-[12px] text-dark-300 space-y-2 border-t border-dark-800/80 pt-2">
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px]">
+                        <span>
+                          <span className="text-dark-500">Session</span>{' '}
+                          <span className="font-mono">{row.session_id}</span>
+                        </span>
+                        <span>
+                          <span className="text-dark-500">Pair</span> {row.pair}
+                        </span>
+                        <span>
+                          <span className="text-dark-500">Started</span> {row.started_at ?? '—'}
+                        </span>
+                        <span>
+                          <span className="text-dark-500">Ended</span> {row.ended_at ?? '—'}
+                        </span>
+                      </div>
+                      {row.tx_hash && (
+                        <div className="font-mono text-[11px] break-all">
+                          tx: {row.tx_hash}
+                          {ex && (
+                            <a href={ex} target="_blank" rel="noreferrer" className="ml-2 text-cyan-400 hover:underline">
+                              explorer
+                            </a>
+                          )}
+                        </div>
+                      )}
+                      {row.issues.length > 0 && (
+                        <ul className="text-amber-200/90 text-[11px] list-disc pl-4">
+                          {row.issues.map((i) => (
+                            <li key={i}>{i}</li>
+                          ))}
+                        </ul>
+                      )}
+                      <div className="text-[10px] text-dark-500">
+                        checks:{' '}
+                        {Object.entries(row.checks)
+                          .map(([k, v]) => `${k}=${v}`)
+                          .join(' · ')}
+                      </div>
+                      <h4 className="text-xs font-medium text-dark-400">Phases</h4>
+                      <ol className="list-decimal pl-4 space-y-1 text-[11px] font-mono">
+                        {row.phases.map((p: AdminSwapLifecyclePhaseRow, idx: number) => (
+                          <li key={`${p.time}-${idx}`}>
+                            <span className="text-cyan-200/80">{p.phase}</span> · {p.event_name} · {p.time}
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  </details>
+                );
+              })
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function AdminFailuresPage() {
   const { token } = useAdminToken();
   const [data, setData] = useState<AdminFailuresResponse | null>(null);
@@ -1936,6 +2182,7 @@ export default function AdminApp() {
           <Route path="events" element={<AdminEventsPage />} />
           <Route path="swaps" element={<AdminSwapsPage />} />
           <Route path="revenue" element={<AdminRevenuePage />} />
+          <Route path="lifecycle" element={<AdminSwapLifecyclesPage />} />
           <Route path="failures" element={<AdminFailuresPage />} />
           <Route path="wallet" element={<AdminWalletReconnectPage />} />
           <Route path="system" element={<PlaceholderSection title="System" />} />
