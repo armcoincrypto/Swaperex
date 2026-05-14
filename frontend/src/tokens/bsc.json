@@ -141,6 +141,41 @@
       "address": "0xCE7de646e7208a4Ef112cb6ed5038FA6cC6b12e3",
       "decimals": 6,
       "logoURI": "https://tokens.1inch.io/0xce7de646e7208a4ef112cb6ed5038fa6cc6b12e3.png"
+    },
+    {
+      "symbol": "TUSD",
+      "name": "TrueUSD",
+      "address": "0x40af3827F39D0EAcBF4A168f8D4ee67c121D11c9",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0x40af3827f39d0eacbf4a168f8d4ee67c121d11c9.png"
+    },
+    {
+      "symbol": "PEPE",
+      "name": "Pepe",
+      "address": "0x25d887Ce7a35172C62FeBFD67a1856F20FaEbB00",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0x25d887ce7a35172c62febfd67a1856f20faebb00.png"
+    },
+    {
+      "symbol": "FLOKI",
+      "name": "FLOKI",
+      "address": "0xfb5B838b6cfEEdC2873aB27866079AC55363D37E",
+      "decimals": 9,
+      "logoURI": "https://tokens.1inch.io/0xfb5b838b6cfeedc2873ab27866079ac55363d37e.png"
+    },
+    {
+      "symbol": "TWT",
+      "name": "Trust Wallet",
+      "address": "0x4b0F1812e5Df2A09796481Ff14017e6005508003",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0x4b0f1812e5df2a09796481ff14017e6005508003.png"
+    },
+    {
+      "symbol": "XVS",
+      "name": "Venus",
+      "address": "0xcF6BB5389c92Bdda8a3747Ddb454cB7a64626C63",
+      "decimals": 18,
+      "logoURI": "https://tokens.1inch.io/0xcf6bb5389c92bdda8a3747ddb454cb7a64626c63.png"
     }
   ]
 }
