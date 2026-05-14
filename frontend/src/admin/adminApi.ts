@@ -430,6 +430,76 @@ export async function fetchAdminSwapLifecycles(
   return (await res.json()) as AdminSwapLifecyclesResponse;
 }
 
+export type AdminHealthAlertsWindow = {
+  max_batches: number;
+  event_count: number;
+  oldest_event_time: string | null;
+  newest_event_time: string | null;
+};
+
+export type AdminHealthAlertsOverall = {
+  status: string;
+  score: number;
+  highest_severity: string;
+  generated_at: string;
+  window: AdminHealthAlertsWindow;
+};
+
+export type AdminHealthCheckRow = {
+  id: string;
+  label: string;
+  status: string;
+  severity: string;
+  value: string;
+  threshold: string;
+  reason: string;
+  evidence: Record<string, unknown>;
+};
+
+export type AdminHealthAlertRow = {
+  id: string;
+  severity: string;
+  category: string;
+  title: string;
+  message: string;
+  evidence: Record<string, unknown>;
+  recommended_action: string;
+};
+
+export type AdminHealthAlertsMetrics = {
+  total_events: number;
+  swap_success_count: number;
+  wallet_rejected_count: number;
+  quote_failure_count: number;
+  lifecycle_total: number;
+  lifecycle_incomplete_count: number;
+  lifecycle_orphaned_count: number;
+  revenue_telemetry_zero_fee_count: number;
+  revenue_telemetry_missing_fee_count: number;
+};
+
+export type AdminHealthAlertsResponse = {
+  schema_version: string;
+  overall: AdminHealthAlertsOverall;
+  checks: AdminHealthCheckRow[];
+  alerts: AdminHealthAlertRow[];
+  metrics: AdminHealthAlertsMetrics;
+  _meta: { notes: string[] };
+};
+
+export async function fetchAdminHealthAlerts(
+  token: string,
+  params: { maxBatches?: number } = {},
+): Promise<AdminHealthAlertsResponse> {
+  const q = new URLSearchParams();
+  if (params.maxBatches != null) q.set('maxBatches', String(params.maxBatches));
+  const qs = q.toString();
+  const path = qs ? `admin/health-alerts?${qs}` : 'admin/health-alerts';
+  const res = await adminFetch(path, token);
+  if (!res.ok) throw new Error(`admin health-alerts ${res.status}`);
+  return (await res.json()) as AdminHealthAlertsResponse;
+}
+
 export type AdminWalletReconnectTotals = {
   scans: number;
   appkit_success: number;

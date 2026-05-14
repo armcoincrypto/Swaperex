@@ -10,6 +10,7 @@ import {
   fetchAdminEvents,
   fetchAdminFailures,
   fetchAdminHealth,
+  fetchAdminHealthAlerts,
   fetchAdminOverview,
   fetchAdminRevenue,
   fetchAdminRevenueNormalized,
@@ -23,6 +24,9 @@ import {
   type AdminEventsResponse,
   type AdminFailureRow,
   type AdminFailuresResponse,
+  type AdminHealthAlertRow,
+  type AdminHealthAlertsResponse,
+  type AdminHealthCheckRow,
   type AdminOverviewResponse,
   type AdminRevenueNormalizedFeeEvent,
   type AdminRevenueNormalizedResponse,
@@ -155,7 +159,7 @@ function AdminLayout() {
       </aside>
       <div className="flex-1 flex flex-col min-w-0">
         <header className="border-b border-dark-800 px-6 py-4 flex justify-between items-center bg-dark-900/30">
-          <span className="text-sm text-dark-400">Read-only · P3.3</span>
+          <span className="text-sm text-dark-400">Read-only · P3.4</span>
           <NavLink to="/" className="text-xs text-dark-500 hover:text-white">
             Exit to DEX
           </NavLink>
@@ -168,11 +172,162 @@ function AdminLayout() {
   );
 }
 
-function PlaceholderSection({ title }: { title: string }) {
+function OverallHealthBadge({ status }: { status: string }) {
+  const cls =
+    status === 'healthy'
+      ? 'bg-emerald-900/45 text-emerald-100 border-emerald-800/35'
+      : status === 'warning'
+        ? 'bg-amber-900/40 text-amber-50 border-amber-800/30'
+        : status === 'critical'
+          ? 'bg-red-900/40 text-red-100 border-red-800/35'
+          : 'bg-slate-800 text-slate-200 border-slate-600/40';
+  return (
+    <span className={`rounded px-2 py-0.5 text-xs uppercase tracking-wide border ${cls}`}>{status}</span>
+  );
+}
+
+function AdminSystemHealthPage() {
+  const { token } = useAdminToken();
+  const [data, setData] = useState<AdminHealthAlertsResponse | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setErr(null);
+    try {
+      const res = await fetchAdminHealthAlerts(token, { maxBatches: 400 });
+      setData(res);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed to load health.');
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const ov = data?.overall;
+
   return (
     <div>
-      <h2 className="text-lg font-medium mb-2">{title}</h2>
-      <p className="text-sm text-dark-400">Coming in a later phase.</p>
+      <h2 className="text-lg font-medium mb-2">System health</h2>
+      <p className="text-xs text-amber-100/85 bg-amber-950/30 border border-amber-900/45 rounded-lg px-3 py-2 mb-4">
+        Health is telemetry-derived and read-only. It does not prove settlement or accounting.
+      </p>
+      {err && <p className="text-red-400 text-sm mb-3">{err}</p>}
+      {!data ? (
+        <p className="text-dark-400 text-sm">{loading ? 'Loading…' : 'No data.'}</p>
+      ) : (
+        <>
+          <p className="text-[11px] text-dark-500 mb-3">Schema {data.schema_version}</p>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+            <div className="rounded-lg border border-dark-700 bg-dark-900/40 p-3 sm:col-span-2">
+              <div className="text-[10px] text-dark-500 uppercase mb-1">Overall</div>
+              <div className="flex flex-wrap items-center gap-3">
+                <OverallHealthBadge status={ov?.status ?? 'unknown'} />
+                <ReconSeverityBadge severity={ov?.highest_severity ?? 'OK'} />
+                <span className="text-dark-400 text-xs">score</span>
+                <span className="font-mono text-xl">{ov?.score ?? '—'}</span>
+              </div>
+              <p className="text-[11px] text-dark-500 mt-2">Generated {ov?.generated_at ?? '—'}</p>
+            </div>
+            <div className="rounded-lg border border-dark-700 bg-dark-900/40 p-3">
+              <div className="text-[10px] text-dark-500 uppercase">Window events</div>
+              <div className="text-xl font-mono">{ov?.window.event_count ?? 0}</div>
+              <p className="text-[10px] text-dark-500 mt-1">max_batches {ov?.window.max_batches ?? '—'}</p>
+            </div>
+            <div className="rounded-lg border border-dark-700 bg-dark-900/40 p-3">
+              <div className="text-[10px] text-dark-500 uppercase">Event time span</div>
+              <p className="text-[10px] font-mono text-dark-300 break-all mt-1">{ov?.window.oldest_event_time ?? '—'}</p>
+              <p className="text-[10px] font-mono text-dark-300 break-all">→ {ov?.window.newest_event_time ?? '—'}</p>
+            </div>
+          </div>
+
+          <h3 className="text-sm font-medium text-dark-300 mb-2">Metrics</h3>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-[11px] font-mono mb-6">
+            {Object.entries(data.metrics).map(([k, v]) => (
+              <div key={k} className="rounded border border-dark-800 bg-dark-950/40 px-2 py-1.5">
+                <div className="text-dark-500">{k}</div>
+                <div className="text-dark-200">{String(v)}</div>
+              </div>
+            ))}
+          </div>
+
+          <h3 className="text-sm font-medium text-dark-300 mb-2">Checks</h3>
+          <div className="overflow-x-auto mb-6 rounded-lg border border-dark-700">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-dark-950/80 text-dark-500">
+                <tr>
+                  <th className="px-2 py-1.5">Check</th>
+                  <th className="px-2 py-1.5">Status</th>
+                  <th className="px-2 py-1.5">Sev</th>
+                  <th className="px-2 py-1.5">Value</th>
+                  <th className="px-2 py-1.5">Reason</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.checks.map((c: AdminHealthCheckRow) => (
+                  <tr key={c.id} className="border-t border-dark-800">
+                    <td className="px-2 py-1.5 text-dark-200">{c.label}</td>
+                    <td className="px-2 py-1.5">
+                      <OverallHealthBadge status={c.status} />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <ReconSeverityBadge severity={c.severity} />
+                    </td>
+                    <td className="px-2 py-1.5 font-mono text-dark-400">{c.value}</td>
+                    <td className="px-2 py-1.5 text-dark-400 max-w-md">{c.reason}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <h3 className="text-sm font-medium text-dark-300 mb-2">Alerts</h3>
+          {data.alerts.length === 0 ? (
+            <p className="text-dark-500 text-sm mb-4">No active alerts in this window.</p>
+          ) : (
+            <div className="overflow-x-auto mb-4 rounded-lg border border-dark-700">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-dark-950/80 text-dark-500">
+                  <tr>
+                    <th className="px-2 py-1.5">Sev</th>
+                    <th className="px-2 py-1.5">Category</th>
+                    <th className="px-2 py-1.5">Title</th>
+                    <th className="px-2 py-1.5">Message</th>
+                    <th className="px-2 py-1.5">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.alerts.map((a: AdminHealthAlertRow) => (
+                    <tr key={a.id} className="border-t border-dark-800 align-top">
+                      <td className="px-2 py-1.5">
+                        <ReconSeverityBadge severity={a.severity} />
+                      </td>
+                      <td className="px-2 py-1.5 text-dark-400">{a.category}</td>
+                      <td className="px-2 py-1.5 text-dark-200">{a.title}</td>
+                      <td className="px-2 py-1.5 text-dark-400 max-w-md">{a.message}</td>
+                      <td className="px-2 py-1.5 text-dark-500 max-w-xs">{a.recommended_action}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => void load()}
+            className="rounded-lg bg-dark-700 hover:bg-dark-600 px-3 py-1.5 text-sm disabled:opacity-50"
+          >
+            {loading ? 'Refreshing…' : 'Refresh'}
+          </button>
+        </>
+      )}
     </div>
   );
 }
@@ -2185,7 +2340,7 @@ export default function AdminApp() {
           <Route path="lifecycle" element={<AdminSwapLifecyclesPage />} />
           <Route path="failures" element={<AdminFailuresPage />} />
           <Route path="wallet" element={<AdminWalletReconnectPage />} />
-          <Route path="system" element={<PlaceholderSection title="System" />} />
+          <Route path="system" element={<AdminSystemHealthPage />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />
         </Route>
       </Routes>

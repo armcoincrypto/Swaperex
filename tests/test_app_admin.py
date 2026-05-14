@@ -12,6 +12,7 @@ silently regress:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -73,6 +74,7 @@ def test_admin_app_exposes_health_monitoring_and_readonly_admin():
     assert "/api/v1/admin/revenue-normalized" in paths, paths
     assert "/api/v1/admin/revenue-reconciliation" in paths, paths
     assert "/api/v1/admin/swap-lifecycles" in paths, paths
+    assert "/api/v1/admin/health-alerts" in paths, paths
 
 
 def test_admin_app_does_not_expose_custodial_routes():
@@ -837,6 +839,85 @@ def test_swap_lifecycle_reconstruction_lifecycle_id_filter():
     out = build_swap_lifecycles_payload([FakeBatch()], lifecycle_id_filter="aaa")
     ids = {r["lifecycle_id"] for r in out["recent_lifecycles"]}
     assert ids == {"aaa"}
+
+
+@pytest.mark.asyncio
+async def test_admin_health_alerts_endpoint(admin_client, monkeypatch):
+    monkeypatch.setenv("ADMIN_API_TOKEN", "health-alerts-test")
+    from swaperex.config import get_settings
+
+    get_settings.cache_clear()
+    client, _ = admin_client
+
+    assert (await client.get("/api/v1/admin/health-alerts")).status_code == 401
+    hdr = {"X-Admin-Token": "health-alerts-test"}
+    res0 = await client.get("/api/v1/admin/health-alerts", headers=hdr)
+    assert res0.status_code == 200, res0.text
+    body0 = res0.json()
+    assert body0["schema_version"] == "p3.4.0"
+    assert body0["overall"]["status"] in ("healthy", "warning", "critical", "unknown")
+    assert isinstance(body0["overall"]["score"], int)
+    assert 0 <= body0["overall"]["score"] <= 100
+    assert body0["overall"]["highest_severity"] in ("OK", "LOW", "MEDIUM", "HIGH")
+    blob0 = json.dumps(body0).lower()
+    for bad in ("lost revenue", "treasury missing", "missing funds"):
+        assert bad not in blob0
+
+    await client.post(
+        "/api/v1/monitoring/events",
+        json={
+            "schemaVersion": 1,
+            "clientSessionId": "health-1",
+            "exportedAt": 7_000_000,
+            "events": [
+                {
+                    "event": "swap_success",
+                    "ts": 7_000_000_001,
+                    "chainId": 1,
+                    "txHash": "0xhealthfee1",
+                    "provider": "uniswap-v3-wrapper-v2",
+                    "commissionRoute": "wrapper",
+                    "wrapperRoute": "uniswap-v3-wrapper-v2",
+                    "fromToken": {"symbol": "WETH"},
+                    "toToken": {"symbol": "USDC"},
+                    "feeToTreasuryWei": "0",
+                    "feeToken": {
+                        "symbol": "USDC",
+                        "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+                    },
+                    "protocolFeeBps": 20,
+                },
+                {
+                    "event": "swap_lifecycle",
+                    "ts": 7_000_000_050,
+                    "swapFlowId": "health-lc-1",
+                    "stage": "tx_broadcasted",
+                    "chainId": 1,
+                },
+                {
+                    "event": "swap_lifecycle",
+                    "ts": 7_000_000_051,
+                    "swapFlowId": "health-lc-1",
+                    "stage": "quote_requested",
+                    "chainId": 1,
+                },
+            ],
+        },
+    )
+    res1 = await client.get("/api/v1/admin/health-alerts?maxBatches=50", headers=hdr)
+    assert res1.status_code == 200, res1.text
+    body1 = res1.json()
+    assert body1["metrics"]["revenue_telemetry_zero_fee_count"] >= 1
+    alert_ids = {a["id"] for a in body1["alerts"]}
+    assert "fee_telemetry_gap" in alert_ids
+    assert any(a["category"] == "lifecycle" for a in body1["alerts"])
+    for al in body1["alerts"]:
+        assert al["severity"] in ("LOW", "MEDIUM", "HIGH")
+    blob1 = json.dumps(body1).lower()
+    for bad in ("lost revenue", "treasury missing", "missing funds"):
+        assert bad not in blob1
+
+    get_settings.cache_clear()
 
 
 @pytest.mark.asyncio

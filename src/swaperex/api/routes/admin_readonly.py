@@ -1,6 +1,6 @@
 """Read-only admin panel HTTP API (mounted only on ``app_admin``).
 
-Phase P2.1+: overview, monitoring, swaps, revenue, wallet reconnect analytics —
+Phase P2.1+: overview, monitoring, swaps, revenue, wallet reconnect analytics, health alerts —
 all from the isolated admin DB. No custodial routers, no signing, no key material.
 
 Requires ``ADMIN_API_TOKEN`` and header ``X-Admin-Token`` on every route under
@@ -25,6 +25,7 @@ from sqlalchemy import bindparam, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from swaperex.api.dependencies import get_session
+from swaperex.api.health_alerts import build_health_alerts_payload
 from swaperex.api.swap_lifecycle_reconstruction import build_swap_lifecycles_payload
 from swaperex.config import get_settings
 from swaperex.ledger.models import MonitoringIngestBatch
@@ -1326,6 +1327,24 @@ async def admin_swap_lifecycles(
         else None,
         tx_hash_filter=tx_hash.strip() if tx_hash and tx_hash.strip() else None,
     )
+
+
+@router.get(
+    "/health-alerts",
+    summary="P3.4 read-only operational health from monitoring telemetry (no notifications)",
+    dependencies=[Depends(require_admin_api_token)],
+)
+async def admin_health_alerts(
+    session: AsyncSession = Depends(get_session),
+    max_batches: int = Query(default=400, ge=1, le=2000, alias="maxBatches"),
+) -> dict[str, Any]:
+    stmt = (
+        select(MonitoringIngestBatch)
+        .order_by(MonitoringIngestBatch.id.desc())
+        .limit(max_batches)
+    )
+    batches = (await session.execute(stmt)).scalars().all()
+    return build_health_alerts_payload(list(batches), max_batches_scanned=max_batches)
 
 
 # --- P2.6 failure observability (read-only aggregates from monitoring ingest) ---
