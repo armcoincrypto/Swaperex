@@ -72,6 +72,7 @@ import {
   type ProductionMonitoringPayload,
 } from '@/utils/productionMonitoring';
 import { getTokenRouteSupport } from '@/utils/routeSupport';
+import { recordSuccessfulSwapPair } from '@/utils/routePrecheck';
 
 // Import Uniswap V3 services
 import {
@@ -2375,6 +2376,18 @@ export function useSwap() {
           nativeOutput: nativeOut,
         };
         logProductionEvent('swap_success', swapSuccessMonitoring);
+        try {
+          recordSuccessfulSwapPair({
+            chainId: cid,
+            fromSymbol: swapQuote.fromSymbol,
+            toSymbol: swapQuote.toSymbol,
+            provider: String(swapQuote.provider ?? ''),
+            txHash: tx.hash,
+            timestamp: Date.now(),
+          });
+        } catch {
+          // non-blocking
+        }
         toast.success('Swap confirmed');
 
         try {

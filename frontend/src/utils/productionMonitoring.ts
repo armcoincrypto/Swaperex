@@ -107,6 +107,8 @@ export const PERSISTED_MONITORING_EVENTS = [
   'quote_failure',
   /** P4.1-A — commission-required pair has no Swaperex wrapper quote path. */
   'unsupported_commission_route',
+  /** P4.1-D — soft route precheck shown (limited / no recent / unknown); debounced in UI. */
+  'route_precheck_visible',
   'rpc_failure',
   'commission_missing',
   /** P3.3 — swap UI lifecycle stages (swapFlowId + stage); read-only reconstruction on admin. */

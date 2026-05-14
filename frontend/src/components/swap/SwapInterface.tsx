@@ -79,6 +79,13 @@ import {
   routeSupportBadgeTooltip,
   type RouteSupportStatus,
 } from '@/utils/routeSupport';
+import {
+  computeRoutePrecheck,
+  getRoutePrecheckBadgeLabel,
+  getRoutePrecheckDescription,
+  routePrecheckBadgeClass,
+} from '@/utils/routePrecheck';
+import { logProductionEvent } from '@/utils/productionMonitoring';
 
 // Chain ID to chain name mapping
 const CHAIN_NAMES: Record<number, string> = {
@@ -244,6 +251,94 @@ export function SwapInterface() {
     () => Boolean(swapQuote && (swapQuote.amountOut || swapQuote.amountOutFormatted)),
     [swapQuote],
   );
+
+  /** P4.1-D — hide soft hint when a successful quote is on screen (quote wins). */
+  const hideRoutePrecheckRow = Boolean(hasUsableQuote && swapQuote?.success);
+
+  const fromRouteSupportForPrecheck: RouteSupportStatus = useMemo(() => {
+    if (!fromAsset) return 'unknown';
+    const ext = fromAsset as ExtendedAssetInfo;
+    return getTokenRouteSupport(currentChainId, {
+      symbol: fromAsset.symbol,
+      contract_address: fromAsset.contract_address,
+      isCustom: ext.isCustom,
+    });
+  }, [currentChainId, fromAsset]);
+
+  const toRouteSupportForPrecheck: RouteSupportStatus = useMemo(() => {
+    if (!toAsset) return 'unknown';
+    const ext = toAsset as ExtendedAssetInfo;
+    return getTokenRouteSupport(currentChainId, {
+      symbol: toAsset.symbol,
+      contract_address: toAsset.contract_address,
+      isCustom: ext.isCustom,
+    });
+  }, [currentChainId, toAsset]);
+
+  const routePrecheckStatus = useMemo(
+    () =>
+      computeRoutePrecheck({
+        chainId: currentChainId,
+        fromAsset: fromAsset
+          ? {
+              symbol: fromAsset.symbol,
+              contract_address: fromAsset.contract_address,
+              isCustom: (fromAsset as ExtendedAssetInfo).isCustom,
+            }
+          : null,
+        toAsset: toAsset
+          ? {
+              symbol: toAsset.symbol,
+              contract_address: toAsset.contract_address,
+              isCustom: (toAsset as ExtendedAssetInfo).isCustom,
+            }
+          : null,
+        fromRouteSupport: fromRouteSupportForPrecheck,
+        toRouteSupport: toRouteSupportForPrecheck,
+      }),
+    [
+      currentChainId,
+      fromAsset,
+      toAsset,
+      fromRouteSupportForPrecheck,
+      toRouteSupportForPrecheck,
+    ],
+  );
+
+  const lastRoutePrecheckTelemetryKeyRef = useRef<string>('');
+  useEffect(() => {
+    if (hideRoutePrecheckRow) {
+      lastRoutePrecheckTelemetryKeyRef.current = '';
+      return;
+    }
+    if (!fromAsset || !toAsset) return;
+    const pre = routePrecheckStatus;
+    if (pre === 'likely_routable' || pre === 'checking') return;
+
+    const key = `${currentChainId}|${fromAsset.symbol}|${toAsset.symbol}|${pre}`;
+    const tid = window.setTimeout(() => {
+      if (lastRoutePrecheckTelemetryKeyRef.current === key) return;
+      lastRoutePrecheckTelemetryKeyRef.current = key;
+      logProductionEvent('route_precheck_visible', {
+        chainId: currentChainId,
+        fromSymbol: fromAsset.symbol,
+        toSymbol: toAsset.symbol,
+        status: pre,
+        fromRouteSupport: fromRouteSupportForPrecheck,
+        toRouteSupport: toRouteSupportForPrecheck,
+        commissionRequired: isCommissionRequiredMode(),
+      });
+    }, 550);
+    return () => clearTimeout(tid);
+  }, [
+    hideRoutePrecheckRow,
+    fromAsset,
+    toAsset,
+    currentChainId,
+    routePrecheckStatus,
+    fromRouteSupportForPrecheck,
+    toRouteSupportForPrecheck,
+  ]);
 
   /**
    * Pipeline UI loading: spinner / "Getting quote…" / disabled main CTA.
@@ -1494,6 +1589,25 @@ export function SwapInterface() {
             </div>
           </div>
         </div>
+
+        {/* P4.1-D — soft wrapper route precheck (UX only; never blocks swap). */}
+        {!hideRoutePrecheckRow && fromAsset && toAsset && (
+          <div
+            className="relative z-10 mt-3 flex flex-col gap-1 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[11px] leading-snug"
+            role="status"
+            aria-live="polite"
+          >
+            <div className="flex items-center gap-2 flex-wrap">
+              <span
+                className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium tracking-wide border ${routePrecheckBadgeClass(routePrecheckStatus)}`}
+                title={getRoutePrecheckDescription(routePrecheckStatus)}
+              >
+                {getRoutePrecheckBadgeLabel(routePrecheckStatus)}
+              </span>
+              <span className="text-dark-400 flex-1 min-w-0">{getRoutePrecheckDescription(routePrecheckStatus)}</span>
+            </div>
+          </div>
+        )}
 
         {/* Imported / unverified token notice (swap path only) */}
         {(() => {
