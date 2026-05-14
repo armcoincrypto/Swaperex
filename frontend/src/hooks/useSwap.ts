@@ -71,6 +71,7 @@ import {
   logProductionEvent,
   type ProductionMonitoringPayload,
 } from '@/utils/productionMonitoring';
+import { getTokenRouteSupport } from '@/utils/routeSupport';
 
 // Import Uniswap V3 services
 import {
@@ -1489,6 +1490,8 @@ export function useSwap() {
           provider: 'quote_aggregator',
           commissionRequired: true,
           reasonCode: 'unsupported_commission_route',
+          fromRouteSupport: getTokenRouteSupport(chainId || 1, fromSymbol),
+          toRouteSupport: getTokenRouteSupport(chainId || 1, toSymbol),
         });
       }
       if (parsed.category === 'network_error' || parsed.category === 'rpc_error') {

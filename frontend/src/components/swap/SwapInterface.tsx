@@ -72,6 +72,13 @@ import { isAddress } from 'ethers';
 import { isDebugMode } from '@/utils/chainHealth';
 import { getSwapQuoteInputFingerprint } from '@/utils/swapQuoteInputFingerprint';
 import { emitSwapLifecycleStage, newSwapFlowId } from '@/utils/swapLifecycleTelemetry';
+import {
+  compareRouteSupport,
+  getRouteSupportLabel,
+  getTokenRouteSupport,
+  routeSupportBadgeTooltip,
+  type RouteSupportStatus,
+} from '@/utils/routeSupport';
 
 // Chain ID to chain name mapping
 const CHAIN_NAMES: Record<number, string> = {
@@ -849,6 +856,8 @@ export function SwapInterface() {
       quoteErrorParsed?.reasonCode === 'unsupported_commission_route'
     ) {
       dismissQuoteError();
+      setShowFromSelector(false);
+      setShowToSelector(true);
       return;
     }
     if (swapQuote && isQuoteExpired) {
@@ -2020,6 +2029,13 @@ export function SwapInterface() {
               <p className="mt-2 text-xs leading-relaxed text-amber-100/90">
                 {SWAP_SURFACE_COPY.unsupportedCommissionRouteHelper}
               </p>
+              <p className="mt-2 text-[11px] leading-relaxed text-amber-200/80">
+                {currentChainId === 56
+                  ? SWAP_SURFACE_COPY.unsupportedCommissionRouteQuickTokensBsc
+                  : currentChainId === 1
+                    ? SWAP_SURFACE_COPY.unsupportedCommissionRouteQuickTokensEthereum
+                    : SWAP_SURFACE_COPY.unsupportedCommissionRouteQuickTokensDefault}
+              </p>
             </div>
           ) : (
             <div className="mt-4 p-3 bg-red-900/20 border border-red-800 rounded-xl text-sm text-red-400">
@@ -2204,6 +2220,19 @@ interface ExtendedAssetInfo extends AssetInfo {
   warning?: string;
 }
 
+function routeSupportBadgeClass(status: RouteSupportStatus): string {
+  switch (status) {
+    case 'supported':
+      return 'bg-emerald-900/40 text-emerald-100 border-emerald-700/35';
+    case 'likely_supported':
+      return 'bg-sky-900/35 text-sky-100 border-sky-700/35';
+    case 'limited':
+      return 'bg-amber-900/40 text-amber-100 border-amber-700/35';
+    default:
+      return 'bg-dark-600/70 text-dark-400 border-white/[0.08]';
+  }
+}
+
 // Token Selector Dropdown with import functionality
 function TokenSelectorDropdown({
   assets,
@@ -2307,16 +2336,30 @@ function TokenSelectorDropdown({
       asset.contract_address?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    // Sort favorites first if enabled
-    if (showFavorites && chainId) {
-      result = [...result].sort((a, b) => {
+    const cid = chainId ?? 0;
+    result = [...result].sort((a, b) => {
+      if (showFavorites && chainId) {
         const aFav = isFavorite(chainId, a.contract_address || '');
         const bFav = isFavorite(chainId, b.contract_address || '');
         if (aFav && !bFav) return -1;
         if (!aFav && bFav) return 1;
-        return 0;
-      });
-    }
+      }
+      if (cid === 1 || cid === 56) {
+        const sa = getTokenRouteSupport(cid, {
+          symbol: a.symbol,
+          contract_address: a.contract_address,
+          isCustom: (a as ExtendedAssetInfo).isCustom,
+        });
+        const sb = getTokenRouteSupport(cid, {
+          symbol: b.symbol,
+          contract_address: b.contract_address,
+          isCustom: (b as ExtendedAssetInfo).isCustom,
+        });
+        const byRoute = compareRouteSupport(sa, sb);
+        if (byRoute !== 0) return byRoute;
+      }
+      return a.symbol.localeCompare(b.symbol);
+    });
 
     return result;
   }, [assets, searchQuery, showFavorites, chainId, isFavorite]);
@@ -2459,6 +2502,15 @@ function TokenSelectorDropdown({
             const isFav = showFavorites && chainId && isFavorite(chainId, asset.contract_address || '');
             const nativeWrapped =
               chainId != null ? nativeWrappedBadgeKind(asset, chainId) : null;
+            const routeStatus: RouteSupportStatus =
+              chainId != null
+                ? getTokenRouteSupport(chainId, {
+                    symbol: asset.symbol,
+                    contract_address: asset.contract_address,
+                    isCustom: isCustom,
+                  })
+                : 'unknown';
+            const routeDimmed = routeStatus === 'limited' || routeStatus === 'unknown';
 
             return (
               <div
@@ -2469,7 +2521,9 @@ function TokenSelectorDropdown({
                     ? 'bg-primary-600/20 text-primary-400'
                     : isExcluded
                     ? 'opacity-50 cursor-not-allowed'
-                    : 'hover:bg-dark-700'
+                    : routeDimmed
+                      ? 'opacity-[0.88] hover:bg-dark-700'
+                      : 'hover:bg-dark-700'
                 }`}
               >
                 {/* Favorite Star Button */}
@@ -2506,6 +2560,14 @@ function TokenSelectorDropdown({
                     {nativeWrapped === 'wrapped' && (
                       <span className="text-[9px] uppercase tracking-wide px-1 py-0.5 rounded bg-dark-600/80 text-dark-300 flex-shrink-0">
                         Wrapped
+                      </span>
+                    )}
+                    {chainId != null && (
+                      <span
+                        className={`text-[9px] font-medium tracking-wide px-1 py-0.5 rounded border flex-shrink-0 ${routeSupportBadgeClass(routeStatus)}`}
+                        title={routeSupportBadgeTooltip(routeStatus)}
+                      >
+                        {getRouteSupportLabel(routeStatus)}
                       </span>
                     )}
                     {isFav && (

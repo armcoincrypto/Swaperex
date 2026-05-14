@@ -50,6 +50,13 @@ export const SWAP_SURFACE_COPY = {
     'This pair is not supported by Swaperex commission routing yet.',
   unsupportedCommissionRouteHelper:
     'Swaperex only enables pairs that can route through its commission wrapper. Try a major token pair such as ETH ⇄ USDT, ETH ⇄ USDC, ETH ⇄ WETH, or ETH ⇄ WBTC.',
+  /** One-line majors hint under the unsupported commission panel (P4.1-B). */
+  unsupportedCommissionRouteQuickTokensEthereum:
+    'Quick picks on Ethereum: ETH, USDT, USDC, WETH, WBTC — then search for anything else.',
+  unsupportedCommissionRouteQuickTokensBsc:
+    'Quick picks on BNB Chain: BNB, WBNB, USDT, USDC, BTCB — then search for anything else.',
+  unsupportedCommissionRouteQuickTokensDefault:
+    'Try well-known majors on this network first, then search for other tokens.',
   unsupportedCommissionRouteCta: 'Choose another token',
 
   /** Primary CTA when the last on-chain swap attempt failed (quote may still be present) */
