@@ -45,6 +45,13 @@ export const SWAP_SURFACE_COPY = {
   /** Primary CTA when the last quote request failed (no executable quote) */
   quoteFailedCta: 'Quote failed — try again',
 
+  /** Commission-required mode: pair cannot be quoted via Swaperex wrapper routing (P4.1-A). */
+  unsupportedCommissionRouteTitle:
+    'This pair is not supported by Swaperex commission routing yet.',
+  unsupportedCommissionRouteHelper:
+    'Swaperex only enables pairs that can route through its commission wrapper. Try a major token pair such as ETH ⇄ USDT, ETH ⇄ USDC, ETH ⇄ WETH, or ETH ⇄ WBTC.',
+  unsupportedCommissionRouteCta: 'Choose another token',
+
   /** Primary CTA when the last on-chain swap attempt failed (quote may still be present) */
   swapFailedCta: 'Swap failed — try again',
 

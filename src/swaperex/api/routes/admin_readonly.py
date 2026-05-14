@@ -1354,6 +1354,7 @@ _FAILURE_EVENT_NAMES = frozenset(
     {
         "swap_failure",
         "quote_failure",
+        "unsupported_commission_route",
         "rpc_failure",
         "commission_missing",
         "wallet_rejected",
@@ -1418,7 +1419,12 @@ def _normalize_failure_event(ev: dict[str, Any]) -> tuple[str, str, str] | None:
                 return "provider_timeout", "MEDIUM", "provider_timeout"
             return "rpc_error", "MEDIUM", "rpc_failure"
 
+        if name == "unsupported_commission_route":
+            return "route_unsupported", "LOW", "unsupported_commission_route"
+
         if name == "quote_failure":
+            if rcode == "unsupported_commission_route" or "unsupported_commission_route" in rcode:
+                return "route_unsupported", "LOW", "unsupported_commission_route"
             if cat == "stale_quote" or "stale_quote" in blob or "stale_request" in blob:
                 return "stale_quote", "LOW", "stale_quote"
             if "expired" in blob or "expired" in cat:

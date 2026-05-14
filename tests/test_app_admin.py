@@ -535,6 +535,58 @@ async def test_admin_failures_endpoint(admin_client, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_admin_failures_unsupported_commission_route_taxonomy(admin_client, monkeypatch):
+    """P4.1-A: unsupported commission route events map to route_unsupported / LOW."""
+    monkeypatch.setenv("ADMIN_API_TOKEN", "ucr-taxonomy-test")
+    from swaperex.config import get_settings
+
+    get_settings.cache_clear()
+    client, _ = admin_client
+    hdr = {"X-Admin-Token": "ucr-taxonomy-test"}
+
+    await client.post(
+        "/api/v1/monitoring/events",
+        json={
+            "schemaVersion": 1,
+            "clientSessionId": "ucr-sess-1",
+            "exportedAt": 2_010_000,
+            "events": [
+                {
+                    "event": "unsupported_commission_route",
+                    "ts": 2_010_000_001,
+                    "chainId": 1,
+                    "fromSymbol": "ETH",
+                    "toSymbol": "PENDLE",
+                    "commissionRequired": True,
+                    "reasonCode": "unsupported_commission_route",
+                },
+                {
+                    "event": "quote_failure",
+                    "ts": 2_010_000_002,
+                    "category": "quote_error",
+                    "chainId": 1,
+                    "provider": "quote_aggregator",
+                    "reasonCode": "unsupported_commission_route",
+                    "reason": "This pair is not supported by Swaperex commission routing yet.",
+                },
+            ],
+        },
+    )
+
+    res = await client.get("/api/v1/admin/failures", headers=hdr)
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["total_failures"] == 2
+    by_type = {r["failure_type"]: r["count"] for r in body["failures_by_type"]}
+    assert by_type.get("route_unsupported") == 2
+    for row in body["recent_failures"]:
+        assert row["severity"] == "LOW"
+        assert row["reason_code"] == "unsupported_commission_route"
+
+    get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
 async def test_admin_revenue_normalized_endpoint(admin_client, monkeypatch):
     monkeypatch.setenv("ADMIN_API_TOKEN", "rev-norm-test")
     from swaperex.config import get_settings

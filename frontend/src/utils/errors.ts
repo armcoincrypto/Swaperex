@@ -46,11 +46,50 @@ export function isWalletSignRequestPending(error: unknown): boolean {
   );
 }
 
+/** Machine-readable codes for quote classification (P4.1-A+ telemetry / UI). */
+export type QuoteFailureReasonCode =
+  | 'unsupported_commission_route'
+  | 'commission_eth_native_v2_required'
+  | 'commission_bsc_native_disabled'
+  | 'commission_native_unsupported_chain'
+  | 'commission_chain_no_wrapper'
+  | 'commission_route_mode_required';
+
 export interface ParsedError {
   category: ErrorCategory;
   message: string;
   isRecoverable: boolean;
   shouldShowRetry: boolean;
+  /** Stable code for monitoring and conditional UI (optional). */
+  reasonCode?: QuoteFailureReasonCode | string;
+  /** Short operator/user hint (optional). */
+  userAction?: string;
+  /** Original or upstream message for diagnostics (optional; not for end-user display). */
+  technicalReason?: string;
+}
+
+/** Attach structured commission-route failure for `parseQuoteError` (read by `swapErrorReasonCode`). */
+export type CommissionRouteFailureCode = Exclude<
+  QuoteFailureReasonCode,
+  'commission_route_mode_required'
+>;
+
+export function attachCommissionRouteFailure(
+  code: CommissionRouteFailureCode,
+  technicalReason?: string,
+): Error {
+  const baseMessage =
+    code === 'commission_eth_native_v2_required'
+      ? 'ETH native swaps require Uniswap wrapper V2.'
+      : 'Commission route unavailable for this pair.';
+  const err = new Error(baseMessage);
+  const ext = err as Error & {
+    swapErrorReasonCode?: CommissionRouteFailureCode;
+    technicalReason?: string;
+  };
+  ext.swapErrorReasonCode = code;
+  if (technicalReason) ext.technicalReason = technicalReason;
+  return err;
 }
 
 /**
@@ -245,10 +284,71 @@ export function parseQuoteError(error: unknown): ParsedError {
     message?: string;
     response?: { data?: { error?: string } };
     code?: string | number;
+    swapErrorReasonCode?: QuoteFailureReasonCode | string;
+    technicalReason?: string;
   };
   const raw = (err.message || err.response?.data?.error || '').trim();
   const message = raw.toLowerCase();
   const codeStr = String(err.code ?? '');
+  const sr = err.swapErrorReasonCode;
+
+  if (sr === 'unsupported_commission_route') {
+    return {
+      category: 'quote_error',
+      reasonCode: 'unsupported_commission_route',
+      message: 'This pair is not supported by Swaperex commission routing yet.',
+      userAction:
+        'Swaperex only enables pairs that can route through its commission wrapper. Try a major token pair such as ETH ⇄ USDT, ETH ⇄ USDC, ETH ⇄ WETH, or ETH ⇄ WBTC.',
+      technicalReason: err.technicalReason || raw || undefined,
+      isRecoverable: true,
+      shouldShowRetry: false,
+    };
+  }
+  if (sr === 'commission_eth_native_v2_required') {
+    return {
+      category: 'quote_error',
+      reasonCode: 'commission_eth_native_v2_required',
+      message:
+        'Native ETH on Ethereum needs Uniswap wrapper V2 with native quoting enabled for this deployment.',
+      userAction: 'Use WETH instead of ETH, or ask the operator to enable wrapper V2 native quote settings.',
+      technicalReason: err.technicalReason || raw || undefined,
+      isRecoverable: true,
+      shouldShowRetry: true,
+    };
+  }
+  if (sr === 'commission_bsc_native_disabled') {
+    return {
+      category: 'quote_error',
+      reasonCode: 'commission_bsc_native_disabled',
+      message: 'BNB native swaps are not enabled for commission routing in this deployment.',
+      userAction: 'Use WBNB or an ERC‑20 pair, or ask the operator to enable Pancake wrapper V2 native settings.',
+      technicalReason: err.technicalReason || raw || undefined,
+      isRecoverable: true,
+      shouldShowRetry: true,
+    };
+  }
+  if (sr === 'commission_native_unsupported_chain') {
+    return {
+      category: 'quote_error',
+      reasonCode: 'commission_native_unsupported_chain',
+      message: 'Commission routing with native gas tokens is not available on this network.',
+      userAction: 'Switch to Ethereum or BNB Chain, or use wrapped native tokens.',
+      technicalReason: err.technicalReason || raw || undefined,
+      isRecoverable: true,
+      shouldShowRetry: true,
+    };
+  }
+  if (sr === 'commission_chain_no_wrapper') {
+    return {
+      category: 'quote_error',
+      reasonCode: 'commission_chain_no_wrapper',
+      message: 'Commission routing is not available on this chain.',
+      userAction: 'Switch to Ethereum (chain 1) or BNB Chain (chain 56).',
+      technicalReason: err.technicalReason || raw || undefined,
+      isRecoverable: true,
+      shouldShowRetry: true,
+    };
+  }
 
   // Preserve explicit 1inch / aggregator messages (avoid replacing with generic "pricing unavailable")
   if (
@@ -342,22 +442,65 @@ export function parseQuoteError(error: unknown): ParsedError {
     };
   }
 
-  // Commission / wrapper-only routing
+  // Commission-required: fixed route must be wrapper (user picked invalid fixed route)
+  if (message.includes('commission-required mode only allows')) {
+    return {
+      category: 'quote_error',
+      reasonCode: 'commission_route_mode_required',
+      message: raw,
+      isRecoverable: true,
+      shouldShowRetry: true,
+    };
+  }
+
+  // Commission / wrapper strings (narrow — avoid swallowing unrelated RPC noise)
+  if (message.includes('eth native swaps require') || message.includes('native swaps require')) {
+    return {
+      category: 'quote_error',
+      reasonCode: 'commission_eth_native_v2_required',
+      message:
+        'Native ETH on Ethereum needs Uniswap wrapper V2 with native quoting enabled for this deployment.',
+      userAction: 'Use WETH instead of ETH, or ask the operator to enable wrapper V2 native quote settings.',
+      technicalReason: raw,
+      isRecoverable: true,
+      shouldShowRetry: true,
+    };
+  }
+  if (message.includes('commission route unavailable for this pair')) {
+    return {
+      category: 'quote_error',
+      reasonCode: 'unsupported_commission_route',
+      message: 'This pair is not supported by Swaperex commission routing yet.',
+      userAction:
+        'Swaperex only enables pairs that can route through its commission wrapper. Try a major token pair such as ETH ⇄ USDT, ETH ⇄ USDC, ETH ⇄ WETH, or ETH ⇄ WBTC.',
+      technicalReason: raw,
+      isRecoverable: true,
+      shouldShowRetry: false,
+    };
+  }
   if (
-    message.includes('commission required') ||
-    message.includes('commission route') ||
     message.includes('wrapper_quote_failed') ||
     message.includes('wrapper quote failed') ||
-    message.includes('no wrapper') ||
-    message.includes('uniswap wrapper v2') ||
-    message.includes('pancake wrapper') ||
-    message.includes('eth native swaps require') ||
-    message.includes('native swaps require') ||
+    message.includes('no uniswap wrapper v2 quote') ||
+    message.includes('no pancake wrapper v2 quote')
+  ) {
+    return {
+      category: 'quote_error',
+      message: "Couldn't get a commission-route quote for this request.",
+      technicalReason: raw,
+      isRecoverable: true,
+      shouldShowRetry: true,
+    };
+  }
+  if (
+    message.includes('commission required') ||
+    message.includes('pancake wrapper v2 native-leg quoting') ||
     (raw.includes('Commission') && message.includes('wrapper'))
   ) {
     return {
       category: 'quote_error',
-      message: 'Commission route not available for this pair',
+      message: raw || 'Commission routing is not available for this request.',
+      technicalReason: raw,
       isRecoverable: true,
       shouldShowRetry: true,
     };
@@ -380,20 +523,6 @@ export function parseQuoteError(error: unknown): ParsedError {
       message: 'Swap amount too small. Please enter a larger amount to cover minimum trade requirements.',
       isRecoverable: false,
       shouldShowRetry: false,
-    };
-  }
-
-  // Commission / wrapper configuration (legacy explicit strings)
-  if (
-    raw &&
-    (raw.includes('Commission route unavailable') ||
-      raw.includes('Pancake wrapper V2 native-leg quoting'))
-  ) {
-    return {
-      category: 'quote_error',
-      message: 'Commission route not available for this pair',
-      isRecoverable: true,
-      shouldShowRetry: true,
     };
   }
 

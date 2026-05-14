@@ -105,6 +105,8 @@ export const PERSISTED_MONITORING_EVENTS = [
   'swap_success',
   'swap_failure',
   'quote_failure',
+  /** P4.1-A — commission-required pair has no Swaperex wrapper quote path. */
+  'unsupported_commission_route',
   'rpc_failure',
   'commission_missing',
   /** P3.3 — swap UI lifecycle stages (swapFlowId + stage); read-only reconstruction on admin. */

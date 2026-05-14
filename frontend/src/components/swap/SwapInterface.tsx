@@ -189,6 +189,7 @@ export function SwapInterface() {
     txHash,
     explorerUrl,
     error,
+    quoteErrorParsed,
     receiptSettlement,
     isQuoteExpired,
     swap,
@@ -196,6 +197,7 @@ export function SwapInterface() {
     cancelPreview,
     fetchSwapQuote,
     reset,
+    dismissQuoteError,
   } = useSwap();
 
   const {
@@ -842,6 +844,13 @@ export function SwapInterface() {
 
   // Expired quote: refresh only (stay on swap card). Fresh quote: open preview as today.
   const handleMainSwapAction = async () => {
+    if (
+      status === 'error' &&
+      quoteErrorParsed?.reasonCode === 'unsupported_commission_route'
+    ) {
+      dismissQuoteError();
+      return;
+    }
     if (swapQuote && isQuoteExpired) {
       await fetchSwapQuote();
       return;
@@ -1050,6 +1059,9 @@ export function SwapInterface() {
     if (insufficientBalance) return `Insufficient ${fromAsset?.symbol || ''} Balance`;
     if (isQuoteFetchUiLoading) return SWAP_SURFACE_COPY.gettingQuote;
     if (status === 'error' && error) {
+      if (!swapQuote && quoteErrorParsed?.reasonCode === 'unsupported_commission_route') {
+        return SWAP_SURFACE_COPY.unsupportedCommissionRouteCta;
+      }
       return swapQuote ? SWAP_SURFACE_COPY.swapFailedCta : SWAP_SURFACE_COPY.quoteFailedCta;
     }
     // Debounce gap / awaiting pipeline: amount set but not yet loading or quoted
@@ -1079,7 +1091,12 @@ export function SwapInterface() {
     }
     if (insufficientBalance) return true;
     if (isQuoteFetchUiLoading) return true;
-    if (status === 'error' && error) return true;
+    if (status === 'error' && error) {
+      if (!swapQuote && quoteErrorParsed?.reasonCode === 'unsupported_commission_route') {
+        return false;
+      }
+      return true;
+    }
     // Must have a quote to proceed
     if (!swapQuote) return true;
     if (isEthNativeV2QuoteOnlyNoExec && hasUsableQuote) {
@@ -1994,11 +2011,21 @@ export function SwapInterface() {
         {error &&
           status !== 'previewing' &&
           !isQuotePipelineLoading &&
-          !(hasUsableQuote && swapQuote?.success) && (
-          <div className="mt-4 p-3 bg-red-900/20 border border-red-800 rounded-xl text-sm text-red-400">
-            {error}
-          </div>
-        )}
+          !(hasUsableQuote && swapQuote?.success) &&
+          (quoteErrorParsed?.reasonCode === 'unsupported_commission_route' ? (
+            <div className="mt-4 p-3 bg-amber-900/15 border border-amber-700/35 rounded-xl text-sm text-amber-100">
+              <p className="font-medium text-amber-50">
+                {SWAP_SURFACE_COPY.unsupportedCommissionRouteTitle}
+              </p>
+              <p className="mt-2 text-xs leading-relaxed text-amber-100/90">
+                {SWAP_SURFACE_COPY.unsupportedCommissionRouteHelper}
+              </p>
+            </div>
+          ) : (
+            <div className="mt-4 p-3 bg-red-900/20 border border-red-800 rounded-xl text-sm text-red-400">
+              {error}
+            </div>
+          ))}
 
         {/* Insufficient Balance Warning */}
         {insufficientBalanceForUi && (

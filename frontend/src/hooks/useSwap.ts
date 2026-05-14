@@ -48,8 +48,10 @@ import {
   parseTransactionError,
   parseSwapExecutionError,
   parseQuoteError,
+  attachCommissionRouteFailure,
   logError,
   WALLET_SIGN_REQUEST_PENDING_MESSAGE,
+  type ParsedError,
 } from '@/utils/errors';
 import {
   validateSwapInputs,
@@ -182,6 +184,8 @@ interface SwapState {
   txHash: string | null;
   explorerUrl: string | null;  // PHASE 9: Explorer link for confirmed tx
   error: string | null;
+  /** Structured quote error (P4.1-A); execution errors clear this to null. */
+  quoteErrorParsed: ParsedError | null;
   receiptSettlement: SwapReceiptSettlement | null;
 }
 
@@ -374,6 +378,7 @@ export function useSwap() {
     txHash: null,
     explorerUrl: null,
     error: null,
+    quoteErrorParsed: null,
     receiptSettlement: null,
   });
 
@@ -415,9 +420,9 @@ export function useSwap() {
     clearQuote();
     setState((s) => {
       if (s.status === 'fetching_quote' || s.status === 'checking_allowance' || s.status === 'previewing') {
-        return { ...s, status: 'idle', error: null };
+        return { ...s, status: 'idle', error: null, quoteErrorParsed: null };
       }
-      return { ...s, error: null };
+      return { ...s, error: null, quoteErrorParsed: null };
     });
   }, [quoteInputFingerprint, clearQuote, state.status]);
 
@@ -509,6 +514,7 @@ export function useSwap() {
         txHash: null,
         explorerUrl: null,
         error: null,
+        quoteErrorParsed: null,
         receiptSettlement: null,
       });
       setSwapQuote(null);
@@ -536,6 +542,7 @@ export function useSwap() {
       txHash: null,
       explorerUrl: null,
       error: null,
+      quoteErrorParsed: null,
       receiptSettlement: null,
     });
     setSwapQuote(null);
@@ -543,6 +550,19 @@ export function useSwap() {
   // Note: state.status removed from deps to prevent reset identity from changing
   // when status changes, which would cause infinite loops in consuming components
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clearQuote]);
+
+  /** Clear quote error banner + stale quote so user can pick another token (P4.1-A). */
+  const dismissQuoteError = useCallback(() => {
+    quoteRequestIdRef.current += 1;
+    setState((s) => ({
+      ...s,
+      status: 'idle',
+      error: null,
+      quoteErrorParsed: null,
+    }));
+    setSwapQuote(null);
+    clearQuote();
   }, [clearQuote]);
 
   // Check if can swap
@@ -563,7 +583,7 @@ export function useSwap() {
     if (!address || !fromAsset || !toAsset || !fromAmount) {
       setSwapQuote(null);
       clearQuote();
-      setState((s) => ({ ...s, status: 'idle', error: null }));
+      setState((s) => ({ ...s, status: 'idle', error: null, quoteErrorParsed: null }));
       return null;
     }
 
@@ -577,6 +597,7 @@ export function useSwap() {
         ...s,
         status: 'error',
         error: 'Please select both tokens to swap. Choose a token from each dropdown.',
+        quoteErrorParsed: null,
       }));
       return null;
     }
@@ -592,7 +613,7 @@ export function useSwap() {
 
     // PHASE 9: Log lifecycle transition
     logLifecycle(state.status, 'fetching_quote', { fromSymbol, toSymbol, fromAmount });
-    setState((s) => ({ ...s, status: 'fetching_quote', error: null }));
+    setState((s) => ({ ...s, status: 'fetching_quote', error: null, quoteErrorParsed: null }));
 
     for (let quoteAttempt = 0; quoteAttempt < 2; quoteAttempt++) {
       try {
@@ -663,7 +684,7 @@ export function useSwap() {
                 tokenIn: fromSymbol,
                 tokenOut: toSymbol,
               });
-              throw new Error('Commission route unavailable for this pair.');
+              throw attachCommissionRouteFailure('commission_bsc_native_disabled');
             }
 
             swapTrace('pancake_wrapper_v2_native_enabled', {
@@ -704,7 +725,7 @@ export function useSwap() {
                 routeMode: effectiveRouteMode,
                 flags: u2Flags,
               });
-              throw new Error('ETH native swaps require Uniswap wrapper V2.');
+              throw attachCommissionRouteFailure('commission_eth_native_v2_required');
             }
 
             swapTrace('uniswap_wrapper_v2_native_enabled', {
@@ -727,7 +748,7 @@ export function useSwap() {
               tokenIn: fromSymbol,
               tokenOut: toSymbol,
             });
-            throw new Error('Commission route unavailable for this pair.');
+            throw attachCommissionRouteFailure('commission_native_unsupported_chain');
           }
         }
 
@@ -766,7 +787,11 @@ export function useSwap() {
               alternative: null,
               selectionReason: 'Commission required: forcing PancakeSwap V3 (Swaperex wrapper V2).',
             };
-          } catch {
+          } catch (wrapperErr) {
+            const infra = parseQuoteError(wrapperErr);
+            if (infra.category === 'network_error' || infra.category === 'rpc_error') {
+              throw wrapperErr instanceof Error ? wrapperErr : new Error(String(wrapperErr));
+            }
             swapTrace('commission_required_route_blocked', {
               chainId: 56,
               routeMode: effectiveRouteMode,
@@ -775,7 +800,10 @@ export function useSwap() {
               tokenIn: fromSymbol,
               tokenOut: toSymbol,
             });
-            throw new Error('Commission route unavailable for this pair.');
+            throw attachCommissionRouteFailure(
+              'unsupported_commission_route',
+              (wrapperErr as Error)?.message,
+            );
           }
         } else if (cid === 1) {
           const u2 = getUniswapWrapperV2Config();
@@ -837,7 +865,11 @@ export function useSwap() {
                   : 'Commission required: Uniswap V3 (Swaperex wrapper V2) — fixed route preference.'
                 : 'Commission required: forcing Uniswap V3 (Swaperex wrapper).',
             };
-          } catch {
+          } catch (wrapperErr) {
+            const infra = parseQuoteError(wrapperErr);
+            if (infra.category === 'network_error' || infra.category === 'rpc_error') {
+              throw wrapperErr instanceof Error ? wrapperErr : new Error(String(wrapperErr));
+            }
             swapTrace('commission_required_route_blocked', {
               chainId: 1,
               routeMode: effectiveRouteMode,
@@ -846,7 +878,10 @@ export function useSwap() {
               tokenIn: fromSymbol,
               tokenOut: toSymbol,
             });
-            throw new Error('Commission route unavailable for this pair.');
+            throw attachCommissionRouteFailure(
+              'unsupported_commission_route',
+              (wrapperErr as Error)?.message,
+            );
           }
         } else {
           swapTrace('commission_required_route_blocked', {
@@ -856,7 +891,7 @@ export function useSwap() {
             tokenIn: fromSymbol,
             tokenOut: toSymbol,
           });
-          throw new Error('Commission route unavailable for this pair.');
+          throw attachCommissionRouteFailure('commission_chain_no_wrapper');
         }
       } else {
         // PHASE 10: Fetch best quote via aggregator (compares 1inch vs Uniswap / Pancake on ETH & BSC)
@@ -1339,7 +1374,7 @@ export function useSwap() {
         needsApproval,
         allowanceCheckUncertain,
       });
-      setState((s) => ({ ...s, status: 'previewing', quote }));
+      setState((s) => ({ ...s, status: 'previewing', quote, quoteErrorParsed: null }));
       setSwapQuote(extendedQuote);
       // Update swapStore with compatible quote format for toAmount display
       setQuote({
@@ -1429,12 +1464,33 @@ export function useSwap() {
         parsed.category === 'network_error' || parsed.category === 'rpc_error'
           ? 'Network issue. Please try again.'
           : parsed.message;
-      logProductionEvent('quote_failure', {
+      const quoteFailurePayload: ProductionMonitoringPayload = {
         reason: parsed.message,
         category: parsed.category,
         chainId: chainId ?? 0,
         provider: 'quote_aggregator',
-      });
+        ...(parsed.reasonCode ? { reasonCode: parsed.reasonCode } : {}),
+      };
+      if (parsed.technicalReason && parsed.technicalReason !== parsed.message) {
+        quoteFailurePayload.technicalReason = parsed.technicalReason;
+      }
+      logProductionEvent('quote_failure', quoteFailurePayload);
+
+      if (parsed.reasonCode === 'unsupported_commission_route' && isCommissionRequiredMode()) {
+        const fromTok = getTokenBySymbol(fromSymbol, chainId || 1);
+        const toTok = getTokenBySymbol(toSymbol, chainId || 1);
+        logProductionEvent('unsupported_commission_route', {
+          chainId: chainId ?? 0,
+          fromSymbol,
+          toSymbol,
+          fromTokenAddress: fromTok?.address ?? null,
+          toTokenAddress: toTok?.address ?? null,
+          routeMode: String(routeMode),
+          provider: 'quote_aggregator',
+          commissionRequired: true,
+          reasonCode: 'unsupported_commission_route',
+        });
+      }
       if (parsed.category === 'network_error' || parsed.category === 'rpc_error') {
         logProductionEvent('rpc_failure', {
           reason: parsed.message,
@@ -1446,7 +1502,7 @@ export function useSwap() {
       logLifecycle(state.status, 'error', { error: quoteErrorDisplay });
       setSwapQuote(null);
       clearQuote();
-      setState((s) => ({ ...s, status: 'error', error: quoteErrorDisplay }));
+      setState((s) => ({ ...s, status: 'error', error: quoteErrorDisplay, quoteErrorParsed: parsed }));
       toast.error(quoteErrorDisplay);
       return null;
     }
@@ -1660,7 +1716,7 @@ export function useSwap() {
         });
         logLifecycle('approving', 'error', { error: parsed.message });
         toast.error(`Approval failed: ${parsed.message}`);
-        setState((s) => ({ ...s, status: 'error', error: parsed.message }));
+        setState((s) => ({ ...s, status: 'error', error: parsed.message, quoteErrorParsed: null }));
       }
 
       throw err;
@@ -2281,6 +2337,7 @@ export function useSwap() {
           txHash: tx.hash,
           explorerUrl,
           receiptSettlement,
+          quoteErrorParsed: null,
         }));
         const swapSuccessMonitoring: ProductionMonitoringPayload = {
           txHash: tx.hash,
@@ -2461,6 +2518,7 @@ export function useSwap() {
           ...s,
           status: 'error',
           error: parsed.message,
+          quoteErrorParsed: null,
           receiptSettlement: null,
         }));
         toast.error(parsed.message);
@@ -2675,6 +2733,7 @@ export function useSwap() {
       txHash: null,
       explorerUrl: null,
       error: null,
+      quoteErrorParsed: null,
       receiptSettlement: null,
     });
     setSwapQuote(null);
@@ -2721,6 +2780,7 @@ export function useSwap() {
                 txHash: null,
                 explorerUrl: null,
                 error: null,
+                quoteErrorParsed: null,
                 receiptSettlement: null,
               };
             }
@@ -2737,6 +2797,7 @@ export function useSwap() {
             txHash: pending.txHash,
             explorerUrl: pending.explorerUrl,
             error: null,
+            quoteErrorParsed: null,
           };
         });
       } catch {
@@ -2749,6 +2810,7 @@ export function useSwap() {
             txHash: pending.txHash,
             explorerUrl: pending.explorerUrl,
             error: null,
+            quoteErrorParsed: null,
           };
         });
       }
@@ -2791,6 +2853,7 @@ export function useSwap() {
             txHash: null,
             explorerUrl: null,
             error: null,
+            quoteErrorParsed: null,
           }));
           setSwapQuote(null);
           clearQuote();
@@ -2804,6 +2867,7 @@ export function useSwap() {
           ...s,
           status: 'error',
           error: 'Transaction reverted on-chain. Check the explorer for details.',
+          quoteErrorParsed: null,
           txHash: hash,
           explorerUrl: explorerUrlResolved,
         }));
@@ -2818,6 +2882,7 @@ export function useSwap() {
           status: 'error',
           error:
             'Could not confirm this transaction from this session. Check the explorer — it may still be pending or may have succeeded.',
+          quoteErrorParsed: null,
           txHash: hash,
           explorerUrl: explorerUrlResolved,
         }));
@@ -2834,7 +2899,7 @@ export function useSwap() {
   const cancelPreview = useCallback(() => {
     if (state.status === 'previewing') {
       logLifecycle('previewing', 'idle', { action: 'cancel_preview' });
-      setState((s) => ({ ...s, status: 'idle', quote: null, explorerUrl: null }));
+      setState((s) => ({ ...s, status: 'idle', quote: null, explorerUrl: null, quoteErrorParsed: null }));
       setSwapQuote(null);
     }
   }, [state.status]);
@@ -2848,6 +2913,8 @@ export function useSwap() {
     isQuoteExpired,
     pendingSubmittedSwap,
     dismissPendingSubmitted,
+
+    dismissQuoteError,
 
     // Actions
     swap,              // Initiate swap (gets quote, shows preview)
