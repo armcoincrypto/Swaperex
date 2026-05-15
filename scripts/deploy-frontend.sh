@@ -31,6 +31,10 @@ BACKUP_DIR="${BACKUP_DIR:-/var/www/swaperex-backup}"
 FRONTEND_DIR="$REPO_DIR/frontend"
 NGINX_SERVICE="nginx"
 SERVER_IP="${SERVER_IP:-127.0.0.1}"
+# Phase 5 smoke: hit local nginx over TLS as the public vhost (plain HTTP often 301s → false failures).
+SMOKE_PUBLIC_HOST="${SMOKE_PUBLIC_HOST:-dex.kobbex.com}"
+SMOKE_RESOLVE="${SMOKE_RESOLVE:-${SMOKE_PUBLIC_HOST}:443:${SERVER_IP}}"
+SMOKE_ORIGIN="https://${SMOKE_PUBLIC_HOST}"
 DRY_RUN=false
 
 if [[ "${1:-}" == "--dry-run" ]]; then
@@ -67,6 +71,7 @@ log "Dry run: $DRY_RUN"
 if $DRY_RUN; then
     log "[dry-run] Would build frontend, copy to $DEPLOY_DIR, reload nginx."
     log "[dry-run] version.txt would contain: $COMMIT_HASH @ $TIMESTAMP"
+    log "[dry-run] Smoke tests would use: $SMOKE_ORIGIN with --resolve $SMOKE_RESOLVE"
     exit 0
 fi
 
@@ -151,8 +156,8 @@ log "Phase 5: Running smoke tests..."
 SMOKE_PASS=true
 
 # Test 1: version.txt
-log "  Checking /version.txt ..."
-VERSION_RESPONSE=$(curl -sf "http://$SERVER_IP/version.txt" 2>/dev/null || echo "FAIL")
+log "  Checking /version.txt (HTTPS, Host+SNI via --resolve) ..."
+VERSION_RESPONSE=$(curl -sfS --resolve "$SMOKE_RESOLVE" "${SMOKE_ORIGIN}/version.txt" 2>/dev/null || echo "FAIL")
 if echo "$VERSION_RESPONSE" | grep -q "$COMMIT_SHORT"; then
     log "  /version.txt OK — contains $COMMIT_SHORT"
 else
@@ -161,8 +166,8 @@ else
 fi
 
 # Test 2: index.html
-log "  Checking / returns 200 ..."
-HTTP_CODE=$(curl -so /dev/null -w '%{http_code}' "http://$SERVER_IP/" 2>/dev/null || echo "000")
+log "  Checking / returns 200 (HTTPS) ..."
+HTTP_CODE=$(curl -sS -o /dev/null -w '%{http_code}' --resolve "$SMOKE_RESOLVE" "${SMOKE_ORIGIN}/" 2>/dev/null || echo "000")
 if [[ "$HTTP_CODE" == "200" ]]; then
     log "  / returned HTTP $HTTP_CODE OK"
 else
@@ -171,8 +176,8 @@ else
 fi
 
 # Test 3: backend health (non-fatal)
-log "  Checking /api/health ..."
-API_CODE=$(curl -so /dev/null -w '%{http_code}' "http://$SERVER_IP/api/health" 2>/dev/null || echo "000")
+log "  Checking /api/health (HTTPS) ..."
+API_CODE=$(curl -sS -o /dev/null -w '%{http_code}' --resolve "$SMOKE_RESOLVE" "${SMOKE_ORIGIN}/api/health" 2>/dev/null || echo "000")
 if [[ "$API_CODE" == "200" ]]; then
     log "  /api/health returned HTTP $API_CODE OK"
 else
@@ -180,8 +185,8 @@ else
 fi
 
 # Test 4: .env should be denied
-log "  Checking /.env is blocked ..."
-ENV_CODE=$(curl -so /dev/null -w '%{http_code}' "http://$SERVER_IP/.env" 2>/dev/null || echo "000")
+log "  Checking /.env is blocked (HTTPS) ..."
+ENV_CODE=$(curl -sS -o /dev/null -w '%{http_code}' --resolve "$SMOKE_RESOLVE" "${SMOKE_ORIGIN}/.env" 2>/dev/null || echo "000")
 if [[ "$ENV_CODE" == "403" || "$ENV_CODE" == "404" ]]; then
     log "  /.env returned HTTP $ENV_CODE OK (blocked)"
 else
@@ -189,10 +194,10 @@ else
 fi
 
 # Test 5: .map files should not be served
-log "  Checking .map files not served ..."
-MAP_URL=$(curl -sf "http://$SERVER_IP/" 2>/dev/null | grep -oP '[^"]+\.js' | head -1 || true)
+log "  Checking .map files not served (HTTPS) ..."
+MAP_URL=$(curl -sfS --resolve "$SMOKE_RESOLVE" "${SMOKE_ORIGIN}/" 2>/dev/null | grep -oP '[^"]+\.js' | head -1 || true)
 if [[ -n "$MAP_URL" ]]; then
-    MAP_CODE=$(curl -so /dev/null -w '%{http_code}' "http://$SERVER_IP/${MAP_URL}.map" 2>/dev/null || echo "000")
+    MAP_CODE=$(curl -sS -o /dev/null -w '%{http_code}' --resolve "$SMOKE_RESOLVE" "${SMOKE_ORIGIN}${MAP_URL}.map" 2>/dev/null || echo "000")
     if [[ "$MAP_CODE" == "403" || "$MAP_CODE" == "404" ]]; then
         log "  .map files blocked (HTTP $MAP_CODE) OK"
     else
