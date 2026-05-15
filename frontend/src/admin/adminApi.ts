@@ -127,6 +127,12 @@ export type AdminSwapAnalyticsRow = {
   estimated_fee_usd: number | null;
   route_label: string;
   provider: string | null;
+  /** P4.4-H — optional; present when frontend emits V3 canary telemetry. */
+  wrapper_version?: number | null;
+  hop_count?: number | null;
+  fee_tier_summary?: string | null;
+  route_path_summary?: string | null;
+  path_fingerprint?: string | null;
   raw_event: Record<string, unknown>;
 };
 
@@ -212,6 +218,19 @@ export type AdminRevenueResponse = {
   revenue_by_chain: AdminRevenueChainBucket[];
   revenue_by_route: AdminRevenueRouteBucket[];
   latest_fee_events: AdminRevenueLatestFeeEvent[];
+  /** P4.4-H — per-provider swap_success counts on Ethereum Uniswap wrappers (ingest scan). */
+  uniswap_eth_wrapper_swap_stats?: Record<
+    string,
+    {
+      swap_success_count?: number;
+      fee_to_treasury_wei_key_present?: number;
+      avg_gas_used?: number | null;
+      v3_multihop?: number;
+      v3_single_hop?: number;
+      v3_hop_unknown?: number;
+      multihop_pct_of_v3_events?: number | null;
+    }
+  >;
 };
 
 export async function fetchAdminRevenue(token: string): Promise<AdminRevenueResponse> {

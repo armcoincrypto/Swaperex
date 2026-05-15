@@ -258,6 +258,12 @@ def _swap_success_row_from_event(
             "estimated_fee_usd": _estimate_fee_usd(ev),
             "route_label": _build_route_label(ev),
             "provider": _safe_str(ev.get("provider")),
+            # P4.4-H — optional V3 canary fields (forward-compatible; omitted for V1/V2 / 1inch).
+            "wrapper_version": _safe_opt_int(ev.get("wrapperVersion")),
+            "hop_count": _safe_opt_int(ev.get("hopCount")),
+            "fee_tier_summary": _safe_str(ev.get("feeTierSummary")),
+            "route_path_summary": _safe_str(ev.get("routePathSummary")),
+            "path_fingerprint": _safe_str(ev.get("pathFingerprint")),
             "raw_event": copy.deepcopy(ev),
         }
         return row
@@ -493,6 +499,11 @@ async def admin_revenue(session: AsyncSession = Depends(get_session)) -> dict[st
 
     latest_fee_events_working: list[tuple[int, dict[str, Any]]] = []
 
+    _ETH_UNI_MONITOR_PROVIDERS = frozenset(
+        {"uniswap-v3-wrapper", "uniswap-v3-wrapper-v2", "uniswap-v3-wrapper-v3"}
+    )
+    eth_uni_swap_stats_acc: dict[str, dict[str, Any]] = {}
+
     for batch in batches:
         batch_iso = _iso_received_at(batch.received_at)
         env = batch.envelope if isinstance(batch.envelope, dict) else {}
@@ -510,6 +521,34 @@ async def admin_revenue(session: AsyncSession = Depends(get_session)) -> dict[st
                     continue
 
                 total_swaps += 1
+
+                pk_stat = _provider_key(ev)
+                if pk_stat and pk_stat in _ETH_UNI_MONITOR_PROVIDERS:
+                    acc = eth_uni_swap_stats_acc.setdefault(
+                        pk_stat,
+                        {
+                            "swap_success_count": 0,
+                            "fee_to_treasury_wei_key_present": 0,
+                            "_gas_used_samples": [],
+                            "v3_multihop": 0,
+                            "v3_single_hop": 0,
+                            "v3_hop_unknown": 0,
+                        },
+                    )
+                    acc["swap_success_count"] += 1
+                    if "feeToTreasuryWei" in ev:
+                        acc["fee_to_treasury_wei_key_present"] += 1
+                    gas_s = _safe_str(ev.get("gasUsed"))
+                    if gas_s and gas_s.isdigit():
+                        acc["_gas_used_samples"].append(int(gas_s))
+                    if pk_stat == "uniswap-v3-wrapper-v3":
+                        hc = _safe_opt_int(ev.get("hopCount"))
+                        if hc is None:
+                            acc["v3_hop_unknown"] += 1
+                        elif hc >= 2:
+                            acc["v3_multihop"] += 1
+                        else:
+                            acc["v3_single_hop"] += 1
 
                 if "feeToTreasuryWei" in ev or "userNetWei" in ev:
                     enriched_swaps_count += 1
@@ -569,6 +608,30 @@ async def admin_revenue(session: AsyncSession = Depends(get_session)) -> dict[st
                 continue
 
     missing_fee_data = total_swaps - swaps_with_fee_data
+
+    def _finalize_eth_uni_swap_stats(acc: dict[str, dict[str, Any]]) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        for prov, raw in acc.items():
+            gas_list = list(raw.get("_gas_used_samples") or [])
+            row = {k: v for k, v in raw.items() if k != "_gas_used_samples"}
+            if gas_list:
+                row["avg_gas_used"] = round(sum(gas_list) / len(gas_list), 4)
+            else:
+                row["avg_gas_used"] = None
+            if prov == "uniswap-v3-wrapper-v3":
+                tot = int(row.get("swap_success_count") or 0)
+                mh = int(row.get("v3_multihop") or 0)
+                row["multihop_pct_of_v3_events"] = (
+                    round(100.0 * float(mh) / float(tot), 4) if tot > 0 else None
+                )
+            else:
+                row.pop("v3_multihop", None)
+                row.pop("v3_single_hop", None)
+                row.pop("v3_hop_unknown", None)
+            out[prov] = row
+        return out
+
+    uniswap_eth_wrapper_swap_stats = _finalize_eth_uni_swap_stats(eth_uni_swap_stats_acc)
 
     def _token_rows(totals: dict[tuple[Any, ...], int]) -> list[dict[str, Any]]:
         rows_out: list[dict[str, Any]] = []
@@ -638,6 +701,7 @@ async def admin_revenue(session: AsyncSession = Depends(get_session)) -> dict[st
         "revenue_by_chain": revenue_by_chain,
         "revenue_by_route": revenue_by_route,
         "latest_fee_events": latest_fee_events,
+        "uniswap_eth_wrapper_swap_stats": uniswap_eth_wrapper_swap_stats,
     }
 
 
@@ -1003,6 +1067,7 @@ _ALLOWED_RECONCILIATION_STATUS = frozenset(
 _WRAPPER_EXPECTED_FEE_BPS: dict[tuple[int, str], tuple[int, str]] = {
     (1, "uniswap-v3-wrapper"): (20, "repo_default_uniswap_wrapper_v1_eth"),
     (1, "uniswap-v3-wrapper-v2"): (20, "repo_default_uniswap_wrapper_v2_eth"),
+    (1, "uniswap-v3-wrapper-v3"): (20, "repo_default_uniswap_wrapper_v3_eth"),
     (56, "pancakeswap-v3-wrapper"): (50, "repo_default_pancake_wrapper_v1_bsc"),
     (56, "pancakeswap-v3-wrapper-v2"): (50, "repo_default_pancake_wrapper_v2_bsc"),
 }

@@ -341,11 +341,24 @@ function SwapRouteBadges({ row }: { row: AdminSwapAnalyticsRow }) {
   const inch =
     prov.includes('1inch') || (row.commission_route ?? '').toLowerCase().includes('1inch');
   const failed = row.receipt_status === 0;
+  const uniWrapVer =
+    prov === 'uniswap-v3-wrapper-v3'
+      ? 'V3'
+      : prov === 'uniswap-v3-wrapper-v2'
+        ? 'V2'
+        : prov === 'uniswap-v3-wrapper'
+          ? 'V1'
+          : null;
   return (
     <span className="flex flex-wrap gap-1 mt-1">
       {wrap && (
         <span className="rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide bg-amber-900/55 text-amber-200 border border-amber-800/50">
           wrapper
+        </span>
+      )}
+      {uniWrapVer && (
+        <span className="rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide bg-violet-900/55 text-violet-100 border border-violet-800/45">
+          uni {uniWrapVer}
         </span>
       )}
       {inch && (
@@ -557,6 +570,15 @@ function AdminSwapsPage() {
                   <td className="px-3 py-2 font-mono text-xs">{row.quoted_output ?? '—'}</td>
                   <td className="px-3 py-2 text-xs max-w-[14rem]">
                     <div className="text-dark-300 break-words">{row.route_label}</div>
+                    {(row.route_path_summary || row.path_fingerprint) && (
+                      <div className="text-[10px] text-dark-500 mt-0.5 font-mono break-all">
+                        {row.route_path_summary ?? ''}
+                        {row.route_path_summary && row.path_fingerprint ? ' · ' : ''}
+                        {row.path_fingerprint ? (
+                          <span title="Truncated path fingerprint">{row.path_fingerprint}</span>
+                        ) : null}
+                      </div>
+                    )}
                     <SwapRouteBadges row={row} />
                     <details className="mt-2">
                       <summary className="cursor-pointer text-accent text-[11px]">Raw event</summary>
@@ -864,6 +886,55 @@ function AdminRevenuePage() {
               <div className="text-[10px] text-dark-500 mt-1">receipt fee / net wei fields present</div>
             </div>
           </div>
+
+          {data.uniswap_eth_wrapper_swap_stats &&
+            Object.keys(data.uniswap_eth_wrapper_swap_stats).length > 0 && (
+              <div className="mb-8 rounded-xl border border-violet-900/40 bg-violet-950/15 p-4">
+                <h3 className="text-sm font-semibold text-violet-100/90 mb-1">
+                  Ethereum Uniswap wrapper · swap_success scan (P4.4-H)
+                </h3>
+                <p className="text-[11px] text-dark-400 mb-3">
+                  Ingest-derived counts. V3 multihop % uses optional{' '}
+                  <span className="font-mono">hopCount</span> when present on telemetry.
+                </p>
+                <div className="overflow-x-auto rounded-lg border border-dark-700">
+                  <table className="w-full text-sm min-w-[720px]">
+                    <thead className="bg-dark-900/80 text-dark-400 text-[10px] uppercase">
+                      <tr>
+                        <th className="px-2 py-2 text-left">Provider</th>
+                        <th className="px-2 py-2 text-right">swap_success</th>
+                        <th className="px-2 py-2 text-right">feeWei key</th>
+                        <th className="px-2 py-2 text-right">avg gas</th>
+                        <th className="px-2 py-2 text-right">V3 1-hop</th>
+                        <th className="px-2 py-2 text-right">V3 2+ hop</th>
+                        <th className="px-2 py-2 text-right">V3 hop ?</th>
+                        <th className="px-2 py-2 text-right">V3 multihop %</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-dark-800">
+                      {Object.entries(data.uniswap_eth_wrapper_swap_stats).map(([prov, st]) => (
+                        <tr key={prov} className="bg-dark-950/40">
+                          <td className="px-2 py-2 font-mono text-[11px]">{prov}</td>
+                          <td className="px-2 py-2 text-right font-mono text-xs">{st.swap_success_count ?? 0}</td>
+                          <td className="px-2 py-2 text-right font-mono text-xs">
+                            {st.fee_to_treasury_wei_key_present ?? 0}
+                          </td>
+                          <td className="px-2 py-2 text-right font-mono text-xs">
+                            {st.avg_gas_used != null ? String(st.avg_gas_used) : '—'}
+                          </td>
+                          <td className="px-2 py-2 text-right font-mono text-xs">{st.v3_single_hop ?? '—'}</td>
+                          <td className="px-2 py-2 text-right font-mono text-xs">{st.v3_multihop ?? '—'}</td>
+                          <td className="px-2 py-2 text-right font-mono text-xs">{st.v3_hop_unknown ?? '—'}</td>
+                          <td className="px-2 py-2 text-right font-mono text-xs">
+                            {st.multihop_pct_of_v3_events != null ? `${st.multihop_pct_of_v3_events}%` : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
           {norm && (
             <div className="mb-10 rounded-xl border border-cyan-900/40 bg-cyan-950/15 p-4">

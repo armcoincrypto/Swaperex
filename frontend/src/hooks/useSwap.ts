@@ -2562,6 +2562,28 @@ export function useSwap() {
           receiptSettlement,
           quoteErrorParsed: null,
         }));
+        const v3TelemetryFields: ProductionMonitoringPayload =
+          swapQuote.provider === 'uniswap-v3-wrapper-v3'
+            ? (() => {
+                const oq = swapQuote.aggregatedQuote?.originalQuote as UniswapWrapperV3QuoteResult | undefined;
+                if (!oq?.v3FeeTiers?.length) {
+                  return { wrapperVersion: 3 };
+                }
+                const path = oq.wrapperPath;
+                const pathFingerprint =
+                  typeof path === 'string' && path.length > 22
+                    ? `${path.slice(0, 12)}…${path.slice(-8)}`
+                    : undefined;
+                return {
+                  wrapperVersion: 3,
+                  hopCount: oq.v3FeeTiers.length,
+                  feeTierSummary: oq.v3FeeTiers.join('-'),
+                  routePathSummary: oq.route,
+                  ...(pathFingerprint ? { pathFingerprint } : {}),
+                };
+              })()
+            : {};
+
         const swapSuccessMonitoring: ProductionMonitoringPayload = {
           txHash: tx.hash,
           chainId: cid,
@@ -2593,6 +2615,7 @@ export function useSwap() {
             ? { wrapperRoute: commissionTraceForSwap.wrapperKey }
             : {}),
           nativeOutput: nativeOut,
+          ...v3TelemetryFields,
         };
         logProductionEvent('swap_success', swapSuccessMonitoring);
         try {

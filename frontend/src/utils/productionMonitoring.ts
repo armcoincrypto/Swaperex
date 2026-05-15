@@ -75,6 +75,16 @@ export type SwapSuccessMonitoringWire = ProductionMonitoringPayload & {
   commissionRoute?: string;
   wrapperRoute?: string | null;
   nativeOutput?: boolean;
+  /** Uniswap fee wrapper V3 (P4.4-H): explicit major version for admin / reconciliation filters. */
+  wrapperVersion?: number;
+  /** V3 only: number of fee tiers / hops in the quoted path (1 or 2 with MAX_HOPS=2). */
+  hopCount?: number;
+  /** V3 only: joined fee tiers from the winning quote, e.g. `3000` or `500-3000`. */
+  feeTierSummary?: string;
+  /** V3 only: human route from quoter, e.g. `WETH → USDC`. */
+  routePathSummary?: string;
+  /** V3 only: truncated packed path fingerprint (not full calldata). */
+  pathFingerprint?: string;
 };
 
 /** Documented shape for `commission_missing` fields. */
