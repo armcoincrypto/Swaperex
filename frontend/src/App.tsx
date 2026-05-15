@@ -31,6 +31,7 @@ import {
 } from '@/services/wallet/appKitActionsRegistry';
 import { SHOW_OPTIONAL_PRIMARY_NAV } from '@/config/productShell';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
+import { DexSeoTrustSection } from '@/components/seo/DexSeoTrustSection';
 
 const LazySendPage = lazy(() => import('@/components/send/SendPage'));
 const LazyPortfolioPage = lazy(() => import('@/components/portfolio/PortfolioPage'));
@@ -432,19 +433,22 @@ function DexMain() {
       {/* Main Content */}
       <main className="max-w-6xl mx-auto px-4 py-8 sm:py-10">
         {currentPage === 'swap' && (
-          <div className="flex flex-col lg:flex-row gap-10 lg:items-start">
-            {/* Swap Panel */}
-            <div className="flex-1 flex justify-center">
-              <SwapInterface />
-            </div>
+          <>
+            <div className="flex flex-col lg:flex-row gap-10 lg:items-start">
+              {/* Swap Panel */}
+              <div className="flex-1 flex justify-center">
+                <SwapInterface />
+              </div>
 
-            {/* Balances Sidebar */}
-            {isConnected && (
-              <aside className="w-full lg:w-80">
-                <TokenList />
-              </aside>
-            )}
-          </div>
+              {/* Balances Sidebar */}
+              {isConnected && (
+                <aside className="w-full lg:w-80">
+                  <TokenList />
+                </aside>
+              )}
+            </div>
+            <DexSeoTrustSection />
+          </>
         )}
 
         {currentPage === 'send' && (

@@ -5,6 +5,8 @@
  * Non-custodial disclaimer clearly stated.
  */
 
+import { CHAINS } from '@/wallet/chains';
+
 interface StaticPageProps {
   onBack: () => void;
 }
@@ -17,8 +19,9 @@ export function AboutPage({ onBack }: StaticPageProps) {
         <h2 className="text-lg font-bold mb-3">What is Swaperex?</h2>
         <p className="text-dark-300 mb-4">
           Swaperex is a non-custodial decentralized exchange (DEX) aggregator that allows you to
-          swap tokens directly from your wallet. We aggregate quotes from multiple DEXs including
-          Uniswap, PancakeSwap, and 1inch to find you the best rates.
+          swap tokens directly from your wallet. Quotes can be sourced from integrated protocols
+          (such as Uniswap, PancakeSwap, and 1inch) and vary with liquidity, fees, and market
+          conditions.
         </p>
       </section>
 
@@ -34,8 +37,11 @@ export function AboutPage({ onBack }: StaticPageProps) {
       <section className="mb-8">
         <h2 className="text-lg font-bold mb-3">Supported Networks</h2>
         <ul className="list-disc list-inside text-dark-300 space-y-1">
-          <li>Ethereum Mainnet</li>
-          <li>BNB Chain (BSC)</li>
+          {CHAINS.map((c) => (
+            <li key={c.id}>
+              {c.name} <span className="text-dark-500">(chain ID {c.id})</span>
+            </li>
+          ))}
         </ul>
       </section>
 
