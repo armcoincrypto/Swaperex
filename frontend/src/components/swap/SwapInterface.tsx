@@ -47,6 +47,7 @@ import {
   getPancakeWrapperV2FeeBpsForUi,
   getUniswapWrapperFeeBpsForUi,
   getUniswapWrapperV2FeeBpsForUi,
+  getUniswapWrapperV3FeeBpsForUi,
   isPancakeWrapperFeeBpsUnverified,
   isPancakeWrapperV2FeeBpsUnverified,
   isUniswapWrapperFeeBpsUnverified,
@@ -54,6 +55,7 @@ import {
   getPancakeWrapperV2Config,
   getUniswapWrapperV2Config,
   isCommissionRequiredMode,
+  isUniswapWrapperV3PathAvailableButDisabled,
 } from '@/config';
 import {
   formatQuoteRoutePreferenceLabel,
@@ -364,6 +366,14 @@ export function SwapInterface() {
       !u2.nativeEnabled
     );
   }, [currentChainId, fromAsset?.is_native, toAsset?.is_native]);
+
+  /** Canary hint: multi-hop V3 path exists for this pair but V3 routing is off in env (no execution claim). */
+  const showUniswapWrapperV3CanaryHint = useMemo(() => {
+    if (!fromAsset?.symbol || !toAsset?.symbol) return false;
+    if (!isCommissionRequiredMode() || currentChainId !== 1) return false;
+    if (fromAsset.is_native || toAsset.is_native) return false;
+    return isUniswapWrapperV3PathAvailableButDisabled(currentChainId, fromAsset.symbol, toAsset.symbol);
+  }, [currentChainId, fromAsset?.symbol, fromAsset?.is_native, toAsset?.symbol, toAsset?.is_native]);
 
   const statusRef = useRef(status);
   statusRef.current = status;
@@ -1731,6 +1741,17 @@ export function SwapInterface() {
                   {formatQuoteRoutePreferenceLabel(swapQuote.routeMode)}
                 </span>
               </div>
+              {showUniswapWrapperV3CanaryHint && (
+                <div className="flex justify-between gap-2 min-w-0 items-center pt-0.5">
+                  <span className="text-dark-400 shrink-0 text-xs">Routing</span>
+                  <span
+                    className="shrink-0 text-[10px] font-medium uppercase tracking-wide px-2 py-0.5 rounded border border-amber-600/40 bg-amber-950/30 text-amber-200/90"
+                    title="A Swaperex Uniswap wrapper V3 path is defined for this pair; enable VITE_UNISWAP_WRAPPER_V3_* to use it in commission mode."
+                  >
+                    V3 route available
+                  </span>
+                </div>
+              )}
               {(() => {
                 const q = swapQuote;
                 if (q.provider === '1inch' && isMonetizationActiveForProvider('1inch')) {
@@ -1768,6 +1789,19 @@ export function SwapInterface() {
                         title="Swaperex Uniswap wrapper V2 — taken from gross output on-chain; quoted receive amount is net."
                       >
                         {(getUniswapWrapperV2FeeBpsForUi() / 100).toFixed(2)}%
+                      </span>
+                    </div>
+                  );
+                }
+                if (q.provider === 'uniswap-v3-wrapper-v3') {
+                  return (
+                    <div className="flex justify-between gap-2 min-w-0 items-baseline">
+                      <span className="text-dark-400 shrink-0">Protocol fee</span>
+                      <span
+                        className="min-w-0 text-right text-dark-200 tabular-nums break-words"
+                        title="Swaperex Uniswap wrapper V3 — taken from gross output on-chain; quoted receive amount is net."
+                      >
+                        {(getUniswapWrapperV3FeeBpsForUi() / 100).toFixed(2)}%
                       </span>
                     </div>
                   );
@@ -1928,6 +1962,7 @@ export function SwapInterface() {
                         ? 'Included in quote (multi-pool)'
                         : swapQuote.provider === 'uniswap-v3-wrapper' ||
                             swapQuote.provider === 'uniswap-v3-wrapper-v2' ||
+                            swapQuote.provider === 'uniswap-v3-wrapper-v3' ||
                             swapQuote.provider === 'pancakeswap-v3-wrapper' ||
                             swapQuote.provider === 'pancakeswap-v3-wrapper-v2'
                           ? `${getFeeTierDisplay(swapQuote.feeTier)} pool (wrapper route)`
@@ -1982,6 +2017,20 @@ export function SwapInterface() {
                           {SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}
                         </p>
                       )}
+                    </div>
+                  )}
+
+                  {swapQuote.provider === 'uniswap-v3-wrapper-v3' && (
+                    <div className="flex flex-col gap-0.5">
+                      <div className="flex justify-between gap-2">
+                        <span className="text-dark-400 shrink-0">Wrapper V3 protocol fee</span>
+                        <span
+                          className="text-right text-dark-200"
+                          title="Swaperex Uniswap wrapper V3 — taken from gross output on-chain; quoted receive amount is net."
+                        >
+                          {(getUniswapWrapperV3FeeBpsForUi() / 100).toFixed(2)}%
+                        </span>
+                      </div>
                     </div>
                   )}
 
@@ -3054,6 +3103,8 @@ function RouteTooltip({ provider }: { provider: string }) {
         return 'Uniswap V3 execution via the Swaperex fee wrapper on Ethereum (ERC20→ERC20). Quoted output is net of the wrapper protocol fee.';
       case 'uniswap-v3-wrapper-v2':
         return 'Uniswap V3 via Swaperex fee wrapper V2 on Ethereum. Quoted output is net of the wrapper protocol fee.';
+      case 'uniswap-v3-wrapper-v3':
+        return 'Uniswap V3 via Swaperex fee wrapper V3 on Ethereum (multi-hop exactInput). Quoted output is net of the wrapper protocol fee.';
       case 'pancakeswap-v3':
         return 'Direct swap through PancakeSwap V3 on BNB Chain.';
       case 'pancakeswap-v3-wrapper':
@@ -3103,6 +3154,10 @@ function ProviderBadge({ provider }: { provider: string }) {
         return { bg: 'bg-pink-900/30', text: 'text-pink-400', label: 'Uniswap V3' };
       case 'uniswap-v3-wrapper':
         return { bg: 'bg-pink-900/30', text: 'text-pink-300', label: 'Uniswap V3 · wrapper' };
+      case 'uniswap-v3-wrapper-v2':
+        return { bg: 'bg-pink-900/30', text: 'text-pink-200', label: 'Uniswap V3 · wrap V2' };
+      case 'uniswap-v3-wrapper-v3':
+        return { bg: 'bg-pink-900/30', text: 'text-pink-100', label: 'Uniswap V3 · wrap V3' };
       case 'pancakeswap-v3':
         return { bg: 'bg-yellow-900/30', text: 'text-yellow-400', label: 'PancakeSwap' };
       case 'pancakeswap-v3-wrapper':

@@ -30,6 +30,7 @@ import {
   getPancakeWrapperV2FeeBpsForUi,
   getUniswapWrapperFeeBpsForUi,
   getUniswapWrapperV2FeeBpsForUi,
+  getUniswapWrapperV3FeeBpsForUi,
   isPancakeWrapperFeeBpsUnverified,
   isPancakeWrapperV2FeeBpsUnverified,
   isUniswapWrapperFeeBpsUnverified,
@@ -415,6 +416,15 @@ export function SwapPreviewModal({
                 )}
               </>
             )}
+            {quote.provider === 'uniswap-v3-wrapper-v3' && (
+              <>
+                <DetailRow
+                  label="Wrapper V3 protocol fee"
+                  value={`${(getUniswapWrapperV3FeeBpsForUi() / 100).toFixed(2)}%`}
+                  title="Swaperex Uniswap wrapper V3 (multi-hop) — taken from gross output on-chain; quoted receive amount is net."
+                />
+              </>
+            )}
             {quote.provider === 'pancakeswap-v3-wrapper' && (
               <>
                 <DetailRow
@@ -502,6 +512,7 @@ export function SwapPreviewModal({
                       ? 'Included in quote (multi-pool)'
                       : quote.provider === 'uniswap-v3-wrapper' ||
                           quote.provider === 'uniswap-v3-wrapper-v2' ||
+                          quote.provider === 'uniswap-v3-wrapper-v3' ||
                           quote.provider === 'pancakeswap-v3-wrapper' ||
                           quote.provider === 'pancakeswap-v3-wrapper-v2'
                         ? `${formatSwapFeeTierDisplay(quote.feeTier)} pool (wrapper route)`
@@ -793,6 +804,16 @@ function PreSignConfidenceBlock({
             {isUniswapWrapperV2FeeBpsUnverified() && (
               <p className="text-[10px] text-dark-500 leading-snug">{SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}</p>
             )}
+          </div>
+        )}
+        {quote.provider === 'uniswap-v3-wrapper-v3' && (
+          <div className="flex flex-col gap-1">
+            <div className="flex justify-between gap-3">
+              <dt className="text-dark-400 shrink-0">Wrapper V3 protocol fee</dt>
+              <dd className="text-right text-dark-100" title="Output-side fee via Swaperex wrapper V3 (multi-hop); amounts shown are net">
+                {(getUniswapWrapperV3FeeBpsForUi() / 100).toFixed(2)}%
+              </dd>
+            </div>
           </div>
         )}
         {quote.provider === 'pancakeswap-v3-wrapper' && (

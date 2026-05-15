@@ -53,6 +53,17 @@ interface ImportMetaEnv {
   /** When truthy with native execution on, UI shows an experimental-routing banner (Phase 3 canary). */
   readonly VITE_UNISWAP_WRAPPER_V2_NATIVE_EXPERIMENTAL_UI?: string
 
+  /** Uniswap wrapper V3 (Ethereum, multi-hop `exactInput`). Default: off. */
+  readonly VITE_UNISWAP_WRAPPER_V3_ENABLED?: string
+  readonly VITE_UNISWAP_WRAPPER_V3_ADDRESS?: string
+  /** Optional UI copy; should match on-chain `feeBps` (default 20). */
+  readonly VITE_UNISWAP_WRAPPER_V3_FEE_BPS?: string
+  /**
+   * Comma-separated allowlist segments, e.g. `WETH-USDC,WETH-USDC-SNX,WETH-USDC-PENDLE`.
+   * When unset and V3 is enabled, a built-in default list is used (same three paths).
+   */
+  readonly VITE_UNISWAP_WRAPPER_V3_CANARY_PAIRS?: string
+
   /** When truthy (1/true/yes/on), BSC ERC20→ERC20 swaps that would execute on direct PancakeSwap V3 use the fee wrapper. Default: off. */
   readonly VITE_PANCAKE_WRAPPER_ENABLED?: string
   /** Deployed Swaperex Pancake V3 fee wrapper on BSC (checksummed). Required when wrapper is enabled. */

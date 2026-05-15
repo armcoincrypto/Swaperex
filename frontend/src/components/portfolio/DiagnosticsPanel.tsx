@@ -27,7 +27,11 @@ import {
 import type { CommissionEvent } from '@/stores/commissionMonitorStore';
 
 function isEthWrapperProvider(provider: string): boolean {
-  return provider === 'uniswap-v3-wrapper' || provider === 'uniswap-v3-wrapper-v2';
+  return (
+    provider === 'uniswap-v3-wrapper' ||
+    provider === 'uniswap-v3-wrapper-v2' ||
+    provider === 'uniswap-v3-wrapper-v3'
+  );
 }
 
 function isBscWrapperProvider(provider: string): boolean {

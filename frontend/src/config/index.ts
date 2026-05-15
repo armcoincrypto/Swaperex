@@ -143,5 +143,20 @@ export {
   type UniswapWrapperV2Config,
 } from './uniswapWrapperV2';
 
+// Uniswap V3 fee wrapper V3 (Ethereum; multi-hop, commission-only when enabled + allowlisted)
+export {
+  ensureUniswapWrapperV3ChainFeeBps,
+  getUniswapWrapperV3Config,
+  getUniswapWrapperV3FeeBpsForUi,
+  getUniswapWrapperV3SessionOnChainFeeBps,
+  getUniswapWrapperV3SpenderAddress,
+  isUniswapWrapperV3CommissionEligible,
+  isUniswapWrapperV3PathAvailableButDisabled,
+  isUniswapWrapperV3RoutablePairSymbols,
+  parseCanaryListFromEnv,
+  parseCanarySegment,
+  type UniswapWrapperV3Config,
+} from './uniswapWrapperV3';
+
 // Commission-required mode (env)
 export { isCommissionRequiredMode } from './commissionRequired';

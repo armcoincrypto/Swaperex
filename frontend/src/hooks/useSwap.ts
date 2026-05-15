@@ -77,10 +77,8 @@ import { getTokenRouteSupport } from '@/utils/routeSupport';
 import { recordSuccessfulSwapPair } from '@/utils/routePrecheck';
 
 // Import Uniswap V3 services
-import {
-  type QuoteResult,
-  getBestWrapperQuote,
-} from '@/services/uniswapQuote';
+import { type FeeTier, type QuoteResult, getBestWrapperQuote } from '@/services/uniswapQuote';
+import type { UniswapWrapperV3QuoteResult } from '@/services/uniswapWrapperQuoteV3';
 import {
   buildSwapTx,
   buildRouterApproval,
@@ -88,7 +86,6 @@ import {
   buildWrapperApprovalTx,
   validateSwapParams,
 } from '@/services/uniswapTxBuilder';
-import type { FeeTier } from '@/services/uniswapQuote';
 // PHASE 10: Import aggregator and 1inch services
 import {
   getAggregatedQuote,
@@ -113,6 +110,11 @@ import {
   buildUniswapWrapperV2SwapTx,
 } from '@/services/uniswapWrapperTxBuilderV2';
 import {
+  buildUniswapWrapperV3ApprovalTx,
+  buildUniswapWrapperV3SwapTx,
+  getUniswapWrapperV3TxParamsFromQuote,
+} from '@/services/uniswapWrapperTxBuilderV3';
+import {
   buildOneInchSwapTx,
   buildOneInchApproval,
   checkOneInchAllowance,
@@ -129,6 +131,7 @@ import {
   ensurePancakeWrapperV2ChainFeeBps,
   ensureUniswapWrapperChainFeeBps,
   ensureUniswapWrapperV2ChainFeeBps,
+  ensureUniswapWrapperV3ChainFeeBps,
   getExplorerTxUrl,
   getPancakeWrapperConfig,
   getPancakeWrapperFeeBpsForUi,
@@ -147,9 +150,14 @@ import {
   getUniswapWrapperV2FeeBpsForUi,
   getUniswapWrapperV2SessionOnChainFeeBps,
   getUniswapWrapperV2SpenderAddress,
+  getUniswapWrapperV3Config,
+  getUniswapWrapperV3FeeBpsForUi,
+  getUniswapWrapperV3SessionOnChainFeeBps,
+  getUniswapWrapperV3SpenderAddress,
   shouldUsePancakeWrapperForSymbols,
   shouldUseUniswapWrapperForSymbols,
   isCommissionRequiredMode,
+  isUniswapWrapperV3CommissionEligible,
 } from '@/config';
 import {
   clearPendingSwap,
@@ -198,6 +206,7 @@ export type SwapProvider =
   | 'uniswap-v3'
   | 'uniswap-v3-wrapper'
   | 'uniswap-v3-wrapper-v2'
+  | 'uniswap-v3-wrapper-v3'
   | 'pancakeswap-v3'
   | 'pancakeswap-v3-wrapper'
   | 'pancakeswap-v3-wrapper-v2'
@@ -829,6 +838,29 @@ export function useSwap() {
               : !!(u2.enabled && u2.wrapperAddress && effectiveRouteMode === 'uniswap-v3-wrapper-v2');
 
           const fetchEthCommissionQuote = async (): Promise<AggregatedQuote> => {
+            const ethNativeLeg = inNativeForMode || outNativeForMode;
+            if (!ethNativeLeg) {
+              const u3 = getUniswapWrapperV3Config();
+              const tInMeta = getTokenBySymbol(fromSymbol, 1);
+              const tOutMeta = getTokenBySymbol(toSymbol, 1);
+              if (
+                u3.enabled &&
+                u3.wrapperAddress &&
+                tInMeta &&
+                tOutMeta &&
+                isUniswapWrapperV3CommissionEligible(1, tInMeta, tOutMeta)
+              ) {
+                return getQuoteFromProvider(
+                  'uniswap-v3-wrapper-v3',
+                  fromSymbol,
+                  toSymbol,
+                  fromAmount,
+                  1,
+                  slippage || DEFAULT_SLIPPAGE,
+                  null,
+                );
+              }
+            }
             if (useV2) {
               return getQuoteFromProvider(
                 'uniswap-v3-wrapper-v2',
@@ -855,18 +887,63 @@ export function useSwap() {
             try {
               forced = await fetchEthCommissionQuote();
             } catch (firstErr) {
-              console.warn('[Swap] ETH commission-required quote failed; retrying once', firstErr);
-              forced = await fetchEthCommissionQuote();
+              const ethNativeLeg = inNativeForMode || outNativeForMode;
+              const u3 = getUniswapWrapperV3Config();
+              const tInMeta = getTokenBySymbol(fromSymbol, 1);
+              const tOutMeta = getTokenBySymbol(toSymbol, 1);
+              const v3Eligible =
+                !ethNativeLeg &&
+                u3.enabled &&
+                u3.wrapperAddress &&
+                tInMeta &&
+                tOutMeta &&
+                isUniswapWrapperV3CommissionEligible(1, tInMeta, tOutMeta);
+              if (v3Eligible) {
+                console.warn('[Swap] ETH commission-required V3 quote failed; retrying legacy wrapper', firstErr);
+              } else {
+                console.warn('[Swap] ETH commission-required quote failed; retrying once', firstErr);
+              }
+              if (v3Eligible) {
+                if (useV2) {
+                  forced = await getQuoteFromProvider(
+                    'uniswap-v3-wrapper-v2',
+                    fromSymbol,
+                    toSymbol,
+                    fromAmount,
+                    1,
+                    slippage || DEFAULT_SLIPPAGE,
+                    effectiveRouteMode,
+                  );
+                } else {
+                  forced = await getQuoteFromProvider(
+                    'uniswap-v3-wrapper',
+                    fromSymbol,
+                    toSymbol,
+                    fromAmount,
+                    1,
+                    slippage || DEFAULT_SLIPPAGE,
+                  );
+                }
+              } else {
+                forced = await fetchEthCommissionQuote();
+              }
             }
             swapTrace('commission_required_route_selected', {
               chainId: 1,
               routeMode: effectiveRouteMode,
               provider: forced.provider,
-              reason: useV2 ? 'forced_uniswap_v3_wrapper_v2' : 'forced_uniswap_v3_wrapper',
+              reason:
+                forced.provider === 'uniswap-v3-wrapper-v3'
+                  ? 'forced_uniswap_v3_wrapper_v3'
+                  : useV2
+                    ? 'forced_uniswap_v3_wrapper_v2'
+                    : 'forced_uniswap_v3_wrapper',
               tokenIn: fromSymbol,
               tokenOut: toSymbol,
             });
-            if (useV2) {
+            if (forced.provider === 'uniswap-v3-wrapper-v3') {
+              await ensureUniswapWrapperV3ChainFeeBps(provider, 1);
+            } else if (useV2) {
               await ensureUniswapWrapperV2ChainFeeBps(provider, 1);
             } else {
               await ensureUniswapWrapperChainFeeBps(provider, 1);
@@ -874,21 +951,32 @@ export function useSwap() {
             aggregation = {
               best: forced,
               alternative: null,
-              selectionReason: useV2
-                ? ethNativeLeg
-                  ? 'Commission required: forcing Uniswap V3 (Swaperex wrapper V2).'
-                  : 'Commission required: Uniswap V3 (Swaperex wrapper V2) — fixed route preference.'
-                : 'Commission required: forcing Uniswap V3 (Swaperex wrapper).',
+              selectionReason:
+                forced.provider === 'uniswap-v3-wrapper-v3'
+                  ? 'Commission required: Swaperex Uniswap wrapper V3 (multi-hop).'
+                  : useV2
+                    ? ethNativeLeg
+                      ? 'Commission required: forcing Uniswap V3 (Swaperex wrapper V2).'
+                      : 'Commission required: Uniswap V3 (Swaperex wrapper V2) — fixed route preference.'
+                    : 'Commission required: forcing Uniswap V3 (Swaperex wrapper).',
             };
           } catch (wrapperErr) {
             const infra = parseQuoteError(wrapperErr);
             if (infra.category === 'network_error' || infra.category === 'rpc_error') {
               throw wrapperErr instanceof Error ? wrapperErr : new Error(String(wrapperErr));
             }
+            const ethNl = inNativeForMode || outNativeForMode;
+            const u3cfg = getUniswapWrapperV3Config();
+            const tA = getTokenBySymbol(fromSymbol, 1);
+            const tB = getTokenBySymbol(toSymbol, 1);
+            const triedV3First =
+              !ethNl &&
+              !!(u3cfg.enabled && u3cfg.wrapperAddress && tA && tB && isUniswapWrapperV3CommissionEligible(1, tA, tB));
+            const legacyProvider = useV2 ? 'uniswap-v3-wrapper-v2' : 'uniswap-v3-wrapper';
             swapTrace('commission_required_route_blocked', {
               chainId: 1,
               routeMode: effectiveRouteMode,
-              provider: useV2 ? 'uniswap-v3-wrapper-v2' : 'uniswap-v3-wrapper',
+              provider: triedV3First ? `uniswap-v3-wrapper-v3→${legacyProvider}` : legacyProvider,
               reason: 'wrapper_quote_failed',
               tokenIn: fromSymbol,
               tokenOut: toSymbol,
@@ -898,7 +986,9 @@ export function useSwap() {
               'unsupported_commission_route',
               wrapMsg,
               {
-                attemptedProvider: useV2 ? 'uniswap-v3-wrapper-v2' : 'uniswap-v3-wrapper',
+                attemptedProvider: triedV3First
+                  ? `uniswap-v3-wrapper-v3_then_${legacyProvider}`
+                  : legacyProvider,
                 chainId: 1,
                 fromSymbol,
                 toSymbol,
@@ -935,6 +1025,7 @@ export function useSwap() {
           ),
           ensureUniswapWrapperChainFeeBps(provider, chainId || 1),
           ensureUniswapWrapperV2ChainFeeBps(provider, chainId || 1),
+          ensureUniswapWrapperV3ChainFeeBps(provider, chainId || 1),
           ensurePancakeWrapperChainFeeBps(provider, chainId || 1),
           ensurePancakeWrapperV2ChainFeeBps(provider, chainId || 1),
         ]);
@@ -1107,7 +1198,8 @@ export function useSwap() {
       const quote: QuoteResult =
         aggregatedQuote.provider === 'uniswap-v3' ||
           aggregatedQuote.provider === 'uniswap-v3-wrapper' ||
-          aggregatedQuote.provider === 'uniswap-v3-wrapper-v2'
+          aggregatedQuote.provider === 'uniswap-v3-wrapper-v2' ||
+          aggregatedQuote.provider === 'uniswap-v3-wrapper-v3'
         ? (aggregatedQuote.originalQuote as QuoteResult)
         : aggregatedQuote.provider === 'pancakeswap-v3' ||
             aggregatedQuote.provider === 'pancakeswap-v3-wrapper' ||
@@ -1217,6 +1309,29 @@ export function useSwap() {
             allowanceCheckUncertain = true;
             hasAllowance = true;
           }
+        } else if (aggregatedQuote.provider === 'uniswap-v3-wrapper-v3') {
+          const wrapperAddr = getUniswapWrapperV3SpenderAddress();
+          const amountInWei = BigInt(aggregatedQuote.amountIn);
+          if (!wrapperAddr) {
+            hasAllowance = false;
+          } else if (!provider || !address) {
+            allowanceCheckUncertain = true;
+            hasAllowance = true;
+          } else {
+            const read = await readErc20AllowanceVsRequired(
+              tokenIn.address,
+              wrapperAddr,
+              address,
+              amountInWei,
+              provider,
+            );
+            if (read === 'unknown') {
+              allowanceCheckUncertain = true;
+              hasAllowance = true;
+            } else {
+              hasAllowance = read === 'sufficient';
+            }
+          }
         } else if (aggregatedQuote.provider === 'uniswap-v3-wrapper') {
           const wrapperAddr = getUniswapWrapperSpenderAddress();
           const amountInWei = BigInt(aggregatedQuote.amountIn);
@@ -1316,17 +1431,19 @@ export function useSwap() {
           ? getUniswapWrapperSpenderAddress()
           : aggregatedQuote.provider === 'uniswap-v3-wrapper-v2'
             ? getUniswapWrapperV2SpenderAddress()
-            : aggregatedQuote.provider === 'pancakeswap-v3-wrapper-v2'
-              ? getPancakeWrapperV2SpenderAddress()
-              : aggregatedQuote.provider === 'pancakeswap-v3-wrapper'
-                ? getPancakeWrapperSpenderAddress()
-          : aggregatedQuote.provider === 'uniswap-v3'
-            ? uniswapForLog?.router ?? null
-            : aggregatedQuote.provider === 'pancakeswap-v3'
-              ? '(pancake router)'
-              : aggregatedQuote.provider === '1inch'
-                ? '(1inch spender)'
-                : null;
+            : aggregatedQuote.provider === 'uniswap-v3-wrapper-v3'
+              ? getUniswapWrapperV3SpenderAddress()
+              : aggregatedQuote.provider === 'pancakeswap-v3-wrapper-v2'
+                ? getPancakeWrapperV2SpenderAddress()
+                : aggregatedQuote.provider === 'pancakeswap-v3-wrapper'
+                  ? getPancakeWrapperSpenderAddress()
+                  : aggregatedQuote.provider === 'uniswap-v3'
+                    ? uniswapForLog?.router ?? null
+                    : aggregatedQuote.provider === 'pancakeswap-v3'
+                      ? '(pancake router)'
+                      : aggregatedQuote.provider === '1inch'
+                        ? '(1inch spender)'
+                        : null;
 
       swapTrace('[Swap] Approval gate', {
         fromSymbol,
@@ -1669,6 +1786,23 @@ export function useSwap() {
           data: wrapAppr.data,
           value: wrapAppr.value,
         };
+      } else if (swapQuote.provider === 'uniswap-v3-wrapper-v3') {
+        const w = getUniswapWrapperV3SpenderAddress();
+        if (!w) {
+          throw new Error('Uniswap fee wrapper V3 is enabled in the environment but the wrapper address is not configured.');
+        }
+        swapTrace('[Swap] Building Uniswap wrapper V3 approval...');
+        const wrapAppr = buildUniswapWrapperV3ApprovalTx(
+          swapQuote.fromSymbol,
+          w,
+          chainId,
+          useExact ? exactAmount : undefined,
+        );
+        approvalTx = {
+          to: wrapAppr.to,
+          data: wrapAppr.data,
+          value: wrapAppr.value,
+        };
       } else if (swapQuote.provider === 'uniswap-v3-wrapper') {
         const wrapperAddr = getUniswapWrapperSpenderAddress();
         if (!wrapperAddr) {
@@ -1976,6 +2110,36 @@ export function useSwap() {
           data: uTx.data,
           value: uTx.value,
         };
+      } else if (swapQuote.provider === 'uniswap-v3-wrapper-v3') {
+        const w = getUniswapWrapperV3SpenderAddress();
+        if (!w) {
+          throw new Error('Uniswap fee wrapper V3 is enabled in the environment but the wrapper address is not configured.');
+        }
+        swapTrace('[Swap] Building Uniswap wrapper V3 swap...');
+        const tokenIn = getTokenBySymbol(swapQuote.fromSymbol, chainId);
+        const tokenOut = getTokenBySymbol(swapQuote.toSymbol, chainId);
+        const amountInHuman = tokenIn
+          ? formatUnits(swapQuote.amountIn, tokenIn.decimals)
+          : swapQuote.from_amount;
+        const oq = swapQuote.aggregatedQuote?.originalQuote as UniswapWrapperV3QuoteResult | undefined;
+        if (!oq?.wrapperPath) {
+          throw new Error('Missing Uniswap wrapper V3 path on quote — refresh and try again.');
+        }
+        const pathParams = getUniswapWrapperV3TxParamsFromQuote(oq, swapQuote.fromSymbol, swapQuote.toSymbol);
+        const uTx = buildUniswapWrapperV3SwapTx(w, {
+          tokenIn: swapQuote.fromSymbol,
+          tokenOut: swapQuote.toSymbol,
+          amountIn: amountInHuman,
+          amountOutMin: formatUnits(swapQuote.minAmountOut, tokenOut?.decimals ?? 18),
+          recipient: address,
+          chainId: 1,
+          ...pathParams,
+        });
+        swapTx = {
+          to: uTx.to,
+          data: uTx.data,
+          value: uTx.value,
+        };
       } else if (swapQuote.provider === 'uniswap-v3-wrapper') {
         const wrapperAddr = getUniswapWrapperSpenderAddress();
         if (!wrapperAddr) {
@@ -2046,6 +2210,8 @@ export function useSwap() {
               return getUniswapWrapperFeeBpsForUi();
             case 'uniswap-v3-wrapper-v2':
               return getUniswapWrapperV2FeeBpsForUi();
+            case 'uniswap-v3-wrapper-v3':
+              return getUniswapWrapperV3FeeBpsForUi();
             case 'pancakeswap-v3-wrapper':
               return getPancakeWrapperFeeBpsForUi();
             case 'pancakeswap-v3-wrapper-v2':
@@ -2067,6 +2233,11 @@ export function useSwap() {
           const e = getUniswapWrapperV2SpenderAddress();
           if (!e || toL !== e.toLowerCase()) {
             throw new Error('Execution target must match configured Uniswap wrapper V2.');
+          }
+        } else if (swapQuote.provider === 'uniswap-v3-wrapper-v3') {
+          const e = getUniswapWrapperV3SpenderAddress();
+          if (!e || toL !== e.toLowerCase()) {
+            throw new Error('Execution target must match configured Uniswap wrapper V3.');
           }
         } else if (swapQuote.provider === 'pancakeswap-v3-wrapper') {
           const e = getPancakeWrapperSpenderAddress();
@@ -2100,6 +2271,12 @@ export function useSwap() {
             getUniswapWrapperV2SessionOnChainFeeBps(),
             getUniswapWrapperV2Config().feeBpsDisplay,
             'Uniswap wrapper V2',
+          );
+        } else if (swapQuote.provider === 'uniswap-v3-wrapper-v3') {
+          warnFeeDrift(
+            getUniswapWrapperV3SessionOnChainFeeBps(),
+            getUniswapWrapperV3Config().feeBpsDisplay,
+            'Uniswap wrapper V3',
           );
         } else if (swapQuote.provider === 'pancakeswap-v3-wrapper') {
           warnFeeDrift(getPancakeWrapperSessionOnChainFeeBps(), getPancakeWrapperConfig().feeBpsDisplay, 'Pancake wrapper');

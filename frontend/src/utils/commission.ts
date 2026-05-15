@@ -11,6 +11,8 @@ import {
   getUniswapWrapperFeeBpsForUi,
   getUniswapWrapperV2Config,
   getUniswapWrapperV2FeeBpsForUi,
+  getUniswapWrapperV3Config,
+  getUniswapWrapperV3FeeBpsForUi,
 } from '@/config';
 
 export type CommissionGuarantee = 'guaranteed' | 'best_effort' | 'none';
@@ -31,6 +33,7 @@ export type CommissionTrace = {
   wrapperKey?:
     | 'uniswap-v3-wrapper'
     | 'uniswap-v3-wrapper-v2'
+    | 'uniswap-v3-wrapper-v3'
     | 'pancakeswap-v3-wrapper'
     | 'pancakeswap-v3-wrapper-v2'
     | null;
@@ -111,11 +114,13 @@ export function classifyCommissionRoute(input: {
 
   const uniCfg = getUniswapWrapperConfig();
   const uni2Cfg = getUniswapWrapperV2Config();
+  const uni3Cfg = getUniswapWrapperV3Config();
   const pc1Cfg = getPancakeWrapperConfig();
   const pc2Cfg = getPancakeWrapperV2Config();
 
   const uniWrapper = normalizeAddr(uniCfg.wrapperAddress);
   const uni2Wrapper = normalizeAddr(uni2Cfg.wrapperAddress);
+  const uni3Wrapper = normalizeAddr(uni3Cfg.wrapperAddress);
   const pc1Wrapper = normalizeAddr(pc1Cfg.wrapperAddress);
   const pc2Wrapper = normalizeAddr(pc2Cfg.wrapperAddress);
 
@@ -126,6 +131,8 @@ export function classifyCommissionRoute(input: {
       ? 'uniswap-v3-wrapper'
       : providerKey === 'uniswap-v3-wrapper-v2'
         ? 'uniswap-v3-wrapper-v2'
+        : providerKey === 'uniswap-v3-wrapper-v3'
+          ? 'uniswap-v3-wrapper-v3'
         : providerKey === 'pancakeswap-v3-wrapper'
           ? 'pancakeswap-v3-wrapper'
           : providerKey === 'pancakeswap-v3-wrapper-v2'
@@ -137,16 +144,19 @@ export function classifyCommissionRoute(input: {
       ? uniWrapper
       : wrapperKey === 'uniswap-v3-wrapper-v2'
         ? uni2Wrapper
-        : wrapperKey === 'pancakeswap-v3-wrapper'
-          ? pc1Wrapper
-          : wrapperKey === 'pancakeswap-v3-wrapper-v2'
-            ? pc2Wrapper
-            : null;
+        : wrapperKey === 'uniswap-v3-wrapper-v3'
+          ? uni3Wrapper
+      : wrapperKey === 'pancakeswap-v3-wrapper'
+        ? pc1Wrapper
+        : wrapperKey === 'pancakeswap-v3-wrapper-v2'
+          ? pc2Wrapper
+          : null;
 
   const txToNorm = normalizeAddr(txTo);
   const isWrapperByTxTo =
     (uniWrapper && addrEq(txToNorm, uniWrapper)) ||
     (uni2Wrapper && addrEq(txToNorm, uni2Wrapper)) ||
+    (uni3Wrapper && addrEq(txToNorm, uni3Wrapper)) ||
     (pc1Wrapper && addrEq(txToNorm, pc1Wrapper)) ||
     (pc2Wrapper && addrEq(txToNorm, pc2Wrapper));
 
@@ -159,6 +169,8 @@ export function classifyCommissionRoute(input: {
         ? getUniswapWrapperFeeBpsForUi()
         : wrapperKey === 'uniswap-v3-wrapper-v2'
           ? getUniswapWrapperV2FeeBpsForUi()
+          : wrapperKey === 'uniswap-v3-wrapper-v3'
+            ? getUniswapWrapperV3FeeBpsForUi()
           : wrapperKey === 'pancakeswap-v3-wrapper'
             ? getPancakeWrapperFeeBpsForUi()
             : wrapperKey === 'pancakeswap-v3-wrapper-v2'

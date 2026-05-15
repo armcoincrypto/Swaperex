@@ -41,11 +41,14 @@ import { getTokenBySymbol, isNativeToken } from '@/tokens';
 import {
   getPancakeWrapperV2Config,
   getUniswapWrapperV2Config,
+  getUniswapWrapperV3Config,
   isPancakeWrapperV2ExecutionEligible,
   isUniswapWrapperV2QuoteEligible,
+  isUniswapWrapperV3CommissionEligible,
 } from '@/config';
 import { getBestPancakeWrapperV2Quote } from './pancakeWrapperQuoteV2';
 import { getBestUniswapWrapperV2Quote } from './uniswapWrapperQuoteV2';
+import { getBestUniswapWrapperV3Quote, type UniswapWrapperV3QuoteResult } from './uniswapWrapperQuoteV3';
 import { swapObsLog } from '@/utils/swapObservability';
 import { keccak256, toUtf8Bytes } from 'ethers';
 import { isCommissionRequiredMode } from '@/config/commissionRequired';
@@ -78,7 +81,7 @@ function isAggregatorDebugEnabled(): boolean {
 /** Quote-aggregator debug lines (DEV or `VITE_DEBUG_SWAP` only). */
 function aggDebugLog(...args: unknown[]): void {
   if (!isAggregatorDebugEnabled()) return;
-  aggDebugLog(...args);
+  console.debug('[quoteAggregator]', ...args);
 }
 
 function computeCanaryBucket(input: {
@@ -129,6 +132,7 @@ function obsAggRoute(fields: {
 const COMMISSION_WRAPPER_PROVIDERS = new Set<string>([
   'uniswap-v3-wrapper',
   'uniswap-v3-wrapper-v2',
+  'uniswap-v3-wrapper-v3',
   'pancakeswap-v3-wrapper',
   'pancakeswap-v3-wrapper-v2',
 ]);
@@ -170,6 +174,48 @@ async function commissionStrictEthereumBestQuote(
     throw new Error(
       'ETH native swaps require Uniswap wrapper V2 (enable VITE_UNISWAP_WRAPPER_V2_* and native quote flag).',
     );
+  }
+
+  // Prefer multi-hop wrapper V3 for ERC20-only allowlisted pairs when enabled (still commission-only).
+  if (!ethNativeLeg) {
+    const u3 = getUniswapWrapperV3Config();
+    if (
+      u3.enabled &&
+      u3.wrapperAddress &&
+      tokenInMeta &&
+      tokenOutMeta &&
+      isUniswapWrapperV3CommissionEligible(1, tokenInMeta, tokenOutMeta)
+    ) {
+      try {
+        const best = await getQuoteFromProvider(
+          'uniswap-v3-wrapper-v3',
+          tokenIn,
+          tokenOut,
+          amountIn,
+          1,
+          slippage,
+          null,
+        );
+        obsAggRoute({
+          chainId: 1,
+          routeMode: 'commission_strict_best',
+          tokenIn,
+          tokenOut,
+          bestProvider: best.provider,
+          runnerUp: '',
+          reason: 'Commission required: Swaperex Uniswap wrapper V3 (multi-hop) when available.',
+          lane: 'eth_commission_strict',
+        });
+        return {
+          best,
+          alternative: null,
+          selectionReason:
+            'Commission required: Swaperex Uniswap wrapper V3 (multi-hop) when available.',
+        };
+      } catch {
+        // Fall through to legacy wrapper V1/V2.
+      }
+    }
   }
 
   const provider: QuoteProvider = useV2 ? 'uniswap-v3-wrapper-v2' : 'uniswap-v3-wrapper';
@@ -253,6 +299,7 @@ export type QuoteProvider =
   | 'uniswap-v3'
   | 'uniswap-v3-wrapper'
   | 'uniswap-v3-wrapper-v2'
+  | 'uniswap-v3-wrapper-v3'
   | 'pancakeswap-v3'
   | 'pancakeswap-v3-wrapper'
   | 'pancakeswap-v3-wrapper-v2'
@@ -266,6 +313,7 @@ const ROUTE_PROVIDER_LABEL: Record<QuoteProvider, string> = {
   'uniswap-v3': 'Uniswap V3',
   'uniswap-v3-wrapper': 'Uniswap V3 (Swaperex wrapper)',
   'uniswap-v3-wrapper-v2': 'Uniswap V3 (Swaperex wrapper V2)',
+  'uniswap-v3-wrapper-v3': 'Uniswap V3 (Swaperex wrapper V3 · canary)',
   'pancakeswap-v3': 'PancakeSwap V3',
   'pancakeswap-v3-wrapper': 'PancakeSwap V3 (Swaperex wrapper)',
   'pancakeswap-v3-wrapper-v2': 'PancakeSwap V3 (Swaperex wrapper V2 · canary)',
@@ -288,6 +336,9 @@ export function isQuoteRouteModeDisabled(mode: QuoteRouteMode, chainId: number):
   if (mode === 'uniswap-v3-wrapper-v2') {
     return chainId !== 1 || !getUniswapWrapperV2Config().enabled;
   }
+  if (mode === 'uniswap-v3-wrapper-v3') {
+    return true;
+  }
   if (mode === 'uniswap-v3') return chainId !== 1;
   if (mode === 'pancakeswap-v3') return chainId !== 56;
   return false;
@@ -297,6 +348,11 @@ function assertForcedRouteAllowed(provider: QuoteProvider, chainId: number): voi
   if (provider === 'uniswap-v3-wrapper') {
     throw new Error(
       'The Uniswap fee wrapper cannot be selected as a fixed route. Choose Best price or Uniswap; the wrapper applies automatically when enabled in the environment.',
+    );
+  }
+  if (provider === 'uniswap-v3-wrapper-v3') {
+    throw new Error(
+      'The Uniswap fee wrapper V3 cannot be selected as a fixed route. It is used only in commission mode when enabled and the pair is allowlisted.',
     );
   }
   if (provider === 'pancakeswap-v3-wrapper') {
@@ -392,6 +448,8 @@ export interface AggregatedQuote {
     feeTier?: number;      // Uniswap/PancakeSwap fee tier
     protocols?: unknown[]; // 1inch protocols used
     gas: number;
+    /** Packed Uniswap V3 path bytes (`0x…`) when executing via Swaperex wrapper V3. */
+    wrapperV3Path?: `0x${string}`;
   };
 
   // Chain info
@@ -404,7 +462,7 @@ export interface AggregatedQuote {
   amountOutRaw: bigint;
 
   // Original quote for tx building
-  originalQuote: OneInchQuoteResult | UniswapQuoteResult | PancakeQuoteResult;
+  originalQuote: OneInchQuoteResult | UniswapQuoteResult | PancakeQuoteResult | UniswapWrapperV3QuoteResult;
 }
 
 /**
@@ -509,6 +567,35 @@ export function normalizeUniswapWrapperAggregatedQuote(
     providerDetails: {
       feeTier: quote.feeTier,
       gas: parseInt(quote.gasEstimate, 10) || 300000,
+    },
+    chainId,
+    priceImpact: quote.priceImpact,
+    amountOutRaw: BigInt(quote.amountOut),
+    originalQuote: quote,
+  };
+}
+
+/** Normalize Uniswap fee-wrapper **V3** multi-hop quote (net output) for execution display. */
+export function normalizeUniswapWrapperV3AggregatedQuote(
+  quote: UniswapWrapperV3QuoteResult,
+  slippage: number,
+  tokenOutDecimals: number,
+  chainId: number,
+): AggregatedQuote {
+  const minAmountOut = getUniswapMinAmountOut(quote, slippage);
+  const minAmountOutFormatted = formatFromWei(minAmountOut, tokenOutDecimals);
+
+  return {
+    amountIn: quote.amountIn,
+    amountOut: quote.amountOut,
+    amountOutFormatted: quote.amountOutFormatted,
+    minAmountOut,
+    minAmountOutFormatted,
+    provider: 'uniswap-v3-wrapper-v3',
+    providerDetails: {
+      feeTier: quote.feeTier,
+      gas: parseInt(quote.gasEstimate, 10) || 380000,
+      wrapperV3Path: quote.wrapperPath,
     },
     chainId,
     priceImpact: quote.priceImpact,
@@ -1061,6 +1148,30 @@ export async function getQuoteFromProvider(
       tokenOutData.decimals,
       chainId,
     );
+  } else if (provider === 'uniswap-v3-wrapper-v3') {
+    if (chainId !== 1) {
+      throw new Error('Uniswap fee wrapper V3 only supports Ethereum mainnet');
+    }
+    const cfg = getUniswapWrapperV3Config();
+    if (!cfg.enabled || !cfg.wrapperAddress) {
+      throw new Error(
+        'Uniswap fee wrapper V3 is not enabled or the wrapper address is missing. Check VITE_UNISWAP_WRAPPER_V3_* env.',
+      );
+    }
+    const tokenInData = getTokenBySymbol(tokenIn, 1);
+    if (!tokenInData) {
+      throw new Error(`Unknown token: ${tokenIn}`);
+    }
+    if (!isUniswapWrapperV3CommissionEligible(1, tokenInData, tokenOutData)) {
+      throw new Error(
+        'This pair is not eligible for Uniswap wrapper V3 with current settings or allowlist.',
+      );
+    }
+    const wq = await getBestUniswapWrapperV3Quote(tokenIn, tokenOut, amountIn);
+    if (!wq) {
+      throw new Error('No Uniswap wrapper V3 quote for this pair or amount.');
+    }
+    return normalizeUniswapWrapperV3AggregatedQuote(wq, slippage, tokenOutData.decimals, 1);
   } else if (provider === 'uniswap-v3-wrapper-v2') {
     const routeKey = 'uniswap-v3-wrapper-v2';
     const cfg = getUniswapWrapperV2Config();
