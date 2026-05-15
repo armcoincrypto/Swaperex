@@ -1,0 +1,6 @@
+# Kobbex DEX (dex.kobbex.com) - public interface
+User-agent: *
+Allow: /
+Disallow: /admin
+
+Sitemap: https://dex.kobbex.com/sitemap.xml
