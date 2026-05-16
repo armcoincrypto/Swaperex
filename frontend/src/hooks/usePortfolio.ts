@@ -27,10 +27,6 @@ import {
   isValidEvmAddress,
 } from '@/services/evmBalanceService';
 import {
-  fetchSolanaBalance,
-  isValidSolanaAddress,
-} from '@/services/solanaBalanceService';
-import {
   enrichEvmChainBalance,
   enrichSolanaChainBalance,
   fetchCoinGeckoPrices,
@@ -63,6 +59,11 @@ const DEFAULT_EVM_CHAINS: PortfolioChain[] = ['ethereum', 'bsc', 'polygon', 'arb
 
 /** RPC timeout per chain (ms) */
 const CHAIN_FETCH_TIMEOUT = 15_000;
+
+/** Lazy boundary: defers @solana/web3.js until Solana portfolio work runs. */
+function loadSolanaBalanceService() {
+  return import('@/services/solanaBalanceService');
+}
 
 /**
  * Portfolio hook options
@@ -110,18 +111,6 @@ export function usePortfolio(
     errorDetails: null,
     lastUpdated: null,
   });
-
-  /**
-   * Determine address type
-   */
-  const getAddressType = useCallback(
-    (addr: string): 'evm' | 'solana' | null => {
-      if (isValidEvmAddress(addr)) return 'evm';
-      if (isValidSolanaAddress(addr)) return 'solana';
-      return null;
-    },
-    []
-  );
 
   /**
    * Fetch result from a single chain (no store calls — results are batched later)
@@ -346,6 +335,8 @@ export function usePortfolio(
         address: addr.slice(0, 10) + '...',
       });
 
+      const { fetchSolanaBalance } = await loadSolanaBalanceService();
+
       const chains: Record<PortfolioChain, ChainBalance | null> = {
         ethereum: null,
         bsc: null,
@@ -403,7 +394,11 @@ export function usePortfolio(
     }
 
     const addr = address as string;
-    const addressType = getAddressType(addr);
+    let addressType: 'evm' | 'solana' | null = isValidEvmAddress(addr) ? 'evm' : null;
+    if (!addressType) {
+      const { isValidSolanaAddress } = await loadSolanaBalanceService();
+      addressType = isValidSolanaAddress(addr) ? 'solana' : null;
+    }
 
     if (!addressType) {
       const invalidError = categorizeError(new Error('Invalid wallet address'));
@@ -462,13 +457,7 @@ export function usePortfolio(
         errorDetails: portfolioError,
       }));
     }
-  }, [
-    address,
-    getAddressType,
-    fetchEvmPortfolio,
-    fetchSolanaPortfolio,
-    includeSolana,
-  ]);
+  }, [address, fetchEvmPortfolio, fetchSolanaPortfolio, includeSolana]);
 
   /**
    * Refresh single chain
@@ -484,6 +473,7 @@ export function usePortfolio(
         let balance: ChainBalance;
 
         if (chain === 'solana') {
+          const { fetchSolanaBalance } = await loadSolanaBalanceService();
           balance = await fetchSolanaBalance(address);
           if (includeUsdPrices) {
             balance = await enrichSolanaChainBalance(balance);

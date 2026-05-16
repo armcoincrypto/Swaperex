@@ -15,7 +15,7 @@ import {
   logPortfolioLifecycle,
 } from './portfolioTypes';
 import { SOLANA_TOKENS } from '@/config/tokens';
-import { SOLANA_CONFIG } from '@/config/chains';
+import { SOLANA_CONFIG } from '@/config/solana';
 
 /**
  * SPL Token Program ID
