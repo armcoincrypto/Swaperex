@@ -9,7 +9,7 @@ import { getTokenBySymbol, getSwapAddress, isNativeToken } from '@/tokens';
 import {
   getUniswapWrapperV3Config,
   isUniswapWrapperV3CommissionEligible,
-  parseCanaryListFromEnv,
+  resolveUniswapWrapperV3CanarySymbolsForSwap,
 } from '@/config/uniswapWrapperV3';
 import { type FeeTier, type QuoteResult } from './uniswapQuote';
 
@@ -55,23 +55,6 @@ export type UniswapWrapperV3QuoteResult = QuoteResult & {
   amountOutGrossWei: string;
   feeAmountWei: string;
 };
-
-function normalizeSym(s: string): string {
-  return String(s || '')
-    .trim()
-    .toUpperCase();
-}
-
-/** Find allowlist row matching tokenIn → tokenOut (symbol order). */
-function resolveCanaryPathSymbols(tokenIn: string, tokenOut: string): string[] | null {
-  const a = normalizeSym(tokenIn);
-  const b = normalizeSym(tokenOut);
-  for (const row of parseCanaryListFromEnv()) {
-    if (row.length < 2) continue;
-    if (normalizeSym(row[0]) === a && normalizeSym(row[row.length - 1]) === b) return row;
-  }
-  return null;
-}
 
 function encodeV3Path(tokenAddresses: string[], fees: number[]): `0x${string}` {
   if (tokenAddresses.length < 2 || fees.length !== tokenAddresses.length - 1) {
@@ -129,7 +112,7 @@ export async function getUniswapWrapperV3Quote(
     throw new Error('Uniswap wrapper V3 (P4.4-F) supports WETH/ERC20 legs only — use WETH instead of native ETH.');
   }
 
-  const row = resolveCanaryPathSymbols(tokenInData.symbol, tokenOutData.symbol);
+  const row = resolveUniswapWrapperV3CanarySymbolsForSwap(tokenInData.symbol, tokenOutData.symbol);
   if (!row) {
     throw new Error(`${NO_ROUTE_MESSAGE} (${tokenInData.symbol} → ${tokenOutData.symbol})`);
   }

@@ -50,15 +50,33 @@ export function parseCanaryListFromEnv(): string[][] {
   return out.length > 0 ? out : DEFAULT_CANARY_SEGMENTS.map((seg) => parseCanarySegment(seg)!).filter(Boolean);
 }
 
-/** True if `tokenIn`→`tokenOut` matches an allowlisted path (first/last symbols only). */
-export function isUniswapWrapperV3AllowlistedPair(tokenInSymbol: string, tokenOutSymbol: string): boolean {
+/**
+ * Ordered symbol list for `tokenIn`→`tokenOut` through a canary row (for packed V3 path encoding).
+ * - Forward: row first→last must equal tokenIn→tokenOut (any hop count ≤ MAX_HOPS on-chain).
+ * - Reverse: only for **two-token** rows (single hop), same pool either way — e.g. `WETH-USDC`
+ *   also allows USDC→WETH without a separate env segment.
+ */
+export function resolveUniswapWrapperV3CanarySymbolsForSwap(
+  tokenInSymbol: string,
+  tokenOutSymbol: string,
+): string[] | null {
   const a = normalizeSymbol(tokenInSymbol);
   const b = normalizeSymbol(tokenOutSymbol);
   for (const path of parseCanaryListFromEnv()) {
     if (path.length < 2) continue;
-    if (normalizeSymbol(path[0]) === a && normalizeSymbol(path[path.length - 1]) === b) return true;
+    const first = normalizeSymbol(path[0]);
+    const last = normalizeSymbol(path[path.length - 1]);
+    if (first === a && last === b) return [...path];
+    if (path.length === 2 && first === b && last === a) {
+      return [path[1], path[0]];
+    }
   }
-  return false;
+  return null;
+}
+
+/** True if `tokenIn`→`tokenOut` is covered by the canary list (including 2-token reverse). */
+export function isUniswapWrapperV3AllowlistedPair(tokenInSymbol: string, tokenOutSymbol: string): boolean {
+  return resolveUniswapWrapperV3CanarySymbolsForSwap(tokenInSymbol, tokenOutSymbol) !== null;
 }
 
 /**
