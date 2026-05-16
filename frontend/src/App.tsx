@@ -32,6 +32,10 @@ import {
 import { SHOW_OPTIONAL_PRIMARY_NAV } from '@/config/productShell';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 import { DexSeoTrustSection } from '@/components/seo/DexSeoTrustSection';
+import { DexLandingIntro } from '@/components/seo/DexLandingIntro';
+import { DexHowItWorksSection } from '@/components/seo/DexHowItWorksSection';
+import { DexFaqSection } from '@/components/seo/DexFaqSection';
+import { DexSafetyChecklist } from '@/components/seo/DexSafetyChecklist';
 import { applyClientRouteSeo, normalizePublicPath } from '@/utils/routeSeo';
 
 const LazySendPage = lazy(() => import('@/components/send/SendPage'));
@@ -537,6 +541,10 @@ function DexMain() {
                 </aside>
               )}
             </div>
+            <DexLandingIntro />
+            <DexHowItWorksSection />
+            <DexFaqSection />
+            <DexSafetyChecklist />
             <DexSeoTrustSection />
           </>
         )}

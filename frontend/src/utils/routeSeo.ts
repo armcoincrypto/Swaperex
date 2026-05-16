@@ -3,6 +3,8 @@
  * `index.html` remains the static fallback for first paint / no-JS.
  */
 
+import { syncStructuredDataForPath } from '@/utils/structuredData';
+
 export function normalizePublicPath(pathname: string): string {
   const trimmed = pathname.replace(/\/+$/, '');
   return trimmed === '' ? '/' : trimmed;
@@ -110,4 +112,6 @@ export function applyClientRouteSeo(pathname: string): void {
 
   setMetaName('twitter:title', spec.title);
   setMetaName('twitter:description', spec.description);
+
+  syncStructuredDataForPath(p);
 }

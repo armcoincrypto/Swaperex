@@ -14,28 +14,40 @@ interface StaticPageProps {
 // About Page
 export function AboutPage({ onBack }: StaticPageProps) {
   return (
-    <StaticPageLayout title="About Swaperex" onBack={onBack}>
+    <StaticPageLayout title="About Kobbex DEX" onBack={onBack}>
       <section className="mb-8">
-        <h2 className="text-lg font-bold mb-3">What is Swaperex?</h2>
+        <h2 className="text-lg font-bold mb-3">What is Kobbex DEX?</h2>
         <p className="text-dark-300 mb-4">
-          Swaperex is a non-custodial decentralized exchange (DEX) aggregator that allows you to
-          swap tokens directly from your wallet. Quotes can be sourced from integrated protocols
-          (such as Uniswap, PancakeSwap, and 1inch) and vary with liquidity, fees, and market
-          conditions.
+          Kobbex DEX is the public-facing name for this non-custodial swap experience inside
+          Swaperex. It is an interface: you choose tokens and amounts, request quotes, and sign
+          transactions in your own wallet. The app does not take custody of your funds.
         </p>
       </section>
 
       <section className="mb-8">
-        <h2 className="text-lg font-bold mb-3">Non-Custodial</h2>
+        <h2 className="text-lg font-bold mb-3">Non-custodial swaps</h2>
         <p className="text-dark-300 mb-4">
-          Swaperex never has access to your private keys or funds. All transactions are signed
-          directly in your wallet (like MetaMask). Your tokens remain in your wallet until you
-          approve a transaction.
+          Swaps are initiated by you and settled on-chain via contracts you approve in your wallet.
+          Kobbex DEX does not store your seed phrase or private keys and cannot move your assets
+          without a transaction you sign.
         </p>
       </section>
 
       <section className="mb-8">
-        <h2 className="text-lg font-bold mb-3">Supported Networks</h2>
+        <h2 className="text-lg font-bold mb-3">Wallet signing and approvals</h2>
+        <p className="text-dark-300 mb-4">
+          You may see an allowance (approval) transaction before certain swaps. Approvals and swaps
+          should match the token, spender, and amount you expect. If your wallet shows unfamiliar
+          contracts or values, stop and investigate before signing.
+        </p>
+      </section>
+
+      <section className="mb-8">
+        <h2 className="text-lg font-bold mb-3">Supported networks</h2>
+        <p className="text-dark-300 mb-3">
+          Availability depends on your wallet and RPC connectivity. The interface is built around
+          these supported chains:
+        </p>
         <ul className="list-disc list-inside text-dark-300 space-y-1">
           {CHAINS.map((c) => (
             <li key={c.id}>
@@ -46,13 +58,60 @@ export function AboutPage({ onBack }: StaticPageProps) {
       </section>
 
       <section className="mb-8">
-        <h2 className="text-lg font-bold mb-3">How It Works</h2>
+        <h2 className="text-lg font-bold mb-3">Routing and liquidity</h2>
+        <p className="text-dark-300 mb-4">
+          Quotes can be sourced from integrated DEX and aggregator protocols. Routes and prices
+          reflect liquidity and parameters at quote time; another user or block can see different
+          liquidity. Execution is only what you confirm in your wallet.
+        </p>
+      </section>
+
+      <section className="mb-8">
+        <h2 className="text-lg font-bold mb-3">Slippage</h2>
+        <p className="text-dark-300 mb-4">
+          Slippage tolerance defines how much the executed price may differ from the quoted price
+          under moving markets. Tighter slippage can reduce price movement tolerance but may increase
+          the chance a transaction does not land if the market moves quickly.
+        </p>
+      </section>
+
+      <section className="mb-8">
+        <h2 className="text-lg font-bold mb-3">Gas and route fees</h2>
+        <p className="text-dark-300 mb-4">
+          You pay network gas to validators on the chain you use. Some routes include pool or
+          protocol fees; when the quote provides fee breakdowns, the interface surfaces them. Your
+          wallet shows the final transaction cost before you confirm.
+        </p>
+      </section>
+
+      <section className="mb-8">
+        <h2 className="text-lg font-bold mb-3">Risks and finality</h2>
+        <p className="text-dark-300 mb-4">
+          Crypto markets are volatile, smart contracts can have bugs, and confirmed transactions
+          are generally irreversible. Kobbex DEX does not eliminate these risks — it helps you
+          interact with on-chain protocols more clearly. Use amounts you can afford to lose and
+          verify every transaction.
+        </p>
+      </section>
+
+      <section className="mb-8">
+        <h2 className="text-lg font-bold mb-3">Before-signing checklist</h2>
+        <ul className="list-disc list-inside text-dark-300 space-y-2">
+          <li>Correct network selected in your wallet.</li>
+          <li>Token symbols and contract addresses match what you intend.</li>
+          <li>Spend and receive amounts are plausible for your trade.</li>
+          <li>Slippage and fee rows match your expectations.</li>
+          <li>You are on the real site and not a phishing copy.</li>
+        </ul>
+      </section>
+
+      <section className="mb-8">
+        <h2 className="text-lg font-bold mb-3">How it works (short)</h2>
         <ol className="list-decimal list-inside text-dark-300 space-y-2">
-          <li>Connect your wallet (MetaMask)</li>
-          <li>Select tokens to swap</li>
-          <li>Enter amount and review quote</li>
-          <li>Approve transaction in your wallet</li>
-          <li>Transaction is executed on-chain</li>
+          <li>Connect a compatible wallet on a supported chain.</li>
+          <li>Select tokens and an amount; review the quote preview.</li>
+          <li>Sign approvals or swaps only when details match your intent.</li>
+          <li>Wait for on-chain confirmation in your wallet or block explorer.</li>
         </ol>
       </section>
     </StaticPageLayout>
