@@ -80,10 +80,14 @@ fi
 # ──────────────────────────────────────────────
 log "Phase 1: Installing dependencies..."
 cd "$FRONTEND_DIR"
-npm ci --production=false --silent 2>&1 | tail -3 || die "npm ci failed" 1
+if ! npm ci --production=false; then
+  die "npm ci failed (full log above — do not pipe npm through tail)" 1
+fi
 
 log "Phase 1: Building frontend..."
-npm run build 2>&1 | tail -5 || die "npm run build failed" 1
+if ! npm run build; then
+  die "npm run build failed (full log above — do not pipe npm through tail)" 1
+fi
 
 [[ -d "$FRONTEND_DIR/dist" ]] || die "Build succeeded but dist/ not found" 1
 [[ -f "$FRONTEND_DIR/dist/index.html" ]] || die "dist/index.html missing after build" 1
