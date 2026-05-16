@@ -27,7 +27,8 @@ set -euo pipefail
 # ──────────────────────────────────────────────
 REPO_DIR="${REPO_DIR:-/root/Swaperex}"
 DEPLOY_DIR="${DEPLOY_DIR:-/var/www/swaperex}"
-BACKUP_DIR="${BACKUP_DIR:-/var/www/swaperex-backup}"
+BACKUP_BASE="${BACKUP_BASE:-/var/www/swaperex-backup}"
+BACKUP_DIR="${BACKUP_DIR:-${BACKUP_BASE}-$(date -u +%Y%m%dT%H%M%SZ)}"
 FRONTEND_DIR="$REPO_DIR/frontend"
 NGINX_SERVICE="nginx"
 SERVER_IP="${SERVER_IP:-127.0.0.1}"
@@ -99,7 +100,7 @@ log "Phase 1: Build OK ($(find "$FRONTEND_DIR/dist" -type f | wc -l) files)"
 # ──────────────────────────────────────────────
 if [[ -d "$DEPLOY_DIR" ]]; then
     log "Phase 2: Backing up $DEPLOY_DIR → $BACKUP_DIR ..."
-    rm -rf "$BACKUP_DIR"
+    [[ ! -e "$BACKUP_DIR" ]] || die "Backup path already exists: $BACKUP_DIR" 1
     cp -a "$DEPLOY_DIR" "$BACKUP_DIR"
     log "Phase 2: Backup OK"
 else
