@@ -66,6 +66,12 @@ import {
   getQuoteRoutePathFingerprint,
   isReusableFreshQuote,
 } from '@/utils/reusableFreshQuote';
+import {
+  beginSwapExecutionTiming,
+  clearSwapExecutionTiming,
+  markSwapExecutionTiming,
+  resolveUniswapWrapperV3GasLimitHint,
+} from '@/utils/swapExecutionTiming';
 import { classifyCommissionRoute } from '@/utils/commission';
 import { estimateWrapperFeeWeiFromNetOutput } from '@/utils/wrapperFee';
 import {
@@ -1880,6 +1886,10 @@ export function useSwap() {
       armApprovalWalletSigningGuard();
       let tx;
       try {
+        markSwapExecutionTiming('approval_prompt_requested', {
+          provider: swapQuote.provider,
+          chainId: chainId ?? 0,
+        });
         // Send approval transaction (wallet signs)
         tx = await signer.sendTransaction({
           to: approvalTx.to,
@@ -1950,6 +1960,12 @@ export function useSwap() {
     if (!swapQuote || !address || !chainId) {
       throw new Error('No quote available. Please enter an amount and wait for a quote before proceeding.');
     }
+
+    markSwapExecutionTiming('preflight_started', {
+      provider: swapQuote.provider,
+      chainId: chainId ?? 0,
+      needsApproval: swapQuote.needsApproval,
+    });
 
     if (swapQuote.allowanceCheckUncertain) {
       logProductionEvent('swap_failure', {
@@ -2322,12 +2338,37 @@ export function useSwap() {
         }
       }
 
+      // Omit gasLimit when missing/zero — '0' is truthy in JS and would pass BigInt('0') => 0n (bad for wallets)
+      let resolvedGasLimit: bigint | undefined;
+      if (swapTx.gasLimit !== undefined && swapTx.gasLimit !== null && swapTx.gasLimit !== '') {
+        try {
+          const g = BigInt(swapTx.gasLimit);
+          if (g > 0n) resolvedGasLimit = g;
+        } catch {
+          resolvedGasLimit = undefined;
+        }
+      }
+
+      // P4.4-K2: V3 wrapper only — padded gas hint from quote (wallet may still simulate/adjust).
+      let v3GasHintApplied = false;
+      if (
+        resolvedGasLimit === undefined &&
+        swapQuote.provider === 'uniswap-v3-wrapper-v3'
+      ) {
+        const v3Hint = resolveUniswapWrapperV3GasLimitHint(swapQuote.aggregatedQuote);
+        if (v3Hint !== undefined) {
+          resolvedGasLimit = v3Hint;
+          v3GasHintApplied = true;
+          swapTrace('[Swap] V3 gas limit hint from quote', { gasLimit: v3Hint.toString() });
+        }
+      }
+
       swapTrace('[Swap] Sending swap:', {
         provider: swapQuote.provider,
         to: swapTx.to,
         dataLen: swapTx.data?.length ?? 0,
         value: swapTx.value,
-        gasLimit: swapTx.gasLimit,
+        gasLimit: resolvedGasLimit !== undefined ? String(resolvedGasLimit) : swapTx.gasLimit,
       });
 
       swapObsLog('swap_tx_submit', {
@@ -2339,18 +2380,9 @@ export function useSwap() {
         inputNative: inputNativeForSwap,
         nativeLane: inputNativeForSwap ? 'in' : (toAsset && typeof toAsset === 'object' && 'contract_address' in toAsset && isNativeToken(String((toAsset as { contract_address?: string }).contract_address || '')) ? 'out' : 'none'),
         approvalPath: needsApprovalAtStart ? 'ran_or_skipped_native' : 'not_required',
+        v3GasHintApplied,
+        gasLimit: resolvedGasLimit !== undefined ? String(resolvedGasLimit) : null,
       });
-
-      // Omit gasLimit when missing/zero — '0' is truthy in JS and would pass BigInt('0') => 0n (bad for wallets)
-      let resolvedGasLimit: bigint | undefined;
-      if (swapTx.gasLimit !== undefined && swapTx.gasLimit !== null && swapTx.gasLimit !== '') {
-        try {
-          const g = BigInt(swapTx.gasLimit);
-          if (g > 0n) resolvedGasLimit = g;
-        } catch {
-          resolvedGasLimit = undefined;
-        }
-      }
 
       if (swapWalletSigningInFlightRef.current) {
         throw Object.assign(new Error(WALLET_SIGN_REQUEST_PENDING_MESSAGE), {
@@ -2385,6 +2417,12 @@ export function useSwap() {
           // Keep this dev-only to avoid noisy production consoles.
           console.table([commissionTraceForSwap]);
         }
+        markSwapExecutionTiming('swap_prompt_requested', {
+          provider: swapQuote.provider,
+          chainId: chainId ?? 0,
+          gasLimit: resolvedGasLimit !== undefined ? String(resolvedGasLimit) : null,
+          v3GasHintApplied,
+        });
         // Send swap transaction (wallet signs)
         tx = await signer.sendTransaction({
           to: swapTx.to,
@@ -2397,6 +2435,13 @@ export function useSwap() {
       }
 
       broadcastTx = tx;
+
+      markSwapExecutionTiming('tx_submitted', {
+        provider: swapQuote.provider,
+        chainId: chainId ?? 0,
+        txHash: tx.hash,
+        v3GasHintApplied,
+      });
 
       swapObsLog('swap_tx_broadcast', { hash: tx.hash, chainId: chainId ?? 0, provider: swapQuote.provider });
 
@@ -2729,9 +2774,25 @@ export function useSwap() {
 
         // Refresh balances once (non-blocking so success modal is not held on RPC)
         const chainNetwork = CHAIN_ID_TO_NETWORK[chainId] || 'ethereum';
-        void fetchBalances(address, [chainNetwork]).catch((e) => {
-          console.warn('[Swap] Balance refresh after swap failed:', e);
+        markSwapExecutionTiming('post_submit_refresh_started', {
+          provider: swapQuote.provider,
+          chainId: chainId ?? 0,
         });
+        void fetchBalances(address, [chainNetwork])
+          .then(() => {
+            markSwapExecutionTiming('post_submit_refresh_finished', {
+              provider: swapQuote.provider,
+              chainId: chainId ?? 0,
+            });
+          })
+          .catch((e) => {
+            markSwapExecutionTiming('post_submit_refresh_finished', {
+              provider: swapQuote.provider,
+              chainId: chainId ?? 0,
+              refreshError: 'failed',
+            });
+            console.warn('[Swap] Balance refresh after swap failed:', e);
+          });
 
         return tx.hash;
       } else {
@@ -3029,8 +3090,15 @@ export function useSwap() {
       chainId: chainId ?? 0,
     });
 
+    beginSwapExecutionTiming({
+      quoteAgeMs: quoteAge,
+      provider: swapQuote.provider,
+      chainId: chainId ?? 0,
+    });
+
     if (swapExecutionLockRef.current) {
       console.warn('[Swap] confirmSwap ignored — execution lock held');
+      clearSwapExecutionTiming();
       return '';
     }
 
@@ -3039,8 +3107,9 @@ export function useSwap() {
       return await executeSwap();
     } finally {
       swapExecutionLockRef.current = false;
+      clearSwapExecutionTiming();
     }
-  }, [state.status, swapQuote, executeSwap]);
+  }, [state.status, swapQuote, executeSwap, chainId]);
 
   // Quote TTL for UX / refresh CTA only while we are still in "quote + preview" — not during wallet/on-chain execution.
   // Otherwise the wall-clock age keeps growing and leaks "expired" / refresh messaging behind an in-flight swap.
