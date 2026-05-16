@@ -32,6 +32,7 @@ import {
 import { SHOW_OPTIONAL_PRIMARY_NAV } from '@/config/productShell';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 import { DexSeoTrustSection } from '@/components/seo/DexSeoTrustSection';
+import { applyClientRouteSeo, normalizePublicPath } from '@/utils/routeSeo';
 
 const LazySendPage = lazy(() => import('@/components/send/SendPage'));
 const LazyPortfolioPage = lazy(() => import('@/components/portfolio/PortfolioPage'));
@@ -73,11 +74,6 @@ const lazyWalletConnectFallback = (
 );
 
 type Page = 'swap' | 'send' | 'portfolio' | 'radar' | 'screener' | 'about' | 'terms' | 'privacy' | 'disclaimer';
-
-function normalizePublicPath(pathname: string): string {
-  const trimmed = pathname.replace(/\/+$/, '');
-  return trimmed === '' ? '/' : trimmed;
-}
 
 /**
  * P3-A: map URL → `currentPage` for crawlable informational routes only.
@@ -269,6 +265,11 @@ function DexMain() {
       setCurrentPage('swap');
     }
   }, [location.pathname, navigate, currentPage]);
+
+  /** P3-C — title, meta description, canonical, og/twitter from public path. */
+  useEffect(() => {
+    applyClientRouteSeo(location.pathname);
+  }, [location.pathname]);
 
   /**
    * SPA navigation bus — components without prop access (e.g. the Terms gate
