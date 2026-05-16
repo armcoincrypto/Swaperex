@@ -9,7 +9,6 @@ import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { LazyWalletBootstrap, LazyWalletConnect } from '@/components/wallet/lazyWalletChunks';
 import { SwapInterface } from '@/components/swap/SwapInterface';
-import { TokenList } from '@/components/balances/TokenList';
 import { ChainWarningBanner } from '@/components/chain/ChainWarning';
 import { ToastContainer } from '@/components/common/Toast';
 import { GlobalErrorDisplay } from '@/components/common/GlobalErrorDisplay';
@@ -31,11 +30,6 @@ import {
 } from '@/services/wallet/appKitActionsRegistry';
 import { SHOW_OPTIONAL_PRIMARY_NAV } from '@/config/productShell';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
-import { DexSeoTrustSection } from '@/components/seo/DexSeoTrustSection';
-import { DexLandingIntro } from '@/components/seo/DexLandingIntro';
-import { DexHowItWorksSection } from '@/components/seo/DexHowItWorksSection';
-import { DexFaqSection } from '@/components/seo/DexFaqSection';
-import { DexSafetyChecklist } from '@/components/seo/DexSafetyChecklist';
 import { applyClientRouteSeo, normalizePublicPath } from '@/utils/routeSeo';
 
 const LazySendPage = lazy(() => import('@/components/send/SendPage'));
@@ -58,6 +52,25 @@ const LazyDisclaimerPage = lazy(() =>
 
 const LazyAdminApp = lazy(() => import('@/components/admin/AdminApp'));
 
+const LazyTokenList = lazy(() =>
+  import('@/components/balances/TokenList').then((m) => ({ default: m.TokenList }))
+);
+const LazyDexLandingIntro = lazy(() =>
+  import('@/components/seo/DexLandingIntro').then((m) => ({ default: m.DexLandingIntro }))
+);
+const LazyDexHowItWorksSection = lazy(() =>
+  import('@/components/seo/DexHowItWorksSection').then((m) => ({ default: m.DexHowItWorksSection }))
+);
+const LazyDexFaqSection = lazy(() =>
+  import('@/components/seo/DexFaqSection').then((m) => ({ default: m.DexFaqSection }))
+);
+const LazyDexSafetyChecklist = lazy(() =>
+  import('@/components/seo/DexSafetyChecklist').then((m) => ({ default: m.DexSafetyChecklist }))
+);
+const LazyDexSeoTrustSection = lazy(() =>
+  import('@/components/seo/DexSeoTrustSection').then((m) => ({ default: m.DexSeoTrustSection }))
+);
+
 const lazyAdminFallback = (
   <div className="min-h-screen bg-dark-950 flex items-center justify-center">
     <p className="text-sm text-dark-400">Loading admin…</p>
@@ -75,6 +88,25 @@ const lazyWalletConnectFallback = (
     <div className="h-10 w-24 rounded-lg bg-dark-800/80 animate-pulse" />
     <div className="h-10 w-32 rounded-lg bg-dark-800/80 animate-pulse" />
   </div>
+);
+
+/** P5 — Below-fold swap education; lazy chunk defers parse until after swap shell. */
+const lazySwapEducationFallback = (
+  <div
+    className="mt-8 pt-6 border-t border-white/[0.06] min-h-[8rem] flex items-center justify-center"
+    aria-hidden
+  >
+    <p className="text-sm text-dark-400">Loading…</p>
+  </div>
+);
+
+/** P5 — Balances sidebar placeholder (swap/send when connected). */
+const lazyTokenListSidebarFallback = (
+  <aside className="w-full lg:w-80 space-y-3" aria-hidden>
+    <div className="h-8 w-32 rounded-lg bg-dark-800/80 animate-pulse" />
+    <div className="h-24 rounded-xl bg-dark-800/60 animate-pulse" />
+    <div className="h-24 rounded-xl bg-dark-800/60 animate-pulse" />
+  </aside>
 );
 
 type Page = 'swap' | 'send' | 'portfolio' | 'radar' | 'screener' | 'about' | 'terms' | 'privacy' | 'disclaimer';
@@ -536,16 +568,20 @@ function DexMain() {
 
               {/* Balances Sidebar */}
               {isConnected && (
-                <aside className="w-full lg:w-80">
-                  <TokenList />
-                </aside>
+                <Suspense fallback={lazyTokenListSidebarFallback}>
+                  <aside className="w-full lg:w-80">
+                    <LazyTokenList />
+                  </aside>
+                </Suspense>
               )}
             </div>
-            <DexLandingIntro />
-            <DexHowItWorksSection />
-            <DexFaqSection />
-            <DexSafetyChecklist />
-            <DexSeoTrustSection />
+            <Suspense fallback={lazySwapEducationFallback}>
+              <LazyDexLandingIntro />
+              <LazyDexHowItWorksSection />
+              <LazyDexFaqSection />
+              <LazyDexSafetyChecklist />
+              <LazyDexSeoTrustSection />
+            </Suspense>
           </>
         )}
 
@@ -571,9 +607,11 @@ function DexMain() {
 
               {/* Balances Sidebar */}
               {isConnected && (
-                <aside className="w-full lg:w-80">
-                  <TokenList />
-                </aside>
+                <Suspense fallback={lazyTokenListSidebarFallback}>
+                  <aside className="w-full lg:w-80">
+                    <LazyTokenList />
+                  </aside>
+                </Suspense>
               )}
             </div>
           </Suspense>
