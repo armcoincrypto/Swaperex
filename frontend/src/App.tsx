@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
-import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { LazyWalletBootstrap, LazyWalletConnect } from '@/components/wallet/lazyWalletChunks';
 import { SwapInterface } from '@/components/swap/SwapInterface';
 import { TokenList } from '@/components/balances/TokenList';
@@ -622,30 +622,30 @@ function DexMain() {
             {SWAP_SURFACE_COPY.footerTrustCompact}
           </p>
           <div className="mt-3 flex justify-center gap-4">
-            <button
-              onClick={() => goToPage('about')}
-              className="hover:text-white transition-colors"
+            <Link
+              to="/about"
+              className="text-inherit no-underline hover:text-white transition-colors visited:text-inherit"
             >
               About
-            </button>
-            <button
-              onClick={() => goToPage('terms')}
-              className="hover:text-white transition-colors"
+            </Link>
+            <Link
+              to="/terms"
+              className="text-inherit no-underline hover:text-white transition-colors visited:text-inherit"
             >
               Terms
-            </button>
-            <button
-              onClick={() => goToPage('privacy')}
-              className="hover:text-white transition-colors"
+            </Link>
+            <Link
+              to="/privacy"
+              className="text-inherit no-underline hover:text-white transition-colors visited:text-inherit"
             >
               Privacy
-            </button>
-            <button
-              onClick={() => goToPage('disclaimer')}
-              className="hover:text-white transition-colors"
+            </Link>
+            <Link
+              to="/disclaimer"
+              className="text-inherit no-underline hover:text-white transition-colors visited:text-inherit"
             >
               Disclaimer
-            </button>
+            </Link>
           </div>
 
           {/* System Status Indicator */}
