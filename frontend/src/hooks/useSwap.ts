@@ -62,6 +62,10 @@ import {
   logValidationErrors,
 } from '@/utils/swapValidation';
 import { swapObsLog } from '@/utils/swapObservability';
+import {
+  getQuoteRoutePathFingerprint,
+  isReusableFreshQuote,
+} from '@/utils/reusableFreshQuote';
 import { classifyCommissionRoute } from '@/utils/commission';
 import { estimateWrapperFeeWeiFromNetOutput } from '@/utils/wrapperFee';
 import {
@@ -412,6 +416,22 @@ export function useSwap() {
 
   const prevQuoteInputFingerprintRef = useRef<string | null>(null);
 
+  // Quote request ID counter - prevents stale responses from updating UI
+  const quoteRequestIdRef = useRef(0);
+
+  /** P4.4-K1 — context captured when a quote lands (preview reuse safety). */
+  const quoteCapturedWalletRef = useRef<string | null>(null);
+  const quoteCapturedInputFingerprintRef = useRef<string | null>(null);
+  const quoteCapturedRouteFingerprintRef = useRef<string | null>(null);
+  const quoteCapturedCommissionRequiredRef = useRef<boolean | null>(null);
+
+  const clearQuoteCaptureContext = useCallback(() => {
+    quoteCapturedWalletRef.current = null;
+    quoteCapturedInputFingerprintRef.current = null;
+    quoteCapturedRouteFingerprintRef.current = null;
+    quoteCapturedCommissionRequiredRef.current = null;
+  }, []);
+
   /**
    * Phase 3: Clear hook + store quote as soon as amount, tokens, chain, slippage, or route mode change
    * (before debounced refetch). Bump request id so in-flight responses cannot repopulate stale UI.
@@ -431,19 +451,17 @@ export function useSwap() {
     quoteRequestIdRef.current += 1;
     setSwapQuote(null);
     clearQuote();
+    clearQuoteCaptureContext();
     setState((s) => {
       if (s.status === 'fetching_quote' || s.status === 'checking_allowance' || s.status === 'previewing') {
         return { ...s, status: 'idle', error: null, quoteErrorParsed: null };
       }
       return { ...s, error: null, quoteErrorParsed: null };
     });
-  }, [quoteInputFingerprint, clearQuote, state.status]);
+  }, [quoteInputFingerprint, clearQuote, clearQuoteCaptureContext, state.status]);
 
   // Track if operation was cancelled by wallet event
   const isCancelledRef = useRef(false);
-
-  // Quote request ID counter - prevents stale responses from updating UI
-  const quoteRequestIdRef = useRef(0);
 
   /** Prevents double confirm / overlapping executeSwap when state updates lag one frame. */
   const swapExecutionLockRef = useRef(false);
@@ -596,6 +614,7 @@ export function useSwap() {
     if (!address || !fromAsset || !toAsset || !fromAmount) {
       setSwapQuote(null);
       clearQuote();
+      clearQuoteCaptureContext();
       setState((s) => ({ ...s, status: 'idle', error: null, quoteErrorParsed: null }));
       return null;
     }
@@ -606,6 +625,7 @@ export function useSwap() {
     if (!fromSymbol || !toSymbol) {
       setSwapQuote(null);
       clearQuote();
+      clearQuoteCaptureContext();
       setState((s) => ({
         ...s,
         status: 'error',
@@ -623,6 +643,7 @@ export function useSwap() {
     // Invalidate any previous receive-line quote immediately for this new request (avoid stale output)
     setSwapQuote(null);
     clearQuote();
+    clearQuoteCaptureContext();
 
     // PHASE 9: Log lifecycle transition
     logLifecycle(state.status, 'fetching_quote', { fromSymbol, toSymbol, fromAmount });
@@ -1513,6 +1534,10 @@ export function useSwap() {
       });
       setState((s) => ({ ...s, status: 'previewing', quote, quoteErrorParsed: null }));
       setSwapQuote(extendedQuote);
+      quoteCapturedWalletRef.current = address ?? null;
+      quoteCapturedInputFingerprintRef.current = quoteInputFingerprint;
+      quoteCapturedRouteFingerprintRef.current = getQuoteRoutePathFingerprint(extendedQuote);
+      quoteCapturedCommissionRequiredRef.current = isCommissionRequiredMode();
       // Update swapStore with compatible quote format for toAmount display
       setQuote({
         success: true,
@@ -1659,6 +1684,7 @@ export function useSwap() {
       logLifecycle(state.status, 'error', { error: quoteErrorDisplay });
       setSwapQuote(null);
       clearQuote();
+      clearQuoteCaptureContext();
       setState((s) => ({ ...s, status: 'error', error: quoteErrorDisplay, quoteErrorParsed: parsed }));
       toast.error(quoteErrorDisplay);
       return null;
@@ -1666,7 +1692,20 @@ export function useSwap() {
     }
     return null;
   // Note: state.status removed from deps to prevent infinite loop - it's only used for logging
-  }, [address, fromAsset, toAsset, fromAmount, chainId, slippage, routeMode, provider, setQuote, clearQuote]);
+  }, [
+    address,
+    fromAsset,
+    toAsset,
+    fromAmount,
+    chainId,
+    slippage,
+    routeMode,
+    provider,
+    setQuote,
+    clearQuote,
+    clearQuoteCaptureContext,
+    quoteInputFingerprint,
+  ]);
 
   // Execute token approval
   const executeApproval = useCallback(async (): Promise<boolean> => {
@@ -2894,7 +2933,43 @@ export function useSwap() {
       throw new Error(error);
     }
 
-    swapTrace('[Swap] Validation passed, fetching quote...');
+    const reuseDecision = isReusableFreshQuote({
+      quote: swapQuote,
+      status: state.status,
+      chainId: chainId || 1,
+      address,
+      fromSymbol,
+      toSymbol,
+      fromAmount,
+      routeMode,
+      quoteInputFingerprint,
+      quoteCapturedInputFingerprint: quoteCapturedInputFingerprintRef.current,
+      quoteCapturedWallet: quoteCapturedWalletRef.current,
+      quoteCapturedRouteFingerprint: quoteCapturedRouteFingerprintRef.current,
+      quoteCapturedCommissionRequired: quoteCapturedCommissionRequiredRef.current,
+      commissionRequired: isCommissionRequiredMode(),
+    });
+
+    swapObsLog('preview_requote_decision', {
+      quote_reused_for_preview: reuseDecision.reusable,
+      preview_requote_reason: reuseDecision.reason,
+      quoteAgeMs: reuseDecision.quoteAgeMs,
+      provider: swapQuote?.provider ?? null,
+    });
+    if (SWAP_TRACE_LOG) {
+      console.debug('[Swap] preview requote decision', {
+        quote_reused_for_preview: reuseDecision.reusable,
+        reason: reuseDecision.reason,
+        quoteAgeMs: reuseDecision.quoteAgeMs,
+      });
+    }
+
+    if (reuseDecision.reusable && swapQuote) {
+      swapTrace('[Swap] Reusing fresh quote for preview (skipped redundant fetch)');
+      return swapQuote;
+    }
+
+    swapTrace('[Swap] Validation passed, fetching quote...', { preview_requote_reason: reuseDecision.reason });
 
     // Get fresh quote
     const quote = await fetchSwapQuote();
@@ -2904,7 +2979,19 @@ export function useSwap() {
 
     // Return the quote for preview - actual execution happens when user confirms
     return quote;
-  }, [address, isWrongChain, fromAsset, toAsset, fromAmount, chainId, fetchSwapQuote]);
+  }, [
+    address,
+    isWrongChain,
+    fromAsset,
+    toAsset,
+    fromAmount,
+    chainId,
+    fetchSwapQuote,
+    swapQuote,
+    state.status,
+    routeMode,
+    quoteInputFingerprint,
+  ]);
 
   // Confirm and execute after preview
   const confirmSwap = useCallback(async (): Promise<string> => {
