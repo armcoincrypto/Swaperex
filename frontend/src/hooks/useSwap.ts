@@ -898,33 +898,27 @@ export function useSwap() {
                 tInMeta &&
                 tOutMeta &&
                 isUniswapWrapperV3CommissionEligible(1, tInMeta, tOutMeta);
-              if (v3Eligible) {
-                console.warn('[Swap] ETH commission-required V3 quote failed; retrying legacy wrapper', firstErr);
+              if (v3Eligible && !useV2) {
+                // Allowlisted + V3 on: never downgrade to legacy `uniswap-v3-wrapper` (would hide V3 canary).
+                console.warn(
+                  '[Swap] ETH commission-required V3 quote failed — not falling back to legacy wrapper V1 for this allowlisted pair.',
+                  firstErr,
+                );
+                throw firstErr instanceof Error ? firstErr : new Error(String(firstErr));
+              }
+              if (v3Eligible && useV2) {
+                console.warn('[Swap] ETH commission-required V3 quote failed; retrying wrapper V2', firstErr);
+                forced = await getQuoteFromProvider(
+                  'uniswap-v3-wrapper-v2',
+                  fromSymbol,
+                  toSymbol,
+                  fromAmount,
+                  1,
+                  slippage || DEFAULT_SLIPPAGE,
+                  effectiveRouteMode,
+                );
               } else {
                 console.warn('[Swap] ETH commission-required quote failed; retrying once', firstErr);
-              }
-              if (v3Eligible) {
-                if (useV2) {
-                  forced = await getQuoteFromProvider(
-                    'uniswap-v3-wrapper-v2',
-                    fromSymbol,
-                    toSymbol,
-                    fromAmount,
-                    1,
-                    slippage || DEFAULT_SLIPPAGE,
-                    effectiveRouteMode,
-                  );
-                } else {
-                  forced = await getQuoteFromProvider(
-                    'uniswap-v3-wrapper',
-                    fromSymbol,
-                    toSymbol,
-                    fromAmount,
-                    1,
-                    slippage || DEFAULT_SLIPPAGE,
-                  );
-                }
-              } else {
                 forced = await fetchEthCommissionQuote();
               }
             }

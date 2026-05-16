@@ -177,6 +177,8 @@ async function commissionStrictEthereumBestQuote(
   }
 
   // Prefer multi-hop wrapper V3 for ERC20-only allowlisted pairs when enabled (still commission-only).
+  // Canary / allowlist: do **not** silently fall back to legacy `uniswap-v3-wrapper` on V3 quote failure —
+  // that produced live `provider=uniswap-v3-wrapper` with null `wrapper_version` while V3 was enabled.
   if (!ethNativeLeg) {
     const u3 = getUniswapWrapperV3Config();
     if (
@@ -186,35 +188,31 @@ async function commissionStrictEthereumBestQuote(
       tokenOutMeta &&
       isUniswapWrapperV3CommissionEligible(1, tokenInMeta, tokenOutMeta)
     ) {
-      try {
-        const best = await getQuoteFromProvider(
-          'uniswap-v3-wrapper-v3',
-          tokenIn,
-          tokenOut,
-          amountIn,
-          1,
-          slippage,
-          null,
-        );
-        obsAggRoute({
-          chainId: 1,
-          routeMode: 'commission_strict_best',
-          tokenIn,
-          tokenOut,
-          bestProvider: best.provider,
-          runnerUp: '',
-          reason: 'Commission required: Swaperex Uniswap wrapper V3 (multi-hop) when available.',
-          lane: 'eth_commission_strict',
-        });
-        return {
-          best,
-          alternative: null,
-          selectionReason:
-            'Commission required: Swaperex Uniswap wrapper V3 (multi-hop) when available.',
-        };
-      } catch {
-        // Fall through to legacy wrapper V1/V2.
-      }
+      const best = await getQuoteFromProvider(
+        'uniswap-v3-wrapper-v3',
+        tokenIn,
+        tokenOut,
+        amountIn,
+        1,
+        slippage,
+        null,
+      );
+      obsAggRoute({
+        chainId: 1,
+        routeMode: 'commission_strict_best',
+        tokenIn,
+        tokenOut,
+        bestProvider: best.provider,
+        runnerUp: '',
+        reason: 'Commission required: Swaperex Uniswap wrapper V3 (multi-hop) when available.',
+        lane: 'eth_commission_strict',
+      });
+      return {
+        best,
+        alternative: null,
+        selectionReason:
+          'Commission required: Swaperex Uniswap wrapper V3 (multi-hop) when available.',
+      };
     }
   }
 

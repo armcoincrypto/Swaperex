@@ -5,8 +5,8 @@
  * SECURITY: All signing happens client-side via connected wallet.
  */
 
-import { useState, useEffect, lazy, Suspense } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { LazyWalletBootstrap, LazyWalletConnect } from '@/components/wallet/lazyWalletChunks';
 import { SwapInterface } from '@/components/swap/SwapInterface';
 import { TokenList } from '@/components/balances/TokenList';
@@ -74,6 +74,54 @@ const lazyWalletConnectFallback = (
 
 type Page = 'swap' | 'send' | 'portfolio' | 'radar' | 'screener' | 'about' | 'terms' | 'privacy' | 'disclaimer';
 
+function normalizePublicPath(pathname: string): string {
+  const trimmed = pathname.replace(/\/+$/, '');
+  return trimmed === '' ? '/' : trimmed;
+}
+
+/**
+ * P3-A: map URL → `currentPage` for crawlable informational routes only.
+ * `/` is not mapped here (swap vs send/portfolio share `/` until those routes exist).
+ */
+function pathToPage(pathname: string): Extract<Page, 'about' | 'terms' | 'privacy' | 'disclaimer'> | null {
+  switch (normalizePublicPath(pathname)) {
+    case '/about':
+      return 'about';
+    case '/terms':
+      return 'terms';
+    case '/privacy':
+      return 'privacy';
+    case '/disclaimer':
+      return 'disclaimer';
+    default:
+      return null;
+  }
+}
+
+/** P3-A: map `currentPage` → URL; `null` = leave path handling to caller (non-routed tabs). */
+function pageToPath(page: Page): '/' | '/about' | '/terms' | '/privacy' | '/disclaimer' | null {
+  switch (page) {
+    case 'swap':
+      return '/';
+    case 'about':
+      return '/about';
+    case 'terms':
+      return '/terms';
+    case 'privacy':
+      return '/privacy';
+    case 'disclaimer':
+      return '/disclaimer';
+    default:
+      return null;
+  }
+}
+
+function readInitialPageFromUrl(): Page {
+  if (typeof window === 'undefined') return 'swap';
+  const mapped = pathToPage(window.location.pathname);
+  return mapped ?? 'swap';
+}
+
 /**
  * P4.4.4 — Load the lazy `WalletConnect` header chunk only when the user is likely to need it,
  * or when a wallet / AppKit host session is already active. Avoids pulling the header wallet UI
@@ -113,7 +161,9 @@ export default function App() {
 }
 
 function DexMain() {
-  const [currentPage, setCurrentPage] = useState<Page>('swap');
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [currentPage, setCurrentPage] = useState<Page>(readInitialPageFromUrl);
   const walletHostNeeded = useWalletBootstrapStore((s) => s.needed);
   const { isConnected, isWrongChain, isReadOnly, chainId, switchNetwork } = useWallet();
   const { setFromAsset, setToAsset, setFromAmount } = useSwapStore();
@@ -181,6 +231,45 @@ function DexMain() {
     };
   }, []);
 
+  const goToPage = useCallback(
+    (page: Page) => {
+      const path = pageToPath(page);
+      if (path !== null) {
+        navigate(path);
+      } else if (pathToPage(location.pathname) != null) {
+        navigate('/');
+      }
+      setCurrentPage(page);
+    },
+    [navigate, location.pathname],
+  );
+
+  /**
+   * P3-A — Keep `currentPage` aligned with informational URLs; unknown paths → `/` + swap.
+   * Path `/` does not override send/portfolio/radar/screener.
+   */
+  useEffect(() => {
+    const p = normalizePublicPath(location.pathname);
+    const mapped = pathToPage(p);
+    if (mapped) {
+      setCurrentPage(mapped);
+      return;
+    }
+    if (p !== '/') {
+      navigate('/', { replace: true });
+      setCurrentPage('swap');
+      return;
+    }
+    if (
+      currentPage === 'about' ||
+      currentPage === 'terms' ||
+      currentPage === 'privacy' ||
+      currentPage === 'disclaimer'
+    ) {
+      setCurrentPage('swap');
+    }
+  }, [location.pathname, navigate, currentPage]);
+
   /**
    * SPA navigation bus — components without prop access (e.g. the Terms gate
    * inside `WalletConnect` / `SwapInterface`) emit `swaperex:navigate` with
@@ -192,12 +281,12 @@ function DexMain() {
       const detail = (event as CustomEvent<{ page?: string }>).detail;
       const target = detail?.page;
       if (target && (allowed as string[]).includes(target)) {
-        setCurrentPage(target as Page);
+        goToPage(target as Page);
       }
     };
     window.addEventListener('swaperex:navigate', onNav as EventListener);
     return () => window.removeEventListener('swaperex:navigate', onNav as EventListener);
-  }, []);
+  }, [goToPage]);
 
   // Handle chain switch from banner
   const handleBannerSwitch = async () => {
@@ -249,7 +338,7 @@ function DexMain() {
     }
 
     // Navigate to swap page
-    setCurrentPage('swap');
+    goToPage('swap');
   };
 
   // Handle swap from portfolio v2 - prefill from token and go to swap
@@ -279,7 +368,7 @@ function DexMain() {
         });
       }
     }
-    setCurrentPage('swap');
+    goToPage('swap');
   };
 
   // Handle radar signal click - navigate to swap with token prefilled
@@ -324,7 +413,7 @@ function DexMain() {
     }
 
     // Navigate to swap
-    setCurrentPage('swap');
+    goToPage('swap');
   };
 
   // Handle Quick Repeat from swap history
@@ -339,7 +428,7 @@ function DexMain() {
     setFromAmount(record.fromAmount);
 
     // Navigate to swap page
-    setCurrentPage('swap');
+    goToPage('swap');
   };
 
   return (
@@ -360,13 +449,13 @@ function DexMain() {
             <nav className="flex gap-1">
               <NavButton
                 active={currentPage === 'swap'}
-                onClick={() => setCurrentPage('swap')}
+                onClick={() => goToPage('swap')}
               >
                 Swap
               </NavButton>
               <NavButton
                 active={currentPage === 'send'}
-                onClick={() => setCurrentPage('send')}
+                onClick={() => goToPage('send')}
               >
                 Send
               </NavButton>
@@ -374,20 +463,20 @@ function DexMain() {
                 <>
                   <NavButton
                     active={currentPage === 'portfolio'}
-                    onClick={() => setCurrentPage('portfolio')}
+                    onClick={() => goToPage('portfolio')}
                   >
                     Portfolio
                   </NavButton>
                   <NavButton
                     active={currentPage === 'radar'}
-                    onClick={() => setCurrentPage('radar')}
+                    onClick={() => goToPage('radar')}
                     badge={radarUnreadCount > 0 ? radarUnreadCount : undefined}
                   >
                     Radar
                   </NavButton>
                   <NavButton
                     active={currentPage === 'screener'}
-                    onClick={() => setCurrentPage('screener')}
+                    onClick={() => goToPage('screener')}
                   >
                     Screener
                   </NavButton>
@@ -411,7 +500,7 @@ function DexMain() {
             ) : (
               <button
                 type="button"
-                onClick={() => setCurrentPage('swap')}
+                onClick={() => goToPage('swap')}
                 className="h-10 px-4 rounded-lg border border-white/[0.08] bg-electro-panel/50 text-sm font-medium text-dark-300 hover:text-white hover:bg-electro-panel transition-colors"
               >
                 Wallet
@@ -505,22 +594,22 @@ function DexMain() {
         {/* Static Pages */}
         {currentPage === 'about' && (
           <Suspense fallback={lazyTabFallback}>
-            <LazyAboutPage onBack={() => setCurrentPage('swap')} />
+            <LazyAboutPage onBack={() => navigate('/')} />
           </Suspense>
         )}
         {currentPage === 'terms' && (
           <Suspense fallback={lazyTabFallback}>
-            <LazyTermsPage onBack={() => setCurrentPage('swap')} />
+            <LazyTermsPage onBack={() => navigate('/')} />
           </Suspense>
         )}
         {currentPage === 'privacy' && (
           <Suspense fallback={lazyTabFallback}>
-            <LazyPrivacyPage onBack={() => setCurrentPage('swap')} />
+            <LazyPrivacyPage onBack={() => navigate('/')} />
           </Suspense>
         )}
         {currentPage === 'disclaimer' && (
           <Suspense fallback={lazyTabFallback}>
-            <LazyDisclaimerPage onBack={() => setCurrentPage('swap')} />
+            <LazyDisclaimerPage onBack={() => navigate('/')} />
           </Suspense>
         )}
       </main>
@@ -534,25 +623,25 @@ function DexMain() {
           </p>
           <div className="mt-3 flex justify-center gap-4">
             <button
-              onClick={() => setCurrentPage('about')}
+              onClick={() => goToPage('about')}
               className="hover:text-white transition-colors"
             >
               About
             </button>
             <button
-              onClick={() => setCurrentPage('terms')}
+              onClick={() => goToPage('terms')}
               className="hover:text-white transition-colors"
             >
               Terms
             </button>
             <button
-              onClick={() => setCurrentPage('privacy')}
+              onClick={() => goToPage('privacy')}
               className="hover:text-white transition-colors"
             >
               Privacy
             </button>
             <button
-              onClick={() => setCurrentPage('disclaimer')}
+              onClick={() => goToPage('disclaimer')}
               className="hover:text-white transition-colors"
             >
               Disclaimer
