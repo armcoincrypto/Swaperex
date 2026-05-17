@@ -106,6 +106,7 @@ import {
   type AggregatedQuote,
   type QuoteRouteMode,
 } from '@/services/quoteAggregator';
+import { readCommissionWrapperAllowanceVsRequired } from '@/services/allowanceRead';
 import { getBestPancakeWrapperQuote } from '@/services/pancakeWrapperQuote';
 import {
   buildPancakeWrapperApprovalTx,
@@ -1272,45 +1273,37 @@ export function useSwap() {
           } else {
             hasAllowance = allowance === 'unlimited' || BigInt(allowance) >= amountInWei;
           }
-        } else if (aggregatedQuote.provider === 'pancakeswap-v3-wrapper-v2') {
-          const wrapperAddr = getPancakeWrapperV2SpenderAddress();
+        } else if (isCommissionWrapperExecutionProvider(aggregatedQuote.provider)) {
+          const wrapperAddr =
+            aggregatedQuote.provider === 'uniswap-v3-wrapper'
+              ? getUniswapWrapperSpenderAddress()
+              : aggregatedQuote.provider === 'uniswap-v3-wrapper-v2'
+                ? getUniswapWrapperV2SpenderAddress()
+                : aggregatedQuote.provider === 'uniswap-v3-wrapper-v3'
+                  ? getUniswapWrapperV3SpenderAddress()
+                  : aggregatedQuote.provider === 'pancakeswap-v3-wrapper'
+                    ? getPancakeWrapperSpenderAddress()
+                    : aggregatedQuote.provider === 'pancakeswap-v3-wrapper-v2'
+                      ? getPancakeWrapperV2SpenderAddress()
+                      : null;
           const amountInWei = BigInt(aggregatedQuote.amountIn);
           if (!wrapperAddr) {
             hasAllowance = false;
-          } else if (!provider || !address) {
+          } else if (!address) {
             allowanceCheckUncertain = true;
             hasAllowance = true;
           } else {
-            const read = await readErc20AllowanceVsRequired(
-              tokenIn.address,
-              wrapperAddr,
-              address,
-              amountInWei,
-              provider,
-            );
-            if (read === 'unknown') {
-              allowanceCheckUncertain = true;
-              hasAllowance = true;
-            } else {
-              hasAllowance = read === 'sufficient';
-            }
-          }
-        } else if (aggregatedQuote.provider === 'pancakeswap-v3-wrapper') {
-          const wrapperAddr = getPancakeWrapperSpenderAddress();
-          const amountInWei = BigInt(aggregatedQuote.amountIn);
-          if (!wrapperAddr) {
-            hasAllowance = false;
-          } else if (!provider || !address) {
-            allowanceCheckUncertain = true;
-            hasAllowance = true;
-          } else {
-            const read = await readErc20AllowanceVsRequired(
-              tokenIn.address,
-              wrapperAddr,
-              address,
-              amountInWei,
-              provider,
-            );
+            const read = await readCommissionWrapperAllowanceVsRequired({
+              chainId: chainId || 1,
+              tokenAddress: tokenIn.address,
+              tokenSymbol: fromSymbol,
+              fromSymbol,
+              toSymbol,
+              spender: wrapperAddr,
+              owner: address,
+              required: amountInWei,
+              swapProvider: aggregatedQuote.provider,
+            });
             if (read === 'unknown') {
               allowanceCheckUncertain = true;
               hasAllowance = true;
@@ -1329,75 +1322,6 @@ export function useSwap() {
           } catch {
             allowanceCheckUncertain = true;
             hasAllowance = true;
-          }
-        } else if (aggregatedQuote.provider === 'uniswap-v3-wrapper-v3') {
-          const wrapperAddr = getUniswapWrapperV3SpenderAddress();
-          const amountInWei = BigInt(aggregatedQuote.amountIn);
-          if (!wrapperAddr) {
-            hasAllowance = false;
-          } else if (!provider || !address) {
-            allowanceCheckUncertain = true;
-            hasAllowance = true;
-          } else {
-            const read = await readErc20AllowanceVsRequired(
-              tokenIn.address,
-              wrapperAddr,
-              address,
-              amountInWei,
-              provider,
-            );
-            if (read === 'unknown') {
-              allowanceCheckUncertain = true;
-              hasAllowance = true;
-            } else {
-              hasAllowance = read === 'sufficient';
-            }
-          }
-        } else if (aggregatedQuote.provider === 'uniswap-v3-wrapper') {
-          const wrapperAddr = getUniswapWrapperSpenderAddress();
-          const amountInWei = BigInt(aggregatedQuote.amountIn);
-          if (!wrapperAddr) {
-            hasAllowance = false;
-          } else if (!provider || !address) {
-            allowanceCheckUncertain = true;
-            hasAllowance = true;
-          } else {
-            const read = await readErc20AllowanceVsRequired(
-              tokenIn.address,
-              wrapperAddr,
-              address,
-              amountInWei,
-              provider
-            );
-            if (read === 'unknown') {
-              allowanceCheckUncertain = true;
-              hasAllowance = true;
-            } else {
-              hasAllowance = read === 'sufficient';
-            }
-          }
-        } else if (aggregatedQuote.provider === 'uniswap-v3-wrapper-v2') {
-          const wrapperAddr = getUniswapWrapperV2SpenderAddress();
-          const amountInWei = BigInt(aggregatedQuote.amountIn);
-          if (!wrapperAddr) {
-            hasAllowance = false;
-          } else if (!provider || !address) {
-            allowanceCheckUncertain = true;
-            hasAllowance = true;
-          } else {
-            const read = await readErc20AllowanceVsRequired(
-              tokenIn.address,
-              wrapperAddr,
-              address,
-              amountInWei,
-              provider,
-            );
-            if (read === 'unknown') {
-              allowanceCheckUncertain = true;
-              hasAllowance = true;
-            } else {
-              hasAllowance = read === 'sufficient';
-            }
           }
         } else {
           // Check Uniswap router allowance (direct SwapRouter02 on Ethereum)
