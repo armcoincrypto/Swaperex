@@ -5,7 +5,7 @@
  * SECURITY: All signing happens client-side via connected wallet.
  */
 
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { LazyWalletBootstrap, LazyWalletConnect } from '@/components/wallet/lazyWalletChunks';
 import { SwapInterface } from '@/components/swap/SwapInterface';
@@ -201,8 +201,9 @@ function DexMain() {
   const { toasts, removeToast } = useToastStore();
   const { getUnreadCount } = useRadarStore();
   const [bannerDismissed, setBannerDismissed] = useState(false);
-  /** P7.1 — defer below-fold SEO/trust sections until idle (mobile LCP). */
+  /** P7.3 — defer below-fold SEO/trust sections until scroll intent or crawler fallback (mobile LCP). */
   const [showBelowFoldSeo, setShowBelowFoldSeo] = useState(false);
+  const belowFoldSeoSentinelRef = useRef<HTMLDivElement | null>(null);
 
   const radarUnreadCount = SHOW_OPTIONAL_PRIMARY_NAV ? getUnreadCount() : 0;
 
@@ -222,31 +223,41 @@ function DexMain() {
     return () => clearInterval(intervalId);
   }, [refreshSignalsHealth, refreshSystemStatus]);
 
-  // P7.1 — mount below-fold SEO/trust copy after idle so it does not compete with swap LCP.
+  // P7.3 — reveal below-fold SEO when sentinel nears viewport (scroll intent) or after 8s for crawlers.
   useEffect(() => {
     if (currentPage !== 'swap') {
       setShowBelowFoldSeo(false);
       return;
     }
 
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    let idleId: number | undefined;
+    let revealed = false;
+    const reveal = () => {
+      if (revealed) return;
+      revealed = true;
+      setShowBelowFoldSeo(true);
+    };
 
-    const reveal = () => setShowBelowFoldSeo(true);
+    const crawlerFallbackId = window.setTimeout(reveal, 8000);
 
-    if (typeof window.requestIdleCallback === 'function') {
-      idleId = window.requestIdleCallback(reveal, { timeout: 1500 });
-    } else {
-      timeoutId = setTimeout(reveal, 1200);
+    const sentinel = belowFoldSeoSentinelRef.current;
+    let observer: IntersectionObserver | undefined;
+
+    if (sentinel && typeof IntersectionObserver !== 'undefined') {
+      observer = new IntersectionObserver(
+        (entries) => {
+          if (entries.some((entry) => entry.isIntersecting)) {
+            reveal();
+            observer?.disconnect();
+          }
+        },
+        { root: null, rootMargin: '0px 0px 200px 0px', threshold: 0 },
+      );
+      observer.observe(sentinel);
     }
 
     return () => {
-      if (idleId !== undefined && typeof window.cancelIdleCallback === 'function') {
-        window.cancelIdleCallback(idleId);
-      }
-      if (timeoutId !== undefined) {
-        clearTimeout(timeoutId);
-      }
+      window.clearTimeout(crawlerFallbackId);
+      observer?.disconnect();
     };
   }, [currentPage]);
 
@@ -601,6 +612,7 @@ function DexMain() {
                 </Suspense>
               )}
             </div>
+            <div ref={belowFoldSeoSentinelRef} className="h-px w-full" aria-hidden />
             {showBelowFoldSeo && (
               <Suspense fallback={lazySwapEducationFallback}>
                 <LazyDexLandingIntro />
