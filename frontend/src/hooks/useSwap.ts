@@ -72,6 +72,15 @@ import {
   markSwapExecutionTiming,
   resolveUniswapWrapperV3GasLimitHint,
 } from '@/utils/swapExecutionTiming';
+import {
+  CONFIRM_SWAP_IN_PROGRESS_MESSAGE,
+  SWAP_EXECUTION_IN_PROGRESS,
+  STALE_EXECUTION_LOCK_MS,
+  getConfirmSwapBlockReason,
+  shouldClearStaleExecutionLock,
+  staleExecutionLockAgeMs,
+  type ConfirmSwapBlockReason,
+} from '@/utils/confirmSwapExecution';
 import { classifyCommissionRoute } from '@/utils/commission';
 import { estimateWrapperFeeWeiFromNetOutput } from '@/utils/wrapperFee';
 import {
@@ -472,6 +481,8 @@ export function useSwap() {
 
   /** Prevents double confirm / overlapping executeSwap when state updates lag one frame. */
   const swapExecutionLockRef = useRef(false);
+  /** Wall-clock when execution lock was taken — used for stale-lock recovery in previewing only. */
+  const swapExecutionLockStartedAtRef = useRef<number | null>(null);
 
   /** Blocks a second approval `sendTransaction` while the first is still with the wallet (Trust -32002). */
   const approvalWalletSigningInFlightRef = useRef(false);
@@ -2984,9 +2995,23 @@ export function useSwap() {
       throw new Error('No active swap to confirm. Please get a new quote and try again.');
     }
 
-    if (state.status === 'approving' || state.status === 'swapping' || state.status === 'confirming') {
-      console.warn('[Swap] confirmSwap ignored — execution already in progress');
-      return '';
+    const quoteAge = Date.now() - swapQuote.quoteTimestamp;
+
+    const blockConfirmSwap = (reason: ConfirmSwapBlockReason): never => {
+      swapObsLog('confirm_swap_blocked', {
+        reason,
+        status: state.status,
+        provider: swapQuote.provider,
+        quoteAgeMs: quoteAge,
+      });
+      clearSwapExecutionTiming();
+      toast.warning(CONFIRM_SWAP_IN_PROGRESS_MESSAGE);
+      throw new Error(SWAP_EXECUTION_IN_PROGRESS);
+    };
+
+    const statusBlock = getConfirmSwapBlockReason(state.status);
+    if (statusBlock) {
+      blockConfirmSwap(statusBlock);
     }
 
     if (state.status !== 'previewing') {
@@ -2995,7 +3020,6 @@ export function useSwap() {
 
     // QUOTE EXPIRY CHECK: Block execution if quote is stale (>30 seconds old)
     // Stay in 'previewing' state so user can click "Refresh" instead of seeing error screen
-    const quoteAge = Date.now() - swapQuote.quoteTimestamp;
     if (quoteAge > QUOTE_EXPIRY_MS) {
       const expiredSeconds = Math.floor(quoteAge / 1000);
       logLifecycle('previewing', 'previewing', { reason: 'quote_expired', quoteAge: expiredSeconds });
@@ -3021,16 +3045,32 @@ export function useSwap() {
     });
 
     if (swapExecutionLockRef.current) {
-      console.warn('[Swap] confirmSwap ignored — execution lock held');
-      clearSwapExecutionTiming();
-      return '';
+      const now = Date.now();
+      if (
+        shouldClearStaleExecutionLock({
+          status: state.status,
+          lockHeld: true,
+          lockStartedAt: swapExecutionLockStartedAtRef.current,
+          now,
+          staleThresholdMs: STALE_EXECUTION_LOCK_MS,
+        })
+      ) {
+        const ageMs = staleExecutionLockAgeMs(swapExecutionLockStartedAtRef.current, now) ?? 0;
+        swapObsLog('stale_execution_lock_cleared', { ageMs });
+        swapExecutionLockRef.current = false;
+        swapExecutionLockStartedAtRef.current = null;
+      } else {
+        blockConfirmSwap('execution_lock_held');
+      }
     }
 
     swapExecutionLockRef.current = true;
+    swapExecutionLockStartedAtRef.current = Date.now();
     try {
       return await executeSwap();
     } finally {
       swapExecutionLockRef.current = false;
+      swapExecutionLockStartedAtRef.current = null;
       clearSwapExecutionTiming();
     }
   }, [state.status, swapQuote, executeSwap, chainId]);

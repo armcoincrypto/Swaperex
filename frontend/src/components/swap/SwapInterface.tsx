@@ -1047,7 +1047,11 @@ export function SwapInterface() {
     try {
       await confirmSwap();
     } catch (err) {
-      // Error handled in useSwap
+      const message = err instanceof Error ? err.message : String(err);
+      if (message === 'SWAP_EXECUTION_IN_PROGRESS' || message === 'QUOTE_EXPIRED') {
+        return;
+      }
+      console.warn('[SwapInterface] confirmSwap failed', err);
     }
   };
 
