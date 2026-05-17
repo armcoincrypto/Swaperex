@@ -201,6 +201,8 @@ function DexMain() {
   const { toasts, removeToast } = useToastStore();
   const { getUnreadCount } = useRadarStore();
   const [bannerDismissed, setBannerDismissed] = useState(false);
+  /** P7.1 — defer below-fold SEO/trust sections until idle (mobile LCP). */
+  const [showBelowFoldSeo, setShowBelowFoldSeo] = useState(false);
 
   const radarUnreadCount = SHOW_OPTIONAL_PRIMARY_NAV ? getUnreadCount() : 0;
 
@@ -219,6 +221,34 @@ function DexMain() {
     }, 60_000);
     return () => clearInterval(intervalId);
   }, [refreshSignalsHealth, refreshSystemStatus]);
+
+  // P7.1 — mount below-fold SEO/trust copy after idle so it does not compete with swap LCP.
+  useEffect(() => {
+    if (currentPage !== 'swap') {
+      setShowBelowFoldSeo(false);
+      return;
+    }
+
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    let idleId: number | undefined;
+
+    const reveal = () => setShowBelowFoldSeo(true);
+
+    if (typeof window.requestIdleCallback === 'function') {
+      idleId = window.requestIdleCallback(reveal, { timeout: 1500 });
+    } else {
+      timeoutId = setTimeout(reveal, 1200);
+    }
+
+    return () => {
+      if (idleId !== undefined && typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(idleId);
+      }
+      if (timeoutId !== undefined) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [currentPage]);
 
   useEffect(() => {
     return subscribeWalletBootstrapRequest(() => {
@@ -571,13 +601,15 @@ function DexMain() {
                 </Suspense>
               )}
             </div>
-            <Suspense fallback={lazySwapEducationFallback}>
-              <LazyDexLandingIntro />
-              <LazyDexHowItWorksSection />
-              <LazyDexFaqSection />
-              <LazyDexSafetyChecklist />
-              <LazyDexSeoTrustSection />
-            </Suspense>
+            {showBelowFoldSeo && (
+              <Suspense fallback={lazySwapEducationFallback}>
+                <LazyDexLandingIntro />
+                <LazyDexHowItWorksSection />
+                <LazyDexFaqSection />
+                <LazyDexSafetyChecklist />
+                <LazyDexSeoTrustSection />
+              </Suspense>
+            )}
           </>
         )}
 
