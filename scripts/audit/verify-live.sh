@@ -3,6 +3,51 @@ set -euo pipefail
 
 BASE="https://dex.kobbex.com"
 
+# Require JSON health payload (not SPA HTML with HTTP 200).
+validate_json_health_endpoint() {
+  local path="$1"
+  local label="$2"
+  local body_file code ct
+  body_file="$(mktemp)"
+  code="$(curl -sS -o "$body_file" -w '%{http_code}' "${BASE}${path}" 2>/dev/null || echo "000")"
+  ct="$(curl -sSI "${BASE}${path}" 2>/dev/null | awk -F': ' 'tolower($1)=="content-type"{print $2}' | tr -d '\r' | head -1)"
+
+  echo "${label}  HTTP ${code}  Content-Type: ${ct:-unknown}"
+
+  if [ "$code" != "200" ]; then
+    echo "❌ FAIL ${label} — HTTP ${code}"
+    rm -f "$body_file"
+    return 12
+  fi
+
+  ct_lc="$(printf '%s' "${ct:-}" | tr '[:upper:]' '[:lower:]')"
+  case "$ct_lc" in
+    *application/json*) ;;
+    *)
+      echo "❌ FAIL ${label} — expected application/json, got: ${ct:-empty}"
+      head -c 80 "$body_file" 2>/dev/null || true
+      echo
+      rm -f "$body_file"
+      return 12
+      ;;
+  esac
+
+  if head -c 20 "$body_file" | grep -qiE '<!DOCTYPE|<html'; then
+    echo "❌ FAIL ${label} — HTML body (SPA fallback?)"
+    rm -f "$body_file"
+    return 12
+  fi
+
+  if ! jq -e '.status' "$body_file" >/dev/null 2>&1; then
+    echo "❌ FAIL ${label} — JSON missing .status"
+    rm -f "$body_file"
+    return 12
+  fi
+
+  rm -f "$body_file"
+  return 0
+}
+
 echo "== Fetch HTML =="
 HTML="$(curl -fsSL "$BASE")"
 
@@ -29,21 +74,15 @@ fi
 echo "== HTTP checks =="
 code_root="$(curl -s -o /dev/null -w '%{http_code}' "$BASE")"
 code_js="$(curl -s -o /dev/null -w '%{http_code}' "$BASE$JS_PATH")"
-code_api="$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/health")"
-code_v1="$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/v1/health" || true)"
 
 echo "/                 $code_root"
 echo "$JS_PATH  $code_js"
-echo "/api/health       $code_api"
-echo "/api/v1/health    ${code_v1:-000}"
 
 [ "$code_root" = "200" ] || { echo "❌ FAIL /"; exit 10; }
 [ "$code_js"   = "200" ] || { echo "❌ FAIL asset"; exit 11; }
-[ "$code_api"  = "200" ] || { echo "❌ FAIL /api/health"; exit 12; }
 
-# /api/v1/health might not exist in some deployments; enforce only if it returns something meaningful
-if [ -n "${code_v1:-}" ] && [ "${code_v1:-000}" != "000" ]; then
-  [ "$code_v1" = "200" ] || { echo "❌ FAIL /api/v1/health"; exit 13; }
-fi
+echo "== JSON health checks =="
+validate_json_health_endpoint "/api/health" "/api/health"
+validate_json_health_endpoint "/api/v1/health" "/api/v1/health"
 
 echo "✅ LIVE OK"
