@@ -223,7 +223,7 @@ function DexMain() {
     return () => clearInterval(intervalId);
   }, [refreshSignalsHealth, refreshSystemStatus]);
 
-  // P7.3 — reveal below-fold SEO when sentinel nears viewport (scroll intent) or after 8s for crawlers.
+  // P7.4 — reveal SEO on scroll intent (IO + scrollY > 0) or after 8s for crawlers; ignore cold in-viewport IO.
   useEffect(() => {
     if (currentPage !== 'swap') {
       setShowBelowFoldSeo(false);
@@ -245,7 +245,10 @@ function DexMain() {
     if (sentinel && typeof IntersectionObserver !== 'undefined') {
       observer = new IntersectionObserver(
         (entries) => {
-          if (entries.some((entry) => entry.isIntersecting)) {
+          if (
+            entries.some((entry) => entry.isIntersecting) &&
+            window.scrollY > 0
+          ) {
             reveal();
             observer?.disconnect();
           }
