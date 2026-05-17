@@ -23,6 +23,7 @@ import { GuardWarningPanel } from '@/components/presets/GuardWarningPanel';
 import { evaluatePresetGuards } from '@/services/presetGuardService';
 import { TokenSafetyBadges } from '@/components/common/TokenSafetyBadges';
 import { SwapPreviewModal, SwapStep } from './SwapPreviewModal';
+import { SwapExecutionRail } from './SwapExecutionRail';
 import { TermsGateModal } from '@/components/common/TermsGateModal';
 import { useTermsStore } from '@/stores/termsStore';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
@@ -1256,6 +1257,18 @@ export function SwapInterface() {
         <div className="relative z-10 flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-white">Swap</h2>
         </div>
+
+        <SwapExecutionRail
+          status={status}
+          isConnected={isConnected}
+          hasQuote={hasUsableQuote}
+          needsApproval={swapQuote?.needsApproval}
+          quoteSecondsRemaining={quoteSecondsRemaining}
+          providerLabel={
+            swapQuote?.provider ? swapAggregatorProviderLabel(swapQuote.provider) : null
+          }
+          error={error}
+        />
 
         {isCommissionRequiredMode() &&
           currentChainId === 1 &&
