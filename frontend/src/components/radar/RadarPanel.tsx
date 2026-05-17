@@ -31,6 +31,7 @@ import { AlertToast } from '@/components/signals/AlertToast';
 import { useSignalAlerts, triggerTestAlert } from '@/hooks/useSignalAlerts';
 import { resetRadarIntro } from '@/utils/onboarding';
 import { fetchSignalsWithHistory, type SignalDebugData, type SignalHistoryCapture } from '@/services/signalsHealth';
+import { isMonitorRunning, startWatchlistMonitor } from '@/services/watchlistMonitor';
 
 interface RadarPanelProps {
   onSignalClick: (signal: RadarSignal) => void;
@@ -46,8 +47,16 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
   const signalFilters = useSignalFilterStore();
   const viewScope = signalFilters.viewScope;
   const monitoringEnabled = useMonitoringStore((s) => s.enabled);
+  const syncMonitoringFromService = useMonitoringStore((s) => s.syncFromService);
 
   const [showTimeline, setShowTimeline] = useState(false);
+
+  // P5-C.1 — defer watchlist monitor until first Radar visit (singleton; no stop on unmount)
+  useEffect(() => {
+    if (!monitoringEnabled || isMonitorRunning()) return;
+    startWatchlistMonitor();
+    syncMonitoringFromService();
+  }, [monitoringEnabled, syncMonitoringFromService]);
 
   // Hook signal alerts system
   useSignalAlerts();

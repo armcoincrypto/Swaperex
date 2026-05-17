@@ -22,7 +22,6 @@ import { useSignalsHealthStore } from '@/stores/signalsHealthStore';
 import { useSystemStatusStore } from '@/stores/systemStatusStore';
 import { type SwapRecord } from '@/stores/swapHistoryStore';
 import { getTokenBySymbol } from '@/tokens';
-import { startWatchlistMonitor } from '@/services/watchlistMonitor';
 import { useWalletBootstrapStore } from '@/stores/walletBootstrapStore';
 import {
   hasWalletConnectStorageHint,
@@ -213,9 +212,6 @@ function DexMain() {
   useEffect(() => {
     refreshSignalsHealth();
     refreshSystemStatus();
-
-    // Start watchlist monitor (singleton - safe to call multiple times)
-    startWatchlistMonitor();
 
     const intervalId = setInterval(() => {
       refreshSignalsHealth();
