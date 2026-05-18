@@ -343,7 +343,6 @@ export function SwapPreviewModal({
               chainId={chainId}
               secondsRemaining={secondsRemaining}
               isExpired={isExpired}
-              gasUnitsDisplay={gasUnitsDisplay}
             />
           )}
 
@@ -364,7 +363,16 @@ export function SwapPreviewModal({
             </div>
           )}
 
-          {/* Quote Details — critical review rows kept inline; non-critical rows collapsed below. */}
+          {step === 'preview' ? (
+            <PreviewFeesAdvancedSection
+              quote={quote}
+              approvalMode={approvalMode}
+              needsApproval={needsApproval}
+              priceImpactUi={priceImpactUi}
+              priceImpactRowVariant={priceImpactRowVariant}
+              gasUnitsDisplay={gasUnitsDisplay}
+            />
+          ) : (
           <div className="space-y-2 text-sm mb-4">
             <DetailRow
               label="Exchange rate"
@@ -458,8 +466,7 @@ export function SwapPreviewModal({
                 {SWAP_SURFACE_COPY.previewWrapperNetFeeNote}
               </p>
             )}
-            {step !== 'preview' && (
-              <>
+            <>
                 <DetailRow
                   label="Minimum received"
                   value={`${formatBalance(quote.minimum_received)} ${quote.to_asset}`}
@@ -477,8 +484,7 @@ export function SwapPreviewModal({
                   value={swapAggregatorProviderLabel(quote.provider)}
                   title="Venue that will execute this swap"
                 />
-              </>
-            )}
+            </>
             {needsApproval && (
               <DetailRow
                 label="Approval"
@@ -531,6 +537,7 @@ export function SwapPreviewModal({
               </div>
             </details>
           </div>
+          )}
 
           {/* High Impact Warning */}
           {isHighImpact && (
@@ -712,13 +719,11 @@ function PreSignConfidenceBlock({
   chainId,
   secondsRemaining,
   isExpired,
-  gasUnitsDisplay,
 }: {
   quote: SwapQuote;
   chainId: number | null | undefined;
   secondsRemaining: number;
   isExpired: boolean;
-  gasUnitsDisplay: string | null;
 }) {
   const chainCfg = chainId != null ? getChainById(chainId) : undefined;
   const networkDisplay =
@@ -772,90 +777,168 @@ function PreSignConfidenceBlock({
           <dt className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.slippageToleranceLabel}</dt>
           <dd className="text-right text-dark-100">{quote.slippage}%</dd>
         </div>
-        {quote.provider === '1inch' && isMonetizationActiveForProvider('1inch') && (
-          <div className="flex justify-between gap-3">
-            <dt className="text-dark-400 shrink-0">Platform fee</dt>
-            <dd className="text-right text-dark-100" title="Output-token fee via 1inch; quote line is before this fee">
-              {(getMonetizationConfig().feeBps / 100).toFixed(2)}%
-            </dd>
-          </div>
-        )}
-        {quote.provider === 'uniswap-v3-wrapper' && (
-          <div className="flex flex-col gap-1">
-            <div className="flex justify-between gap-3">
-              <dt className="text-dark-400 shrink-0">Wrapper protocol fee</dt>
-              <dd className="text-right text-dark-100" title="Output-side fee via Swaperex wrapper; amounts shown are net">
-                {(getUniswapWrapperFeeBpsForUi() / 100).toFixed(2)}%
-              </dd>
-            </div>
-            {isUniswapWrapperFeeBpsUnverified() && (
-              <p className="text-[10px] text-dark-500 leading-snug">{SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}</p>
-            )}
-          </div>
-        )}
-        {quote.provider === 'uniswap-v3-wrapper-v2' && (
-          <div className="flex flex-col gap-1">
-            <div className="flex justify-between gap-3">
-              <dt className="text-dark-400 shrink-0">Wrapper V2 protocol fee</dt>
-              <dd className="text-right text-dark-100" title="Output-side fee via Swaperex wrapper V2; amounts shown are net">
-                {(getUniswapWrapperV2FeeBpsForUi() / 100).toFixed(2)}%
-              </dd>
-            </div>
-            {isUniswapWrapperV2FeeBpsUnverified() && (
-              <p className="text-[10px] text-dark-500 leading-snug">{SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}</p>
-            )}
-          </div>
-        )}
-        {quote.provider === 'uniswap-v3-wrapper-v3' && (
-          <div className="flex flex-col gap-1">
-            <div className="flex justify-between gap-3">
-              <dt className="text-dark-400 shrink-0">Wrapper V3 protocol fee</dt>
-              <dd className="text-right text-dark-100" title="Output-side fee via Swaperex wrapper V3 (multi-hop); amounts shown are net">
-                {(getUniswapWrapperV3FeeBpsForUi() / 100).toFixed(2)}%
-              </dd>
-            </div>
-          </div>
-        )}
-        {quote.provider === 'pancakeswap-v3-wrapper' && (
-          <div className="flex flex-col gap-1">
-            <div className="flex justify-between gap-3">
-              <dt className="text-dark-400 shrink-0">Wrapper protocol fee</dt>
-              <dd className="text-right text-dark-100" title="Output-side fee via Swaperex Pancake wrapper; amounts shown are net">
-                {(getPancakeWrapperFeeBpsForUi() / 100).toFixed(2)}%
-              </dd>
-            </div>
-            {isPancakeWrapperFeeBpsUnverified() && (
-              <p className="text-[10px] text-dark-500 leading-snug">{SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}</p>
-            )}
-          </div>
-        )}
-        {quote.provider === 'pancakeswap-v3-wrapper-v2' && (
-          <div className="flex flex-col gap-1">
-            <div className="flex justify-between gap-3">
-              <dt className="text-dark-400 shrink-0">Wrapper V2 protocol fee</dt>
-              <dd className="text-right text-dark-100" title="Output-side fee via Swaperex Pancake wrapper V2; amounts shown are net">
-                {(getPancakeWrapperV2FeeBpsForUi() / 100).toFixed(2)}%
-              </dd>
-            </div>
-            {isPancakeWrapperV2FeeBpsUnverified() && (
-              <p className="text-[10px] text-dark-500 leading-snug">{SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}</p>
-            )}
-          </div>
-        )}
-        {isCommissionWrapperExecutionProvider(quote.provider) && (
-          <div className="pt-0.5">
-            <p className="text-[10px] text-dark-500 leading-snug">{SWAP_SURFACE_COPY.previewWrapperNetFeeNote}</p>
-          </div>
-        )}
-        <div className="flex justify-between gap-3">
-          <dt className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.gasLimitEstimateLabel}</dt>
-          <dd className="text-right font-mono text-dark-100">{gasUnitsDisplay ?? '—'}</dd>
-        </div>
-        <div className="pt-2 border-t border-white/[0.06] mt-1">
-          <p className="text-[11px] text-dark-500 leading-snug">{SWAP_SURFACE_COPY.networkFeeWalletFallback}</p>
-        </div>
       </dl>
     </div>
+  );
+}
+
+
+/** Collapsed fee / provider / pool context for preview step (display-only). */
+function PreviewFeesAdvancedSection({
+  quote,
+  approvalMode,
+  needsApproval,
+  priceImpactUi,
+  priceImpactRowVariant,
+  gasUnitsDisplay,
+}: {
+  quote: SwapQuote;
+  approvalMode: ApprovalMode;
+  needsApproval: boolean;
+  priceImpactUi: ReturnType<typeof getPriceImpactUi>;
+  priceImpactRowVariant: 'normal' | 'warning' | 'danger';
+  gasUnitsDisplay: string | null;
+}) {
+  return (
+    <details className="group rounded-lg border border-white/[0.06] bg-white/[0.02] mb-4">
+      <summary className="cursor-pointer list-none px-3 py-2.5 text-xs font-semibold text-dark-200 hover:text-white flex items-center justify-between">
+        <span>Fees &amp; advanced</span>
+        <span className="text-dark-500 transition-transform group-open:rotate-180" aria-hidden>
+          ▾
+        </span>
+      </summary>
+      <div className="px-3 pb-3 pt-1 space-y-2 text-sm border-t border-white/[0.05]">
+        <DetailRow
+          label="Exchange rate"
+          value={`1 ${quote.from_asset} = ${formatBalance(quote.rate)} ${quote.to_asset}`}
+        />
+        <DetailRow
+          label="Price impact"
+          value={priceImpactUi.label}
+          variant={priceImpactRowVariant}
+          title="Estimated vs. mid price before fees — not your slippage setting"
+        />
+        {quote.provider === '1inch' && isMonetizationActiveForProvider('1inch') && (
+          <>
+            <DetailRow
+              label="Platform fee"
+              value={`${(getMonetizationConfig().feeBps / 100).toFixed(2)}%`}
+              title="Swaperex platform fee via 1inch — taken from the output token when the swap executes"
+            />
+            <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
+              Not gas — applied to output when the swap executes (quote is pre-fee).
+            </p>
+          </>
+        )}
+        {quote.provider === 'uniswap-v3-wrapper' && (
+          <>
+            <DetailRow
+              label="Wrapper protocol fee"
+              value={`${(getUniswapWrapperFeeBpsForUi() / 100).toFixed(2)}%`}
+              title="Swaperex Uniswap wrapper — taken from gross output on-chain; quoted receive amount is net."
+            />
+            {isUniswapWrapperFeeBpsUnverified() && (
+              <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
+                {SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}
+              </p>
+            )}
+          </>
+        )}
+        {quote.provider === 'uniswap-v3-wrapper-v2' && (
+          <>
+            <DetailRow
+              label="Wrapper V2 protocol fee"
+              value={`${(getUniswapWrapperV2FeeBpsForUi() / 100).toFixed(2)}%`}
+              title="Swaperex Uniswap wrapper V2 — taken from gross output on-chain; quoted receive amount is net."
+            />
+            {isUniswapWrapperV2FeeBpsUnverified() && (
+              <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
+                {SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}
+              </p>
+            )}
+          </>
+        )}
+        {quote.provider === 'uniswap-v3-wrapper-v3' && (
+          <DetailRow
+            label="Wrapper V3 protocol fee"
+            value={`${(getUniswapWrapperV3FeeBpsForUi() / 100).toFixed(2)}%`}
+            title="Swaperex Uniswap wrapper V3 (multi-hop) — taken from gross output on-chain; quoted receive amount is net."
+          />
+        )}
+        {quote.provider === 'pancakeswap-v3-wrapper' && (
+          <>
+            <DetailRow
+              label="Wrapper protocol fee"
+              value={`${(getPancakeWrapperFeeBpsForUi() / 100).toFixed(2)}%`}
+              title="Swaperex Pancake wrapper — taken from gross output on-chain; quoted receive amount is net."
+            />
+            {isPancakeWrapperFeeBpsUnverified() && (
+              <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
+                {SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}
+              </p>
+            )}
+          </>
+        )}
+        {quote.provider === 'pancakeswap-v3-wrapper-v2' && (
+          <>
+            <DetailRow
+              label="Wrapper V2 protocol fee"
+              value={`${(getPancakeWrapperV2FeeBpsForUi() / 100).toFixed(2)}%`}
+              title="Swaperex Pancake wrapper V2 — taken from gross output on-chain; quoted receive amount is net."
+            />
+            {isPancakeWrapperV2FeeBpsUnverified() && (
+              <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
+                {SWAP_SURFACE_COPY.wrapperFeeUnverifiedNote}
+              </p>
+            )}
+          </>
+        )}
+        {isCommissionWrapperExecutionProvider(quote.provider) && (
+          <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
+            {SWAP_SURFACE_COPY.previewWrapperNetFeeNote}
+          </p>
+        )}
+        <DetailRow
+          label={SWAP_SURFACE_COPY.gasLimitEstimateLabel}
+          value={gasUnitsDisplay ?? '—'}
+        />
+        <p className="text-[11px] text-dark-500 leading-snug">{SWAP_SURFACE_COPY.networkFeeWalletFallback}</p>
+        {needsApproval && (
+          <DetailRow
+            label="Approval"
+            value={approvalMode === 'exact' ? 'Exact amount' : 'Unlimited'}
+            variant={approvalMode === 'unlimited' ? 'warning' : 'normal'}
+          />
+        )}
+        <DetailRow
+          label={
+            quote.provider === '1inch'
+              ? SWAP_SURFACE_COPY.feeRouteCostLabel
+              : SWAP_SURFACE_COPY.feePoolCostLabel
+          }
+          value={
+            quote.provider === '1inch'
+              ? 'Included in quote (multi-pool)'
+              : quote.provider === 'uniswap-v3-wrapper' ||
+                  quote.provider === 'uniswap-v3-wrapper-v2' ||
+                  quote.provider === 'uniswap-v3-wrapper-v3' ||
+                  quote.provider === 'pancakeswap-v3-wrapper' ||
+                  quote.provider === 'pancakeswap-v3-wrapper-v2'
+                ? `${formatSwapFeeTierDisplay(quote.feeTier)} pool (wrapper route)`
+                : `${formatSwapFeeTierDisplay(quote.feeTier)} fee tier`
+          }
+        />
+        {quote.quoteSelectionReason && (
+          <DetailRow label="Quote selection" value={quote.quoteSelectionReason} />
+        )}
+        {quote.runnerUpAggregatedQuote ? (
+          <DetailRow
+            label={`Runner-up (not selected) · ${swapAggregatorProviderLabel(quote.runnerUpAggregatedQuote.provider)}`}
+            value={`${formatBalance(quote.runnerUpAggregatedQuote.amountOut)} ${quote.to_asset}`}
+          />
+        ) : null}
+      </div>
+    </details>
   );
 }
 
@@ -886,7 +969,9 @@ function SwapSummary({ quote }: { quote: SwapQuote }) {
           <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-primary-900/50 flex items-center justify-center ring-1 ring-primary-500/25">
             <span className="text-lg font-bold text-primary-400">{quote.to_asset[0]}</span>
           </div>
-          <div className="text-xl font-bold text-primary-400 tabular-nums">{formatBalance(quote.to_amount)}</div>
+          <div className="text-2xl sm:text-3xl font-bold text-primary-300 tabular-nums leading-tight">
+            {formatBalance(quote.to_amount)}
+          </div>
           <div className="text-dark-400 text-sm font-medium">{quote.to_asset}</div>
         </div>
       </div>
