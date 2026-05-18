@@ -89,6 +89,7 @@ import {
   routePrecheckBadgeClass,
 } from '@/utils/routePrecheck';
 import { logProductionEvent } from '@/utils/productionMonitoring';
+import { InlineSkeleton } from '@/components/common/InlineSkeleton';
 
 // Chain ID to chain name mapping
 const CHAIN_NAMES: Record<number, string> = {
@@ -1247,6 +1248,87 @@ export function SwapInterface() {
     !isQuoteExpired &&
     !swapQuote.allowanceCheckUncertain;
 
+  const isMainCtaDisabled = isButtonDisabled();
+
+  /** Receive column display — preserves stale quote (K1) during background refresh. */
+  const receiveAmountState = useMemo(() => {
+    const hasInput =
+      Boolean(fromAmount) && parseFloat(fromAmount) > 0 && !insufficientBalance;
+    if (!hasInput) return 'empty' as const;
+    if (hasUsableQuote && swapQuote?.amountOutFormatted) {
+      if (isQuotePipelineLoading && status !== 'checking_allowance') {
+        return 'refreshing' as const;
+      }
+      return 'quoted' as const;
+    }
+    if (isQuoteFetchUiLoading || (showSpinner && !hasUsableQuote)) {
+      return 'loading' as const;
+    }
+    if (hasInput) return 'pending' as const;
+    return 'empty' as const;
+  }, [
+    fromAmount,
+    insufficientBalance,
+    hasUsableQuote,
+    swapQuote?.amountOutFormatted,
+    isQuotePipelineLoading,
+    status,
+    isQuoteFetchUiLoading,
+    showSpinner,
+  ]);
+
+  const mainCtaLabel = getButtonText();
+
+  /** Visual-only CTA styling — does not change disabled rules or execution. */
+  const ctaVisualState = useMemo(() => {
+    if (!isConnected || isWrongChain) return 'neutral' as const;
+    if (
+      status === 'error' &&
+      quoteErrorParsed?.reasonCode === 'unsupported_commission_route' &&
+      !swapQuote
+    ) {
+      return 'unsupported' as const;
+    }
+    if (isSwapReady) return 'ready' as const;
+    if (
+      isQuoteFetchUiLoading ||
+      (showSpinner && !hasUsableQuote && fromAmount && parseFloat(fromAmount) > 0)
+    ) {
+      return 'loading' as const;
+    }
+    if (isMainCtaDisabled) return 'incomplete' as const;
+    return 'neutral' as const;
+  }, [
+    isConnected,
+    isWrongChain,
+    status,
+    quoteErrorParsed?.reasonCode,
+    swapQuote,
+    isSwapReady,
+    isQuoteFetchUiLoading,
+    showSpinner,
+    hasUsableQuote,
+    fromAmount,
+    isMainCtaDisabled,
+  ]);
+
+  const mainCtaClassName = useMemo(() => {
+    const base =
+      'w-full py-3.5 rounded-glass-sm font-semibold text-base transition-all duration-200 disabled:cursor-not-allowed';
+    switch (ctaVisualState) {
+      case 'ready':
+        return `${base} bg-accent text-electro-bg shadow-glow-accent hover:brightness-110 disabled:opacity-50 disabled:shadow-none`;
+      case 'loading':
+        return `${base} bg-electro-panel text-gray-300 border border-accent/40 ring-1 ring-accent/20 animate-pulse disabled:opacity-90`;
+      case 'unsupported':
+        return `${base} bg-amber-950/35 text-amber-50 border border-amber-600/45 hover:bg-amber-900/45 hover:border-amber-500/55`;
+      case 'incomplete':
+        return `${base} bg-electro-panel/50 text-dark-400 border border-white/[0.08] disabled:opacity-65`;
+      default:
+        return `${base} bg-electro-panel text-gray-400 border border-white/[0.1] hover:bg-electro-panelHover hover:border-white/[0.15] disabled:opacity-50 disabled:shadow-none`;
+    }
+  }, [ctaVisualState]);
+
   // Render swap form
   return (
     <>
@@ -1458,7 +1540,7 @@ export function SwapInterface() {
                 Balance:{' '}
                 <span className={`font-medium ${insufficientBalanceForUi ? 'text-red-300' : 'text-dark-300'}`}>
                   {fromBalance === '…' ? (
-                    <span className="text-dark-500 font-normal not-italic">Loading balance…</span>
+                    <InlineSkeleton className="inline-block h-4 w-[4.5rem] align-middle" />
                   ) : fromBalance === 'unavailable' ? (
                     <span className="text-dark-500 font-normal not-italic">Balance unavailable</span>
                   ) : fromBalance === '—' ? (
@@ -1560,7 +1642,7 @@ export function SwapInterface() {
               <span className="font-medium text-dark-300">
                 {(() => {
                   const b = getBalance(toAsset);
-                  if (b === '…') return <span className="text-dark-500 font-normal">Loading balance…</span>;
+                  if (b === '…') return <InlineSkeleton className="inline-block h-4 w-[4.5rem] align-middle" />;
                   if (b === 'unavailable') return <span className="text-dark-500 font-normal">Balance unavailable</span>;
                   if (b === '—') return <span className="text-dark-500 font-normal">—</span>;
                   return formatBalance(b);
@@ -1594,20 +1676,25 @@ export function SwapInterface() {
               )}
             </div>
             {/* Fixed min-height keeps pay/receive rows aligned; quote vs placeholder */}
-            <div className="w-full min-w-0 flex-1 min-h-[2.5rem] text-right flex flex-col items-stretch sm:items-end justify-center overflow-x-auto sm:overflow-x-visible [scrollbar-width:thin]">
-              {showSpinner && status !== 'error' && !hasUsableQuote ? (
+            <div
+              className="w-full min-w-0 flex-1 min-h-[2.5rem] text-right flex flex-col items-stretch sm:items-end justify-center overflow-x-auto sm:overflow-x-visible [scrollbar-width:thin]"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              {receiveAmountState === 'loading' ? (
+                <InlineSkeleton className="h-8 w-[7.5rem] sm:h-9 sm:w-[8.5rem] ml-auto" />
+              ) : receiveAmountState === 'pending' ? (
                 <div className="flex items-center gap-2 justify-end min-w-0">
                   <LoadingSpinner />
                   <span className="text-sm text-dark-400 min-w-0">{SWAP_SURFACE_COPY.gettingQuote}</span>
                 </div>
-              ) : swapQuote && swapQuote.amountOutFormatted ? (
-                <span className="w-full min-w-0 text-right text-xl sm:text-2xl font-medium tabular-nums text-primary-400 break-all">
-                  {formatBalance(swapQuote.amountOutFormatted, 6)}
-                </span>
-              ) : fromAmount && parseFloat(fromAmount) > 0 && !insufficientBalance ? (
-                <span className="text-xl sm:text-2xl font-medium text-dark-500 tabular-nums" title="Quote pending">
-                  —
-                </span>
+              ) : receiveAmountState === 'quoted' || receiveAmountState === 'refreshing' ? (
+                <div className="flex items-center gap-2 justify-end min-w-0 w-full">
+                  {receiveAmountState === 'refreshing' ? <LoadingSpinner /> : null}
+                  <span className="min-w-0 text-right text-xl sm:text-2xl font-semibold tabular-nums text-primary-400 break-all">
+                    {formatBalance(swapQuote!.amountOutFormatted, 6)}
+                  </span>
+                </div>
               ) : (
                 <span className="text-lg sm:text-xl font-medium text-dark-600/50 tabular-nums select-none" aria-hidden>
                   —
@@ -2234,29 +2321,28 @@ export function SwapInterface() {
         {/* Swap Button */}
         <div className="relative z-10 mt-4">
           <button
+            id="swap-main-cta"
             onClick={() => void handleMainSwapAction()}
             disabled={isButtonDisabled()}
-            className={`
-              w-full py-3.5 rounded-glass-sm font-semibold text-base
-              transition-all duration-200
-              disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none
-              ${isSwapReady
-                ? 'bg-accent text-electro-bg shadow-glow-accent hover:brightness-110'
-                : showSpinner && !hasUsableQuote
-                  ? 'bg-electro-panel text-gray-400 border border-white/[0.1]'
-                  : 'bg-electro-panel text-gray-400 border border-white/[0.1] hover:bg-electro-panelHover hover:border-white/[0.15]'
-              }
-            `}
+            className={mainCtaClassName}
+            title={mainCtaLabel}
+            aria-describedby="swap-main-cta-desc"
           >
-            {showSpinner && status !== 'error' && !hasUsableQuote ? (
+            {ctaVisualState === 'loading' &&
+            showSpinner &&
+            status !== 'error' &&
+            !hasUsableQuote ? (
               <span className="flex items-center justify-center gap-2">
                 <LoadingSpinner />
                 <span>{SWAP_SURFACE_COPY.gettingQuote}</span>
               </span>
             ) : (
-              getButtonText()
+              mainCtaLabel
             )}
           </button>
+          <span id="swap-main-cta-desc" className="sr-only">
+            {mainCtaLabel}
+          </span>
         </div>
 
         {/* Security Footer */}
