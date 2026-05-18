@@ -156,7 +156,7 @@ export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelPro
       {loading && items.length === 0 && (
         <div className="animate-pulse space-y-2">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-14 bg-dark-800 rounded-xl" />
+            <div key={i} className="h-11 bg-dark-800 rounded-lg" />
           ))}
         </div>
       )}
@@ -189,7 +189,7 @@ export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelPro
 
       {/* Activity rows */}
       {filteredItems.length > 0 && (
-        <div className="space-y-1.5 animate-fadeIn">
+        <div className="space-y-1 animate-fadeIn">
           {filteredItems.map((item) => (
             <ActivityRow
               key={item.id}
@@ -206,21 +206,68 @@ export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelPro
   );
 }
 
-function SwapRouteContextNote({ type, provider }: { type: ActivityType; provider?: string }) {
-  if (type !== 'swap' || !provider || provider === 'transfer') return null;
-  if (isCommissionWrapperExecutionProvider(provider)) {
-    return (
-      <p className="text-[10px] text-primary-400/85 mt-0.5 leading-snug font-medium">
-        {SWAP_SURFACE_COPY.activityCommissionRouteLabel}
-      </p>
-    );
+const CHAIN_LABELS: Record<number, string> = {
+  1: 'ETH',
+  56: 'BSC',
+  137: 'Polygon',
+  42161: 'Arbitrum',
+};
+
+function stripDetailMinSuffix(detail: string): string {
+  return detail.replace(/\s*·\s*min\s+[\d.]+(?:e[+-]?\d+)?\s*$/i, '').trim();
+}
+
+function formatAmountLine(item: ActivityItem): string {
+  if (item.tokenIn && item.tokenOut) {
+    const outRaw = item.tokenOut.amount;
+    const outDisplay = outRaw.startsWith('~') ? outRaw : `~${outRaw}`;
+    return `${item.tokenIn.amount} ${item.tokenIn.symbol} → ${outDisplay} ${item.tokenOut.symbol}`;
+  }
+  return stripDetailMinSuffix(item.detail);
+}
+
+type RoutePill = { label: string; tone: 'commission' | 'historical' | 'neutral' };
+
+function buildRoutePill(item: ActivityItem): RoutePill | null {
+  if (item.type !== 'swap' || !item.provider || item.provider === 'transfer') return null;
+  const providerLabel = swapAggregatorProviderLabel(item.provider);
+  if (isCommissionWrapperExecutionProvider(item.provider)) {
+    return { label: `Commission · ${providerLabel}`, tone: 'commission' };
   }
   if (isCommissionRequiredMode()) {
-    return (
-      <p className="text-[10px] text-amber-200/75 mt-0.5 leading-snug">
-        {SWAP_SURFACE_COPY.activityHistoricalRouteLabel}
-      </p>
-    );
+    return { label: `Historical · ${providerLabel}`, tone: 'historical' };
+  }
+  return { label: providerLabel, tone: 'neutral' };
+}
+
+function routePillClass(tone: RoutePill['tone']): string {
+  switch (tone) {
+    case 'commission':
+      return 'border-primary-500/25 bg-primary-950/40 text-primary-300/90';
+    case 'historical':
+      return 'border-amber-700/30 bg-amber-950/25 text-amber-200/80';
+    default:
+      return 'border-white/[0.08] bg-white/[0.04] text-dark-300';
+  }
+}
+
+function buildSettlementLine(item: ActivityItem): { text: string; tooltip: string } | null {
+  if (item.type !== 'swap' || item.status !== 'success') return null;
+  const min = item.localRecord?.minimumToAmount;
+  if (!min) return null;
+  const sym = item.tokenOut?.symbol ?? item.localRecord?.toAsset.symbol ?? '';
+  return {
+    text: `Min received: ${min} ${sym}`.trim(),
+    tooltip: `Minimum received at send: ${min} ${sym}. ${SWAP_SURFACE_COPY.minimumReceivedExactFooter}`,
+  };
+}
+
+function statusHint(item: ActivityItem): string | null {
+  if (item.type !== 'swap') return null;
+  if (item.status === 'pending') return 'Pending — verify on the explorer before retrying.';
+  if (item.status === 'uncertain') return 'Outcome unclear — verify on the explorer before retrying.';
+  if (item.status === 'failed' && item.txHash) {
+    return 'Failed on-chain — verify on the explorer before retrying.';
   }
   return null;
 }
@@ -234,92 +281,85 @@ function ActivityRow({
   item: ActivityItem;
   onRepeat?: (record: SwapRecord) => void;
 }) {
-  const CHAIN_LABELS: Record<number, string> = {
-    1: 'ETH',
-    56: 'BSC',
-    137: 'Polygon',
-    42161: 'Arbitrum',
-  };
+  const amountLine = formatAmountLine(item);
+  const routePill = buildRoutePill(item);
+  const settlement = buildSettlementLine(item);
+  const hint = statusHint(item);
 
   return (
-    <div className="flex items-center justify-between p-3 bg-dark-800 rounded-xl hover:bg-dark-700/50 transition-colors group">
-      {/* Left: status + details */}
-      <div className="flex items-center gap-3 min-w-0 flex-1">
-        {/* Status icon */}
+    <div className="flex items-start justify-between gap-2 p-2.5 bg-dark-800/90 border border-white/[0.05] rounded-lg hover:bg-dark-700/45 transition-colors group">
+      <div className="flex items-start gap-2.5 min-w-0 flex-1">
         <StatusIcon status={item.status} type={item.type} />
 
-        {/* Details */}
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5">
-            <span className="font-medium text-sm truncate">{item.title}</span>
-            <span className="px-1 py-0.5 bg-dark-700 text-dark-400 text-[9px] font-medium rounded">
+        <div className="min-w-0 flex-1 space-y-0.5">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="font-medium text-sm text-dark-100 truncate">{item.title}</span>
+            <span className="shrink-0 px-1 py-0.5 bg-dark-700/80 text-dark-400 text-[9px] font-medium rounded">
               {CHAIN_LABELS[item.chainId] || 'Chain'}
             </span>
           </div>
-          <div className="text-[11px] text-dark-500 truncate">
-            {item.detail}
-            {item.provider && item.provider !== 'transfer' && (
-              <span className="text-dark-600">
-                {' '}
-                · {SWAP_SURFACE_COPY.routeViaLabel} {swapAggregatorProviderLabel(item.provider)}
-              </span>
-            )}
-          </div>
-          <SwapRouteContextNote type={item.type} provider={item.provider} />
-          {item.type === 'swap' && item.status === 'pending' && (
-            <p className="text-[10px] text-amber-200/80 mt-0.5 leading-snug">
-              Pending — verify on the explorer before retrying.
-            </p>
+
+          <p className="text-[11px] text-dark-300 tabular-nums truncate leading-snug">{amountLine}</p>
+
+          {(routePill || settlement) && (
+            <div className="flex flex-wrap items-center gap-1 pt-0.5">
+              {routePill && (
+                <span
+                  className={`inline-flex max-w-full truncate rounded px-1.5 py-0.5 text-[9px] font-medium leading-none border ${routePillClass(routePill.tone)}`}
+                  title={routePill.label}
+                >
+                  {routePill.label}
+                </span>
+              )}
+              {settlement && (
+                <span
+                  className="text-[10px] text-dark-500 truncate leading-none"
+                  title={settlement.tooltip}
+                >
+                  {settlement.text}
+                </span>
+              )}
+            </div>
           )}
-          {item.type === 'swap' && item.status === 'uncertain' && (
-            <p className="text-[10px] text-amber-200/80 mt-0.5 leading-snug">
-              Outcome unclear — verify on the explorer before retrying.
-            </p>
-          )}
-          {item.type === 'swap' && item.status === 'failed' && item.txHash && (
-            <p className="text-[10px] text-amber-200/80 mt-0.5 leading-snug">
-              Failed on-chain — verify on the explorer before retrying.
-            </p>
-          )}
-          {item.type === 'swap' && item.status === 'success' && (
-            <p className="text-[10px] text-dark-500 mt-0.5 leading-snug">
-              {item.localRecord?.minimumToAmount
-                ? `Minimum received at send: ${item.localRecord.minimumToAmount} ${item.tokenOut?.symbol ?? ''}. ${SWAP_SURFACE_COPY.minimumReceivedExactFooter}`
-                : SWAP_SURFACE_COPY.confirmedOnChainNoExact}
-            </p>
+
+          {hint && (
+            <p className="text-[10px] text-amber-200/80 leading-snug pt-0.5">{hint}</p>
           )}
         </div>
       </div>
 
-      {/* Right: time + actions */}
-      <div className="flex items-center gap-2 flex-shrink-0">
-        <span className="text-[11px] text-dark-500">{formatActivityTime(item.ts)}</span>
-
-        {/* Repeat button */}
-        {item.canRepeat && item.localRecord && onRepeat && (
-          <button
-            onClick={() => onRepeat(item.localRecord!)}
-            className="px-2 py-1 bg-primary-600/20 text-primary-400 rounded text-[11px] font-medium hover:bg-primary-600/30 transition-colors opacity-0 group-hover:opacity-100"
-            title="Repeat this swap"
-          >
-            Repeat
-          </button>
-        )}
-
-        {/* Explorer link */}
-        {item.explorerUrl && (
-          <a
-            href={item.explorerUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="p-1.5 text-dark-500 hover:text-dark-300 transition-colors"
-            title="View on explorer"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-            </svg>
-          </a>
-        )}
+      <div className="flex flex-col items-end gap-1 shrink-0 pt-0.5">
+        <span className="text-[10px] text-dark-500 whitespace-nowrap">{formatActivityTime(item.ts)}</span>
+        <div className="flex items-center gap-0.5">
+          {item.canRepeat && item.localRecord && onRepeat && (
+            <button
+              type="button"
+              onClick={() => onRepeat(item.localRecord!)}
+              className="min-h-[32px] min-w-[32px] px-2 py-1 bg-primary-600/20 text-primary-400 rounded text-[10px] font-medium hover:bg-primary-600/30 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
+              title="Repeat this swap"
+            >
+              Repeat
+            </button>
+          )}
+          {item.explorerUrl && (
+            <a
+              href={item.explorerUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-[32px] min-w-[32px] items-center justify-center p-1.5 text-dark-500 hover:text-dark-200 transition-colors"
+              title="View on explorer"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                />
+              </svg>
+            </a>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -357,8 +397,8 @@ function StatusIcon({ status, type }: { status: string; type: ActivityType }) {
   };
 
   return (
-    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${bgColor}`}>
-      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${bgColor}`}>
+      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         {icon()}
       </svg>
     </div>
