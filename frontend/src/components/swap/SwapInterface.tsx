@@ -24,6 +24,7 @@ import { evaluatePresetGuards } from '@/services/presetGuardService';
 import { TokenSafetyBadges } from '@/components/common/TokenSafetyBadges';
 import { SwapPreviewModal, SwapStep } from './SwapPreviewModal';
 import { SwapExecutionRail } from './SwapExecutionRail';
+import { RouteTransparencyCard } from './RouteTransparencyCard';
 import { TermsGateModal } from '@/components/common/TermsGateModal';
 import { useTermsStore } from '@/stores/termsStore';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
@@ -1824,6 +1825,29 @@ export function SwapInterface() {
                 )
               )}
             </div>
+
+            <RouteTransparencyCard
+              providerLabel={swapAggregatorProviderLabel(swapQuote.provider)}
+              routeModeLabel={formatQuoteRoutePreferenceLabel(swapQuote.routeMode)}
+              amountOutFormatted={formatBalance(swapQuote.amountOutFormatted, 6)}
+              minimumReceived={`${formatBalance(swapQuote.minimum_received, 6)} ${toAsset?.symbol ?? ''}`}
+              priceImpactLabel={getPriceImpactUi(swapQuote.price_impact).label}
+              priceImpactSeverity={getPriceImpactUi(swapQuote.price_impact).severity}
+              gasUnitsDisplay={formatGasLimitUnits(swapQuote.gasEstimate)}
+              quoteSelectionReason={swapQuote.quoteSelectionReason}
+              runnerUpProviderLabel={
+                swapQuote.runnerUpAggregatedQuote
+                  ? swapAggregatorProviderLabel(swapQuote.runnerUpAggregatedQuote.provider)
+                  : null
+              }
+              runnerUpAmountOut={
+                swapQuote.runnerUpAggregatedQuote
+                  ? `${formatBalance(swapQuote.runnerUpAggregatedQuote.amountOut, 6)} ${toAsset?.symbol ?? ''}`
+                  : null
+              }
+              needsApproval={swapQuote.needsApproval}
+              allowanceCheckUncertain={swapQuote.allowanceCheckUncertain}
+            />
 
             {/* Main summary — production-friendly */}
             <div className="rounded-xl border border-white/[0.07] bg-black/20 p-3 space-y-2 mt-1 min-w-0">
