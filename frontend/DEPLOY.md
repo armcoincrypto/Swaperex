@@ -54,6 +54,45 @@
 
 Override with `VITE_API_URL` / `VITE_SIGNALS_API_URL` if needed.
 
+## dev.dex.kobbex.com (separate dev static host)
+
+Isolated from production: **`/var/www/swaperex-dev`**, nginx vhost **`scripts/nginx/dev.dex.kobbex.com.conf`**.
+
+Production **`dex.kobbex.com`** and **`/var/www/swaperex`** are untouched by dev scripts.
+
+1. **First-time nginx + TLS** (on server):
+   ```bash
+   sudo mkdir -p /var/www/swaperex-dev
+   sudo bash scripts/apply-nginx-dev.sh
+   # If nginx -t fails on missing cert:
+   sudo certbot certonly --webroot -w /var/www/swaperex-dev -d dev.dex.kobbex.com
+   sudo nginx -t && sudo systemctl reload nginx
+   ```
+
+2. **Deploy dev frontend** (same backend APIs via nginx proxy as prod for now):
+   ```bash
+   cd /root/Swaperex
+   git pull
+   sudo bash scripts/deploy-dev-frontend.sh
+   ```
+
+3. **Verify**:
+   ```bash
+   bash scripts/audit/verify-dev-live.sh
+   curl -sS https://dev.dex.kobbex.com/version.txt   # must include environment=dev
+   ```
+
+4. **Rollback dev only**:
+   ```bash
+   sudo rm -rf /var/www/swaperex-dev
+   sudo mv /var/www/swaperex-dev-backup-<timestamp> /var/www/swaperex-dev
+   sudo systemctl reload nginx
+   sudo rm -f /etc/nginx/sites-enabled/dev.dex.kobbex.com.conf
+   sudo nginx -t && sudo systemctl reload nginx
+   ```
+
+---
+
 ## Verify after deploy
 
 1. Open https://dex.kobbex.com

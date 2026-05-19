@@ -1,0 +1,7 @@
+# Written by scripts/deploy-dev-frontend.sh to /var/www/swaperex-dev/version.txt
+environment=dev
+host=dev.dex.kobbex.com
+commit=<full-git-sha>
+short=<short-sha>
+branch=<branch>
+deployed=<iso8601-utc>
