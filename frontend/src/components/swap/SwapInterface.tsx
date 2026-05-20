@@ -1775,9 +1775,9 @@ export function SwapInterface() {
 
         {/* Quote Details (when quote available) */}
         {swapQuote && (status === 'previewing' || isQuotePipelineLoading) && !showPreview && (
-          <div className="relative z-10 mt-4 p-4 bg-electro-bgAlt/70 rounded-xl text-sm space-y-2 border border-white/[0.1] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-            {/* Quote validity — route preference lives in summary + Advanced details */}
-            <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/[0.06] rounded-lg bg-white/[0.03] px-2 py-2">
+          <div className="relative z-10 mt-4 p-3 sm:p-4 bg-electro-bgAlt/70 rounded-xl text-sm space-y-1.5 border border-white/[0.1] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+            {/* Quote validity — route transparency in RouteTransparencyCard; economics in summary below */}
+            <div className="flex items-center justify-between pb-1.5 mb-1 border-b border-white/[0.06] rounded-lg bg-white/[0.03] px-2 py-1.5">
               <span className="text-xs font-medium text-dark-400" title="Quote is valid for a short time; refresh if the timer expires.">
                 Quote
               </span>
@@ -1849,24 +1849,12 @@ export function SwapInterface() {
               allowanceCheckUncertain={swapQuote.allowanceCheckUncertain}
             />
 
-            {/* Main summary — production-friendly */}
-            <div className="rounded-xl border border-white/[0.07] bg-black/20 p-3 space-y-2 mt-1 min-w-0">
+            {/* Main summary — execution economics (route/min/gas in RouteTransparencyCard above) */}
+            <div className="rounded-lg border border-white/[0.05] bg-black/10 px-2.5 py-2 space-y-1.5 min-w-0">
               <div className="flex justify-between gap-2 min-w-0 items-baseline">
                 <span className="text-dark-400 shrink-0">Exchange rate</span>
                 <span className="min-w-0 text-right text-dark-100 break-words tabular-nums">
                   1 {fromAsset?.symbol} = {formatBalance(swapQuote.rate, 6)} {toAsset?.symbol}
-                </span>
-              </div>
-              <div className="flex justify-between gap-2 min-w-0 items-baseline">
-                <span className="text-dark-400 shrink-0">Minimum received</span>
-                <span className="min-w-0 text-right text-dark-100 break-words tabular-nums">
-                  {formatBalance(swapQuote.minimum_received, 6)} {toAsset?.symbol}
-                </span>
-              </div>
-              <div className="flex justify-between gap-2 min-w-0 items-baseline">
-                <span className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.routePreferenceLabel}</span>
-                <span className="min-w-0 text-right text-dark-100 break-words">
-                  {formatQuoteRoutePreferenceLabel(swapQuote.routeMode)}
                 </span>
               </div>
               {showUniswapWrapperV3CanaryHint && (
@@ -1972,19 +1960,10 @@ export function SwapInterface() {
                   </div>
                 );
               })()}
-              <div className="border-t border-dark-700 pt-2 mt-2 space-y-1">
-                <div className="flex justify-between gap-2 min-w-0 items-baseline">
-                  <span className="text-dark-400 shrink-0">Est. network fee (gas)</span>
-                  <span className="min-w-0 text-right text-dark-300 font-mono tabular-nums break-words">
-                    {formatGasLimitUnits(swapQuote.gasEstimate) ?? '—'} units
-                  </span>
-                </div>
-                <p className="text-[10px] text-dark-500 leading-snug">Your wallet sets the final gas limit and fee.</p>
-              </div>
             </div>
 
             {/* Advanced details — full technical context; open by default with ?debug=1 */}
-            <div className="mt-2">
+            <div className="mt-1.5">
               <button
                 type="button"
                 onClick={() => setShowAdvancedQuoteDetails((o) => !o)}
