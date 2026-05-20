@@ -269,16 +269,11 @@ export function SwapPreviewModal({
           boxClass: 'text-blue-300 bg-blue-900/20 border border-blue-800/40',
           text: 'Submitted to the network. Waiting for confirmation. Closing this dialog does not cancel the transaction — use the explorer link below to monitor status.',
         }
-      : step === 'approving'
+      : step === 'approving' || step === 'swapping'
         ? {
-            boxClass: 'text-yellow-400 bg-yellow-900/20',
-            text: 'Check your wallet to approve token spending. If a request is already open, complete or reject it there. You can close this dialog to return to the form — that does not cancel a pending wallet request.',
+            boxClass: 'text-amber-100 bg-amber-950/30 border border-amber-700/40',
+            text: SWAP_SURFACE_COPY.walletInProgressGuidance,
           }
-        : step === 'swapping'
-          ? {
-              boxClass: 'text-yellow-400 bg-yellow-900/20',
-              text: 'Check your wallet to confirm the swap. If you see a “request already pending” (-32002) message, open your wallet and finish or reject the existing request. You can close this dialog to return to the form — that does not cancel a pending wallet request.',
-            }
           : {
               boxClass: 'text-yellow-400 bg-yellow-900/20',
               text: 'Your wallet will open to confirm this transaction.',
@@ -595,11 +590,26 @@ export function SwapPreviewModal({
             </div>
           )}
 
-          {/* Wallet / confirmation notice */}
-          <div className={`flex items-start gap-2 rounded-lg p-3 mb-4 ${walletNotice.boxClass}`}>
-            <WalletIcon />
-            <span className="text-sm leading-snug">{walletNotice.text}</span>
-          </div>
+          {(step === 'approving' || step === 'swapping') && (
+            <div
+              className="flex items-start gap-2 rounded-lg p-3 mb-3 text-amber-100 bg-amber-950/35 border border-amber-600/45"
+              role="status"
+              aria-live="polite"
+            >
+              <WalletIcon />
+              <span className="text-sm font-medium leading-snug">
+                {SWAP_SURFACE_COPY.walletInProgressGuidance}
+              </span>
+            </div>
+          )}
+
+          {/* Wallet / confirmation notice (approving/swapping use dedicated banner above) */}
+          {step !== 'approving' && step !== 'swapping' && (
+            <div className={`flex items-start gap-2 rounded-lg p-3 mb-4 ${walletNotice.boxClass}`}>
+              <WalletIcon />
+              <span className="text-sm leading-snug">{walletNotice.text}</span>
+            </div>
+          )}
 
           {step === 'broadcasting' && txHash && explorerUrl && (
             <div className="bg-dark-800 rounded-lg p-3 mb-4 space-y-2">
@@ -1106,66 +1116,78 @@ function SuccessContent({
     receiptSettlement.feeSymbol &&
     feeProvenanceSuffix != null;
 
+  const receivedLabel = receiptSettlement
+    ? `${receiptSettlement.receivedHuman} ${receiptSettlement.receivedSymbol}`
+    : `${formatBalance(quote.to_amount)} ${quote.to_asset}`;
+  const receivedSubline = receiptSettlement?.userReceivedSource === 'receipt'
+    ? 'Confirmed on-chain'
+    : SWAP_SURFACE_COPY.successQuoteBasisLine;
+
   return (
     <div className="text-center">
-      {/* Success Icon with animated check */}
-      <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-green-900/30 flex items-center justify-center animate-pulse-once">
+      <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-green-900/30 flex items-center justify-center animate-pulse-once">
         <CheckIcon />
       </div>
 
-      <h3 className="text-2xl font-bold mb-1 text-green-400">Swap Successful!</h3>
-      <p className="text-dark-400 text-sm mb-4">{timestamp}</p>
+      <h3 className="text-xl font-bold mb-1 text-green-400">Swap Successful!</h3>
+      <p className="text-dark-500 text-xs mb-4">{timestamp}</p>
 
-      {/* Receipt Card */}
-      <div className="bg-dark-800 rounded-xl p-4 mb-4 text-left">
-        {/* Swap Summary */}
-        <div className="flex items-center justify-center gap-4 pb-4 border-b border-dark-700 mb-3">
-          <div className="text-center">
-            <div className="w-10 h-10 mx-auto mb-1.5 rounded-full bg-dark-700 flex items-center justify-center">
-              <span className="text-lg font-bold">{quote.from_asset[0]}</span>
-            </div>
-            <div className="text-lg font-bold">{formatBalance(quote.from_amount)}</div>
+      {/* Hero — received amount */}
+      <div className="rounded-xl border border-green-800/40 bg-green-950/25 px-4 py-4 mb-4 text-center">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-green-400/90 mb-1">
+          You received
+        </p>
+        <p className="text-2xl sm:text-3xl font-bold text-green-300 tabular-nums leading-tight break-all">
+          {receivedLabel}
+        </p>
+        <p className="text-[11px] text-dark-400 mt-1.5 leading-snug">{receivedSubline}</p>
+        {showProtocolFeeAmount ? (
+          <p className="text-sm text-dark-300 mt-3 pt-3 border-t border-green-900/40">
+            Protocol fee:{' '}
+            <span className="font-medium tabular-nums text-dark-100">
+              {receiptSettlement!.feeHuman} {receiptSettlement!.feeSymbol}
+            </span>
+            <span className="text-dark-500 text-xs block mt-0.5">{feeProvenanceSuffix}</span>
+          </p>
+        ) : null}
+      </div>
+
+      {txHash && explorerUrl && (
+        <a
+          href={explorerUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block mb-4"
+        >
+          <Button variant="primary" fullWidth>
+            <span className="flex items-center justify-center gap-2">
+              View on block explorer
+              <ExternalLinkIcon />
+            </span>
+          </Button>
+        </a>
+      )}
+
+      {/* Receipt Card — pay/receive context + details */}
+      <div className="bg-dark-800 rounded-xl p-4 mb-3 text-left">
+        <div className="flex items-center justify-center gap-4 pb-3 border-b border-dark-700 mb-3">
+          <div className="text-center min-w-0 flex-1">
+            <div className="text-[10px] text-dark-500 mb-0.5">You paid</div>
+            <div className="text-base font-semibold tabular-nums">{formatBalance(quote.from_amount)}</div>
             <div className="text-dark-400 text-xs">{quote.from_asset}</div>
           </div>
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 text-dark-500">
             <ArrowRightIcon />
           </div>
-          <div className="text-center">
-            <div className="w-10 h-10 mx-auto mb-1.5 rounded-full bg-green-900/50 flex items-center justify-center">
-              <span className="text-lg font-bold text-green-400">{quote.to_asset[0]}</span>
+          <div className="text-center min-w-0 flex-1">
+            <div className="text-[10px] text-dark-500 mb-0.5">Quoted receive</div>
+            <div className="text-base font-semibold tabular-nums text-primary-400/90">
+              {formatBalance(quote.to_amount)}
             </div>
-            <div className="text-lg font-bold text-green-400">{formatBalance(quote.to_amount)}</div>
             <div className="text-dark-400 text-xs">{quote.to_asset}</div>
           </div>
         </div>
-        {receiptSettlement ? (
-          <div className="text-[11px] text-dark-300 text-center mb-3 leading-snug space-y-1.5">
-            <p>
-              You received:{' '}
-              <span className="text-white font-medium tabular-nums">
-                {receiptSettlement.receivedHuman} {receiptSettlement.receivedSymbol}
-              </span>
-              {receiptSettlement.userReceivedSource === 'receipt' ? (
-                <span className="text-dark-500"> (on-chain)</span>
-              ) : null}
-            </p>
-            {showProtocolFeeAmount ? (
-              <p>
-                Protocol fee:{' '}
-                <span className="text-white font-medium tabular-nums">
-                  {receiptSettlement!.feeHuman} {receiptSettlement!.feeSymbol}
-                </span>
-                <span className="text-dark-500 font-normal"> {feeProvenanceSuffix}</span>
-              </p>
-            ) : null}
-          </div>
-        ) : (
-          <p className="text-[11px] text-dark-500 text-center mb-3 leading-snug">
-            {SWAP_SURFACE_COPY.successQuoteBasisLine}
-          </p>
-        )}
 
-        {/* Receipt Details — keep quoted output, min out, route; rate/slippage/impact stay on preview card */}
         <div className="space-y-2 text-sm">
           <div className="flex justify-between gap-2">
             <span className="text-dark-400 shrink-0">Quoted output</span>
@@ -1193,20 +1215,19 @@ function SuccessContent({
         </div>
       </div>
 
-      {/* Transaction Hash with Copy */}
+      {/* Transaction hash — secondary to explorer */}
       {txHash && (
-        <div className="bg-dark-800 rounded-lg p-3 mb-4">
+        <div className="bg-dark-900/60 rounded-lg px-3 py-2.5 mb-4 border border-white/[0.06] text-left">
           <div className="flex items-center justify-between gap-2">
             <div className="flex-1 min-w-0">
-              <div className="text-xs text-dark-400 mb-1">Transaction Hash</div>
-              <div className="font-mono text-xs truncate text-dark-300">
-                {txHash}
-              </div>
+              <div className="text-[10px] uppercase tracking-wide text-dark-500 mb-1">Transaction hash</div>
+              <div className="font-mono text-[11px] text-dark-400 break-all leading-snug">{txHash}</div>
             </div>
             <button
-              onClick={handleCopyTxHash}
-              className={`p-2 rounded-lg transition-colors ${
-                copied ? 'bg-green-900/30 text-green-400' : 'bg-dark-700 hover:bg-dark-600 text-dark-400'
+              type="button"
+              onClick={() => void handleCopyTxHash()}
+              className={`shrink-0 p-2 rounded-lg transition-colors ${
+                copied ? 'bg-green-900/30 text-green-400' : 'bg-dark-800 hover:bg-dark-700 text-dark-500'
               }`}
               title={copied ? 'Copied!' : 'Copy hash'}
             >
@@ -1216,27 +1237,9 @@ function SuccessContent({
         </div>
       )}
 
-      {/* Actions — explorer primary for verification */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        {txHash && (
-          <a
-            href={explorerUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex-1 min-w-0"
-          >
-            <Button variant="primary" fullWidth>
-              <span className="flex items-center justify-center gap-2">
-                View explorer
-                <ExternalLinkIcon />
-              </span>
-            </Button>
-          </a>
-        )}
-        <Button variant="secondary" onClick={onClose} fullWidth className="flex-1">
-          Done
-        </Button>
-      </div>
+      <Button variant="secondary" onClick={onClose} fullWidth>
+        Done
+      </Button>
     </div>
   );
 }

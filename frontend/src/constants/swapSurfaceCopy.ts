@@ -143,6 +143,18 @@ export const SWAP_SURFACE_COPY = {
   swapCardTrustMicroLine:
     'Confirm amounts in your wallet before signing — quotes expire in ~30s.',
 
+  /** Ethereum mainnet — native ETH selected (display-only; does not affect approval logic). */
+  ethNativeHelper:
+    'ETH is native gas asset. No token approval is needed for ETH itself.',
+
+  /** Ethereum mainnet — WETH selected (display-only). */
+  wethHelper:
+    'WETH is wrapped ETH, an ERC-20 token. It may require approval before swapping.',
+
+  /** Preview modal — approving / swapping steps */
+  walletInProgressGuidance:
+    'Wallet request is open. Complete or reject it in your wallet before clicking again.',
+
   /**
    * Single primary trust line on the swap card (P4.3): signing, settlement, custody.
    * Detail (wrapper output fees) stays in `quoteFeesFootnote` + preview rows where relevant.
