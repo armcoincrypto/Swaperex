@@ -118,6 +118,8 @@ export type RoutePrecheckAsset = {
   symbol: string;
   contract_address?: string | null;
   isCustom?: boolean;
+  /** Display-only hint for native ↔ wrapped detection (P2.1). */
+  is_native?: boolean;
 } | null;
 
 export function computeRoutePrecheck(input: {

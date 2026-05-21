@@ -49,10 +49,15 @@ export const SWAP_SURFACE_COPY = {
   unsupportedCommissionRouteTitle:
     'This pair is not supported by Swaperex commission routing yet.',
   unsupportedCommissionRouteHelper:
-    'Swaperex only enables pairs that can route through its commission wrapper. Try a major token pair such as ETH ⇄ USDT, ETH ⇄ USDC, ETH ⇄ WETH, or ETH ⇄ WBTC.',
+    'Swaperex only enables pairs that can route through its commission wrapper. Try ETH ⇄ USDC, ETH ⇄ USDT, WETH ⇄ USDC, or WETH ⇄ USDT.',
   /** One-line majors hint under the unsupported commission panel (P4.1-B). */
   unsupportedCommissionRouteQuickTokensEthereum:
-    'Quick picks on Ethereum: ETH, USDT, USDC, WETH, WBTC — then search for anything else.',
+    'Quick picks on Ethereum: ETH ⇄ USDC, ETH ⇄ USDT, WETH ⇄ USDC, WETH ⇄ USDT — then search for anything else.',
+  /** P2.1 — native ↔ wrapped on swap card (display-only; no wrap execution). */
+  nativeWrappedPairRouteHelperEth:
+    'ETH ↔ WETH is a wrap/unwrap action, not a normal DEX swap route. Dedicated wrap support is not enabled here yet.',
+  nativeWrappedPairRouteHelperBsc:
+    'BNB ↔ WBNB is a wrap/unwrap action, not a normal DEX swap route. Dedicated wrap support is not enabled here yet.',
   unsupportedCommissionRouteQuickTokensBsc:
     'Quick picks on BNB Chain: BNB, WBNB, USDT, USDC, BTCB — then search for anything else.',
   unsupportedCommissionRouteQuickTokensDefault:

@@ -84,11 +84,13 @@ import {
   type RouteSupportStatus,
 } from '@/utils/routeSupport';
 import {
-  computeRoutePrecheck,
-  getRoutePrecheckBadgeLabel,
-  getRoutePrecheckDescription,
-  routePrecheckBadgeClass,
-} from '@/utils/routePrecheck';
+  getRoutingDisplayStatus,
+  getRoutingDisplayBadgeLabel,
+  getRoutingDisplayDescription,
+  routingDisplayBadgeClass,
+  routeSupportForAsset,
+} from '@/utils/routingDisplayStatus';
+import type { QuoteFailureReasonCode } from '@/utils/errors';
 import { logProductionEvent } from '@/utils/productionMonitoring';
 import { InlineSkeleton } from '@/components/common/InlineSkeleton';
 
@@ -257,13 +259,10 @@ export function SwapInterface() {
     [swapQuote],
   );
 
-  /** P4.1-D — hide soft hint when a successful quote is on screen (quote wins). */
-  const hideRoutePrecheckRow = Boolean(hasUsableQuote && swapQuote?.success);
-
   const fromRouteSupportForPrecheck: RouteSupportStatus = useMemo(() => {
     if (!fromAsset) return 'unknown';
     const ext = fromAsset as ExtendedAssetInfo;
-    return getTokenRouteSupport(currentChainId, {
+    return routeSupportForAsset(currentChainId, {
       symbol: fromAsset.symbol,
       contract_address: fromAsset.contract_address,
       isCustom: ext.isCustom,
@@ -273,22 +272,37 @@ export function SwapInterface() {
   const toRouteSupportForPrecheck: RouteSupportStatus = useMemo(() => {
     if (!toAsset) return 'unknown';
     const ext = toAsset as ExtendedAssetInfo;
-    return getTokenRouteSupport(currentChainId, {
+    return routeSupportForAsset(currentChainId, {
       symbol: toAsset.symbol,
       contract_address: toAsset.contract_address,
       isCustom: ext.isCustom,
     });
   }, [currentChainId, toAsset]);
 
-  const routePrecheckStatus = useMemo(
+  /**
+
+   * Pipeline UI loading: spinner / "Getting quote…" / disabled main CTA.
+   * During `checking_allowance`, treat as loading even if a prior quote is still on screen — avoids
+   * "Preview Swap" while `handlePreviewSwap` requires `previewing` (race when overlapping requests).
+   */
+  const isQuoteFetchUiLoading = useMemo(
     () =>
-      computeRoutePrecheck({
+      isQuotePipelineLoading &&
+      (!hasUsableQuote || status === 'checking_allowance'),
+    [isQuotePipelineLoading, hasUsableQuote, status],
+  );
+
+  /** P2.1 — single routing truth for swap card (display-only). */
+  const routingDisplay = useMemo(
+    () =>
+      getRoutingDisplayStatus({
         chainId: currentChainId,
         fromAsset: fromAsset
           ? {
               symbol: fromAsset.symbol,
               contract_address: fromAsset.contract_address,
               isCustom: (fromAsset as ExtendedAssetInfo).isCustom,
+              is_native: fromAsset.is_native,
             }
           : null,
         toAsset: toAsset
@@ -296,10 +310,15 @@ export function SwapInterface() {
               symbol: toAsset.symbol,
               contract_address: toAsset.contract_address,
               isCustom: (toAsset as ExtendedAssetInfo).isCustom,
+              is_native: toAsset.is_native,
             }
           : null,
         fromRouteSupport: fromRouteSupportForPrecheck,
         toRouteSupport: toRouteSupportForPrecheck,
+        hasUsableQuote,
+        quoteSuccess: Boolean(swapQuote?.success),
+        quoteErrorReasonCode: quoteErrorParsed?.reasonCode as QuoteFailureReasonCode | null | undefined,
+        isQuoteFetchUiLoading,
       }),
     [
       currentChainId,
@@ -307,18 +326,22 @@ export function SwapInterface() {
       toAsset,
       fromRouteSupportForPrecheck,
       toRouteSupportForPrecheck,
+      hasUsableQuote,
+      swapQuote?.success,
+      quoteErrorParsed?.reasonCode,
+      isQuoteFetchUiLoading,
     ],
   );
 
   const lastRoutePrecheckTelemetryKeyRef = useRef<string>('');
   useEffect(() => {
-    if (hideRoutePrecheckRow) {
+    if (!routingDisplay.showPrecheckRow) {
       lastRoutePrecheckTelemetryKeyRef.current = '';
       return;
     }
     if (!fromAsset || !toAsset) return;
-    const pre = routePrecheckStatus;
-    if (pre === 'likely_routable' || pre === 'checking') return;
+    const pre = routingDisplay.status;
+    if (pre === 'heuristic_likely' || pre === 'heuristic_checking' || pre === 'loading_quote') return;
 
     const key = `${currentChainId}|${fromAsset.symbol}|${toAsset.symbol}|${pre}`;
     const tid = window.setTimeout(() => {
@@ -336,26 +359,14 @@ export function SwapInterface() {
     }, 550);
     return () => clearTimeout(tid);
   }, [
-    hideRoutePrecheckRow,
+    routingDisplay.showPrecheckRow,
+    routingDisplay.status,
     fromAsset,
     toAsset,
     currentChainId,
-    routePrecheckStatus,
     fromRouteSupportForPrecheck,
     toRouteSupportForPrecheck,
   ]);
-
-  /**
-   * Pipeline UI loading: spinner / "Getting quote…" / disabled main CTA.
-   * During `checking_allowance`, treat as loading even if a prior quote is still on screen — avoids
-   * "Preview Swap" while `handlePreviewSwap` requires `previewing` (race when overlapping requests).
-   */
-  const isQuoteFetchUiLoading = useMemo(
-    () =>
-      isQuotePipelineLoading &&
-      (!hasUsableQuote || status === 'checking_allowance'),
-    [isQuotePipelineLoading, hasUsableQuote, status],
-  );
 
   /** Commission mainnet + ETH native leg + V2 configured + quotes on, execution off (Phase 2). */
   const isEthNativeV2QuoteOnlyNoExec = useMemo(() => {
@@ -1705,8 +1716,8 @@ export function SwapInterface() {
           </div>
         </div>
 
-        {/* P4.1-D — soft wrapper route precheck (UX only; never blocks swap). */}
-        {!hideRoutePrecheckRow && fromAsset && toAsset && (
+        {/* P2.1 — single routing truth row (display-only; never blocks swap). */}
+        {routingDisplay.showPrecheckRow && fromAsset && toAsset && (
           <div
             className="relative z-10 mt-3 flex flex-col gap-1 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[11px] leading-snug"
             role="status"
@@ -1714,12 +1725,14 @@ export function SwapInterface() {
           >
             <div className="flex items-center gap-2 flex-wrap">
               <span
-                className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium tracking-wide border ${routePrecheckBadgeClass(routePrecheckStatus)}`}
-                title={getRoutePrecheckDescription(routePrecheckStatus)}
+                className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium tracking-wide border ${routingDisplayBadgeClass(routingDisplay.status)}`}
+                title={getRoutingDisplayDescription(routingDisplay.status, currentChainId)}
               >
-                {getRoutePrecheckBadgeLabel(routePrecheckStatus)}
+                {getRoutingDisplayBadgeLabel(routingDisplay.status)}
               </span>
-              <span className="text-dark-400 flex-1 min-w-0">{getRoutePrecheckDescription(routePrecheckStatus)}</span>
+              <span className="text-dark-400 flex-1 min-w-0">
+                {getRoutingDisplayDescription(routingDisplay.status, currentChainId)}
+              </span>
             </div>
           </div>
         )}
@@ -2291,7 +2304,7 @@ export function SwapInterface() {
           status !== 'previewing' &&
           !isQuotePipelineLoading &&
           !(hasUsableQuote && swapQuote?.success) &&
-          (quoteErrorParsed?.reasonCode === 'unsupported_commission_route' ? (
+          (routingDisplay.showUnsupportedPanel ? (
             <div className="mt-4 p-3 bg-amber-900/15 border border-amber-700/35 rounded-xl text-sm text-amber-100">
               <p className="font-medium text-amber-50">
                 {SWAP_SURFACE_COPY.unsupportedCommissionRouteTitle}

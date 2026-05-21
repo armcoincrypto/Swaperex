@@ -314,7 +314,7 @@ export function parseQuoteError(error: unknown): ParsedError {
       reasonCode: 'unsupported_commission_route',
       message: 'This pair is not supported by Swaperex commission routing yet.',
       userAction:
-        'Swaperex only enables pairs that can route through its commission wrapper. Try a major token pair such as ETH ⇄ USDT, ETH ⇄ USDC, ETH ⇄ WETH, or ETH ⇄ WBTC.',
+        'Swaperex only enables pairs that can route through its commission wrapper. Try ETH ⇄ USDC, ETH ⇄ USDT, WETH ⇄ USDC, or WETH ⇄ USDT.',
       technicalReason: err.technicalReason || raw || undefined,
       isRecoverable: true,
       shouldShowRetry: false,
@@ -488,7 +488,7 @@ export function parseQuoteError(error: unknown): ParsedError {
       reasonCode: 'unsupported_commission_route',
       message: 'This pair is not supported by Swaperex commission routing yet.',
       userAction:
-        'Swaperex only enables pairs that can route through its commission wrapper. Try a major token pair such as ETH ⇄ USDT, ETH ⇄ USDC, ETH ⇄ WETH, or ETH ⇄ WBTC.',
+        'Swaperex only enables pairs that can route through its commission wrapper. Try ETH ⇄ USDC, ETH ⇄ USDT, WETH ⇄ USDC, or WETH ⇄ USDT.',
       technicalReason: raw,
       isRecoverable: true,
       shouldShowRetry: false,
