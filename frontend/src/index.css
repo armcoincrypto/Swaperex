@@ -57,18 +57,47 @@
 /* Component utilities */
 @layer components {
   .btn-primary {
-    @apply bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg px-4 py-2 transition-colors;
+    @apply bg-accent text-electro-bg hover:brightness-110 font-medium rounded-lg px-4 py-2 transition-colors;
   }
 
   .btn-secondary {
-    @apply bg-dark-700 hover:bg-dark-600 text-white font-medium rounded-lg px-4 py-2 transition-colors;
+    @apply bg-electro-panel hover:bg-electro-panelHover text-white font-medium rounded-lg px-4 py-2 transition-colors border border-white/[0.08];
   }
 
   .card {
-    @apply bg-dark-900 rounded-2xl border border-dark-800 p-4;
+    @apply bg-electro-panel/80 rounded-2xl border border-white/[0.08] p-4;
   }
 
   .input {
-    @apply bg-dark-800 border border-dark-700 rounded-lg px-4 py-2 text-white placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
+    @apply bg-electro-bgAlt border border-white/[0.08] rounded-lg px-4 py-2 text-white placeholder-dark-400 focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/30;
+  }
+
+  /** P8-H — shared tab/segment chrome (Portfolio, Activity, Screener, Radar). */
+  .shell-tab-track {
+    @apply flex gap-1 p-0.5 rounded-lg border border-white/[0.06] bg-black/25;
+  }
+
+  .shell-tab {
+    @apply px-2.5 py-1 text-xs rounded-md font-medium transition-colors text-dark-400 hover:text-dark-200;
+  }
+
+  .shell-tab-active {
+    @apply bg-electro-panel text-white ring-1 ring-white/[0.12] shadow-sm;
+  }
+
+  .shell-segment-track {
+    @apply flex rounded-lg overflow-hidden text-sm border border-white/[0.06] bg-black/25;
+  }
+
+  .shell-segment {
+    @apply px-3 py-1.5 transition-colors text-dark-400 hover:text-dark-200;
+  }
+
+  .shell-segment-active {
+    @apply bg-accent/15 text-accent font-medium ring-1 ring-inset ring-accent/30;
+  }
+
+  .shell-chip-inactive {
+    @apply bg-electro-panel/40 text-dark-400 border border-white/[0.06] hover:bg-electro-panel/60 hover:text-dark-200;
   }
 }

@@ -163,11 +163,7 @@ function ViewScopeToggle() {
           key={scope.value}
           onClick={() => setViewScope(scope.value)}
           title={scope.desc}
-          className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-            viewScope === scope.value
-              ? 'bg-primary-600 text-white'
-              : 'bg-dark-800 text-dark-400 hover:bg-dark-700 hover:text-dark-200'
-          }`}
+          className={`shell-tab ${viewScope === scope.value ? 'shell-tab-active' : ''}`}
         >
           {scope.label}
           {scope.value === 'live' && !monitoring.enabled && (
@@ -207,10 +203,10 @@ function FilterControls({ isOpen }: { isOpen: boolean }) {
               <button
                 key={sev}
                 onClick={() => filters.setSeverityFilter(sev)}
-                className={`flex-1 px-2 py-1.5 rounded text-[11px] font-medium transition-colors ${
+                className={`flex-1 shell-tab ${
                   filters.severityFilter === sev
                     ? getSeverityActiveStyle(sev)
-                    : 'bg-dark-800 text-dark-400 hover:bg-dark-700'
+                    : ''
                 }`}
               >
                 {getSeverityLabel(sev)}
@@ -319,11 +315,7 @@ function FilterControls({ isOpen }: { isOpen: boolean }) {
               <button
                 key={rec}
                 onClick={() => filters.setRecurrenceFilter(rec)}
-                className={`px-2 py-1.5 rounded text-[11px] font-medium transition-colors ${
-                  filters.recurrenceFilter === rec
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-dark-800 text-dark-400 hover:bg-dark-700'
-                }`}
+                className={`shell-tab ${filters.recurrenceFilter === rec ? 'shell-tab-active' : ''}`}
               >
                 {getRecurrenceLabel(rec)}
               </button>
@@ -336,7 +328,7 @@ function FilterControls({ isOpen }: { isOpen: boolean }) {
           <div
             onClick={() => filters.setGroupRepeats(!filters.groupRepeats)}
             className={`w-7 h-4 rounded-full flex items-center transition-colors cursor-pointer ${
-              filters.groupRepeats ? 'bg-primary-600' : 'bg-dark-700'
+              filters.groupRepeats ? 'bg-accent' : 'bg-dark-700'
             }`}
           >
             <div
@@ -358,11 +350,7 @@ function FilterControls({ isOpen }: { isOpen: boolean }) {
               <button
                 key={imp}
                 onClick={() => filters.setImpactFilter(imp)}
-                className={`px-2 py-1.5 rounded text-[11px] font-medium transition-colors ${
-                  filters.impactFilter === imp
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-dark-800 text-dark-400 hover:bg-dark-700'
-                }`}
+                className={`shell-tab ${filters.impactFilter === imp ? 'shell-tab-active' : ''}`}
               >
                 {imp === 'all' ? 'All' : imp === 'high+medium' ? 'Med+' : 'High'}
               </button>
@@ -398,10 +386,10 @@ function TypePill({
   const styles = {
     blue: active
       ? 'bg-blue-900/30 text-blue-400 border-blue-700/50'
-      : 'bg-dark-800 text-dark-400 border-dark-700',
+      : 'shell-chip-inactive',
     orange: active
       ? 'bg-orange-900/30 text-orange-400 border-orange-700/50'
-      : 'bg-dark-800 text-dark-400 border-dark-700',
+      : 'shell-chip-inactive',
   };
 
   return (
@@ -427,7 +415,7 @@ function getSeverityLabel(sev: SeverityFilter): string {
 
 function getSeverityActiveStyle(sev: SeverityFilter): string {
   switch (sev) {
-    case 'all': return 'bg-primary-600 text-white';
+    case 'all': return 'shell-tab-active';
     case 'warning': return 'bg-yellow-900/40 text-yellow-300';
     case 'danger': return 'bg-orange-900/40 text-orange-300';
     case 'critical': return 'bg-red-900/40 text-red-300';
@@ -458,7 +446,7 @@ export function RadarFilterBar({ className = '' }: RadarFilterBarProps) {
   const activeCount = useSignalFilterStore((s) => s.getActiveFilterCount());
 
   return (
-    <div className={`bg-dark-800/50 rounded-xl border border-dark-700/50 p-3 ${className}`}>
+    <div className={`bg-electro-panel/50 rounded-xl border border-white/[0.08] p-3 ${className}`}>
       {/* Monitoring Status */}
       <MonitoringStatusRow />
 
@@ -473,8 +461,8 @@ export function RadarFilterBar({ className = '' }: RadarFilterBarProps) {
           onClick={() => setFiltersOpen(!filtersOpen)}
           className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-colors ${
             filtersOpen || activeCount > 0
-              ? 'bg-primary-600/20 text-primary-400'
-              : 'bg-dark-800 text-dark-400 hover:bg-dark-700'
+              ? 'bg-accent/15 text-accent ring-1 ring-accent/25'
+              : 'shell-chip-inactive border-0'
           }`}
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -484,7 +472,7 @@ export function RadarFilterBar({ className = '' }: RadarFilterBarProps) {
           </svg>
           Filters
           {activeCount > 0 && (
-            <span className="px-1 py-0.5 bg-primary-600 text-white text-[9px] rounded-full min-w-[16px] text-center">
+            <span className="px-1 py-0.5 bg-accent text-electro-bg text-[9px] rounded-full min-w-[16px] text-center font-semibold">
               {activeCount}
             </span>
           )}

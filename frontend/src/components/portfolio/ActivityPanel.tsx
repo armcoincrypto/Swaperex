@@ -105,16 +105,12 @@ export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelPro
       <div className="flex items-center justify-end mb-3 flex-wrap gap-2">
         <div className="flex items-center gap-2">
           {/* Tabs */}
-          <div className="flex gap-1 p-0.5 bg-dark-800 rounded-lg">
+          <div className="shell-tab-track">
             {(['all', 'swap', 'transfer', 'approval'] as TabFilter[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={`px-2.5 py-1 text-xs rounded font-medium transition-colors ${
-                  tab === t
-                    ? 'bg-primary-600 text-white'
-                    : 'text-dark-400 hover:text-white'
-                }`}
+                className={`shell-tab ${tab === t ? 'shell-tab-active' : ''}`}
               >
                 {t === 'all' ? 'All' : t === 'swap' ? 'Swaps' : t === 'transfer' ? 'Transfers' : 'Approvals'}
               </button>
@@ -126,14 +122,14 @@ export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelPro
             <div className="flex gap-1">
               <button
                 onClick={handleCopyJson}
-                className="px-2 py-1 text-[10px] text-dark-400 hover:text-dark-200 bg-dark-800 rounded transition-colors"
+                className="px-2 py-1 text-[10px] text-dark-400 hover:text-dark-200 bg-electro-panel/50 border border-white/[0.06] rounded transition-colors"
                 title="Copy as JSON"
               >
                 JSON
               </button>
               <button
                 onClick={handleExportCsv}
-                className="px-2 py-1 text-[10px] text-dark-400 hover:text-dark-200 bg-dark-800 rounded transition-colors"
+                className="px-2 py-1 text-[10px] text-dark-400 hover:text-dark-200 bg-electro-panel/50 border border-white/[0.06] rounded transition-colors"
                 title="Download CSV"
               >
                 CSV
@@ -145,7 +141,7 @@ export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelPro
           <button
             onClick={fetchActivity}
             disabled={loading}
-            className="text-xs text-primary-400 hover:text-primary-300 disabled:opacity-50"
+            className="text-xs text-accent/90 hover:text-accent disabled:opacity-50"
           >
             {loading ? 'Loading...' : 'Refresh'}
           </button>

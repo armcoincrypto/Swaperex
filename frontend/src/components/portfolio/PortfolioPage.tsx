@@ -239,7 +239,7 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
 
       {/* Activity vs Revenue (local / commission estimates) */}
       <div
-        className={`grid gap-2 w-full rounded-2xl border border-white/[0.08] bg-dark-900/70 p-1.5 ${portfolioGridCols}`}
+        className={`grid gap-2 w-full rounded-2xl border border-white/[0.08] bg-electro-bgAlt/50 p-1.5 ${portfolioGridCols}`}
         role="tablist"
         aria-label="Portfolio sections"
       >
@@ -253,7 +253,7 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
             className={`min-w-0 rounded-xl px-3 py-2.5 text-left transition-all duration-200 ${
               portfolioSubTab === t
                 ? 'bg-electro-panel text-white shadow-md ring-1 ring-white/[0.12]'
-                : 'text-dark-400 hover:text-dark-200 hover:bg-dark-800/50'
+                : 'text-dark-400 hover:text-dark-200 hover:bg-electro-panel/40'
             }`}
           >
             <span className="block text-sm font-semibold leading-tight">
