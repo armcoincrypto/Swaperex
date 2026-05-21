@@ -70,7 +70,15 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3000,
+    host: '127.0.0.1',
+    port: 5173,
+    strictPort: true,
+    allowedHosts: ['dev.dex.kobbex.com', '127.0.0.1', 'localhost'],
+    hmr: {
+      host: 'dev.dex.kobbex.com',
+      protocol: 'wss',
+      clientPort: 443,
+    },
     proxy: {
       '/api/v1/admin': {
         target: 'http://127.0.0.1:8001',
