@@ -32,8 +32,10 @@ import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 import {
   formatBalance,
   formatGasLimitUnits,
+  getChainName,
   getPriceImpactUi,
   parsePriceImpactPercentOrNaN,
+  shortenAddress,
   swapAggregatorProviderLabel,
 } from '@/utils/format';
 import {
@@ -84,10 +86,12 @@ import {
   routeSupportBadgeTooltip,
   type RouteSupportStatus,
 } from '@/utils/routeSupport';
+import { isCommissionPairAuditBlocked } from '@/constants/commissionCoverage';
 import {
   getRoutingDisplayStatus,
   getRoutingDisplayBadgeLabel,
   getRoutingDisplayDescription,
+  isNativeWrappedPair,
   routingDisplayBadgeClass,
   routeSupportForAsset,
 } from '@/utils/routingDisplayStatus';
@@ -107,6 +111,97 @@ const CHAIN_NAMES: Record<number, string> = {
   250: 'fantom',
   8453: 'base',
 };
+
+function ContextSep() {
+  return <span className="shell-context-strip__sep" aria-hidden>·</span>;
+}
+
+/** P8-I.1a — display-only session line (chain · account · quote freshness). */
+function SwapSessionContextStrip({
+  chainId,
+  isConnected,
+  isWrongChain,
+  isReadOnly,
+  address,
+  hasUsableQuote,
+  isQuoteFetchUiLoading,
+  quoteSecondsRemaining,
+  isQuoteExpired,
+}: {
+  chainId: number;
+  isConnected: boolean;
+  isWrongChain: boolean;
+  isReadOnly: boolean;
+  address: string | null | undefined;
+  hasUsableQuote: boolean;
+  isQuoteFetchUiLoading: boolean;
+  quoteSecondsRemaining: number | null;
+  isQuoteExpired: boolean;
+}) {
+  const chainLabel = getChainName(chainId);
+  const quoteExpired =
+    isQuoteExpired || (quoteSecondsRemaining !== null && quoteSecondsRemaining <= 0);
+
+  let quoteLabel: string | null = null;
+  if (isConnected && !isWrongChain) {
+    if (isQuoteFetchUiLoading && !hasUsableQuote) {
+      quoteLabel = 'Getting quote…';
+    } else if (hasUsableQuote) {
+      quoteLabel = quoteExpired ? 'Quote expired' : 'Quote ready';
+    }
+  }
+
+  return (
+    <p className="shell-context-strip" role="status" aria-live="polite">
+      <span className="text-dark-300">{chainLabel}</span>
+
+      {!isConnected ? (
+        <>
+          <ContextSep />
+          <span>Connect wallet</span>
+        </>
+      ) : isWrongChain ? (
+        <>
+          <ContextSep />
+          <span className="text-amber-300/85">Wrong network</span>
+          {address ? (
+            <>
+              <ContextSep />
+              <span className="tabular-nums text-dark-500">{shortenAddress(address)}</span>
+            </>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <ContextSep />
+          <span>
+            {isReadOnly ? 'Read-only' : 'Connected'}
+            {address ? (
+              <>
+                {' '}
+                <span className="tabular-nums text-dark-500">{shortenAddress(address)}</span>
+              </>
+            ) : null}
+          </span>
+          {quoteLabel ? (
+            <>
+              <ContextSep />
+              <span className={quoteExpired ? 'text-amber-300/85' : undefined}>{quoteLabel}</span>
+            </>
+          ) : null}
+          {hasUsableQuote && !quoteExpired && quoteSecondsRemaining !== null && quoteSecondsRemaining > 0 ? (
+            <>
+              <ContextSep />
+              <span className="tabular-nums text-dark-500">
+                Expires in {quoteSecondsRemaining}s
+              </span>
+            </>
+          ) : null}
+        </>
+      )}
+    </p>
+  );
+}
 
 /** USD liquidity heuristic for Advanced details — avoids bare "$0" in UI. */
 function formatIntelligenceLiquidityUsdLabel(usd: number): string {
@@ -1292,6 +1387,23 @@ export function SwapInterface() {
 
   const mainCtaLabel = getButtonText();
 
+  const showCommissionRouteIssue =
+    isCommissionRequiredMode() &&
+    fromAsset &&
+    toAsset &&
+    !isNativeWrappedPair(currentChainId, fromAsset, toAsset) &&
+    (routingDisplay.showUnsupportedPanel ||
+      (!hasUsableQuote &&
+        (quoteErrorParsed?.reasonCode === 'unsupported_commission_route' ||
+          isCommissionPairAuditBlocked(
+            currentChainId,
+            fromAsset.symbol,
+            toAsset.symbol,
+          ))));
+
+  const showRoutePrecheckRow =
+    routingDisplay.showPrecheckRow && !showCommissionRouteIssue;
+
   /** Visual-only CTA styling — does not change disabled rules or execution. */
   const ctaVisualState = useMemo(() => {
     if (!isConnected || isWrongChain) return 'neutral' as const;
@@ -1348,9 +1460,20 @@ export function SwapInterface() {
       <div className="w-full max-w-md mx-auto bg-electro-panel/90 backdrop-blur-glass rounded-2xl p-5 sm:p-6 border border-white/[0.1] shadow-[0_20px_60px_rgba(0,0,0,0.45)] relative overflow-x-hidden overflow-y-visible min-w-0">
         {/* Subtle gradient overlay */}
         <div className="absolute inset-0 bg-glass-gradient pointer-events-none" />
-        {/* Header */}
-        <div className="relative z-10 flex items-center justify-between mb-4">
+        {/* Header + session context */}
+        <div className="relative z-10 mb-3 min-w-0">
           <h2 className="text-xl font-bold text-white">Swap</h2>
+          <SwapSessionContextStrip
+            chainId={currentChainId}
+            isConnected={isConnected}
+            isWrongChain={isWrongChain}
+            isReadOnly={isReadOnly}
+            address={address}
+            hasUsableQuote={hasUsableQuote}
+            isQuoteFetchUiLoading={isQuoteFetchUiLoading}
+            quoteSecondsRemaining={quoteSecondsRemaining}
+            isQuoteExpired={isQuoteExpired}
+          />
         </div>
 
         <SwapExecutionRail

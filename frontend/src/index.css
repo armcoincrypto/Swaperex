@@ -100,4 +100,13 @@
   .shell-chip-inactive {
     @apply bg-electro-panel/40 text-dark-400 border border-white/[0.06] hover:bg-electro-panel/60 hover:text-dark-200;
   }
+
+  /** P8-I.1a — calm session line under swap title (no card chrome). */
+  .shell-context-strip {
+    @apply relative z-10 mt-1.5 flex flex-wrap items-center min-w-0 text-[11px] leading-snug text-dark-400;
+  }
+
+  .shell-context-strip__sep {
+    @apply text-dark-600/90 select-none shrink-0 px-1;
+  }
 }
