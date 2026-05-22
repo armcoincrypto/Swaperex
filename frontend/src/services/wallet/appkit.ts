@@ -5,6 +5,7 @@
 
 import { createAppKit } from '@reown/appkit/react';
 import { EthersAdapter } from '@reown/appkit-adapter-ethers';
+/** viem/chains directly — @reown/appkit/networks re-exports viem; TS fails when viem is not hoisted. */
 import {
   mainnet,
   bsc,
@@ -12,7 +13,7 @@ import {
   arbitrum,
   optimism,
   avalanche,
-} from '@reown/appkit/networks';
+} from 'viem/chains';
 import { toast } from '@/stores/toastStore';
 import {
   WALLETCONNECT_PROJECT_ID,
