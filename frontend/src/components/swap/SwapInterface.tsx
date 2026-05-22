@@ -22,6 +22,7 @@ import { SavePresetModal } from '@/components/presets/SavePresetModal';
 import { GuardWarningPanel } from '@/components/presets/GuardWarningPanel';
 import { evaluatePresetGuards } from '@/services/presetGuardService';
 import { TokenSafetyBadges } from '@/components/common/TokenSafetyBadges';
+import { PopularCommissionRoutes } from './PopularCommissionRoutes';
 import { SwapPreviewModal, SwapStep } from './SwapPreviewModal';
 import { SwapExecutionRail } from './SwapExecutionRail';
 import { RouteTransparencyCard } from './RouteTransparencyCard';
@@ -1715,6 +1716,19 @@ export function SwapInterface() {
             </div>
           </div>
         </div>
+
+        <PopularCommissionRoutes
+          activeChainId={currentChainId}
+          fromAsset={fromAsset}
+          toAsset={toAsset}
+          onSelectPair={(from, to) => {
+            setShowFromSelector(false);
+            setShowToSelector(false);
+            setFromAsset(from);
+            setToAsset(to);
+            reset();
+          }}
+        />
 
         {/* P2.1 — single routing truth row (display-only; never blocks swap). */}
         {routingDisplay.showPrecheckRow && fromAsset && toAsset && (

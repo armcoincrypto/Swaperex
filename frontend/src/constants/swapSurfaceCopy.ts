@@ -64,6 +64,16 @@ export const SWAP_SURFACE_COPY = {
     'Try well-known majors on this network first, then search for other tokens.',
   unsupportedCommissionRouteCta: 'Choose another token',
 
+  /** P3.3 — soft precheck when audit shows pair is not commission-ready yet. */
+  commissionRoutingNotReadyYet:
+    'Not yet supported by Swaperex commission routing. Quote may fail until this pair is enabled on the wrapper.',
+
+  /** P3.1 — popular audited commission route shortcuts */
+  popularCommissionRoutesTitle: 'Popular commission routes',
+  auditedCommissionRouteBadge: 'Audited commission route',
+  popularCommissionRoutesHint:
+    'These pairs passed a live wrapper quote audit. Pick one to pre-fill pay and receive tokens.',
+
   /** Primary CTA when the last on-chain swap attempt failed (quote may still be present) */
   swapFailedCta: 'Swap failed — try again',
 
