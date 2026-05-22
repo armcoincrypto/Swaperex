@@ -1457,7 +1457,7 @@ export function SwapInterface() {
   // Render swap form
   return (
     <>
-      <div className="w-full max-w-md mx-auto bg-electro-panel/90 backdrop-blur-glass rounded-2xl p-5 sm:p-6 border border-white/[0.1] shadow-[0_20px_60px_rgba(0,0,0,0.45)] relative overflow-x-hidden overflow-y-visible min-w-0">
+      <div className="w-full max-w-md lg:max-w-xl 2xl:max-w-2xl mx-auto bg-electro-panel/90 backdrop-blur-glass rounded-2xl p-5 sm:p-6 border border-white/[0.1] shadow-[0_20px_60px_rgba(0,0,0,0.45)] relative overflow-x-hidden overflow-y-visible min-w-0">
         {/* Subtle gradient overlay */}
         <div className="absolute inset-0 bg-glass-gradient pointer-events-none" />
         {/* Header + session context */}
@@ -1854,7 +1854,7 @@ export function SwapInterface() {
         />
 
         {/* P2.1 — single routing truth row (display-only; never blocks swap). */}
-        {routingDisplay.showPrecheckRow && fromAsset && toAsset && (
+        {showRoutePrecheckRow && fromAsset && toAsset && (
           <div
             className="relative z-10 mt-3 flex flex-col gap-1 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[11px] leading-snug"
             role="status"
@@ -2501,7 +2501,7 @@ export function SwapInterface() {
         {/* Security Footer */}
         {isConnected && (
           <div className="relative z-10 mt-4 pt-3 border-t border-white/[0.06]">
-            <div className="flex items-center gap-2 justify-center text-center max-w-md mx-auto">
+            <div className="flex items-center gap-2 justify-center text-center max-w-md lg:max-w-xl 2xl:max-w-2xl mx-auto">
               <ShieldIcon />
               <p className="text-[11px] text-dark-400 leading-snug text-left">
                 <span className="text-dark-300 font-medium">{SWAP_SURFACE_COPY.swapCardTrustCompact}</span>
