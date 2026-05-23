@@ -602,7 +602,9 @@ function DexMain() {
           <>
             <div className="flex flex-col lg:flex-row gap-10 lg:items-start">
               {/* Swap Panel */}
-              <div className="flex-1 flex justify-center">
+              <div
+                className={`flex-1 flex min-w-0 justify-center ${isConnected ? 'lg:justify-start' : ''}`}
+              >
                 <SwapInterface />
               </div>
 
