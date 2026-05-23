@@ -1863,12 +1863,22 @@ export function SwapInterface() {
             <div className="flex items-center gap-2 flex-wrap">
               <span
                 className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium tracking-wide border ${routingDisplayBadgeClass(routingDisplay.status)}`}
-                title={getRoutingDisplayDescription(routingDisplay.status, currentChainId)}
+                title={getRoutingDisplayDescription(
+                  routingDisplay.status,
+                  currentChainId,
+                  fromAsset.symbol,
+                  toAsset.symbol,
+                )}
               >
                 {getRoutingDisplayBadgeLabel(routingDisplay.status)}
               </span>
               <span className="text-dark-400 flex-1 min-w-0">
-                {getRoutingDisplayDescription(routingDisplay.status, currentChainId)}
+                {getRoutingDisplayDescription(
+                  routingDisplay.status,
+                  currentChainId,
+                  fromAsset.symbol,
+                  toAsset.symbol,
+                )}
               </span>
             </div>
           </div>
@@ -1925,9 +1935,9 @@ export function SwapInterface() {
 
         {/* Quote Details (when quote available) */}
         {swapQuote && (status === 'previewing' || isQuotePipelineLoading) && !showPreview && (
-          <div className="relative z-10 mt-4 p-3.5 bg-electro-bgAlt/70 rounded-xl text-sm space-y-1.5 border border-white/[0.1] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+          <div className="relative z-10 mt-4 p-4 bg-electro-bgAlt/70 rounded-xl text-sm space-y-2.5 border border-white/[0.08] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
             {/* Quote validity — route transparency card + execution economics below */}
-            <div className="flex items-center justify-between pb-1.5 mb-1 border-b border-white/[0.06] rounded-lg bg-white/[0.03] px-2 py-1.5">
+            <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
               <span className="text-xs font-medium text-dark-400" title="Quote is valid for a short time; refresh if the timer expires.">
                 Quote
               </span>
@@ -2000,7 +2010,7 @@ export function SwapInterface() {
             />
 
             {/* Main summary — execution economics (route/min/gas on RouteTransparencyCard) */}
-            <div className="rounded-lg border border-white/[0.06] bg-black/15 px-2.5 py-2 space-y-1.5 min-w-0">
+            <div className="rounded-lg border border-white/[0.05] bg-black/10 px-3 py-2.5 space-y-2 min-w-0">
               <div className="flex justify-between gap-2 min-w-0 items-baseline">
                 <span className="text-dark-400 shrink-0">Exchange rate</span>
                 <span className="min-w-0 text-right text-dark-100 break-words tabular-nums">
