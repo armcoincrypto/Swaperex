@@ -86,6 +86,7 @@ if ! npm ci --production=false; then
 fi
 
 log "Phase 1: Building frontend..."
+export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096}"
 if ! npm run build; then
   die "npm run build failed (full log above — do not pipe npm through tail)" 1
 fi

@@ -74,6 +74,12 @@ export const SWAP_SURFACE_COPY = {
   popularCommissionRoutesHint:
     'These pairs passed a live wrapper quote audit. Pick one to pre-fill pay and receive tokens.',
 
+  /** P3.4 — revenue UX guidance (display-only; not a price or profit claim) */
+  recommendedRouteBadge: 'Recommended',
+  revenueRoutesExplanation:
+    'Recommended routes are audited commission routes with stronger liquidity and user demand.',
+  recommendedAuditedRoutePreview: 'Recommended audited route',
+
   /** Primary CTA when the last on-chain swap attempt failed (quote may still be present) */
   swapFailedCta: 'Swap failed — try again',
 
@@ -122,6 +128,10 @@ export const SWAP_SURFACE_COPY = {
   /** User setting: Best price vs fixed 1inch / Uniswap / Pancake */
   routePreferenceLabel: 'Route preference',
   routeExecutionLabel: 'Executes via',
+  /** P3.3 — display-only route quality tier in preview */
+  routeQualityLabel: 'Route quality',
+  routeQualityBidirectionalHint:
+    'Audited commission route with verified bidirectional quotes.',
   minimumReceivedLabel: 'Minimum received',
   slippageToleranceLabel: 'Slippage tolerance',
   gasLimitEstimateLabel: 'Est. gas (units)',

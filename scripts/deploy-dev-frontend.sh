@@ -63,6 +63,7 @@ cd "$FRONTEND_DIR"
 npm ci --production=false
 
 log "Phase 1: Building frontend (production bundle, dev deploy target)..."
+export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=4096}"
 npm run build
 
 [[ -d "$FRONTEND_DIR/dist" ]] || die "dist/ missing after build"

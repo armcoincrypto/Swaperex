@@ -1,5 +1,5 @@
 /**
- * P3.1 — Audited commission route shortcuts (display-only; no routing changes).
+ * P3.1 / P3.4 — Audited commission route shortcuts (display-only; no routing changes).
  */
 
 import { useMemo } from 'react';
@@ -7,11 +7,17 @@ import type { AssetInfo } from '@/types/api';
 import { isCommissionRequiredMode } from '@/config';
 import { getTokenBySymbol, isNativeToken } from '@/tokens';
 import {
+  formatPopularRouteLabel,
   getVerifiedPopularCommissionRoutes,
-  groupPopularCommissionRoutes,
+  isPopularRouteBidirectional,
   type PopularCommissionRoute,
 } from '@/constants/popularCommissionRoutes';
+import {
+  groupPopularCommissionRoutesByRevenue,
+  isRecommendedRevenueRoute,
+} from '@/constants/revenueRoutePriority';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
+import { getRouteQuality } from '@/utils/routeQuality';
 
 const CHAIN_NAMES: Record<number, string> = {
   1: 'ethereum',
@@ -58,7 +64,66 @@ function isActiveRoute(
   const b = route.toSymbol.toUpperCase();
   return (
     (f === a && t === b) ||
-    (route.bidirectional && f === b && t === a)
+    (isPopularRouteBidirectional(route) && f === b && t === a)
+  );
+}
+
+function RouteChip({
+  route,
+  active,
+  isActiveChain,
+  chainLabel,
+  onSelect,
+}: {
+  route: PopularCommissionRoute;
+  active: boolean;
+  isActiveChain: boolean;
+  chainLabel: string;
+  onSelect: (route: PopularCommissionRoute) => void;
+}) {
+  const label = formatPopularRouteLabel(route);
+  const bidirectional = isPopularRouteBidirectional(route);
+  const quality = getRouteQuality(route.fromSymbol, route.toSymbol, route.chainId);
+  const recommended = isRecommendedRevenueRoute(
+    route.chainId,
+    route.fromSymbol,
+    route.toSymbol,
+  );
+
+  return (
+    <button
+      type="button"
+      disabled={!isActiveChain}
+      onClick={() => onSelect(route)}
+      title={
+        isActiveChain
+          ? bidirectional
+            ? `${SWAP_SURFACE_COPY.auditedCommissionRouteBadge}: ${label}. ${quality.description}${
+                recommended ? ` ${SWAP_SURFACE_COPY.revenueRoutesExplanation}` : ''
+              } Click again to reverse.`
+            : `${SWAP_SURFACE_COPY.auditedCommissionRouteBadge}: ${label}. ${quality.description}`
+          : `Available on ${chainLabel} — switch network first`
+      }
+      className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
+        !isActiveChain
+          ? 'border-white/[0.06] bg-white/[0.02] text-dark-500 cursor-not-allowed'
+          : active
+            ? 'border-emerald-500/50 bg-emerald-900/40 text-emerald-50'
+            : 'border-white/[0.08] bg-white/[0.04] text-dark-200 hover:border-emerald-600/40 hover:bg-emerald-950/30 hover:text-emerald-50'
+      }`}
+    >
+      <span>{label}</span>
+      {recommended ? (
+        <span className="inline-flex items-center rounded px-1 py-0.5 text-[8px] font-semibold uppercase tracking-wide border border-amber-500/45 bg-amber-950/35 text-amber-100">
+          {SWAP_SURFACE_COPY.recommendedRouteBadge}
+        </span>
+      ) : null}
+      <span
+        className={`inline-flex items-center rounded px-1 py-0.5 text-[8px] font-semibold uppercase tracking-wide border ${quality.badgeClass}`}
+      >
+        {quality.label}
+      </span>
+    </button>
   );
 }
 
@@ -71,7 +136,7 @@ export function PopularCommissionRoutes({
   const groups = useMemo(() => {
     const routes = getVerifiedPopularCommissionRoutes();
     if (routes.length === 0) return [];
-    return groupPopularCommissionRoutes(routes, activeChainId);
+    return groupPopularCommissionRoutesByRevenue(routes, activeChainId);
   }, [activeChainId]);
 
   if (!isCommissionRequiredMode()) return null;
@@ -82,7 +147,7 @@ export function PopularCommissionRoutes({
     const resolved = resolveAssets(route);
     if (!resolved) return;
 
-    if (isActiveRoute(route, fromAsset, toAsset) && route.bidirectional) {
+    if (isActiveRoute(route, fromAsset, toAsset) && isPopularRouteBidirectional(route)) {
       onSelectPair(resolved.to, resolved.from);
       return;
     }
@@ -102,16 +167,19 @@ export function PopularCommissionRoutes({
           {SWAP_SURFACE_COPY.auditedCommissionRouteBadge}
         </span>
       </div>
-      <p className="text-[10px] leading-snug text-emerald-100/70 mb-2">
+      <p className="text-[10px] leading-snug text-emerald-100/70 mb-1">
         {SWAP_SURFACE_COPY.popularCommissionRoutesHint}
       </p>
+      <p className="text-[10px] leading-snug text-emerald-100/55 mb-2">
+        {SWAP_SURFACE_COPY.revenueRoutesExplanation}
+      </p>
 
-      <div className="space-y-2.5">
+      <div className="space-y-3">
         {groups.map((group) => {
           const isActiveChain = group.chainId === activeChainId;
           return (
             <div key={group.chainId} className={!isActiveChain ? 'opacity-80' : undefined}>
-              <p className="text-[9px] font-semibold uppercase tracking-wider text-dark-500 mb-1.5">
+              <p className="text-[9px] font-semibold uppercase tracking-wider text-dark-500 mb-2">
                 {group.chainLabel}
                 {!isActiveChain ? (
                   <span className="ml-1.5 font-normal normal-case text-dark-500">
@@ -119,36 +187,30 @@ export function PopularCommissionRoutes({
                   </span>
                 ) : null}
               </p>
-              <div className="flex flex-wrap gap-1.5">
-                {group.routes.map((route) => {
-                  const resolved = resolveAssets(route);
-                  if (!resolved) return null;
-                  const active = isActiveRoute(route, fromAsset, toAsset);
-                  return (
-                    <button
-                      key={`${route.chainId}-${route.label}`}
-                      type="button"
-                      disabled={!isActiveChain}
-                      onClick={() => handleRouteClick(route)}
-                      title={
-                        isActiveChain
-                          ? route.bidirectional
-                            ? `${SWAP_SURFACE_COPY.auditedCommissionRouteBadge}: ${route.label}. Click again to reverse.`
-                            : `${SWAP_SURFACE_COPY.auditedCommissionRouteBadge}: ${route.label}`
-                          : `Available on ${group.chainLabel} — switch network first`
-                      }
-                      className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
-                        !isActiveChain
-                          ? 'border-white/[0.06] bg-white/[0.02] text-dark-500 cursor-not-allowed'
-                          : active
-                            ? 'border-emerald-500/50 bg-emerald-900/40 text-emerald-50'
-                            : 'border-white/[0.08] bg-white/[0.04] text-dark-200 hover:border-emerald-600/40 hover:bg-emerald-950/30 hover:text-emerald-50'
-                      }`}
-                    >
-                      <span>{route.label}</span>
-                    </button>
-                  );
-                })}
+              <div className="space-y-2">
+                {group.sections.map((section) => (
+                  <div key={`${group.chainId}-${section.groupId}`}>
+                    <p className="text-[9px] font-medium text-dark-500/90 mb-1 normal-case">
+                      {section.groupLabel}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {section.routes.map((route) => {
+                        const resolved = resolveAssets(route);
+                        if (!resolved) return null;
+                        return (
+                          <RouteChip
+                            key={`${route.chainId}-${route.fromSymbol}-${route.toSymbol}`}
+                            route={route}
+                            active={isActiveRoute(route, fromAsset, toAsset)}
+                            isActiveChain={isActiveChain}
+                            chainLabel={group.chainLabel}
+                            onSelect={handleRouteClick}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           );

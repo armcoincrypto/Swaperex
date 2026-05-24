@@ -1283,7 +1283,7 @@ export function SwapInterface() {
     if (status === 'approving') return 'Approving token…';
     if (status === 'swapping') return 'Sign swap in wallet…';
     if (status === 'confirming') return 'Confirming on-chain…';
-    if (status === 'success') return 'Swap completed';
+    if (status === 'success') return showPreview ? 'Preview Swap' : 'Swap completed';
     if (insufficientBalance) return `Insufficient ${fromAsset?.symbol || ''} Balance`;
     if (isQuoteFetchUiLoading) return SWAP_SURFACE_COPY.gettingQuote;
     if (status === 'error' && error) {

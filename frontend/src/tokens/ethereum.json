@@ -33,7 +33,7 @@
     {
       "symbol": "DAI",
       "name": "Dai Stablecoin",
-      "address": "0x6B175474E89094C44Da98b954EedcdeCB5BE3830",
+      "address": "0x6B175474E89094C44Da98b954EedeAC495271d0F",
       "decimals": 18,
       "logoURI": "https://tokens.1inch.io/0x6b175474e89094c44da98b954eedcdecb5be3830.png"
     },

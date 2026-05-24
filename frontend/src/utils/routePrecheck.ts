@@ -3,6 +3,10 @@
  * Does not gate execution; quotes and commission enforcement remain authoritative.
  */
 
+import {
+  isCommissionPairAuditBlocked,
+  isCommissionPairAuditSupported,
+} from '@/constants/commissionCoverage';
 import type { RouteSupportStatus } from '@/utils/routeSupport';
 
 export const RECENT_SUCCESSFUL_PAIRS_KEY = 'swaperex-recent-successful-pairs';
@@ -145,12 +149,18 @@ export function computeRoutePrecheck(input: {
 
   if (fromRouteSupport === 'limited' || toRouteSupport === 'limited') return 'limited';
 
+  if (isCommissionPairAuditBlocked(chainId, fs, ts)) return 'limited';
+
   const good = (r: RouteSupportStatus) => r === 'supported' || r === 'likely_supported';
   if (!good(fromRouteSupport) || !good(toRouteSupport)) return 'unknown';
 
   if (fromRouteSupport === 'supported' && toRouteSupport === 'supported') {
-    return 'likely_routable';
+    if (isCommissionPairAuditSupported(chainId, fs, ts)) return 'likely_routable';
+    if (hasRecentSuccessfulPair(chainId, fs, ts)) return 'likely_routable';
+    return 'no_recent_success';
   }
+
+  if (isCommissionPairAuditSupported(chainId, fs, ts)) return 'likely_routable';
 
   if (hasRecentSuccessfulPair(chainId, fs, ts)) {
     return 'likely_routable';

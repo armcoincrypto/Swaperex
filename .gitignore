@@ -69,3 +69,7 @@ frontend/dist/
 
 # Deploy script backups
 scripts/*.bak.*
+
+# Audit reports — canonical snapshot committed at release; ignore scratch reruns
+reports/commission-coverage-audit.*.json
+reports/*.tmp.json

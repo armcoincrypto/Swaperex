@@ -10,9 +10,8 @@ import { getTokenBySymbol, isNativeToken, isStaticToken, NATIVE_SYMBOLS } from '
 export type RouteSupportStatus = 'supported' | 'likely_supported' | 'limited' | 'unknown';
 
 const ETH_SUPPORTED = new Set(['ETH', 'WETH', 'USDT', 'USDC', 'WBTC']);
-const ETH_LIKELY = new Set(['DAI', 'LINK', 'UNI', 'AAVE', 'LDO', 'CRV']);
+const ETH_LIKELY = new Set(['DAI', 'LINK', 'UNI', 'AAVE', 'LDO', 'CRV', 'SNX', 'PENDLE']);
 const ETH_LIMITED = new Set([
-  'PENDLE',
   'PEPE',
   'SHIB',
   'ARB',
@@ -22,7 +21,6 @@ const ETH_LIMITED = new Set([
   'FET',
   'GRT',
   'SUSHI',
-  'SNX',
   'COMP',
   'MANA',
   'SAND',

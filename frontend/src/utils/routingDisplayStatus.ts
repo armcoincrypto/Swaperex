@@ -12,6 +12,7 @@ import {
 import type { RouteSupportStatus } from '@/utils/routeSupport';
 import { getTokenRouteSupport } from '@/utils/routeSupport';
 import type { QuoteFailureReasonCode } from '@/utils/errors';
+import { isCommissionPairAuditBlocked } from '@/constants/commissionCoverage';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 import { getWrappedNativeAddress, isNativeToken } from '@/tokens';
 
@@ -156,6 +157,20 @@ export function getRoutingDisplayStatus(input: RoutingDisplayInput): RoutingDisp
     };
   }
 
+  if (
+    isCommissionPairAuditBlocked(
+      chainId,
+      fromAsset.symbol,
+      toAsset.symbol,
+    )
+  ) {
+    return {
+      status: 'heuristic_limited',
+      showPrecheckRow: true,
+      showUnsupportedPanel: false,
+    };
+  }
+
   const precheck = computeRoutePrecheck({
     chainId,
     fromAsset,
@@ -214,7 +229,18 @@ export function getRoutingDisplayBadgeLabel(status: RoutingDisplayStatus): strin
 export function getRoutingDisplayDescription(
   status: RoutingDisplayStatus,
   chainId = 1,
+  fromSymbol?: string,
+  toSymbol?: string,
 ): string {
+  if (
+    status === 'heuristic_limited' &&
+    fromSymbol &&
+    toSymbol &&
+    isCommissionPairAuditBlocked(chainId, fromSymbol, toSymbol)
+  ) {
+    return SWAP_SURFACE_COPY.commissionRoutingNotReadyYet;
+  }
+
   switch (status) {
     case 'native_wrapped_pair':
       return chainId === 56

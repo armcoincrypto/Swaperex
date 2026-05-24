@@ -41,6 +41,8 @@ import { getChainById, getExplorerTxUrl } from '@/config/chains';
 import type { SwapQuote, SwapReceiptSettlement } from '@/hooks/useSwap';
 import type { ApprovalMode } from '@/stores/swapStore';
 import { classifyCommissionRoute } from '@/utils/commission';
+import { getRouteQuality } from '@/utils/routeQuality';
+import { isRecommendedRevenueRoute } from '@/constants/revenueRoutePriority';
 import { isDebugMode } from '@/utils/chainHealth';
 import { emitSwapLifecycleStage } from '@/utils/swapLifecycleTelemetry';
 
@@ -285,7 +287,7 @@ export function SwapPreviewModal({
       onClose={onCancel}
       title={
         step === 'success'
-          ? 'Swap Completed'
+          ? 'Swap receipt'
           : step === 'broadcasting'
             ? 'Confirming swap'
             : step === 'approving'
@@ -747,6 +749,17 @@ function PreSignConfidenceBlock({
     ? SWAP_SURFACE_COPY.quoteFreshnessStale
     : `Fresh · ${secondsRemaining}s remaining`;
 
+  const routeQuality =
+    chainId != null
+      ? getRouteQuality(quote.from_asset, quote.to_asset, chainId, {
+          provider: quote.provider,
+        })
+      : null;
+
+  const isRecommended =
+    chainId != null &&
+    isRecommendedRevenueRoute(chainId, quote.from_asset, quote.to_asset);
+
   return (
     <div
       className="rounded-xl border border-white/[0.1] bg-dark-900/50 p-4 mb-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
@@ -769,6 +782,31 @@ function PreSignConfidenceBlock({
             {freshnessDisplay}
           </dd>
         </div>
+        {isRecommended ? (
+          <div className="flex justify-between gap-3 items-start">
+            <dt className="text-dark-400 shrink-0">Route guidance</dt>
+            <dd className="text-right">
+              <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide border border-amber-500/45 bg-amber-950/35 text-amber-100">
+                {SWAP_SURFACE_COPY.recommendedAuditedRoutePreview}
+              </span>
+            </dd>
+          </div>
+        ) : null}
+        {routeQuality && routeQuality.tier !== 'LIMITED' ? (
+          <div className="flex justify-between gap-3 items-start">
+            <dt className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.routeQualityLabel}</dt>
+            <dd className="text-right">
+              <span
+                className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide border ${routeQuality.badgeClass}`}
+              >
+                {routeQuality.label}
+              </span>
+              <p className="text-[11px] text-dark-400 mt-1 leading-snug max-w-[14rem] ml-auto">
+                {SWAP_SURFACE_COPY.routeQualityBidirectionalHint}
+              </p>
+            </dd>
+          </div>
+        ) : null}
         <div className="flex justify-between gap-3">
           <dt className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.routePreferenceLabel}</dt>
           <dd className="text-right text-dark-100">{formatQuoteRoutePreferenceLabel(quote.routeMode ?? 'best')}</dd>

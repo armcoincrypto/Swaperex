@@ -1,0 +1,830 @@
+{
+  "auditedAt": "2026-05-24T21:34:44.219Z",
+  "envFile": "/root/Swaperex/frontend/.env.production",
+  "commissionRequired": true,
+  "v3CanaryPairs": [
+    [
+      "WETH",
+      "USDC"
+    ],
+    [
+      "WETH",
+      "USDC",
+      "DAI"
+    ],
+    [
+      "WETH",
+      "USDC",
+      "SNX"
+    ],
+    [
+      "WETH",
+      "USDC",
+      "PENDLE"
+    ]
+  ],
+  "counts": {
+    "supported": 35,
+    "unsupported": 0,
+    "quoteFailed": 0,
+    "nativeWrap": 3
+  },
+  "pairs": [
+    {
+      "chain": "Ethereum",
+      "chainId": 1,
+      "from": "WETH",
+      "to": "USDC",
+      "providerSelected": "uniswap-v3-wrapper-v3",
+      "wrapperVersion": "V3",
+      "estimatedOutput": "20.795078",
+      "feeBps": 20,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep on V3 canary list.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "0.01",
+      "v3Path": "WETH→USDC"
+    },
+    {
+      "chain": "Ethereum",
+      "chainId": 1,
+      "from": "USDC",
+      "to": "WETH",
+      "providerSelected": "uniswap-v3-wrapper-v3",
+      "wrapperVersion": "V3",
+      "estimatedOutput": "0.011962063059948407",
+      "feeBps": 20,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep on V3 canary list.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "25",
+      "v3Path": "USDC→WETH"
+    },
+    {
+      "chain": "Ethereum",
+      "chainId": 1,
+      "from": "WETH",
+      "to": "USDT",
+      "providerSelected": "uniswap-v3-wrapper-v2",
+      "wrapperVersion": "V2",
+      "estimatedOutput": "20.815448",
+      "feeBps": 20,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep in supported tier.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "0.01",
+      "v3Path": null
+    },
+    {
+      "chain": "Ethereum",
+      "chainId": 1,
+      "from": "USDT",
+      "to": "WETH",
+      "providerSelected": "uniswap-v3-wrapper-v2",
+      "wrapperVersion": "V2",
+      "estimatedOutput": "0.011953122116056604",
+      "feeBps": 20,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep in supported tier.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "25",
+      "v3Path": null
+    },
+    {
+      "chain": "Ethereum",
+      "chainId": 1,
+      "from": "ETH",
+      "to": "USDC",
+      "providerSelected": "uniswap-v3-wrapper-v2",
+      "wrapperVersion": "V2",
+      "estimatedOutput": "20.79578",
+      "feeBps": 20,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep in supported tier.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "0.01",
+      "v3Path": null
+    },
+    {
+      "chain": "Ethereum",
+      "chainId": 1,
+      "from": "USDC",
+      "to": "ETH",
+      "providerSelected": "uniswap-v3-wrapper-v2",
+      "wrapperVersion": "V2",
+      "estimatedOutput": "0.011971216487085589",
+      "feeBps": 20,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep in supported tier.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "25",
+      "v3Path": null
+    },
+    {
+      "chain": "Ethereum",
+      "chainId": 1,
+      "from": "ETH",
+      "to": "USDT",
+      "providerSelected": "uniswap-v3-wrapper-v2",
+      "wrapperVersion": "V2",
+      "estimatedOutput": "20.815448",
+      "feeBps": 20,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep in supported tier.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "0.01",
+      "v3Path": null
+    },
+    {
+      "chain": "Ethereum",
+      "chainId": 1,
+      "from": "USDT",
+      "to": "ETH",
+      "providerSelected": "uniswap-v3-wrapper-v2",
+      "wrapperVersion": "V2",
+      "estimatedOutput": "0.011959898852894374",
+      "feeBps": 20,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep in supported tier.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "25",
+      "v3Path": null
+    },
+    {
+      "chain": "Ethereum",
+      "chainId": 1,
+      "from": "WETH",
+      "to": "WBTC",
+      "providerSelected": "uniswap-v3-wrapper-v2",
+      "wrapperVersion": "V2",
+      "estimatedOutput": "0.00027312",
+      "feeBps": 20,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep in supported tier.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "0.01",
+      "v3Path": null
+    },
+    {
+      "chain": "Ethereum",
+      "chainId": 1,
+      "from": "WBTC",
+      "to": "WETH",
+      "providerSelected": "uniswap-v3-wrapper-v2",
+      "wrapperVersion": "V2",
+      "estimatedOutput": "0.036457815894772939",
+      "feeBps": 20,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep in supported tier.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "0.001",
+      "v3Path": null
+    },
+    {
+      "chain": "Ethereum",
+      "chainId": 1,
+      "from": "ETH",
+      "to": "WETH",
+      "providerSelected": null,
+      "wrapperVersion": null,
+      "estimatedOutput": null,
+      "feeBps": null,
+      "reasonCode": "native_wrapped_not_commission_swap",
+      "recommendedAction": "Show wrap/unwrap helper only; do not market as DEX swap.",
+      "classification": "NATIVE_WRAP_SPECIAL"
+    },
+    {
+      "chain": "Ethereum",
+      "chainId": 1,
+      "from": "WETH",
+      "to": "ETH",
+      "providerSelected": null,
+      "wrapperVersion": null,
+      "estimatedOutput": null,
+      "feeBps": null,
+      "reasonCode": "native_wrapped_not_commission_swap",
+      "recommendedAction": "Show wrap/unwrap helper only; do not market as DEX swap.",
+      "classification": "NATIVE_WRAP_SPECIAL"
+    },
+    {
+      "chain": "Ethereum",
+      "chainId": 1,
+      "from": "WETH",
+      "to": "DAI",
+      "providerSelected": "uniswap-v3-wrapper-v3",
+      "wrapperVersion": "V3",
+      "estimatedOutput": "20.777544513828553103",
+      "feeBps": 20,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep on V3 canary list.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "0.01",
+      "v3Path": "WETH→USDC→DAI"
+    },
+    {
+      "chain": "Ethereum",
+      "chainId": 1,
+      "from": "DAI",
+      "to": "WETH",
+      "providerSelected": "uniswap-v3-wrapper-v3",
+      "wrapperVersion": "V3",
+      "estimatedOutput": "0.011960186470246144",
+      "feeBps": 20,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep on V3 canary list.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "25",
+      "v3Path": "DAI→USDC→WETH"
+    },
+    {
+      "chain": "Ethereum",
+      "chainId": 1,
+      "from": "WETH",
+      "to": "LINK",
+      "providerSelected": "uniswap-v3-wrapper-v2",
+      "wrapperVersion": "V2",
+      "estimatedOutput": "2.228977514800947289",
+      "feeBps": 20,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep in supported tier.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "0.01",
+      "v3Path": null
+    },
+    {
+      "chain": "Ethereum",
+      "chainId": 1,
+      "from": "LINK",
+      "to": "WETH",
+      "providerSelected": "uniswap-v3-wrapper-v2",
+      "wrapperVersion": "V2",
+      "estimatedOutput": "0.044638137051337807",
+      "feeBps": 20,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep in supported tier.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "10",
+      "v3Path": null
+    },
+    {
+      "chain": "Ethereum",
+      "chainId": 1,
+      "from": "WETH",
+      "to": "UNI",
+      "providerSelected": "uniswap-v3-wrapper-v2",
+      "wrapperVersion": "V2",
+      "estimatedOutput": "5.018636735091073004",
+      "feeBps": 20,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep in supported tier.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "0.01",
+      "v3Path": null
+    },
+    {
+      "chain": "Ethereum",
+      "chainId": 1,
+      "from": "UNI",
+      "to": "WETH",
+      "providerSelected": "uniswap-v3-wrapper-v2",
+      "wrapperVersion": "V2",
+      "estimatedOutput": "0.011363598207587964",
+      "feeBps": 20,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep in supported tier.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "10",
+      "v3Path": null
+    },
+    {
+      "chain": "Ethereum",
+      "chainId": 1,
+      "from": "WETH",
+      "to": "SNX",
+      "providerSelected": "uniswap-v3-wrapper-v3",
+      "wrapperVersion": "V3",
+      "estimatedOutput": "53.770641856501932583",
+      "feeBps": 20,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep on V3 canary list.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "0.01",
+      "v3Path": "WETH→USDC→SNX"
+    },
+    {
+      "chain": "Ethereum",
+      "chainId": 1,
+      "from": "SNX",
+      "to": "WETH",
+      "providerSelected": "uniswap-v3-wrapper-v3",
+      "wrapperVersion": "V3",
+      "estimatedOutput": "0.001381726407276092",
+      "feeBps": 20,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep on V3 canary list.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "10",
+      "v3Path": "SNX→USDC→WETH"
+    },
+    {
+      "chain": "Ethereum",
+      "chainId": 1,
+      "from": "WETH",
+      "to": "PENDLE",
+      "providerSelected": "uniswap-v3-wrapper-v3",
+      "wrapperVersion": "V3",
+      "estimatedOutput": "11.238659965976234579",
+      "feeBps": 20,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep on V3 canary list.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "0.01",
+      "v3Path": "WETH→USDC→PENDLE"
+    },
+    {
+      "chain": "Ethereum",
+      "chainId": 1,
+      "from": "PENDLE",
+      "to": "WETH",
+      "providerSelected": "uniswap-v3-wrapper-v3",
+      "wrapperVersion": "V3",
+      "estimatedOutput": "0.008526611313507468",
+      "feeBps": 20,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep on V3 canary list.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "10",
+      "v3Path": "PENDLE→USDC→WETH"
+    },
+    {
+      "chain": "Ethereum",
+      "chainId": 1,
+      "from": "WETH",
+      "to": "AAVE",
+      "providerSelected": "uniswap-v3-wrapper-v2",
+      "wrapperVersion": "V2",
+      "estimatedOutput": "0.245665616952304722",
+      "feeBps": 20,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep in supported tier.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "0.01",
+      "v3Path": null
+    },
+    {
+      "chain": "Ethereum",
+      "chainId": 1,
+      "from": "AAVE",
+      "to": "WETH",
+      "providerSelected": "uniswap-v3-wrapper-v2",
+      "wrapperVersion": "V2",
+      "estimatedOutput": "0.404819129585882292",
+      "feeBps": 20,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep in supported tier.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "10",
+      "v3Path": null
+    },
+    {
+      "chain": "Ethereum",
+      "chainId": 1,
+      "from": "WETH",
+      "to": "LDO",
+      "providerSelected": "uniswap-v3-wrapper-v2",
+      "wrapperVersion": "V2",
+      "estimatedOutput": "61.394604324875309441",
+      "feeBps": 20,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep in supported tier.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "0.01",
+      "v3Path": null
+    },
+    {
+      "chain": "Ethereum",
+      "chainId": 1,
+      "from": "LDO",
+      "to": "WETH",
+      "providerSelected": "uniswap-v3-wrapper-v2",
+      "wrapperVersion": "V2",
+      "estimatedOutput": "0.001620672050373349",
+      "feeBps": 20,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep in supported tier.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "10",
+      "v3Path": null
+    },
+    {
+      "chain": "Ethereum",
+      "chainId": 1,
+      "from": "WETH",
+      "to": "PEPE",
+      "providerSelected": "uniswap-v3-wrapper-v2",
+      "wrapperVersion": "V2",
+      "estimatedOutput": "0.000000000375169885",
+      "feeBps": 20,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep in supported tier.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "0.01",
+      "v3Path": null
+    },
+    {
+      "chain": "BSC",
+      "chainId": 56,
+      "from": "BNB",
+      "to": "USDT",
+      "providerSelected": "pancakeswap-v3-wrapper-v2",
+      "wrapperVersion": "PancakeV2",
+      "estimatedOutput": "6.486868822276891701",
+      "feeBps": 50,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep in supported tier.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "0.01",
+      "v3Path": null
+    },
+    {
+      "chain": "BSC",
+      "chainId": 56,
+      "from": "USDT",
+      "to": "BNB",
+      "providerSelected": "pancakeswap-v3-wrapper-v2",
+      "wrapperVersion": "PancakeV2",
+      "estimatedOutput": "0.038147272090044914",
+      "feeBps": 50,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep in supported tier.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "25",
+      "v3Path": null
+    },
+    {
+      "chain": "BSC",
+      "chainId": 56,
+      "from": "BNB",
+      "to": "USDC",
+      "providerSelected": "pancakeswap-v3-wrapper-v2",
+      "wrapperVersion": "PancakeV2",
+      "estimatedOutput": "6.480833285983661328",
+      "feeBps": 50,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep in supported tier.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "0.01",
+      "v3Path": null
+    },
+    {
+      "chain": "BSC",
+      "chainId": 56,
+      "from": "USDC",
+      "to": "BNB",
+      "providerSelected": "pancakeswap-v3-wrapper-v2",
+      "wrapperVersion": "PancakeV2",
+      "estimatedOutput": "0.038182772711332798",
+      "feeBps": 50,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep in supported tier.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "25",
+      "v3Path": null
+    },
+    {
+      "chain": "BSC",
+      "chainId": 56,
+      "from": "WBNB",
+      "to": "USDT",
+      "providerSelected": "pancakeswap-v3-wrapper-v2",
+      "wrapperVersion": "PancakeV2",
+      "estimatedOutput": "6.486877785708576559",
+      "feeBps": 50,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep in supported tier.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "0.01",
+      "v3Path": null
+    },
+    {
+      "chain": "BSC",
+      "chainId": 56,
+      "from": "USDT",
+      "to": "WBNB",
+      "providerSelected": "pancakeswap-v3-wrapper-v2",
+      "wrapperVersion": "PancakeV2",
+      "estimatedOutput": "0.03814702243796125",
+      "feeBps": 50,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep in supported tier.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "25",
+      "v3Path": null
+    },
+    {
+      "chain": "BSC",
+      "chainId": 56,
+      "from": "BNB",
+      "to": "WBNB",
+      "providerSelected": null,
+      "wrapperVersion": null,
+      "estimatedOutput": null,
+      "feeBps": null,
+      "reasonCode": "native_wrapped_not_commission_swap",
+      "recommendedAction": "Show wrap/unwrap helper only; do not market as DEX swap.",
+      "classification": "NATIVE_WRAP_SPECIAL"
+    },
+    {
+      "chain": "BSC",
+      "chainId": 56,
+      "from": "WBNB",
+      "to": "BTCB",
+      "providerSelected": "pancakeswap-v3-wrapper-v2",
+      "wrapperVersion": "PancakeV2",
+      "estimatedOutput": "0.000084912580204296",
+      "feeBps": 50,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep in supported tier.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "0.01",
+      "v3Path": null
+    },
+    {
+      "chain": "BSC",
+      "chainId": 56,
+      "from": "BTCB",
+      "to": "WBNB",
+      "providerSelected": "pancakeswap-v3-wrapper-v2",
+      "wrapperVersion": "PancakeV2",
+      "estimatedOutput": "0.116569408197077162",
+      "feeBps": 50,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep in supported tier.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "0.001",
+      "v3Path": null
+    },
+    {
+      "chain": "BSC",
+      "chainId": 56,
+      "from": "CAKE",
+      "to": "USDT",
+      "providerSelected": "pancakeswap-v3-wrapper-v2",
+      "wrapperVersion": "PancakeV2",
+      "estimatedOutput": "10.248627817407748108",
+      "feeBps": 50,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep in supported tier.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "10",
+      "v3Path": null
+    },
+    {
+      "chain": "BSC",
+      "chainId": 56,
+      "from": "USDT",
+      "to": "CAKE",
+      "providerSelected": "pancakeswap-v3-wrapper-v2",
+      "wrapperVersion": "PancakeV2",
+      "estimatedOutput": "15.05297064494921251",
+      "feeBps": 50,
+      "reasonCode": "quote_ok",
+      "recommendedAction": "Safe for commission UX; keep in supported tier.",
+      "classification": "SUPPORTED_COMMISSION",
+      "amountIn": "25",
+      "v3Path": null
+    }
+  ],
+  "expansionRecommendations": {
+    "tier1": [
+      {
+        "pair": "WETH→USDT",
+        "chain": "Ethereum",
+        "note": "Safe for commission UX; keep in supported tier."
+      },
+      {
+        "pair": "USDT→WETH",
+        "chain": "Ethereum",
+        "note": "Safe for commission UX; keep in supported tier."
+      },
+      {
+        "pair": "ETH→USDC",
+        "chain": "Ethereum",
+        "note": "Already quoting — keep promoted."
+      },
+      {
+        "pair": "USDC→ETH",
+        "chain": "Ethereum",
+        "note": "Already quoting — keep promoted."
+      },
+      {
+        "pair": "ETH→USDT",
+        "chain": "Ethereum",
+        "note": "Already quoting — keep promoted."
+      },
+      {
+        "pair": "USDT→ETH",
+        "chain": "Ethereum",
+        "note": "Already quoting — keep promoted."
+      },
+      {
+        "pair": "WETH→WBTC",
+        "chain": "Ethereum",
+        "note": "Already quoting — keep promoted."
+      },
+      {
+        "pair": "WBTC→WETH",
+        "chain": "Ethereum",
+        "note": "Already quoting — keep promoted."
+      },
+      {
+        "pair": "WETH→DAI",
+        "chain": "Ethereum",
+        "note": "Safe for commission UX; keep on V3 canary list."
+      },
+      {
+        "pair": "DAI→WETH",
+        "chain": "Ethereum",
+        "note": "Safe for commission UX; keep on V3 canary list."
+      },
+      {
+        "pair": "WETH→AAVE",
+        "chain": "Ethereum",
+        "note": "Already quoting — keep promoted."
+      },
+      {
+        "pair": "AAVE→WETH",
+        "chain": "Ethereum",
+        "note": "Already quoting — keep promoted."
+      },
+      {
+        "pair": "WETH→LDO",
+        "chain": "Ethereum",
+        "note": "Already quoting — keep promoted."
+      },
+      {
+        "pair": "LDO→WETH",
+        "chain": "Ethereum",
+        "note": "Already quoting — keep promoted."
+      },
+      {
+        "pair": "WETH→PEPE",
+        "chain": "Ethereum",
+        "note": "Already quoting — keep promoted."
+      },
+      {
+        "pair": "BNB→USDT",
+        "chain": "BSC",
+        "note": "Safe for commission UX; keep in supported tier."
+      },
+      {
+        "pair": "USDT→BNB",
+        "chain": "BSC",
+        "note": "Safe for commission UX; keep in supported tier."
+      },
+      {
+        "pair": "BNB→USDC",
+        "chain": "BSC",
+        "note": "Safe for commission UX; keep in supported tier."
+      },
+      {
+        "pair": "USDC→BNB",
+        "chain": "BSC",
+        "note": "Already quoting — keep promoted."
+      },
+      {
+        "pair": "USDT→WBNB",
+        "chain": "BSC",
+        "note": "Already quoting — keep promoted."
+      },
+      {
+        "pair": "WBNB→BTCB",
+        "chain": "BSC",
+        "note": "Already quoting — keep promoted."
+      },
+      {
+        "pair": "BTCB→WBNB",
+        "chain": "BSC",
+        "note": "Already quoting — keep promoted."
+      },
+      {
+        "pair": "CAKE→USDT",
+        "chain": "BSC",
+        "note": "Already quoting — keep promoted."
+      },
+      {
+        "pair": "USDT→CAKE",
+        "chain": "BSC",
+        "note": "Already quoting — keep promoted."
+      }
+    ],
+    "tier2": [
+      {
+        "pair": "WETH→LINK",
+        "chain": "Ethereum",
+        "note": "Safe for commission UX; keep in supported tier."
+      },
+      {
+        "pair": "LINK→WETH",
+        "chain": "Ethereum",
+        "note": "Safe for commission UX; keep in supported tier."
+      },
+      {
+        "pair": "WETH→UNI",
+        "chain": "Ethereum",
+        "note": "Safe for commission UX; keep in supported tier."
+      },
+      {
+        "pair": "UNI→WETH",
+        "chain": "Ethereum",
+        "note": "Safe for commission UX; keep in supported tier."
+      },
+      {
+        "pair": "WETH→SNX",
+        "chain": "Ethereum",
+        "note": "Safe for commission UX; keep on V3 canary list."
+      },
+      {
+        "pair": "SNX→WETH",
+        "chain": "Ethereum",
+        "note": "Safe for commission UX; keep on V3 canary list."
+      },
+      {
+        "pair": "WETH→PENDLE",
+        "chain": "Ethereum",
+        "note": "Safe for commission UX; keep on V3 canary list."
+      },
+      {
+        "pair": "PENDLE→WETH",
+        "chain": "Ethereum",
+        "note": "Safe for commission UX; keep on V3 canary list."
+      },
+      {
+        "pair": "WBNB→USDT",
+        "chain": "BSC",
+        "note": "Safe for commission UX; keep in supported tier."
+      }
+    ],
+    "tier3": [],
+    "tier4": [
+      {
+        "pair": "ETH→WETH",
+        "chain": "Ethereum",
+        "note": "Show wrap/unwrap helper only; do not market as DEX swap."
+      },
+      {
+        "pair": "WETH→ETH",
+        "chain": "Ethereum",
+        "note": "Show wrap/unwrap helper only; do not market as DEX swap."
+      },
+      {
+        "pair": "BNB→WBNB",
+        "chain": "BSC",
+        "note": "Show wrap/unwrap helper only; do not market as DEX swap."
+      },
+      {
+        "pair": "Exotic / un-audited",
+        "chain": "Any",
+        "note": "Do not show Likely routable without a fresh audit quote."
+      }
+    ]
+  },
+  "supportedPairKeys": [
+    "1|WETH|USDC",
+    "1|USDC|WETH",
+    "1|WETH|USDT",
+    "1|USDT|WETH",
+    "1|ETH|USDC",
+    "1|USDC|ETH",
+    "1|ETH|USDT",
+    "1|USDT|ETH",
+    "1|WETH|WBTC",
+    "1|WBTC|WETH",
+    "1|WETH|DAI",
+    "1|DAI|WETH",
+    "1|WETH|LINK",
+    "1|LINK|WETH",
+    "1|WETH|UNI",
+    "1|UNI|WETH",
+    "1|WETH|SNX",
+    "1|SNX|WETH",
+    "1|WETH|PENDLE",
+    "1|PENDLE|WETH",
+    "1|WETH|AAVE",
+    "1|AAVE|WETH",
+    "1|WETH|LDO",
+    "1|LDO|WETH",
+    "1|WETH|PEPE",
+    "56|BNB|USDT",
+    "56|USDT|BNB",
+    "56|BNB|USDC",
+    "56|USDC|BNB",
+    "56|WBNB|USDT",
+    "56|USDT|WBNB",
+    "56|WBNB|BTCB",
+    "56|BTCB|WBNB",
+    "56|CAKE|USDT",
+    "56|USDT|CAKE"
+  ],
+  "blockedPairKeys": []
+}

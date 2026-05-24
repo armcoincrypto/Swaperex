@@ -53,8 +53,8 @@ export function parseCanaryListFromEnv(): string[][] {
 /**
  * Ordered symbol list for `tokenIn`→`tokenOut` through a canary row (for packed V3 path encoding).
  * - Forward: row first→last must equal tokenIn→tokenOut (any hop count ≤ MAX_HOPS on-chain).
- * - Reverse: only for **two-token** rows (single hop), same pool either way — e.g. `WETH-USDC`
- *   also allows USDC→WETH without a separate env segment.
+ * - Reverse (2-token): same pool either way — e.g. `WETH-USDC` allows USDC→WETH.
+ * - Reverse (multi-hop): row reversed — e.g. `WETH-USDC-DAI` allows DAI→USDC→WETH.
  */
 export function resolveUniswapWrapperV3CanarySymbolsForSwap(
   tokenInSymbol: string,
@@ -69,6 +69,9 @@ export function resolveUniswapWrapperV3CanarySymbolsForSwap(
     if (first === a && last === b) return [...path];
     if (path.length === 2 && first === b && last === a) {
       return [path[1], path[0]];
+    }
+    if (path.length > 2 && first === b && last === a) {
+      return [...path].reverse();
     }
   }
   return null;
