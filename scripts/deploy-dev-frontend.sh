@@ -15,7 +15,9 @@
 
 set -euo pipefail
 
-REPO_DIR="${REPO_DIR:-/root/Swaperex}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_DIR="${REPO_DIR:-$SCRIPT_REPO_DIR}"
 DEPLOY_DIR="${DEPLOY_DIR:-/var/www/swaperex-dev}"
 BACKUP_BASE="${BACKUP_BASE:-/var/www/swaperex-dev-backup}"
 BACKUP_DIR="${BACKUP_DIR:-${BACKUP_BASE}-$(date -u +%Y%m%dT%H%M%SZ)}"
@@ -38,6 +40,7 @@ die()   { echo "[deploy-dev] $(date '+%Y-%m-%d %H:%M:%S') FATAL: $1" >&2; exit "
 log "=== Swaperex DEV Frontend Deploy ==="
 
 [[ -d "$FRONTEND_DIR" ]] || die "Frontend dir not found: $FRONTEND_DIR"
+[[ -d "$REPO_DIR/.git" ]] || die "REPO_DIR is not a git repository: $REPO_DIR"
 command -v node >/dev/null || die "node not found"
 command -v npm  >/dev/null || die "npm not found"
 command -v nginx >/dev/null || die "nginx not found"
@@ -48,6 +51,7 @@ BRANCH=$(git -C "$REPO_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unk
 TIMESTAMP=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
 
 log "Commit:  $COMMIT_SHORT ($BRANCH)"
+log "Repo:    $REPO_DIR"
 log "Deploy:  $DEPLOY_DIR (dev only)"
 log "Host:    $SMOKE_PUBLIC_HOST"
 log "Dry run: $DRY_RUN"
