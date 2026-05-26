@@ -323,6 +323,20 @@ function defaultAmount(fromSym, toSym) {
   return '10';
 }
 
+/** Product policy — static quote may succeed (often dust) but must never be promoted. */
+const POLICY_BLOCKED_PAIR_KEYS = new Set(['1|WETH|PEPE', '1|PEPE|WETH']);
+
+const POLICY_BLOCK_RECOMMENDATION =
+  'Do not promote — quote exists but route is blocked by policy / low-confidence output.';
+
+function pairKey(chainId, fromSym, toSym) {
+  return `${chainId}|${norm(fromSym)}|${norm(toSym)}`;
+}
+
+function isPolicyBlockedPair(chainId, fromSym, toSym) {
+  return POLICY_BLOCKED_PAIR_KEYS.has(pairKey(chainId, fromSym, toSym));
+}
+
 const TEST_PAIRS = [
   // Ethereum — proven majors
   { chainId: 1, from: 'WETH', to: 'USDC' },
@@ -469,6 +483,20 @@ async function auditPair(env, ethProvider, bscProvider, ethTokens, bscTokens, ca
       );
     }
     const out = formatUnits(quote.amountOutNet, toTok.decimals);
+    if (isPolicyBlockedPair(chainId, fromSym, toSym)) {
+      return {
+        ...base,
+        classification: 'BLOCKED_POLICY',
+        providerSelected: route.provider,
+        wrapperVersion: route.wrapperVersion,
+        estimatedOutput: out,
+        amountIn: amountHuman,
+        feeBps: feeBps ?? (chainId === 56 ? Number(env.VITE_PANCAKE_WRAPPER_V2_FEE_BPS) : Number(env.VITE_UNISWAP_WRAPPER_V3_FEE_BPS || env.VITE_UNISWAP_WRAPPER_V2_FEE_BPS || 20)),
+        v3Path: quote.path || null,
+        reasonCode: 'blocked_by_product_policy',
+        recommendedAction: POLICY_BLOCK_RECOMMENDATION,
+      };
+    }
     return {
       ...base,
       classification: 'SUPPORTED_COMMISSION',
@@ -539,6 +567,7 @@ function printTable(rows) {
 
 function buildExpansionTiers(rows) {
   const supported = rows.filter((r) => r.classification === 'SUPPORTED_COMMISSION');
+  const policyBlocked = rows.filter((r) => r.classification === 'BLOCKED_POLICY');
   const quoteFailed = rows.filter((r) => r.classification === 'QUOTE_FAILED');
   const unsupported = rows.filter((r) => r.classification === 'UNSUPPORTED_COMMISSION');
   const nativeWrap = rows.filter((r) => r.classification === 'NATIVE_WRAP_SPECIAL');
@@ -588,6 +617,13 @@ function buildExpansionTiers(rows) {
     }
   }
 
+  for (const r of policyBlocked) {
+    tier3.push({
+      pair: `${r.from}→${r.to}`,
+      chain: r.chain,
+      note: r.recommendedAction || POLICY_BLOCK_RECOMMENDATION,
+    });
+  }
   for (const r of quoteFailed) {
     tier2.push({
       pair: `${r.from}→${r.to}`,
@@ -647,6 +683,7 @@ async function main() {
     v3CanaryPairs: canaryList,
     counts: {
       supported: rows.filter((r) => r.classification === 'SUPPORTED_COMMISSION').length,
+      policyBlocked: rows.filter((r) => r.classification === 'BLOCKED_POLICY').length,
       unsupported: rows.filter((r) => r.classification === 'UNSUPPORTED_COMMISSION').length,
       quoteFailed: rows.filter((r) => r.classification === 'QUOTE_FAILED').length,
       nativeWrap: rows.filter((r) => r.classification === 'NATIVE_WRAP_SPECIAL').length,
@@ -657,7 +694,14 @@ async function main() {
       .filter((r) => r.classification === 'SUPPORTED_COMMISSION')
       .map((r) => `${r.chainId}|${r.from}|${r.to}`),
     blockedPairKeys: rows
-      .filter((r) => r.classification !== 'SUPPORTED_COMMISSION' && r.classification !== 'NATIVE_WRAP_SPECIAL')
+      .filter(
+        (r) =>
+          r.classification === 'BLOCKED_POLICY' ||
+          (r.classification !== 'SUPPORTED_COMMISSION' && r.classification !== 'NATIVE_WRAP_SPECIAL'),
+      )
+      .map((r) => `${r.chainId}|${r.from}|${r.to}`),
+    policyBlockedPairKeys: rows
+      .filter((r) => r.classification === 'BLOCKED_POLICY')
       .map((r) => `${r.chainId}|${r.from}|${r.to}`),
   };
 
@@ -672,7 +716,7 @@ async function main() {
   }
   console.log(`\nWrote ${OUT_JSON}`);
   console.log(
-    `Summary: ${summary.counts.supported} supported, ${summary.counts.unsupported} unsupported, ${summary.counts.quoteFailed} quote_failed, ${summary.counts.nativeWrap} native_wrap`,
+    `Summary: ${summary.counts.supported} supported, ${summary.counts.policyBlocked} policy_blocked, ${summary.counts.unsupported} unsupported, ${summary.counts.quoteFailed} quote_failed, ${summary.counts.nativeWrap} native_wrap`,
   );
 }
 

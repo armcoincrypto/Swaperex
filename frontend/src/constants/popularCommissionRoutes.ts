@@ -71,8 +71,13 @@ const NATIVE_WRAP_KEYS = new Set([
   '56|WBNB|BNB',
 ]);
 
+const POLICY_BLOCKED_SYMBOLS = new Set(['PEPE']);
+
 function routeIsAuditVerified(route: PopularCommissionRoute): boolean {
   const { chainId, fromSymbol, toSymbol } = route;
+  const from = fromSymbol.trim().toUpperCase();
+  const to = toSymbol.trim().toUpperCase();
+  if (POLICY_BLOCKED_SYMBOLS.has(from) || POLICY_BLOCKED_SYMBOLS.has(to)) return false;
   const forwardKey = commissionPairKey(chainId, fromSymbol, toSymbol);
   if (NATIVE_WRAP_KEYS.has(forwardKey)) return false;
   return (

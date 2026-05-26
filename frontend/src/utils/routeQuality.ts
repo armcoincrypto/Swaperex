@@ -127,12 +127,20 @@ function resolveProviderHint(
   return raw ? raw.toLowerCase() : null;
 }
 
+const POLICY_BLOCKED_SYMBOLS = new Set(['PEPE']);
+
 function computeRouteQualityTier(
   fromSymbol: string,
   toSymbol: string,
   chainId: number,
   options?: RouteQualityOptions,
 ): RouteQualityTier {
+  const from = fromSymbol.trim().toUpperCase();
+  const to = toSymbol.trim().toUpperCase();
+  if (POLICY_BLOCKED_SYMBOLS.has(from) || POLICY_BLOCKED_SYMBOLS.has(to)) {
+    return 'LIMITED';
+  }
+
   if (
     isCommissionPairAuditBlocked(chainId, fromSymbol, toSymbol) ||
     isCommissionPairAuditBlocked(chainId, toSymbol, fromSymbol)
