@@ -40,7 +40,7 @@ die()   { echo "[deploy-dev] $(date '+%Y-%m-%d %H:%M:%S') FATAL: $1" >&2; exit "
 log "=== Swaperex DEV Frontend Deploy ==="
 
 [[ -d "$FRONTEND_DIR" ]] || die "Frontend dir not found: $FRONTEND_DIR"
-[[ -d "$REPO_DIR/.git" ]] || die "REPO_DIR is not a git repository: $REPO_DIR"
+git -C "$REPO_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "REPO_DIR is not a git repository: $REPO_DIR"
 command -v node >/dev/null || die "node not found"
 command -v npm  >/dev/null || die "npm not found"
 command -v nginx >/dev/null || die "nginx not found"
