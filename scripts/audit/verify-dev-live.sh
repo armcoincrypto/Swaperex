@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Live checks for dev.dex.kobbex.com (does not curl production dex.kobbex.com).
+# Workflow: docs/PRODUCTION_WORKFLOW.md (step F — verify dev)
 set -euo pipefail
 
 BASE="${DEV_BASE_URL:-https://dev.dex.kobbex.com}"

@@ -2,6 +2,8 @@
 #
 # Safe dev frontend deploy — dev.dex.kobbex.com -> /var/www/swaperex-dev
 #
+# Workflow: docs/PRODUCTION_WORKFLOW.md (steps E–F: deploy to dev, verify dev)
+#
 # Build and stage first. Only replace the live dev directory after the build and
 # staged artifact checks succeed. If post-deploy smoke fails, restore the prior
 # dev directory from the timestamped backup.

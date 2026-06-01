@@ -69,3 +69,6 @@ frontend/dist/
 
 # Deploy script backups
 scripts/*.bak.*
+
+# Temporary audit screenshots (local QA only)
+scripts/audit/screenshots-*/

@@ -2,6 +2,8 @@
 #
 # Emergency restore: copy current production frontend files into the dev vhost.
 # This does not modify production. It replaces only /var/www/swaperex-dev.
+#
+# Workflow: docs/PRODUCTION_WORKFLOW.md (Emergency: restore dev from production)
 
 set -euo pipefail
 

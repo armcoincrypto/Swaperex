@@ -71,6 +71,10 @@ npm run lint     # optional
 
 Deploy expects a **clean git tree** and **HEAD not ahead of `origin/main`** (see `scripts/prod-deploy.sh`).
 
+**Full workflow (inspect → dev → verify → report → prod):** see [`docs/PRODUCTION_WORKFLOW.md`](docs/PRODUCTION_WORKFLOW.md).
+
+Improvement work is grouped as **deployment safety**, **wallet runtime stability**, and **institutional UI cleanup** — not informal “pack” releases. One concern per branch; production only after explicit approval.
+
 Typical flow:
 
 1. Merge or push to **`main`** on the remote.
@@ -89,6 +93,24 @@ git fetch origin && git checkout main && git pull --ff-only origin main
 ```
 
 You can also run `deploy-match.sh` and `verify-live.sh` manually after a deploy for an extra check.
+
+## Dev environment (pre-production validation)
+
+Dev host: **https://dev.dex.kobbex.com** → `/var/www/swaperex-dev`
+
+```bash
+# From repo root — clean tree required
+sudo REPO_DIR=/root/Swaperex-p8-visual bash scripts/deploy-dev-frontend.sh
+bash scripts/audit/verify-dev-live.sh
+```
+
+Restore dev from the live production artifact (does not touch production):
+
+```bash
+sudo bash scripts/dev-restore-from-prod.sh
+```
+
+See [`docs/PRODUCTION_WORKFLOW.md`](docs/PRODUCTION_WORKFLOW.md) for rollback commands and the full A→H checklist.
 
 ## Important constraints
 
