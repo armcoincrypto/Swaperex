@@ -1863,22 +1863,12 @@ export function SwapInterface() {
             <div className="flex items-center gap-2 flex-wrap">
               <span
                 className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium tracking-wide border ${routingDisplayBadgeClass(routingDisplay.status)}`}
-                title={getRoutingDisplayDescription(
-                  routingDisplay.status,
-                  currentChainId,
-                  fromAsset.symbol,
-                  toAsset.symbol,
-                )}
+                title={getRoutingDisplayDescription(routingDisplay.status, currentChainId)}
               >
                 {getRoutingDisplayBadgeLabel(routingDisplay.status)}
               </span>
               <span className="text-dark-400 flex-1 min-w-0">
-                {getRoutingDisplayDescription(
-                  routingDisplay.status,
-                  currentChainId,
-                  fromAsset.symbol,
-                  toAsset.symbol,
-                )}
+                {getRoutingDisplayDescription(routingDisplay.status, currentChainId)}
               </span>
             </div>
           </div>
