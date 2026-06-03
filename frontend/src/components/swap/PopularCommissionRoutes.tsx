@@ -24,7 +24,14 @@ const CHAIN_NAMES: Record<number, string> = {
   56: 'bsc',
 };
 
-type Props = {
+const CHAIN_LABELS: Record<number, string> = {
+  1: 'Ethereum',
+  56: 'BNB Chain',
+};
+
+const RECOVERY_ROUTE_LIMIT = 6;
+
+type PairSelectProps = {
   activeChainId: number;
   fromAsset: AssetInfo | null;
   toAsset: AssetInfo | null;
@@ -66,6 +73,28 @@ function isActiveRoute(
     (f === a && t === b) ||
     (isPopularRouteBidirectional(route) && f === b && t === a)
   );
+}
+
+function handleRouteSelection(
+  route: PopularCommissionRoute,
+  fromAsset: AssetInfo | null,
+  toAsset: AssetInfo | null,
+  onSelectPair: (from: AssetInfo, to: AssetInfo) => void,
+): void {
+  const resolved = resolveAssets(route);
+  if (!resolved) return;
+
+  if (isActiveRoute(route, fromAsset, toAsset) && isPopularRouteBidirectional(route)) {
+    onSelectPair(resolved.to, resolved.from);
+    return;
+  }
+  onSelectPair(resolved.from, resolved.to);
+}
+
+function recoveryRoutesForChain(chainId: number): PopularCommissionRoute[] {
+  return getVerifiedPopularCommissionRoutes()
+    .filter((route) => route.chainId === chainId)
+    .slice(0, RECOVERY_ROUTE_LIMIT);
 }
 
 function RouteChip({
@@ -127,12 +156,87 @@ function RouteChip({
   );
 }
 
+/** Compact audited route chips for recovery surfaces (display-only). */
+export function CommissionRouteRecoveryChips({
+  activeChainId,
+  fromAsset,
+  toAsset,
+  onSelectPair,
+}: PairSelectProps) {
+  const routes = useMemo(() => recoveryRoutesForChain(activeChainId), [activeChainId]);
+
+  if (!isCommissionRequiredMode()) return null;
+  if (activeChainId !== 1 && activeChainId !== 56) return null;
+  if (routes.length === 0) return null;
+
+  const chainLabel = CHAIN_LABELS[activeChainId] || 'Ethereum';
+
+  return (
+    <div
+      className="flex flex-wrap gap-1.5"
+      role="list"
+      aria-label={SWAP_SURFACE_COPY.commissionRouteRecoveryChipsLabel}
+    >
+      {routes.map((route) => {
+        if (!resolveAssets(route)) return null;
+        return (
+          <RouteChip
+            key={`recovery-${route.chainId}-${route.fromSymbol}-${route.toSymbol}`}
+            route={route}
+            active={isActiveRoute(route, fromAsset, toAsset)}
+            isActiveChain
+            chainLabel={chainLabel}
+            onSelect={(selected) =>
+              handleRouteSelection(selected, fromAsset, toAsset, onSelectPair)
+            }
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+/** Amber recovery panel for blocked/unsupported commission pairs (display-only). */
+export function CommissionRouteRecoveryPanel({
+  activeChainId,
+  fromAsset,
+  toAsset,
+  onSelectPair,
+}: PairSelectProps) {
+  if (!isCommissionRequiredMode()) return null;
+  if (activeChainId !== 1 && activeChainId !== 56) return null;
+  if (recoveryRoutesForChain(activeChainId).length === 0) return null;
+
+  return (
+    <div
+      className="relative z-10 mt-3 rounded-xl border border-amber-700/35 bg-amber-900/15 px-3 py-2.5 text-sm text-amber-100"
+      role="alert"
+      aria-live="polite"
+    >
+      <p className="font-medium text-amber-50">
+        {SWAP_SURFACE_COPY.unsupportedCommissionRouteTitle}
+      </p>
+      <p className="mt-1.5 text-xs leading-relaxed text-amber-100/90">
+        {SWAP_SURFACE_COPY.commissionRouteRecoveryHelper}
+      </p>
+      <div className="mt-2">
+        <CommissionRouteRecoveryChips
+          activeChainId={activeChainId}
+          fromAsset={fromAsset}
+          toAsset={toAsset}
+          onSelectPair={onSelectPair}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function PopularCommissionRoutes({
   activeChainId,
   fromAsset,
   toAsset,
   onSelectPair,
-}: Props) {
+}: PairSelectProps) {
   const groups = useMemo(() => {
     const routes = getVerifiedPopularCommissionRoutes();
     if (routes.length === 0) return [];
@@ -144,14 +248,7 @@ export function PopularCommissionRoutes({
   if (groups.length === 0) return null;
 
   const handleRouteClick = (route: PopularCommissionRoute) => {
-    const resolved = resolveAssets(route);
-    if (!resolved) return;
-
-    if (isActiveRoute(route, fromAsset, toAsset) && isPopularRouteBidirectional(route)) {
-      onSelectPair(resolved.to, resolved.from);
-      return;
-    }
-    onSelectPair(resolved.from, resolved.to);
+    handleRouteSelection(route, fromAsset, toAsset, onSelectPair);
   };
 
   return (

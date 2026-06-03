@@ -7,7 +7,7 @@
  * Flow: Enter amount → Get quote → Preview → Confirm in wallet → Success
  */
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, Suspense, lazy } from 'react';
 import { useWallet } from '@/hooks/useWallet';
 import { useSwap } from '@/hooks/useSwap';
 import { useSwapStore, type ApprovalMode } from '@/stores/swapStore';
@@ -22,13 +22,15 @@ import { SavePresetModal } from '@/components/presets/SavePresetModal';
 import { GuardWarningPanel } from '@/components/presets/GuardWarningPanel';
 import { evaluatePresetGuards } from '@/services/presetGuardService';
 import { TokenSafetyBadges } from '@/components/common/TokenSafetyBadges';
-import { PopularCommissionRoutes } from './PopularCommissionRoutes';
-import { SwapPreviewModal, SwapStep } from './SwapPreviewModal';
+import { PopularCommissionRoutes, CommissionRouteRecoveryChips, CommissionRouteRecoveryPanel } from './PopularCommissionRoutes';
+import { SwapPreviewModal, type RecoveredSwapTrace, type SwapStep } from './SwapPreviewModal';
 import { SwapExecutionRail } from './SwapExecutionRail';
 import { RouteTransparencyCard } from './RouteTransparencyCard';
 import { TermsGateModal } from '@/components/common/TermsGateModal';
 import { useTermsStore } from '@/stores/termsStore';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
+
+const LazySwapHistoryPanel = lazy(() => import('./SwapHistoryPanel'));
 import {
   formatBalance,
   formatGasLimitUnits,
@@ -308,6 +310,11 @@ export function SwapInterface() {
     error,
     quoteErrorParsed,
     receiptSettlement,
+    recoveredPendingSwap,
+    pendingTxTimedOut,
+    executionFailure,
+    pendingSubmittedSwap,
+    dismissPendingSubmitted,
     isQuoteExpired,
     swap,
     confirmSwap,
@@ -617,6 +624,42 @@ export function SwapInterface() {
   /** Terms / Privacy gate — opens before preview when user has not accepted yet. */
   const termsAccepted = useTermsStore((s) => s.accepted);
   const [showTermsGate, setShowTermsGate] = useState(false);
+
+  const recoveredTrace: RecoveredSwapTrace | null = useMemo(() => {
+    const pending = recoveredPendingSwap ?? pendingSubmittedSwap;
+    if (!pending) return null;
+    return {
+      fromSymbol: pending.fromSymbol,
+      toSymbol: pending.toSymbol,
+      fromAmount: pending.fromAmount,
+      toAmount: pending.toAmount,
+      routeProvider: pending.routeProvider,
+      executionStage: pending.executionStage,
+      approvalHash: pending.approvalHash ?? null,
+      swapHash: pending.swapHash ?? null,
+      submittedAt: pending.submittedAt,
+      outcomeUncertain: pending.outcomeUncertain,
+      pendingTooLong: pendingTxTimedOut,
+    };
+  }, [recoveredPendingSwap, pendingSubmittedSwap, pendingTxTimedOut]);
+
+  useEffect(() => {
+    if (
+      !showPreview &&
+      recoveredTrace &&
+      !swapQuote &&
+      (status === 'confirming' || status === 'error')
+    ) {
+      setShowPreview(true);
+      logProductionEvent('execution_resume_rendered', {
+        chainId: currentChainId,
+        provider: recoveredTrace.routeProvider,
+        executionStage: recoveredTrace.executionStage,
+        txHash: recoveredTrace.swapHash ?? recoveredTrace.approvalHash ?? txHash,
+        pendingTooLong: recoveredTrace.pendingTooLong,
+      });
+    }
+  }, [showPreview, recoveredTrace, swapQuote, status, currentChainId, txHash]);
   const [showAdvancedQuoteDetails, setShowAdvancedQuoteDetails] = useState(
     () => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1',
   );
@@ -1884,6 +1927,21 @@ export function SwapInterface() {
           </div>
         )}
 
+        {showCommissionRouteIssue && !routingDisplay.showUnsupportedPanel && (
+          <CommissionRouteRecoveryPanel
+            activeChainId={currentChainId}
+            fromAsset={fromAsset}
+            toAsset={toAsset}
+            onSelectPair={(from, to) => {
+              setShowFromSelector(false);
+              setShowToSelector(false);
+              setFromAsset(from);
+              setToAsset(to);
+              reset();
+            }}
+          />
+        )}
+
         {/* Imported / unverified token notice (swap path only) */}
         {(() => {
           const fromExt = fromAsset as ExtendedAssetInfo | null;
@@ -2007,6 +2065,11 @@ export function SwapInterface() {
               }
               needsApproval={swapQuote.needsApproval}
               allowanceCheckUncertain={swapQuote.allowanceCheckUncertain}
+              chainId={currentChainId}
+              fromSymbol={fromAsset?.symbol ?? swapQuote.fromSymbol}
+              toSymbol={toAsset?.symbol ?? swapQuote.toSymbol}
+              provider={swapQuote.provider}
+              routeMode={swapQuote.routeMode ?? null}
             />
 
             {/* Main summary — execution economics (route/min/gas on RouteTransparencyCard) */}
@@ -2457,15 +2520,22 @@ export function SwapInterface() {
                 {SWAP_SURFACE_COPY.unsupportedCommissionRouteTitle}
               </p>
               <p className="mt-2 text-xs leading-relaxed text-amber-100/90">
-                {SWAP_SURFACE_COPY.unsupportedCommissionRouteHelper}
+                {SWAP_SURFACE_COPY.commissionRouteRecoveryHelper}
               </p>
-              <p className="mt-2 text-[11px] leading-relaxed text-amber-200/80">
-                {currentChainId === 56
-                  ? SWAP_SURFACE_COPY.unsupportedCommissionRouteQuickTokensBsc
-                  : currentChainId === 1
-                    ? SWAP_SURFACE_COPY.unsupportedCommissionRouteQuickTokensEthereum
-                    : SWAP_SURFACE_COPY.unsupportedCommissionRouteQuickTokensDefault}
-              </p>
+              <div className="mt-2">
+                <CommissionRouteRecoveryChips
+                  activeChainId={currentChainId}
+                  fromAsset={fromAsset}
+                  toAsset={toAsset}
+                  onSelectPair={(from, to) => {
+                    setShowFromSelector(false);
+                    setShowToSelector(false);
+                    setFromAsset(from);
+                    setToAsset(to);
+                    reset();
+                  }}
+                />
+              </div>
             </div>
           ) : (
             <div className="mt-4 p-3 bg-red-900/20 border border-red-800 rounded-xl text-sm text-red-400">
@@ -2525,6 +2595,22 @@ export function SwapInterface() {
         )}
       </div>
 
+      {isConnected && currentChainId ? (
+        <Suspense
+          fallback={
+            <div className="mt-4 w-full max-w-md lg:max-w-xl 2xl:max-w-2xl mx-auto rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-xs text-dark-500">
+              Loading recent swaps…
+            </div>
+          }
+        >
+          <LazySwapHistoryPanel
+            chainId={currentChainId}
+            walletAddress={address}
+            className="mt-4 w-full max-w-md lg:max-w-xl 2xl:max-w-2xl mx-auto"
+          />
+        </Suspense>
+      ) : null}
+
       {/* Terms / Privacy gate — must be accepted before first preview */}
       <TermsGateModal
         isOpen={showTermsGate}
@@ -2543,6 +2629,10 @@ export function SwapInterface() {
         explorerUrl={explorerUrl}
         receiptSettlement={receiptSettlement}
         approvalMode={approvalMode}
+        recoveredTrace={recoveredTrace}
+        pendingTooLong={pendingTxTimedOut}
+        failureIntelligence={executionFailure}
+        onClearPendingSwap={dismissPendingSubmitted}
         chainId={currentChainId}
         onConfirm={handleConfirmSwap}
         onCancel={handleCancelPreview}
