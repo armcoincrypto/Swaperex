@@ -1,11 +1,12 @@
 /**
  * Public JSON-RPC configuration (read-only paths).
  *
- * Browser JsonRpcProvider requires absolute https URLs — never use same-origin `/rpc/*`
- * for ethers; those proxies often lack full JSON-RPC or trigger UNSUPPORTED_OPERATION.
+ * Browser JsonRpcProvider requires absolute URLs (not root-relative `/rpc/...`).
+ * Production: same-origin absolute proxy first (`https://dex.kobbex.com/rpc/eth|bsc`) — no API keys in bundle.
+ * Never put private RPC API keys in `VITE_*` env (Vite ships them in the public JS bundle).
  *
- * Prefer `VITE_ETHEREUM_RPC_URL` / `VITE_BSC_RPC_URL` in production (e.g. Dwellir).
- * Optional comma-separated extras: `VITE_BSC_READ_RPC_URLS` (client-exposed via Vite).
+ * Optional local override: `VITE_ETHEREUM_RPC_URL` / `VITE_BSC_RPC_URL` (dev/ops only; do not commit secrets).
+ * Optional extras: `VITE_BSC_READ_RPC_URLS` (comma-separated https URLs).
  */
 
 /**
@@ -33,16 +34,31 @@ export const BSC_READ_RPC_URLS: readonly string[] = [
 /** Default timeout per RPC probe / health check (ms). */
 export const JSONRPC_TIMEOUT_MS = 12_000;
 
+/** Same-origin absolute RPC proxy (nginx → backend-signals). No secrets in bundle. */
+export function getSameOriginRpcProxyUrl(chain: 'eth' | 'bsc'): string | null {
+  if (typeof window === 'undefined') return null;
+  const origin = window.location?.origin;
+  if (!origin || origin === 'null') return null;
+  return `${origin.replace(/\/+$/, '')}/rpc/${chain}`;
+}
+
+function prependUniqueCandidate(url: string | null, candidates: string[]): string[] {
+  if (!url) return candidates;
+  const normalized = url.replace(/\/+$/, '');
+  return [url, ...candidates.filter((u) => u.replace(/\/+$/, '') !== normalized)];
+}
+
 /**
- * Candidate URLs: optional `VITE_ETHEREUM_RPC_URL` first, then fallbacks (deduped).
+ * Candidate URLs: optional env override, then same-origin proxy (prod), then public fallbacks.
  */
 export function getEthereumReadRpcCandidates(): string[] {
   const env = import.meta.env.VITE_ETHEREUM_RPC_URL?.trim();
   const base = [...ETHEREUM_READ_RPC_URLS];
   if (env && /^https?:\/\//i.test(env)) {
-    return [env, ...base.filter((u) => u !== env)];
+    return prependUniqueCandidate(env, base);
   }
-  return base;
+  const proxy = import.meta.env.PROD ? getSameOriginRpcProxyUrl('eth') : null;
+  return prependUniqueCandidate(proxy, base);
 }
 
 /** Primary URL for static config (e.g. CHAINS.ethereum.rpcUrl). */
@@ -83,6 +99,12 @@ export function getBscReadRpcCandidates(): string[] {
   }
   for (const u of envExtras) {
     push(u);
+  }
+  if (import.meta.env.PROD) {
+    const proxy = getSameOriginRpcProxyUrl('bsc');
+    if (proxy) {
+      push(proxy);
+    }
   }
   for (const u of BSC_READ_RPC_URLS) {
     push(u);

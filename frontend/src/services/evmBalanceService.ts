@@ -32,7 +32,7 @@ const ERC20_BALANCE_ABI = [
 
 /**
  * Polygon/Arbitrum still use same-origin RPC proxy when configured.
- * Ethereum uses public HTTPS RPCs only — `/rpc/eth` breaks ethers in the browser (UNSUPPORTED_OPERATION / invalid JSON-RPC).
+ * Ethereum/BSC use absolute same-origin `/rpc/eth|bsc` in production (see config/rpc.ts), then public fallbacks.
  */
 import { RPC_PROXY_BASE } from '@/config/api';
 import {
