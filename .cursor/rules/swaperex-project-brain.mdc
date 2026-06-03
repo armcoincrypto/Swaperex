@@ -1,0 +1,104 @@
+---
+description: Swaperex project brain — product state, roadmap, architecture boundaries, production workflow
+alwaysApply: true
+---
+
+# Swaperex Project Brain
+
+Swaperex is a live production DEX at https://dex.kobbex.com.
+
+## Current product philosophy
+
+- Build step by step.
+- Do not rewrite working systems.
+- Do not overbuild.
+- Prefer production-safe minimal patches.
+- Inspect first, then patch, then validate.
+- Keep UI premium, clear, mobile-safe, and easy for real users.
+- Product goal: make swaps feel trustworthy, transparent, and professional.
+
+## Completed product direction
+
+Swaperex has already completed major Swap Trust phases:
+- route explanation
+- quote freshness/staleness UX
+- gas and price impact clarity
+- execution progress
+- token safety UX
+- better swap error handling
+- pending swap persistence/recovery
+- explorer-first ambiguity handling
+- aggregator quote transparency direction
+
+Do not rebuild these from scratch. Improve them carefully.
+
+## Current priorities
+
+Main priorities:
+1. Monitoring backend ingestion
+2. Admin / analytics dashboard
+3. Swap and revenue observability
+4. Fee telemetry normalization
+5. Revenue / treasury reconciliation
+6. Swap lifecycle observability
+7. Alerts / health
+8. Optional final mobile polish
+
+## Hard safety boundaries
+
+Do not change unless explicitly approved:
+- smart contracts
+- wrappers
+- commission logic
+- treasury logic
+- swap execution paths
+- fallback route behavior
+- production deployment scripts
+- environment secrets
+- private keys
+- custody/withdrawal logic
+
+Commission-required mode must remain intact.
+Do not add non-commission fallback routes.
+
+## Required workflow
+
+For every task:
+1. Read this file and active .cursor/rules first.
+2. Inspect only relevant files.
+3. Explain current state.
+4. Identify root cause or opportunity.
+5. List exact files to edit.
+6. Propose minimal patch plan.
+7. Wait for approval before editing if task is risky.
+8. Apply small focused changes.
+9. Validate with targeted commands.
+10. Provide rollback commands.
+
+## Validation preference
+
+Prefer targeted validation:
+- npm run build
+- npm test only when relevant
+- targeted audit scripts
+- scripts/audit/deploy-match.sh
+- scripts/audit/verify-live.sh
+- wrapper/commission audit only when related
+
+Do not run broad expensive scans unless approved.
+
+## Deployment workflow
+
+Production-safe deployment preference:
+1. Work on dedicated branch.
+2. Inspect and scope changes.
+3. Build locally or on server.
+4. Push feature branch.
+5. On server, clean/reset to origin/main.
+6. Merge approved feature branch into main.
+7. Push main.
+8. Run /root/Swaperex/scripts/prod-deploy.sh.
+9. Run deploy-match and verify-live audits.
+10. Keep rollback path ready.
+
+Do not deploy without explicit approval.
