@@ -1,0 +1,25 @@
+---
+description: cost control — narrow scope, no broad scans, no waste
+alwaysApply: true
+---
+
+# Cost Control Rules
+
+Do not scan the whole repository unless explicitly approved.
+
+Prefer:
+- narrow file inspection
+- targeted grep/find
+- batched reads
+- concise summaries
+- targeted builds/tests
+
+Avoid:
+- node_modules
+- dist
+- coverage
+- cache
+- generated files
+- large logs
+- repeated reads of unchanged files
+- broad test suites without approval

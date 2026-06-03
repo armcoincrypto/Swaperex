@@ -1,0 +1,19 @@
+---
+description: commit contract — one concern per commit, clean build, no untracked dependencies
+alwaysApply: true
+---
+
+# Commit Contract
+
+Every production candidate must follow:
+
+- One user-visible concern per commit.
+- No bundled unrelated WIP.
+- No commit may depend on untracked files.
+- Clean worktree build must pass before deploy discussion.
+- Exact files changed must be listed.
+- Forbidden files must be confirmed untouched.
+- Rollback command must be provided.
+- Deploy only from clean main after approval.
+
+If a commit mixes concerns, split it before production.

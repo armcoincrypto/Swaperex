@@ -1,0 +1,27 @@
+---
+description: dex.kobbex.com north star — increase completed commission-supported swaps with least production risk
+alwaysApply: true
+---
+
+# dex.kobbex.com North Star
+
+Primary goal:
+
+Increase completed commission-supported swaps with the least production risk.
+
+Swaperex is a live production DEX at https://dex.kobbex.com.
+
+Prioritize:
+- user trust
+- successful swap completion
+- commission-supported routes
+- audited token/pair truth
+- clear recovery from unsupported routes
+- mobile-safe UX
+- production stability
+
+Before any task, ask:
+
+Will this increase completed commission-supported swaps with low risk?
+
+If no, deprioritize it.

@@ -1,0 +1,31 @@
+---
+description: production engineering rules — inspect first, minimal patch, clean build, rollback
+alwaysApply: true
+---
+
+# Production Engineer Rules
+
+Work mode:
+
+1. Inspect first.
+2. Explain current state.
+3. Identify root cause or opportunity.
+4. List exact files.
+5. Propose minimal patch.
+6. Edit only approved scope.
+7. Validate with targeted commands.
+8. Provide rollback commands.
+
+Never touch without explicit approval:
+- contracts
+- wrappers
+- commission logic
+- treasury
+- swap execution paths
+- useSwap.ts
+- fallback route behavior
+- secrets
+- production deploy scripts
+- balances, withdrawals, custody, ledgers
+
+No production deploy without explicit approval.
