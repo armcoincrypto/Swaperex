@@ -55,7 +55,7 @@ function vendorManualChunks(id: string): string | undefined {
   return undefined;
 }
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
   resolve: {
     // Intentionally no `dedupe: ['ox']` — Vite fails resolving nested `ox` (missing "./erc8010" export).
@@ -93,7 +93,9 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true,
+    // Production: no source maps in dist (prevents public exposure via static deploy).
+    // Dev server and non-production modes keep maps for debugging.
+    sourcemap: mode !== 'production',
     rollupOptions: {
       output: {
         manualChunks: vendorManualChunks,
@@ -105,4 +107,4 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
   },
-});
+}));
