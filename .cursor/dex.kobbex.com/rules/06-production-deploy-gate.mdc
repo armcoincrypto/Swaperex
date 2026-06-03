@@ -1,0 +1,102 @@
+---
+description: production deploy gate — validate first, deploy only with explicit operator approval
+alwaysApply: true
+---
+
+# Production Deploy Gate
+
+Cursor may prepare, build, validate, and provide deploy commands, but must not deploy automatically unless the operator explicitly approves deploy in the current task.
+
+## Required context
+
+Before any production-related work, Cursor must read:
+
+
+```bash
+cd /root/Swaperex
+cat .cursor/dex.kobbex.com/rules/*.mdc
+```
+
+## Allowed before deploy
+
+Cursor may run:
+
+
+```bash
+git status --short
+git branch --show-current
+git log --oneline -5
+cd frontend && npm ci && npm run build
+cd /root/Swaperex && bash scripts/audit/verify-live.sh
+cd /root/Swaperex && bash scripts/audit/deploy-match.sh || true
+cd /root/Swaperex && bash scripts/audit/verify-no-rpc-secrets-in-dist.sh || true
+cd /root/Swaperex && bash scripts/audit/verify-no-sourcemaps-in-dist.sh || true
+```
+
+## Required before production deploy
+
+Before running `scripts/prod-deploy.sh`, Cursor must confirm:
+
+1. Current branch is `main`.
+2. `git status --short` is clean.
+3. Latest change is merged and pushed to `origin/main`.
+4. `npm run build` passes.
+5. RPC secret scan passes.
+6. Sourcemap scan passes.
+7. `verify-live.sh` passes before deploy.
+8. Operator explicitly approved deploy in the current task.
+
+## Clean tree handling
+
+If deploy is blocked only by untracked audit docs under `docs/audits/`, Cursor may suggest:
+
+```bash
+git stash push -u -m "pre-deploy untracked audit docs"
+```
+
+Cursor must not delete audit docs blindly.
+
+After deploy validation passes, Cursor should suggest:
+
+```bash
+git stash pop
+```
+
+## Deploy command
+
+Only after explicit approval:
+
+
+```bash
+cd /root/Swaperex
+bash scripts/prod-deploy.sh
+```
+
+## Required after deploy
+
+Always run:
+
+
+```bash
+cd /root/Swaperex
+bash scripts/audit/deploy-match.sh
+bash scripts/audit/verify-live.sh
+bash scripts/audit/verify-no-rpc-secrets-in-dist.sh || true
+bash scripts/audit/verify-no-sourcemaps-in-dist.sh || true
+find /var/www/swaperex -name "*.map" | wc -l || true
+grep -RIn "sourceMappingURL" /var/www/swaperex/assets 2>/dev/null || true
+```
+
+## Forbidden
+
+Cursor must not:
+
+- deploy from a feature branch
+- deploy with dirty worktree
+- deploy after failed build
+- deploy after failed RPC secret scan
+- deploy after failed sourcemap scan
+- deploy contract/wrapper/commission changes without separate approval
+- run `npm audit fix` without explicit approval
+- delete untracked files blindly
+- print secrets in logs, reports, commits, or docs
