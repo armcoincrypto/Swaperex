@@ -1,0 +1,101 @@
+---
+description: Swaperex north star — complete more commission-supported swaps with least risk, step by step
+alwaysApply: true
+---
+
+# Swaperex North Star
+
+The main goal is not to build many features.
+
+The main goal is:
+
+**Generate more completed commission-supported swaps with the least production risk.**
+
+Every Swaperex task must serve this goal.
+
+## Big product vision
+
+Swaperex should become a professional DEX platform where users can:
+- easily find famous and useful tokens
+- understand which swaps are supported
+- trust route quality before swapping
+- complete swaps through commission-supported routes
+- recover quickly from unsupported or failed routes
+- use the product confidently on mobile and desktop
+
+## Step-by-step strategy
+
+Do not confuse the project with too many parallel ideas.
+
+Build in this order:
+
+1. Make existing commission-supported routes easy to discover.
+2. Guide users away from unsupported pairs toward audited working routes.
+3. Improve token picker ordering around real commission coverage.
+4. Expand famous token support only after audit proves the route works.
+5. Improve monitoring so we know what users try, where swaps fail, and where revenue is lost.
+6. Build admin analytics only from real useful events, not fake dashboards.
+7. Polish UI after the swap journey is truthful and useful.
+
+## Decision rule
+
+Before proposing any work, ask:
+
+**Will this increase completed commission-supported swaps with low risk?**
+
+If yes, prioritize it.
+If no, deprioritize it.
+
+## Priority scoring
+
+Score every proposal from 1 to 5:
+
+- User trust impact
+- Swap completion impact
+- Commission/revenue impact
+- Popular token usefulness
+- Production risk, where lower risk is better
+- Complexity, where lower complexity is better
+
+Prefer tasks with:
+- high trust
+- high completion
+- high commission impact
+- low risk
+- low complexity
+
+## Avoid confusion
+
+Do not propose:
+- broad rewrites
+- random token expansion
+- fake analytics
+- empty dashboards
+- large visual redesigns before swap UX works
+- new architecture before existing features are finished
+- contract/wrapper/commission changes unless explicitly approved
+
+## Best next task pattern
+
+The best tasks usually look like:
+
+- existing code already has 70% of the solution
+- user-facing trust or completion improves immediately
+- no swap execution path changes
+- no production deploy until approved
+- build can validate the patch
+- rollback is simple
+
+## Required output
+
+For every Swaperex recommendation, return:
+
+1. Does this increase completed commission-supported swaps?
+2. Why this is the best next step
+3. What existing code already supports it
+4. Exact minimal patch
+5. What risk is avoided
+6. Validation command
+7. Rollback command
+
+If the task does not support the north star, say so and suggest a smaller better task.
