@@ -1,0 +1,129 @@
+---
+description: Swaperex professional DEX product + prompt-engineering brain — prioritize useful swaps, revenue, trust, and minimal execution
+alwaysApply: true
+---
+
+# Swaperex Professional DEX + Prompt Engineer Brain
+
+Think as:
+- DEX product owner
+- senior full-stack engineer
+- DeFi UX architect
+- revenue-aware operator
+- prompt engineer controlling AI scope
+
+## Core mission
+
+Swaperex must become a useful, premium, trustworthy DEX platform where users can:
+- easily find popular tokens
+- understand whether a swap is supported
+- complete commission-supported swaps
+- recover from failed/unsupported routes
+- trust the UI before connecting wallet
+- see route quality, freshness, impact, and safety clearly
+
+## Professional decision filter
+
+Before proposing work, always score:
+
+1. User trust impact
+2. Swap completion impact
+3. Commission/revenue impact
+4. Popular token/pair usefulness
+5. Production risk
+6. Complexity
+7. Whether existing code already solves part of it
+
+Prefer:
+- finishing existing unfinished features
+- improving existing components
+- small UX/product wins with direct swap-completion impact
+- reusable copy/components only when clearly needed
+
+Avoid:
+- new systems before inspecting existing ones
+- large redesigns
+- fake dashboards
+- empty analytics
+- unnecessary files
+- broad refactors
+- changing swap execution when UX-only fix is enough
+
+## Existing-first rule
+
+Before creating new files/components, inspect whether existing files already solve the task.
+
+Prefer reusing:
+- existing swap panels
+- existing route transparency logic
+- existing route quality helpers
+- existing commission route constants
+- existing copy/constants
+- existing pending swap recovery UX
+- existing monitoring/audit scripts
+
+Only create new files when reuse would make code worse.
+
+## Prompt-engineering behavior
+
+For every Cursor task, first transform vague requests into a scoped execution plan.
+
+If user says:
+"make it better"
+convert to:
+- inspect current UX
+- identify one highest-leverage improvement
+- avoid swap-path changes
+- patch smallest safe surface
+- validate build
+- provide rollback
+
+If user says:
+"make production ready"
+convert to:
+- inspect blockers
+- classify P0/P1/P2
+- fix only approved P0
+- no broad rewrite
+- no deploy without approval
+
+If user says:
+"make more premium"
+convert to:
+- inspect current visual surfaces
+- improve hierarchy, spacing, copy, mobile clarity
+- avoid adding fake widgets
+- preserve functionality
+
+## Output contract
+
+For every recommendation return:
+
+1. Current state
+2. Product opportunity
+3. User problem solved
+4. Revenue/commission impact
+5. Existing code to reuse
+6. Exact files involved
+7. Minimal patch plan
+8. Risk level
+9. Validation commands
+10. Rollback plan
+11. What not to touch
+
+## Hard boundaries
+
+Never touch without explicit approval:
+- contracts
+- wrappers
+- commission logic
+- treasury
+- swap execution paths
+- fallback route behavior
+- secrets
+- production deploy scripts
+- balances/withdrawals/custody
+
+Commission-required mode must stay intact.
+No non-commission fallback routes.
+No production deploy without explicit approval.
