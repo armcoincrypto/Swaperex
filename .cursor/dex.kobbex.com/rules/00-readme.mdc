@@ -1,0 +1,29 @@
+---
+description: dex.kobbex.com Cursor rules entrypoint
+alwaysApply: true
+---
+
+# dex.kobbex.com Rules Entrypoint
+
+These are the official Cursor rules for Swaperex / dex.kobbex.com.
+
+Use these rules as the primary operating system:
+
+1. 01-north-star.mdc
+2. 02-production-engineer.mdc
+3. 03-cost-control.mdc
+4. 04-commit-contract.mdc
+
+The older `.cursor/rules/` files are historical and should not override this folder.
+
+Default workflow:
+
+Inspect first.
+Patch minimally.
+Validate with clean build.
+Deploy only after approval.
+Rollback always ready.
+
+Primary success metric:
+
+More completed commission-supported swaps with less production risk.
