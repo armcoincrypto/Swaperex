@@ -22,7 +22,11 @@ import { SavePresetModal } from '@/components/presets/SavePresetModal';
 import { GuardWarningPanel } from '@/components/presets/GuardWarningPanel';
 import { evaluatePresetGuards } from '@/services/presetGuardService';
 import { TokenSafetyBadges } from '@/components/common/TokenSafetyBadges';
-import { PopularCommissionRoutes } from './PopularCommissionRoutes';
+import {
+  PopularCommissionRoutes,
+  CommissionRouteRecoveryChips,
+  CommissionRouteRecoveryPanel,
+} from './PopularCommissionRoutes';
 import { SwapPreviewModal, SwapStep } from './SwapPreviewModal';
 import { SwapExecutionRail } from './SwapExecutionRail';
 import { RouteTransparencyCard } from './RouteTransparencyCard';
@@ -1874,6 +1878,21 @@ export function SwapInterface() {
           </div>
         )}
 
+        {showCommissionRouteIssue && !routingDisplay.showUnsupportedPanel && (
+          <CommissionRouteRecoveryPanel
+            activeChainId={currentChainId}
+            fromAsset={fromAsset}
+            toAsset={toAsset}
+            onSelectPair={(from, to) => {
+              setShowFromSelector(false);
+              setShowToSelector(false);
+              setFromAsset(from);
+              setToAsset(to);
+              reset();
+            }}
+          />
+        )}
+
         {/* Imported / unverified token notice (swap path only) */}
         {(() => {
           const fromExt = fromAsset as ExtendedAssetInfo | null;
@@ -2447,15 +2466,22 @@ export function SwapInterface() {
                 {SWAP_SURFACE_COPY.unsupportedCommissionRouteTitle}
               </p>
               <p className="mt-2 text-xs leading-relaxed text-amber-100/90">
-                {SWAP_SURFACE_COPY.unsupportedCommissionRouteHelper}
+                {SWAP_SURFACE_COPY.commissionRouteRecoveryHelper}
               </p>
-              <p className="mt-2 text-[11px] leading-relaxed text-amber-200/80">
-                {currentChainId === 56
-                  ? SWAP_SURFACE_COPY.unsupportedCommissionRouteQuickTokensBsc
-                  : currentChainId === 1
-                    ? SWAP_SURFACE_COPY.unsupportedCommissionRouteQuickTokensEthereum
-                    : SWAP_SURFACE_COPY.unsupportedCommissionRouteQuickTokensDefault}
-              </p>
+              <div className="mt-2">
+                <CommissionRouteRecoveryChips
+                  activeChainId={currentChainId}
+                  fromAsset={fromAsset}
+                  toAsset={toAsset}
+                  onSelectPair={(from, to) => {
+                    setShowFromSelector(false);
+                    setShowToSelector(false);
+                    setFromAsset(from);
+                    setToAsset(to);
+                    reset();
+                  }}
+                />
+              </div>
             </div>
           ) : (
             <div className="mt-4 p-3 bg-red-900/20 border border-red-800 rounded-xl text-sm text-red-400">
