@@ -1,0 +1,37 @@
+---
+description: continuous improvement — detect repeated mistakes and propose rule/workflow fixes
+alwaysApply: true
+---
+
+# Continuous Improvement Rule
+
+If the same mistake, confusion, or workflow problem appears 2–3 times, do not ignore it.
+
+Examples:
+- mixed commits
+- dirty worktree confusion
+- broad repo scans
+- repeated build failures
+- repeated deploy risk
+- repeated unclear roadmap decisions
+- repeated overbuilt features
+- repeated touching of forbidden files
+- repeated untracked-file dependency problems
+
+When this happens:
+
+1. Stop and notify the user.
+2. Explain the repeated pattern clearly.
+3. Show evidence from recent tasks.
+4. Explain the production or cost risk.
+5. Propose one small rule or workflow update.
+6. Do not apply the rule automatically unless approved.
+7. Keep the rule update short and specific.
+
+Output format:
+
+Repeated pattern:
+Evidence:
+Risk:
+Recommended rule/workflow update:
+Approval needed:
