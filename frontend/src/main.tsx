@@ -6,6 +6,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import './index.css';
 import { startMonitoringOutboxBridge } from './utils/productionMonitoring';
 
@@ -19,7 +20,9 @@ startMonitoringOutboxBridge();
 createRoot(container).render(
   <StrictMode>
     <BrowserRouter>
-      <App />
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
     </BrowserRouter>
   </StrictMode>
 );
