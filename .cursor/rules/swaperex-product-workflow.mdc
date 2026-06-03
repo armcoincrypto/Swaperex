@@ -1,0 +1,21 @@
+---
+description: Swaperex production DEX workflow — minimal safe patches, no wrapper/commission risk without approval
+alwaysApply: true
+---
+
+# Swaperex Product Workflow
+
+- Treat Swaperex as a live production DEX.
+- Do not change contracts, wrappers, commission logic, treasury, or swap execution paths unless explicitly approved.
+- Keep commission-required mode intact.
+- Do not add non-commission fallback routes.
+- For UI work, keep changes minimal, premium, mobile-safe, and production-safe.
+- Preserve existing route transparency, quote freshness, pending swap recovery, and explorer-first ambiguity handling.
+- For every task, provide:
+  1. current state
+  2. root cause or opportunity
+  3. exact files affected
+  4. minimal patch plan
+  5. validation commands
+  6. rollback commands
+- Do not deploy to production unless explicitly approved.

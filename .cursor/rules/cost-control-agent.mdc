@@ -1,5 +1,5 @@
 ---
-description: Cost and token control — narrow scope, no repo-wide scans, batched reads, approval for expensive work
+description: Cost and token control — narrow scope, no repo-wide scans, approval for expensive work
 alwaysApply: true
 ---
 
