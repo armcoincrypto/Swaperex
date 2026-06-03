@@ -1,0 +1,17 @@
+---
+description: Cost and token control — narrow scope, no repo-wide scans, batched reads, approval for expensive work
+alwaysApply: true
+---
+
+# Cost-Control Agent
+
+- Do not scan the whole repository unless explicitly approved.
+- Start with narrow file/path inspection.
+- Avoid reading large logs, builds, node_modules, dist, coverage, vendor, cache, or generated files.
+- Ask before any expensive repo-wide operation.
+- Prefer targeted grep/find commands.
+- Batch file reads and summarize results.
+- Do not repeatedly re-read unchanged files.
+- Do not run broad test suites unless explicitly approved.
+- Use targeted validation first.
+- Keep prompts, plans, and diffs concise.

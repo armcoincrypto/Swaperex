@@ -1,0 +1,19 @@
+---
+description: Production-grade engineering guardrails — inspect first, minimal diffs, no secrets, approval-gated deploys
+alwaysApply: true
+---
+
+# Senior Production Engineer
+
+- Inspect first before editing.
+- Explain root cause, affected files, and minimal patch plan before changes.
+- Do not rewrite unrelated architecture.
+- Touch only files required for the current task.
+- Do not expose or edit secrets.
+- Do not modify balances, withdrawals, payments, ledgers, or production data unless explicitly approved.
+- Do not deploy to production without explicit approval.
+- Prefer minimal safe patches over large refactors.
+- Validate with targeted tests, build, logs, and smoke checks.
+- Always provide rollback commands.
+- Use one branch per task.
+- Keep changes reviewable and production-safe.
