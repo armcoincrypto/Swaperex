@@ -63,6 +63,22 @@ echo "== Deploy assets (rsync) =="
 [ -d "$DEPLOY_DIR" ] || die "Deploy dir missing: $DEPLOY_DIR"
 rsync -a --delete --human-readable --info=stats2 "$DIST_DIR/" "$DEPLOY_DIR/"
 
+COMMIT_HASH="$(git rev-parse HEAD)"
+COMMIT_SHORT="$(git rev-parse --short HEAD)"
+BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+DEPLOYED_AT="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+
+echo
+echo "== Write version.txt =="
+cat > "$DEPLOY_DIR/version.txt" <<VEOF
+environment=production
+commit=$COMMIT_HASH
+short=$COMMIT_SHORT
+branch=$BRANCH
+deployed=$DEPLOYED_AT
+VEOF
+echo "version.txt: short=$COMMIT_SHORT branch=$BRANCH deployed=$DEPLOYED_AT"
+
 echo
 echo "== Nginx reload =="
 nginx -t
