@@ -85,4 +85,24 @@ echo "== JSON health checks =="
 validate_json_health_endpoint "/api/health" "/api/health"
 validate_json_health_endpoint "/api/v1/health" "/api/v1/health"
 
+echo "== version.txt =="
+code_version="$(curl -s -o /dev/null -w '%{http_code}' "${BASE}/version.txt" 2>/dev/null || echo "000")"
+echo "/version.txt  HTTP ${code_version}"
+[ "$code_version" = "200" ] || { echo "❌ FAIL /version.txt — HTTP ${code_version}"; exit 13; }
+
+VERSION_BODY="$(curl -fsSL "${BASE}/version.txt" 2>/dev/null || true)"
+if [ -z "$VERSION_BODY" ]; then
+  echo "❌ FAIL /version.txt — empty body"
+  exit 14
+fi
+if ! printf '%s\n' "$VERSION_BODY" | grep -qE '^commit='; then
+  echo "❌ FAIL /version.txt — missing commit= line"
+  exit 15
+fi
+if ! printf '%s\n' "$VERSION_BODY" | grep -qE '^environment=production'; then
+  echo "❌ FAIL /version.txt — missing environment=production"
+  exit 16
+fi
+echo "✅ version.txt OK"
+
 echo "✅ LIVE OK"
