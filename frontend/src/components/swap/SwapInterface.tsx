@@ -7,7 +7,7 @@
  * Flow: Enter amount → Get quote → Preview → Confirm in wallet → Success
  */
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
 import { useWallet } from '@/hooks/useWallet';
 import { useSwap } from '@/hooks/useSwap';
 import { useSwapStore, type ApprovalMode } from '@/stores/swapStore';
@@ -23,11 +23,12 @@ import { GuardWarningPanel } from '@/components/presets/GuardWarningPanel';
 import { evaluatePresetGuards } from '@/services/presetGuardService';
 import { TokenSafetyBadges } from '@/components/common/TokenSafetyBadges';
 import {
-  PopularCommissionRoutes,
-  CommissionRouteRecoveryChips,
-  CommissionRouteRecoveryPanel,
-} from './PopularCommissionRoutes';
-import { SwapPreviewModal, SwapStep } from './SwapPreviewModal';
+  LazyCommissionRouteRecoveryChips,
+  LazyCommissionRouteRecoveryPanel,
+  LazyPopularCommissionRoutes,
+  LazySwapPreviewModal,
+} from './lazySwapUiChunks';
+import type { SwapStep } from './swapPreviewTypes';
 import { SwapExecutionRail } from './SwapExecutionRail';
 import { RouteTransparencyCard } from './RouteTransparencyCard';
 import { TermsGateModal } from '@/components/common/TermsGateModal';
@@ -119,6 +120,14 @@ const CHAIN_NAMES: Record<number, string> = {
 function ContextSep() {
   return <span className="shell-context-strip__sep" aria-hidden>·</span>;
 }
+
+/** Placeholder while audited route shortcuts chunk loads (deferred off critical quote path). */
+const lazyCommissionRoutesFallback = (
+  <div
+    className="relative z-10 mt-3 rounded-lg border border-emerald-800/25 bg-emerald-950/15 px-3 py-2.5 min-h-[3.5rem] animate-pulse"
+    aria-hidden
+  />
+);
 
 /** P8-I.1a — display-only session line (chain · account · quote freshness). */
 function SwapSessionContextStrip({
@@ -1408,6 +1417,58 @@ export function SwapInterface() {
   const showRoutePrecheckRow =
     routingDisplay.showPrecheckRow && !showCommissionRouteIssue;
 
+  const commissionRecoveryNeeded =
+    showCommissionRouteIssue ||
+    Boolean(
+      error &&
+        status !== 'previewing' &&
+        !isQuotePipelineLoading &&
+        !(hasUsableQuote && swapQuote?.success) &&
+        routingDisplay.showUnsupportedPanel,
+    );
+
+  const commissionShortcutsEligible =
+    isCommissionRequiredMode() && (currentChainId === 1 || currentChainId === 56);
+
+  const needCommissionUiChunk = commissionShortcutsEligible || commissionRecoveryNeeded;
+
+  /** Defer display-only commission UI until idle; load immediately for recovery paths. */
+  const [commissionUiChunkReady, setCommissionUiChunkReady] = useState(false);
+
+  useEffect(() => {
+    if (!needCommissionUiChunk) {
+      setCommissionUiChunkReady(false);
+      return;
+    }
+    if (commissionRecoveryNeeded) {
+      setCommissionUiChunkReady(true);
+      return;
+    }
+
+    let cancelled = false;
+    const activate = () => {
+      if (!cancelled) setCommissionUiChunkReady(true);
+    };
+
+    let idleHandle: number | undefined;
+    if (typeof window.requestIdleCallback === 'function') {
+      idleHandle = window.requestIdleCallback(activate, { timeout: 2000 });
+    } else {
+      const timeoutId = window.setTimeout(activate, 300);
+      return () => {
+        cancelled = true;
+        window.clearTimeout(timeoutId);
+      };
+    }
+
+    return () => {
+      cancelled = true;
+      if (idleHandle !== undefined && typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(idleHandle);
+      }
+    };
+  }, [needCommissionUiChunk, commissionRecoveryNeeded]);
+
   /** Visual-only CTA styling — does not change disabled rules or execution. */
   const ctaVisualState = useMemo(() => {
     if (!isConnected || isWrongChain) return 'neutral' as const;
@@ -1844,7 +1905,8 @@ export function SwapInterface() {
           </div>
         </div>
 
-        <PopularCommissionRoutes
+        <PopularCommissionRoutesSection
+          ready={commissionUiChunkReady && commissionShortcutsEligible}
           activeChainId={currentChainId}
           fromAsset={fromAsset}
           toAsset={toAsset}
@@ -1879,7 +1941,8 @@ export function SwapInterface() {
         )}
 
         {showCommissionRouteIssue && !routingDisplay.showUnsupportedPanel && (
-          <CommissionRouteRecoveryPanel
+          <CommissionRouteRecoveryPanelSection
+            ready={commissionUiChunkReady}
             activeChainId={currentChainId}
             fromAsset={fromAsset}
             toAsset={toAsset}
@@ -2469,7 +2532,8 @@ export function SwapInterface() {
                 {SWAP_SURFACE_COPY.commissionRouteRecoveryHelper}
               </p>
               <div className="mt-2">
-                <CommissionRouteRecoveryChips
+                <CommissionRouteRecoveryChipsSection
+                  ready={commissionUiChunkReady}
                   activeChainId={currentChainId}
                   fromAsset={fromAsset}
                   toAsset={toAsset}
@@ -2549,24 +2613,28 @@ export function SwapInterface() {
         actionLabel="Accept & Continue"
       />
 
-      {/* Swap Preview Modal */}
-      <SwapPreviewModal
-        isOpen={showPreview}
-        quote={swapQuote}
-        step={getModalStep()}
-        error={error}
-        txHash={txHash}
-        explorerUrl={explorerUrl}
-        receiptSettlement={receiptSettlement}
-        approvalMode={approvalMode}
-        chainId={currentChainId}
-        onConfirm={handleConfirmSwap}
-        onCancel={handleCancelPreview}
-        onRefreshQuote={handleRefreshQuote}
-        isRefreshing={isRefreshingQuote}
-        quoteTtlSecondsRemaining={quoteSecondsRemaining}
-        lifecycleFlowId={swapLifecycleFlowId}
-      />
+      {/* Swap Preview Modal — lazy chunk; loads on first preview open */}
+      {showPreview && (
+        <Suspense fallback={null}>
+          <LazySwapPreviewModal
+            isOpen={showPreview}
+            quote={swapQuote}
+            step={getModalStep()}
+            error={error}
+            txHash={txHash}
+            explorerUrl={explorerUrl}
+            receiptSettlement={receiptSettlement}
+            approvalMode={approvalMode}
+            chainId={currentChainId}
+            onConfirm={handleConfirmSwap}
+            onCancel={handleCancelPreview}
+            onRefreshQuote={handleRefreshQuote}
+            isRefreshing={isRefreshingQuote}
+            quoteTtlSecondsRemaining={quoteSecondsRemaining}
+            lifecycleFlowId={swapLifecycleFlowId}
+          />
+        </Suspense>
+      )}
 
       {/* Save Preset Modal */}
       {fromAsset && toAsset && (
@@ -2580,6 +2648,56 @@ export function SwapInterface() {
         />
       )}
     </>
+  );
+}
+
+type CommissionRouteUiProps = {
+  ready: boolean;
+  activeChainId: number;
+  fromAsset: AssetInfo | null;
+  toAsset: AssetInfo | null;
+  onSelectPair: (from: AssetInfo, to: AssetInfo) => void;
+};
+
+function PopularCommissionRoutesSection(props: CommissionRouteUiProps) {
+  if (!props.ready) return null;
+  return (
+    <Suspense fallback={lazyCommissionRoutesFallback}>
+      <LazyPopularCommissionRoutes
+        activeChainId={props.activeChainId}
+        fromAsset={props.fromAsset}
+        toAsset={props.toAsset}
+        onSelectPair={props.onSelectPair}
+      />
+    </Suspense>
+  );
+}
+
+function CommissionRouteRecoveryPanelSection(props: CommissionRouteUiProps) {
+  if (!props.ready) return null;
+  return (
+    <Suspense fallback={lazyCommissionRoutesFallback}>
+      <LazyCommissionRouteRecoveryPanel
+        activeChainId={props.activeChainId}
+        fromAsset={props.fromAsset}
+        toAsset={props.toAsset}
+        onSelectPair={props.onSelectPair}
+      />
+    </Suspense>
+  );
+}
+
+function CommissionRouteRecoveryChipsSection(props: CommissionRouteUiProps) {
+  if (!props.ready) return null;
+  return (
+    <Suspense fallback={null}>
+      <LazyCommissionRouteRecoveryChips
+        activeChainId={props.activeChainId}
+        fromAsset={props.fromAsset}
+        toAsset={props.toAsset}
+        onSelectPair={props.onSelectPair}
+      />
+    </Suspense>
   );
 }
 
