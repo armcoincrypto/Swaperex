@@ -2,6 +2,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import { visualizer } from 'rollup-plugin-visualizer';
 
 /**
  * Vendor chunks for cache + parallel load. @reown/* and @walletconnect/* share one chunk to match
@@ -56,7 +57,17 @@ function vendorManualChunks(id: string): string | undefined {
 }
 
 export default defineConfig(({ mode }) => ({
-  plugins: [react()],
+  plugins: [
+    react(),
+    process.env.ANALYZE === 'true' &&
+      visualizer({
+        open: false,
+        filename: 'dist/bundle-stats.html',
+        gzipSize: true,
+        brotliSize: true,
+        template: 'treemap',
+      }),
+  ].filter(Boolean),
   resolve: {
     // Intentionally no `dedupe: ['ox']` — Vite fails resolving nested `ox` (missing "./erc8010" export).
     alias: {

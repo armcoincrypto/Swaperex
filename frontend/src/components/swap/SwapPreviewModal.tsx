@@ -44,7 +44,8 @@ import { classifyCommissionRoute } from '@/utils/commission';
 import { isDebugMode } from '@/utils/chainHealth';
 import { emitSwapLifecycleStage } from '@/utils/swapLifecycleTelemetry';
 
-export type SwapStep = 'preview' | 'approving' | 'swapping' | 'broadcasting' | 'success' | 'error';
+export type { SwapStep } from './swapPreviewTypes';
+import type { SwapStep } from './swapPreviewTypes';
 
 /** Session recovery when quote is no longer in memory but a swap tx was already sent */
 export type RecoveredSwapTrace = {
