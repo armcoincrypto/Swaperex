@@ -15,6 +15,7 @@ import { useWallet } from '@/hooks/useWallet';
 import { useSendStore } from '@/stores/sendStore';
 import { validateAddress, isContractAddress, resolveENS } from '@/utils/address';
 import { shortenAddress } from '@/utils/format';
+import { ShellSection } from '@/components/ui/ShellPrimitives';
 
 interface Props {
   value: string;
@@ -110,7 +111,8 @@ export function AddressInput({ value, onChange, chainId, ownAddress, error: exte
   );
 
   return (
-    <div className="bg-dark-800 rounded-xl p-4 mb-4" ref={dropdownRef}>
+    <div ref={dropdownRef}>
+    <ShellSection className="mb-4" error={!!externalError || (!!value && !isValid && !ensResolving && validation?.error !== 'ENS_NAME')}>
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm text-dark-400">Destination Address</span>
         <div className="flex items-center gap-2">
@@ -118,7 +120,7 @@ export function AddressInput({ value, onChange, chainId, ownAddress, error: exte
           {ownAddress && (
             <button
               onClick={() => handlePaste(ownAddress)}
-              className="text-xs text-primary-400 hover:text-primary-300"
+              className="text-xs text-accent hover:brightness-110"
               title="Use your connected address"
             >
               My Address
@@ -143,12 +145,12 @@ export function AddressInput({ value, onChange, chainId, ownAddress, error: exte
           onChange={(e) => onChange(e.target.value)}
           onFocus={() => value === '' && setShowDropdown(true)}
           placeholder="0x... or ENS name (.eth)"
-          className={`w-full bg-dark-700 border rounded-xl px-3 py-3 text-sm font-mono outline-none transition-colors ${
+          className={`w-full bg-electro-bgAlt/80 border rounded-xl px-3 py-3 text-sm font-mono outline-none transition-colors ${
             externalError || (value && !isValid && !ensResolving)
-              ? 'border-red-700'
+              ? 'border-red-500/40 focus:ring-1 focus:ring-red-500/30'
               : isValid && value
-                ? 'border-green-700'
-                : 'border-dark-600 focus:border-primary-500'
+                ? 'border-accent/30 focus:ring-1 focus:ring-accent/25'
+                : 'border-white/[0.08] focus:border-accent/30 focus:ring-1 focus:ring-accent/20'
           }`}
         />
         {ensResolving && (
@@ -165,7 +167,7 @@ export function AddressInput({ value, onChange, chainId, ownAddress, error: exte
       <div className="mt-2 space-y-1">
         {/* ENS resolved */}
         {ensResult && (
-          <p className="text-xs text-green-400 flex items-center gap-1">
+          <p className="text-xs text-accent flex items-center gap-1">
             <span>Resolved:</span>
             <span className="font-mono">{shortenAddress(ensResult, 6)}</span>
           </p>
@@ -173,7 +175,7 @@ export function AddressInput({ value, onChange, chainId, ownAddress, error: exte
 
         {/* Contact name */}
         {matchedContact && (
-          <p className="text-xs text-primary-400">
+          <p className="text-xs text-accent">
             Contact: {matchedContact.name}
           </p>
         )}
@@ -216,13 +218,13 @@ export function AddressInput({ value, onChange, chainId, ownAddress, error: exte
                 value={contactName}
                 onChange={(e) => setContactName(e.target.value)}
                 placeholder="Contact name..."
-                className="flex-1 bg-dark-700 border border-dark-600 rounded-lg px-2 py-1 text-xs text-white placeholder-dark-500 focus:outline-none focus:border-primary-500"
+                className="flex-1 input text-xs py-1"
                 onKeyDown={(e) => e.key === 'Enter' && handleSaveContact()}
                 autoFocus
               />
               <button
                 onClick={handleSaveContact}
-                className="text-xs text-primary-400 hover:text-primary-300"
+                className="text-xs text-accent hover:brightness-110"
                 disabled={!contactName.trim()}
               >
                 Save
@@ -247,17 +249,17 @@ export function AddressInput({ value, onChange, chainId, ownAddress, error: exte
 
       {/* Contacts & Recent dropdown */}
       {showDropdown && (
-        <div className="mt-2 bg-dark-700 rounded-xl max-h-48 overflow-y-auto">
+        <div className="mt-2 rounded-xl max-h-48 overflow-y-auto border border-white/[0.06] bg-electro-panel/95 backdrop-blur-glass">
           {/* Saved contacts */}
           {contacts.length > 0 && (
             <>
-              <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-dark-500 border-b border-dark-600">
+              <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-dark-500 border-b border-white/[0.06]">
                 Saved Contacts
               </div>
               {contacts.map((c) => (
                 <div
                   key={c.address}
-                  className="flex items-center justify-between px-3 py-2 hover:bg-dark-600 transition-colors cursor-pointer"
+                  className="flex items-center justify-between px-3 py-2 hover:bg-electro-panelHover transition-colors cursor-pointer"
                   onClick={() => handlePaste(c.address)}
                 >
                   <div>
@@ -286,14 +288,14 @@ export function AddressInput({ value, onChange, chainId, ownAddress, error: exte
           {/* Recent addresses */}
           {recentAddresses.length > 0 && (
             <>
-              <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-dark-500 border-b border-dark-600">
+              <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-dark-500 border-b border-white/[0.06]">
                 Recent
               </div>
               {recentAddresses.map((addr) => (
                 <button
                   key={addr}
                   onClick={() => handlePaste(addr)}
-                  className="w-full text-left px-3 py-2 hover:bg-dark-600 transition-colors"
+                  className="w-full text-left px-3 py-2 hover:bg-electro-panelHover transition-colors"
                 >
                   <span className="text-xs font-mono text-dark-300">
                     {shortenAddress(addr, 8)}
@@ -310,6 +312,7 @@ export function AddressInput({ value, onChange, chainId, ownAddress, error: exte
           )}
         </div>
       )}
+    </ShellSection>
     </div>
   );
 }

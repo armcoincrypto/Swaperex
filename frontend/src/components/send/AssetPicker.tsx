@@ -9,6 +9,8 @@ import { useState, useMemo } from 'react';
 import { useBalanceStore, CHAIN_NAME_TO_ID, ERC20_TOKENS } from '@/stores/balanceStore';
 import { getTokens, getNativeSymbol, NATIVE_TOKEN_ADDRESS } from '@/tokens';
 import { formatBalance, formatUsd, getChainName } from '@/utils/format';
+import { SwapTokenAvatar } from '@/components/common/SwapTokenAvatar';
+import { ShellSection } from '@/components/ui/ShellPrimitives';
 
 export interface SelectedAsset {
   symbol: string;
@@ -35,31 +37,26 @@ Object.entries(CHAIN_NAME_TO_ID).forEach(([name, id]) => {
   CHAIN_ID_TO_NAME[id] = name;
 });
 
-/** Token icon with logo fallback to first letter */
-function TokenIcon({ logoURI, symbol, size = 32 }: { logoURI?: string; symbol: string; size?: number }) {
-  const [imgError, setImgError] = useState(false);
-
-  if (logoURI && !imgError) {
-    return (
-      <img
-        src={logoURI}
-        alt={symbol}
-        width={size}
-        height={size}
-        className="rounded-full"
-        onError={() => setImgError(true)}
-        loading="lazy"
-      />
-    );
-  }
-
+/** Token avatar aligned with swap surfaces. */
+function TokenIcon({
+  logoURI,
+  symbol,
+  chainId,
+  size = 'md' as const,
+}: {
+  logoURI?: string;
+  symbol: string;
+  chainId?: number;
+  size?: 'sm' | 'md' | 'lg';
+}) {
   return (
-    <div
-      className="rounded-full bg-dark-500 flex items-center justify-center"
-      style={{ width: size, height: size }}
-    >
-      <span className="font-bold text-sm">{symbol[0]}</span>
-    </div>
+    <SwapTokenAvatar
+      symbol={symbol}
+      logoUrl={logoURI}
+      chainId={chainId}
+      size={size}
+      showChainBadge={!!chainId}
+    />
   );
 }
 
@@ -218,7 +215,7 @@ export function AssetPicker({ selected, onSelect }: Props) {
   };
 
   return (
-    <div className="bg-dark-800 rounded-xl p-4 mb-4">
+    <ShellSection className="mb-4">
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm text-dark-400">Asset</span>
         {selected && (
@@ -231,15 +228,15 @@ export function AssetPicker({ selected, onSelect }: Props) {
 
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-3 py-3 bg-dark-700 rounded-xl hover:bg-dark-600 transition-colors"
+        className="w-full flex items-center justify-between px-3 py-3 min-h-[3.25rem] bg-electro-panel/80 rounded-xl hover:bg-electro-panelHover transition-all duration-200 border border-white/[0.06] hover:border-white/[0.1] ring-1 ring-white/[0.03]"
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           {selected ? (
             <>
-              <TokenIcon logoURI={selected.logoURI} symbol={selected.symbol} />
-              <div className="text-left">
-                <div className="font-medium">{selected.symbol}</div>
-                <div className="text-xs text-dark-400">
+              <TokenIcon logoURI={selected.logoURI} symbol={selected.symbol} chainId={selected.chainId} />
+              <div className="text-left min-w-0">
+                <div className="font-medium text-white">{selected.symbol}</div>
+                <div className="text-xs text-dark-400 truncate">
                   {selected.name}
                   <ChainBadge chainId={selected.chainId} />
                 </div>
@@ -250,7 +247,7 @@ export function AssetPicker({ selected, onSelect }: Props) {
           )}
         </div>
         <svg
-          className={`w-5 h-5 text-dark-400 transition-transform ${open ? 'rotate-180' : ''}`}
+          className={`w-5 h-5 text-dark-400 transition-transform shrink-0 ${open ? 'rotate-180' : ''}`}
           fill="none" stroke="currentColor" viewBox="0 0 24 24"
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -258,15 +255,15 @@ export function AssetPicker({ selected, onSelect }: Props) {
       </button>
 
       {open && (
-        <div className="mt-2 bg-dark-700 rounded-xl overflow-hidden">
+        <div className="mt-2 rounded-xl overflow-hidden border border-white/[0.06] bg-electro-panel/95 backdrop-blur-glass">
           {/* Search */}
-          <div className="p-2 border-b border-dark-600">
+          <div className="p-2 border-b border-white/[0.06]">
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by name, symbol, or address..."
-              className="w-full bg-dark-800 border border-dark-600 rounded-lg px-3 py-2 text-sm text-white placeholder-dark-500 focus:outline-none focus:border-primary-500"
+              className="w-full input text-sm py-2"
               autoFocus
             />
             <div className="text-[10px] text-dark-500 mt-1 px-1">
@@ -280,28 +277,35 @@ export function AssetPicker({ selected, onSelect }: Props) {
             {filtered.length > 0 ? (
               filtered.map((asset, i) => {
                 const hasBalance = parseFloat(asset.balance) > 0;
+                const isSelected =
+                  selected?.symbol === asset.symbol && selected?.chainId === asset.chainId;
                 return (
                   <button
                     key={`${asset.chain}-${asset.symbol}-${asset.contractAddress || 'native'}-${i}`}
                     onClick={() => handleSelect(asset)}
-                    className={`w-full flex items-center justify-between px-3 py-3 hover:bg-dark-600 transition-colors ${
-                      selected?.symbol === asset.symbol && selected?.chainId === asset.chainId
-                        ? 'bg-dark-600'
-                        : ''
+                    className={`w-full flex items-center justify-between px-3 py-3 transition-colors ${
+                      isSelected
+                        ? 'bg-accent/10 border-l-2 border-accent'
+                        : 'hover:bg-electro-panelHover'
                     } ${!hasBalance ? 'opacity-50' : ''}`}
                   >
-                    <div className="flex items-center gap-3">
-                      <TokenIcon logoURI={asset.logoURI} symbol={asset.symbol} />
-                      <div className="text-left">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <TokenIcon
+                        logoURI={asset.logoURI}
+                        symbol={asset.symbol}
+                        chainId={asset.chainId}
+                        size="sm"
+                      />
+                      <div className="text-left min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <span className="font-medium">{asset.symbol}</span>
+                          <span className="font-medium text-white">{asset.symbol}</span>
                           <ChainBadge chainId={asset.chainId} />
                         </div>
-                        <div className="text-xs text-dark-400">{asset.name}</div>
+                        <div className="text-xs text-dark-400 truncate">{asset.name}</div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-sm">{hasBalance ? formatBalance(asset.balance) : '0'}</div>
+                    <div className="text-right shrink-0 ml-2">
+                      <div className="text-sm text-white">{hasBalance ? formatBalance(asset.balance) : '0'}</div>
                       {asset.usdValue && hasBalance && (
                         <div className="text-xs text-dark-400">{formatUsd(asset.usdValue)}</div>
                       )}
@@ -317,24 +321,13 @@ export function AssetPicker({ selected, onSelect }: Props) {
           </div>
         </div>
       )}
-    </div>
+    </ShellSection>
   );
 }
 
-const CHAIN_COLORS: Record<number, string> = {
-  1: 'bg-blue-500',
-  56: 'bg-yellow-500',
-  137: 'bg-purple-500',
-  42161: 'bg-blue-400',
-};
-
 function ChainBadge({ chainId }: { chainId: number }) {
   return (
-    <span
-      className={`ml-1 inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full ${
-        CHAIN_COLORS[chainId] || 'bg-dark-500'
-      } text-white`}
-    >
+    <span className="ml-1 inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-electro-panel/70 border border-white/[0.08] text-dark-300">
       {getChainName(chainId)}
     </span>
   );

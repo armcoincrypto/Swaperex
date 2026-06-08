@@ -22,6 +22,10 @@ import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 import { swapAggregatorProviderLabel } from '@/utils/format';
 import { isCommissionRequiredMode } from '@/config';
 import { isCommissionWrapperExecutionProvider } from '@/services/quoteAggregator';
+import {
+  ShellEmptyState,
+  ShellLoadingRows,
+} from '@/components/ui/ShellPrimitives';
 
 /** Explorer-supported chain IDs (FIX-6: added Polygon 137) */
 const ACTIVITY_CHAIN_IDS = [1, 56, 137];
@@ -150,37 +154,35 @@ export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelPro
 
       {/* Loading */}
       {loading && items.length === 0 && (
-        <div className="animate-pulse space-y-2">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-11 bg-dark-800 rounded-lg" />
-          ))}
-        </div>
+        <ShellLoadingRows count={3} rowClassName="h-11 rounded-lg" />
       )}
 
       {/* Error */}
       {error && items.length === 0 && (
-        <div className="p-4 bg-dark-800 rounded-xl text-center">
-          <p className="text-dark-400 text-sm">{error}</p>
-          <button
-            onClick={fetchActivity}
-            className="mt-2 text-primary-400 hover:text-primary-300 text-xs"
-          >
-            Try again
-          </button>
-        </div>
+        <ShellEmptyState
+          title={error}
+          action={
+            <button
+              onClick={fetchActivity}
+              className="text-accent hover:brightness-110 text-xs font-medium"
+            >
+              Try again
+            </button>
+          }
+        />
       )}
 
       {/* Empty state */}
       {!loading && items.length === 0 && !error && (
-        <div className="bg-dark-800 rounded-xl p-6 text-center">
-          <svg className="w-10 h-10 mx-auto text-dark-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-          </svg>
-          <p className="text-dark-400 text-sm">No activity yet</p>
-          <p className="text-dark-500 text-xs mt-1">
-            Your completed swaps will appear here for easy reference and quick repeat.
-          </p>
-        </div>
+        <ShellEmptyState
+          icon={
+            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+          }
+          title="No activity yet"
+          description="Your completed swaps will appear here for easy reference and quick repeat."
+        />
       )}
 
       {/* Activity rows */}

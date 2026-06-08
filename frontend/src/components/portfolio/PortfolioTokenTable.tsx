@@ -20,6 +20,11 @@ import {
 import { useWatchlistStore } from '@/stores/watchlistStore';
 import type { TokenBalance } from '@/services/portfolioTypes';
 import { PORTFOLIO_CHAIN_IDS } from '@/services/portfolioTypes';
+import {
+  ShellEmptyState,
+  ShellLoadingRows,
+  ShellPanel,
+} from '@/components/ui/ShellPrimitives';
 
 interface PortfolioTokenTableProps {
   onSwapToken?: (symbol: string, chainId: number) => void;
@@ -46,18 +51,14 @@ export function PortfolioTokenTable({ onSwapToken, className = '' }: PortfolioTo
     return tokens;
   }, [portfolio, searchQuery, hideSmallBalances, smallBalanceThreshold, sortMode]);
 
-  // Loading skeleton
+  // Loading skeleton — first paint only (no portfolio cached)
   if (loading && !portfolio) {
     return (
       <div className={`space-y-4 ${className}`}>
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold">Your Tokens</h2>
+          <h2 className="text-lg font-bold text-white">Your Tokens</h2>
         </div>
-        <div className="animate-pulse space-y-2">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-16 bg-dark-800 rounded-xl" />
-          ))}
-        </div>
+        <ShellLoadingRows count={4} rowClassName="h-16 rounded-xl" />
       </div>
     );
   }
@@ -67,20 +68,22 @@ export function PortfolioTokenTable({ onSwapToken, className = '' }: PortfolioTo
     return (
       <div className={`space-y-4 ${className}`}>
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold">Your Tokens</h2>
+          <h2 className="text-lg font-bold text-white">Your Tokens</h2>
         </div>
-        <div className="p-8 bg-dark-800 rounded-xl text-center">
-          <svg className="w-10 h-10 mx-auto text-dark-500 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-          </svg>
-          <p className="text-dark-400 text-sm">
-            {searchQuery
+        <ShellEmptyState
+          icon={
+            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+            </svg>
+          }
+          title={
+            searchQuery
               ? `No tokens match "${searchQuery}"`
               : hideSmallBalances
               ? 'No tokens above threshold'
-              : 'No tokens found across chains'}
-          </p>
-        </div>
+              : 'No tokens found across chains'
+          }
+        />
       </div>
     );
   }
@@ -89,7 +92,7 @@ export function PortfolioTokenTable({ onSwapToken, className = '' }: PortfolioTo
     <div className={`space-y-3 animate-fadeIn ${className}`}>
       {/* Header with search + sort */}
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-bold whitespace-nowrap">Your Tokens</h2>
+        <h2 className="text-lg font-bold whitespace-nowrap text-white">Your Tokens</h2>
 
         <div className="flex items-center gap-2 flex-1 justify-end">
           {/* Search */}
@@ -100,7 +103,7 @@ export function PortfolioTokenTable({ onSwapToken, className = '' }: PortfolioTo
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search..."
-            className="w-32 sm:w-40 px-2.5 py-1.5 bg-dark-800 border border-dark-700 rounded-lg text-xs text-dark-200 placeholder-dark-500 focus:outline-none focus:border-primary-500"
+            className="w-32 sm:w-40 input text-xs py-1.5"
           />
 
           {/* Sort */}
@@ -109,7 +112,7 @@ export function PortfolioTokenTable({ onSwapToken, className = '' }: PortfolioTo
             name="portfolio-sort"
             value={sortMode}
             onChange={(e) => setSortMode(e.target.value as SortMode)}
-            className="px-2 py-1.5 bg-dark-800 border border-dark-700 rounded-lg text-xs text-dark-200 focus:outline-none focus:border-primary-500"
+            className="px-2 py-1.5 bg-electro-bgAlt/80 border border-white/[0.08] rounded-lg text-xs text-dark-200 focus:outline-none focus:ring-1 focus:ring-accent/30"
           >
             <option value="value">By Value</option>
             <option value="balance">By Balance</option>
@@ -126,7 +129,7 @@ export function PortfolioTokenTable({ onSwapToken, className = '' }: PortfolioTo
       </div>
 
       {/* Token rows */}
-      <div className="rounded-xl border border-white/[0.06] bg-dark-900/30 p-2 space-y-1.5">
+      <ShellPanel className="p-2 space-y-1.5">
         {displayTokens.map((token, i) => (
           <PortfolioTokenRow
             key={`${token.chain}-${token.address}-${i}`}
@@ -135,7 +138,7 @@ export function PortfolioTokenTable({ onSwapToken, className = '' }: PortfolioTo
             onSwap={onSwapToken}
           />
         ))}
-      </div>
+      </ShellPanel>
     </div>
   );
 }

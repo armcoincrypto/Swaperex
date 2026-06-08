@@ -10,6 +10,7 @@ import { formatEther } from 'ethers';
 import { getNativeSymbol } from '@/tokens';
 import { formatUsd } from '@/utils/format';
 import type { FeeEstimate, GasMode } from '@/services/send/sendService';
+import { ShellChipButton, ShellSection } from '@/components/ui/ShellPrimitives';
 
 interface Props {
   feeEstimate: FeeEstimate | null;
@@ -71,7 +72,7 @@ export function FeePreview({
     : null;
 
   return (
-    <div className="bg-dark-800 rounded-xl p-4 mb-4">
+    <ShellSection className="mb-4">
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm font-medium text-dark-300">Transaction Preview</span>
         {feeEstimate && (
@@ -143,7 +144,7 @@ export function FeePreview({
           </div>
 
           {/* Divider */}
-          <div className="border-t border-dark-700 my-1" />
+          <div className="border-t border-white/[0.06] my-1" />
 
           {/* Total */}
           {isNativeToken ? (
@@ -180,7 +181,7 @@ export function FeePreview({
 
       {/* Advanced options */}
       {feeEstimate && (
-        <div className="mt-3 pt-2 border-t border-dark-700">
+        <div className="mt-3 pt-2 border-t border-white/[0.06]">
           <button
             onClick={() => setShowAdvanced(!showAdvanced)}
             className="flex items-center gap-1 text-xs text-dark-400 hover:text-white transition-colors"
@@ -201,17 +202,17 @@ export function FeePreview({
                 <label className="text-xs text-dark-500 mb-1 block">Gas Speed</label>
                 <div className="flex gap-1">
                   {(Object.keys(GAS_MODE_LABELS) as GasMode[]).map((mode) => (
-                    <button
+                    <ShellChipButton
                       key={mode}
                       onClick={() => onGasModeChange(mode)}
-                      className={`flex-1 px-2 py-1 text-xs rounded-lg transition-colors ${
+                      className={`flex-1 ${
                         gasMode === mode
-                          ? 'bg-primary-600 text-white'
-                          : 'bg-dark-700 text-dark-400 hover:text-white'
+                          ? '!bg-accent/15 !text-accent !border-accent/30'
+                          : ''
                       }`}
                     >
                       {GAS_MODE_LABELS[mode]}
-                    </button>
+                    </ShellChipButton>
                   ))}
                 </div>
               </div>
@@ -239,7 +240,7 @@ export function FeePreview({
           )}
         </div>
       )}
-    </div>
+    </ShellSection>
   );
 }
 
