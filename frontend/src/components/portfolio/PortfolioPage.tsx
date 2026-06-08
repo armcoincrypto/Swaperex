@@ -24,6 +24,7 @@ import { OperationalHealthPanel } from '@/components/admin/OperationalHealthPane
 import type { SwapRecord } from '@/stores/swapHistoryStore';
 import { isDebugMode } from '@/utils/chainHealth';
 import { resolveAdminApiToken } from '@/utils/adminApi';
+import { ShellEmptyState } from '@/components/ui/ShellPrimitives';
 
 interface PortfolioPageProps {
   onSwapToken?: (symbol: string, chainId: number) => void;
@@ -194,15 +195,16 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
   // Not connected — allow read-only admin panels when explicitly enabled via URL / env
   if (!isConnected && !showAnyAdminPortal) {
     return (
-      <div className="text-center py-16">
-        <svg className="w-16 h-16 mx-auto text-dark-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-        </svg>
-        <h2 className="text-2xl font-bold mb-3">Connect Your Wallet</h2>
-        <p className="text-dark-400 text-sm max-w-sm mx-auto">
-          Connect your wallet to view your multi-chain portfolio, token balances, and transaction history.
-        </p>
-      </div>
+      <ShellEmptyState
+        className="max-w-md mx-auto"
+        icon={
+          <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+          </svg>
+        }
+        title="Connect Your Wallet"
+        description="Connect your wallet to view your multi-chain portfolio, token balances, and transaction history."
+      />
     );
   }
 

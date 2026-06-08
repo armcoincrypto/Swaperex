@@ -15,6 +15,12 @@ import { useBalanceStore } from '@/stores/balanceStore';
 import { useSendStore } from '@/stores/sendStore';
 import { useSwapHistoryStore } from '@/stores/swapHistoryStore';
 import { Button } from '@/components/common/Button';
+import {
+  ShellBanner,
+  ShellCard,
+  ShellChipButton,
+  ShellSection,
+} from '@/components/ui/ShellPrimitives';
 import { AssetPicker, type SelectedAsset } from './AssetPicker';
 import { AddressInput } from './AddressInput';
 import { FeePreview } from './FeePreview';
@@ -405,12 +411,12 @@ export function SendPage() {
   // ─── Render ──────────────────────────────────────────────────────
 
   return (
-    <div className="w-full max-w-md mx-auto bg-dark-900 rounded-2xl p-4 border border-dark-800">
+    <ShellCard width="send">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold">Send</h2>
+        <h2 className="text-xl font-bold text-white">Send</h2>
         {status === 'success' && (
-          <span className="text-xs bg-green-900/30 text-green-400 px-2 py-0.5 rounded-full">
+          <span className="text-xs bg-accent/15 text-accent border border-accent/25 px-2 py-0.5 rounded-full font-medium">
             Sent
           </span>
         )}
@@ -418,27 +424,29 @@ export function SendPage() {
 
       {/* Wrong chain banner */}
       {isWrongChain && selectedAsset && (
-        <div className="mb-4 p-3 bg-yellow-900/20 border border-yellow-800 rounded-xl text-sm text-yellow-400 flex items-center justify-between">
-          <span>Wrong network. Switch to {getChainName(selectedAsset.chainId)}</span>
-          <button
-            onClick={() => switchNetwork(selectedAsset.chainId)}
-            className="text-xs bg-yellow-800 hover:bg-yellow-700 px-2 py-1 rounded-lg transition-colors"
-          >
-            Switch
-          </button>
-        </div>
+        <ShellBanner
+          tone="warning"
+          className="mb-4"
+          action={
+            <ShellChipButton onClick={() => switchNetwork(selectedAsset.chainId)}>
+              Switch
+            </ShellChipButton>
+          }
+        >
+          Wrong network. Switch to {getChainName(selectedAsset.chainId)}
+        </ShellBanner>
       )}
 
       {/* Success state */}
       {status === 'success' && txHash && selectedAsset && (
-        <div className="mb-4 p-4 bg-green-900/20 border border-green-800 rounded-xl">
+        <ShellBanner tone="success" className="mb-4 flex-col items-start !flex">
           <div className="flex items-center gap-2 mb-2">
-            <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <span className="text-green-400 font-medium">Transfer Confirmed</span>
+            <span className="font-medium">Transfer Confirmed</span>
           </div>
-          <p className="text-sm text-dark-300 mb-2">
+          <p className="text-sm text-dark-200 mb-2">
             Sent {amount} {selectedAsset.symbol} to {shortenAddress(destinationAddress, 6)}
           </p>
           <div className="flex items-center gap-2">
@@ -446,7 +454,7 @@ export function SendPage() {
               href={getExplorerUrl(selectedAsset.chainId, txHash)}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-primary-400 hover:text-primary-300 underline"
+              className="text-xs text-accent hover:brightness-110 underline"
             >
               View on Explorer
             </a>
@@ -457,14 +465,14 @@ export function SendPage() {
               Copy Hash
             </button>
           </div>
-        </div>
+        </ShellBanner>
       )}
 
       {/* Error state */}
       {status === 'error' && txError && (
-        <div className="mb-4 p-3 bg-red-900/20 border border-red-800 rounded-xl text-sm text-red-400">
+        <ShellBanner tone="error" className="mb-4">
           {txError}
-        </div>
+        </ShellBanner>
       )}
 
       {/* Asset Picker */}
@@ -484,7 +492,7 @@ export function SendPage() {
       />
 
       {/* Amount Input */}
-      <div className={`bg-dark-800 rounded-xl p-4 mb-4 ${insufficientBalance ? 'border border-red-800' : ''}`}>
+      <ShellSection className="mb-4" error={!!insufficientBalance}>
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm text-dark-400">Amount</span>
           {selectedAsset && (
@@ -502,7 +510,7 @@ export function SendPage() {
           placeholder="0.0"
           value={amount}
           onChange={(e) => handleAmountChange(e.target.value)}
-          className="w-full bg-transparent text-2xl font-medium outline-none mb-2"
+          className="w-full bg-transparent text-2xl font-medium text-white outline-none mb-2 placeholder:text-dark-500"
           disabled={!selectedAsset || isExecuting}
         />
 
@@ -510,14 +518,13 @@ export function SendPage() {
         {selectedAsset && (
           <div className="flex items-center gap-2">
             {[25, 50, 75, 100].map((pct) => (
-              <button
+              <ShellChipButton
                 key={pct}
                 onClick={() => handlePercentage(pct)}
                 disabled={isExecuting}
-                className="px-2 py-1 text-xs bg-dark-700 hover:bg-dark-600 text-dark-300 hover:text-white rounded-lg transition-colors disabled:opacity-50"
               >
                 {pct === 100 ? 'Max' : `${pct}%`}
-              </button>
+              </ShellChipButton>
             ))}
           </div>
         )}
@@ -531,7 +538,7 @@ export function SendPage() {
             You need {nativeSymbol} to pay for gas fees
           </p>
         )}
-      </div>
+      </ShellSection>
 
       {/* Destination Address */}
       <AddressInput
@@ -585,17 +592,17 @@ export function SendPage() {
 
       {/* Confirming status */}
       {status === 'confirming' && txHash && selectedAsset && (
-        <div className="mt-3 p-3 bg-dark-800 rounded-xl text-center">
+        <ShellSection className="mt-3 text-center">
           <p className="text-sm text-dark-300 mb-1">Transaction broadcasted</p>
           <a
             href={getExplorerUrl(selectedAsset.chainId, txHash)}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs text-primary-400 hover:text-primary-300"
+            className="text-xs text-accent hover:brightness-110"
           >
             {shortenAddress(txHash, 8)} - View on Explorer
           </a>
-        </div>
+        </ShellSection>
       )}
 
       {/* Security footer */}
@@ -605,7 +612,7 @@ export function SendPage() {
 
       {/* Transfer History */}
       <TransferHistory chainId={chainId} />
-    </div>
+    </ShellCard>
   );
 }
 

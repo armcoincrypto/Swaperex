@@ -16,28 +16,14 @@ import { formatUsd } from '@/utils/format';
 import type { TokenBalance } from '@/types/api';
 import { CHAINS } from '@/config/chains';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
+import {
+  ShellAutoUpdateFooter,
+  ShellPanel,
+} from '@/components/ui/ShellPrimitives';
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
     <h2 className="text-lg sm:text-xl font-bold tracking-tight text-white">{children}</h2>
-  );
-}
-
-function PanelShell({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return (
-    <div
-      className={`rounded-xl border border-white/[0.08] bg-electro-panel/50 backdrop-blur-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] ${className}`}
-    >
-      {children}
-    </div>
-  );
-}
-
-function SidebarAutoUpdateFooter() {
-  return (
-    <p className="text-center text-[11px] leading-snug text-dark-500/90">
-      Auto-updates quietly · every 60s
-    </p>
   );
 }
 
@@ -128,12 +114,12 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
     return (
       <div className="space-y-4">
         <SectionTitle>Your Tokens</SectionTitle>
-        <PanelShell className="p-8 text-center">
+        <ShellPanel className="p-8 text-center">
           <WalletIcon />
           <p className="text-dark-400 mt-2">
             Connect your wallet to view balances
           </p>
-        </PanelShell>
+        </ShellPanel>
       </div>
     );
   }
@@ -143,14 +129,14 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
     return (
       <div className="space-y-4">
         <SectionTitle>Your Tokens</SectionTitle>
-        <PanelShell className="p-6 text-center border-amber-800/30">
+        <ShellPanel className="p-6 text-center border-amber-800/30">
           <p className="text-amber-200/90 text-sm">
             Balances for this network are not available in the sidebar yet.
           </p>
           <p className="text-dark-500 text-xs mt-2">
             Switch to Ethereum, BSC, or Polygon to see token balances here, or use your wallet for amounts.
           </p>
-        </PanelShell>
+        </ShellPanel>
       </div>
     );
   }
@@ -181,7 +167,7 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
     return (
       <div className="space-y-4">
         <SectionTitle>Your Tokens</SectionTitle>
-        <PanelShell className="p-6 text-center border-amber-800/25">
+        <ShellPanel className="p-6 text-center border-amber-800/25">
           <p className="text-dark-200 text-xs font-semibold uppercase tracking-wide">
             {SWAP_SURFACE_COPY.tokenListNetworkIssueTitle}
           </p>
@@ -195,7 +181,7 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
           >
             Retry
           </button>
-        </PanelShell>
+        </ShellPanel>
       </div>
     );
   }
@@ -205,7 +191,7 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
     return (
       <div className="space-y-4">
         <SectionTitle>Your Tokens</SectionTitle>
-        <PanelShell className="p-6 text-center border-amber-800/25">
+        <ShellPanel className="p-6 text-center border-amber-800/25">
           <p className="text-dark-200 text-xs font-semibold uppercase tracking-wide">
             {SWAP_SURFACE_COPY.tokenListNetworkIssueTitle}
           </p>
@@ -217,7 +203,7 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
           >
             Retry
           </button>
-        </PanelShell>
+        </ShellPanel>
       </div>
     );
   }
@@ -231,12 +217,12 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
     return (
       <div className="space-y-4">
         <SectionTitle>Your Tokens</SectionTitle>
-        <PanelShell className="p-8 text-center">
+        <ShellPanel className="p-8 text-center">
           <EmptyIcon />
           <p className="text-dark-400 mt-2">No tokens found on this chain</p>
           <p className="text-dark-500 text-sm mt-1">Deposit tokens to get started</p>
-        </PanelShell>
-        <SidebarAutoUpdateFooter />
+        </ShellPanel>
+        <ShellAutoUpdateFooter intervalSeconds={60} />
       </div>
     );
   }
@@ -246,10 +232,10 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
       <SectionTitle>Your Tokens</SectionTitle>
 
       {totalUsdValue && parseFloat(totalUsdValue) > 0 && (
-        <PanelShell className="p-4">
+        <ShellPanel className="p-4">
           <div className="text-xs font-semibold uppercase tracking-wider text-dark-500">Total Balance</div>
           <div className="text-2xl font-bold tabular-nums mt-1">{formatUsd(totalUsdValue)}</div>
-        </PanelShell>
+        </ShellPanel>
       )}
 
       <div className="space-y-2.5">
@@ -263,7 +249,7 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
         ))}
       </div>
 
-      <SidebarAutoUpdateFooter />
+      <ShellAutoUpdateFooter intervalSeconds={60} />
     </div>
   );
 }
