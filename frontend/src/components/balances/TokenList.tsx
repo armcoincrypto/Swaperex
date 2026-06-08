@@ -17,6 +17,22 @@ import type { TokenBalance } from '@/types/api';
 import { CHAINS } from '@/config/chains';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="text-lg sm:text-xl font-bold tracking-tight text-white">{children}</h2>
+  );
+}
+
+function PanelShell({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div
+      className={`rounded-xl border border-white/[0.08] bg-electro-panel/50 backdrop-blur-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
 interface TokenListProps {
   onSwapToken?: (symbol: string) => void;
   showSwapButtons?: boolean;
@@ -94,13 +110,13 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
   if (showConnectPrompt) {
     return (
       <div className="space-y-4">
-        <h2 className="text-xl font-bold">Your Tokens</h2>
-        <div className="p-8 bg-dark-800 rounded-xl text-center">
+        <SectionTitle>Your Tokens</SectionTitle>
+        <PanelShell className="p-8 text-center">
           <WalletIcon />
           <p className="text-dark-400 mt-2">
             Connect your wallet to view balances
           </p>
-        </div>
+        </PanelShell>
       </div>
     );
   }
@@ -109,15 +125,15 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
   if (currentChainUnsupported) {
     return (
       <div className="space-y-4">
-        <h2 className="text-xl font-bold">Your Tokens</h2>
-        <div className="p-6 bg-dark-800 rounded-xl text-center border border-amber-800/30">
+        <SectionTitle>Your Tokens</SectionTitle>
+        <PanelShell className="p-6 text-center border-amber-800/30">
           <p className="text-amber-200/90 text-sm">
             Balances for this network are not available in the sidebar yet.
           </p>
           <p className="text-dark-500 text-xs mt-2">
             Switch to Ethereum, BSC, or Polygon to see token balances here, or use your wallet for amounts.
           </p>
-        </div>
+        </PanelShell>
       </div>
     );
   }
@@ -126,13 +142,16 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
   if (balancesPendingForCurrentChain) {
     return (
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold">Your Tokens</h2>
+        <div className="flex items-center justify-between gap-3">
+          <SectionTitle>Your Tokens</SectionTitle>
           <div className="text-sm text-dark-400">Loading balances…</div>
         </div>
-        <div className="animate-pulse space-y-3">
+        <div className="animate-pulse space-y-2.5">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-16 bg-dark-800 rounded-xl" />
+            <div
+              key={i}
+              className="h-[4.25rem] rounded-xl border border-white/[0.06] bg-electro-panel/40"
+            />
           ))}
         </div>
       </div>
@@ -147,8 +166,8 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
         : currentChainKey;
     return (
       <div className="space-y-4">
-        <h2 className="text-xl font-bold">Your Tokens</h2>
-        <div className="p-6 bg-dark-800 rounded-xl text-center border border-amber-800/25">
+        <SectionTitle>Your Tokens</SectionTitle>
+        <PanelShell className="p-6 text-center border-amber-800/25">
           <p className="text-dark-200 text-xs font-semibold uppercase tracking-wide">
             {SWAP_SURFACE_COPY.tokenListNetworkIssueTitle}
           </p>
@@ -162,7 +181,7 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
           >
             Retry
           </button>
-        </div>
+        </PanelShell>
       </div>
     );
   }
@@ -171,8 +190,8 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
   if (!currentChainBalances && currentChainKey) {
     return (
       <div className="space-y-4">
-        <h2 className="text-xl font-bold">Your Tokens</h2>
-        <div className="p-6 bg-dark-800 rounded-xl text-center border border-amber-800/25">
+        <SectionTitle>Your Tokens</SectionTitle>
+        <PanelShell className="p-6 text-center border-amber-800/25">
           <p className="text-dark-200 text-xs font-semibold uppercase tracking-wide">
             {SWAP_SURFACE_COPY.tokenListNetworkIssueTitle}
           </p>
@@ -180,11 +199,11 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
           <button
             type="button"
             onClick={() => void refresh()}
-            className="mt-3 text-sm text-primary-400 hover:text-primary-300"
+            className="mt-3 min-h-[2.25rem] text-sm text-primary-400 hover:text-primary-300"
           >
             Retry
           </button>
-        </div>
+        </PanelShell>
       </div>
     );
   }
@@ -197,37 +216,32 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
   if (sortedBalances.length === 0) {
     return (
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold">Your Tokens</h2>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <SectionTitle>Your Tokens</SectionTitle>
           <button
+            type="button"
             onClick={refresh}
             disabled={isLoading}
-            className="text-sm text-primary-400 hover:text-primary-300 disabled:opacity-50"
+            className="min-h-[2.25rem] text-sm text-primary-400 hover:text-primary-300 disabled:opacity-50"
           >
             {isLoading ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
-        <div className="p-8 bg-dark-800 rounded-xl text-center">
+        <PanelShell className="p-8 text-center">
           <EmptyIcon />
-          <p className="text-dark-400 mt-2">
-            No tokens found on this chain
-          </p>
-          <p className="text-dark-500 text-sm mt-1">
-            Deposit tokens to get started
-          </p>
-        </div>
+          <p className="text-dark-400 mt-2">No tokens found on this chain</p>
+          <p className="text-dark-500 text-sm mt-1">Deposit tokens to get started</p>
+        </PanelShell>
       </div>
     );
   }
 
   return (
     <div className="space-y-4 animate-fadeIn">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">Your Tokens</h2>
-        <div className="flex items-center gap-3">
-          {/* Hide Zero Toggle */}
-          <label className="flex items-center gap-2 text-sm text-dark-400 cursor-pointer">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <SectionTitle>Your Tokens</SectionTitle>
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          <label className="flex items-center gap-2 text-sm text-dark-400 cursor-pointer min-h-[2.25rem]">
             <input
               id="hide-zero-balances"
               name="hide-zero-balances"
@@ -239,9 +253,10 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
             <span>Hide zero</span>
           </label>
           <button
+            type="button"
             onClick={refresh}
             disabled={isLoading}
-            className="flex items-center gap-1 text-sm text-primary-400 hover:text-primary-300 disabled:opacity-50"
+            className="flex items-center gap-1 min-h-[2.25rem] text-sm text-primary-400 hover:text-primary-300 disabled:opacity-50"
           >
             {isLoading && <LoadingSpinner />}
             {isLoading ? 'Refreshing...' : 'Refresh'}
@@ -249,16 +264,14 @@ export function TokenList({ onSwapToken, showSwapButtons = false }: TokenListPro
         </div>
       </div>
 
-      {/* Total Value (only show if we have USD values) */}
       {totalUsdValue && parseFloat(totalUsdValue) > 0 && (
-        <div className="p-4 bg-dark-800 rounded-xl">
-          <div className="text-sm text-dark-400">Total Balance</div>
-          <div className="text-2xl font-bold">{formatUsd(totalUsdValue)}</div>
-        </div>
+        <PanelShell className="p-4">
+          <div className="text-xs font-semibold uppercase tracking-wider text-dark-500">Total Balance</div>
+          <div className="text-2xl font-bold tabular-nums mt-1">{formatUsd(totalUsdValue)}</div>
+        </PanelShell>
       )}
 
-      {/* Token List */}
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         {sortedBalances.map((balance, index) => (
           <BalanceCard
             key={`${balance.chain || 'unknown'}-${balance.symbol}-${index}`}

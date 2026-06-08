@@ -4,8 +4,8 @@
  * Displays token balance with logo, USD value, and swap button.
  */
 
-import { useState } from 'react';
 import { formatBalance, formatUsd } from '@/utils/format';
+import { SwapTokenAvatar } from '@/components/common/SwapTokenAvatar';
 import type { TokenBalance } from '@/types/api';
 
 interface BalanceCardProps {
@@ -15,74 +15,54 @@ interface BalanceCardProps {
   showSwapButton?: boolean;
 }
 
-function TokenLogo({ logoUrl, symbol }: { logoUrl?: string; symbol: string }) {
-  const [imgError, setImgError] = useState(false);
-
-  if (logoUrl && !imgError) {
-    return (
-      <div className="w-10 h-10 rounded-full bg-dark-600 flex items-center justify-center overflow-hidden">
-        <img
-          src={logoUrl}
-          alt={symbol}
-          width={36}
-          height={36}
-          className="rounded-full"
-          onError={() => setImgError(true)}
-          loading="lazy"
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className="w-10 h-10 rounded-full bg-dark-600 flex items-center justify-center">
-      <span className="text-sm font-bold">{symbol.slice(0, 3)}</span>
-    </div>
-  );
-}
-
 export function BalanceCard({ balance, onClick, onSwap, showSwapButton = false }: BalanceCardProps) {
   const handleSwapClick = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Don't trigger onClick
+    e.stopPropagation();
     onSwap?.(balance.symbol);
   };
 
   return (
     <div
       onClick={onClick}
-      className={`flex items-center justify-between p-3 bg-dark-800 rounded-xl ${
-        onClick ? 'cursor-pointer hover:bg-dark-700 transition-colors' : ''
+      className={`flex items-center justify-between gap-3 p-3.5 sm:p-4 rounded-xl border border-white/[0.08] bg-electro-panel/55 backdrop-blur-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] ${
+        onClick
+          ? 'cursor-pointer hover:bg-electro-panel/75 hover:border-white/[0.12] transition-colors'
+          : ''
       }`}
     >
-      <div className="flex items-center gap-3">
-        <TokenLogo logoUrl={balance.logo_url} symbol={balance.symbol} />
+      <div className="flex items-center gap-3 min-w-0 flex-1">
+        <SwapTokenAvatar symbol={balance.symbol} logoUrl={balance.logo_url} size="lg" />
 
-        {/* Token Info */}
-        <div>
-          <div className="font-medium">{balance.symbol}</div>
-          <div className="text-sm text-dark-400 truncate max-w-[120px]">{balance.name || balance.symbol}</div>
+        <div className="min-w-0">
+          <div className="font-semibold text-[15px] leading-tight tracking-tight truncate">
+            {balance.symbol}
+          </div>
+          <div className="text-sm text-dark-400 truncate max-w-[10rem] sm:max-w-[12rem]">
+            {balance.name || balance.symbol}
+          </div>
         </div>
       </div>
 
-      {/* Balance Info + Swap Button */}
-      <div className="flex items-center gap-3">
-        <div className="text-right">
-          <div className="font-medium">{formatBalance(balance.balance)}</div>
-          {balance.usd_value && (
-            <div className="text-sm text-dark-400">{formatUsd(balance.usd_value)}</div>
-          )}
+      <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+        <div className="text-right min-w-[4.5rem]">
+          <div className="font-semibold tabular-nums text-[15px] leading-tight">
+            {formatBalance(balance.balance)}
+          </div>
+          {balance.usd_value ? (
+            <div className="text-xs text-dark-400 tabular-nums mt-0.5">{formatUsd(balance.usd_value)}</div>
+          ) : null}
         </div>
 
-        {/* Swap Button */}
-        {showSwapButton && parseFloat(balance.balance) > 0 && (
+        {showSwapButton && parseFloat(balance.balance) > 0 ? (
           <button
+            type="button"
             onClick={handleSwapClick}
-            className="px-3 py-1.5 bg-primary-600 hover:bg-primary-500 text-white text-sm font-medium rounded-lg transition-colors"
+            className="min-h-[2.25rem] px-3 py-1.5 bg-primary-500/20 hover:bg-primary-500/30 text-primary-200 text-sm font-semibold rounded-lg border border-primary-500/35 transition-colors"
             title={`Swap ${balance.symbol}`}
           >
             Swap
           </button>
-        )}
+        ) : null}
       </div>
     </div>
   );
