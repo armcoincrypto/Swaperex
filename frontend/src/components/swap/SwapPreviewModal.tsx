@@ -43,6 +43,7 @@ import type { ApprovalMode } from '@/stores/swapStore';
 import { classifyCommissionRoute } from '@/utils/commission';
 import { isDebugMode } from '@/utils/chainHealth';
 import { emitSwapLifecycleStage } from '@/utils/swapLifecycleTelemetry';
+import { SwapTokenAvatar } from '@/components/common/SwapTokenAvatar';
 
 export type { SwapStep } from './swapPreviewTypes';
 import type { SwapStep } from './swapPreviewTypes';
@@ -70,6 +71,8 @@ interface SwapPreviewModalProps {
   recoveredTrace?: RecoveredSwapTrace | null;
   /** Clears persisted pending swap after user verifies on explorer (conservative retry) */
   onClearPendingSwap?: () => void;
+  fromLogoUrl?: string | null;
+  toLogoUrl?: string | null;
   onConfirm: () => void;
   onCancel: () => void;
   onRefreshQuote: () => void;
@@ -103,6 +106,8 @@ export function SwapPreviewModal({
   chainId = null,
   quoteTtlSecondsRemaining,
   lifecycleFlowId = null,
+  fromLogoUrl = null,
+  toLogoUrl = null,
 }: SwapPreviewModalProps) {
   const prevStepRef = useRef<SwapStep | null>(null);
 
@@ -305,6 +310,8 @@ export function SwapPreviewModal({
           txHash={txHash}
           explorerUrl={explorerUrl}
           receiptSettlement={receiptSettlement}
+          fromLogoUrl={fromLogoUrl}
+          toLogoUrl={toLogoUrl}
           onClose={onCancel}
         />
       )}
@@ -325,7 +332,11 @@ export function SwapPreviewModal({
         <>
           {/* Swap Summary */}
           <div className="bg-dark-800/90 rounded-xl p-4 mb-4 border border-white/[0.08] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-            <SwapSummary quote={quote} />
+            <SwapSummary
+              quote={quote}
+              fromLogoUrl={fromLogoUrl}
+              toLogoUrl={toLogoUrl}
+            />
           </div>
 
           <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 mb-4">
@@ -954,36 +965,53 @@ function PreviewFeesAdvancedSection({
 }
 
 // Swap Summary Component
-function SwapSummary({ quote }: { quote: SwapQuote }) {
+function SwapSummary({
+  quote,
+  fromLogoUrl,
+  toLogoUrl,
+}: {
+  quote: SwapQuote;
+  fromLogoUrl?: string | null;
+  toLogoUrl?: string | null;
+}) {
   return (
     <div className="text-center">
       <div className="text-[10px] font-semibold uppercase tracking-wider text-dark-500 mb-3">Review swap</div>
       <div className="flex items-center justify-center gap-4 sm:gap-6">
         {/* From */}
         <div className="text-center min-w-0 flex-1">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-dark-500 mb-1.5">You pay</div>
-          <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-dark-700 flex items-center justify-center ring-1 ring-white/[0.08]">
-            <span className="text-lg font-bold">{quote.from_asset[0]}</span>
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-dark-500 mb-2">You pay</div>
+          <div className="mx-auto mb-2 flex justify-center">
+            <SwapTokenAvatar
+              symbol={quote.from_asset}
+              logoUrl={fromLogoUrl ?? undefined}
+              size="xl"
+            />
           </div>
           <div className="text-xl font-bold tabular-nums">{formatBalance(quote.from_amount)}</div>
-          <div className="text-dark-400 text-sm font-medium">{quote.from_asset}</div>
+          <div className="text-dark-400 text-sm font-medium mt-0.5">{quote.from_asset}</div>
         </div>
 
         {/* Arrow */}
-        <div className="flex-shrink-0 text-dark-500 pt-5">
+        <div className="flex-shrink-0 text-dark-500 pt-6">
           <ArrowRightIcon />
         </div>
 
         {/* To */}
         <div className="text-center min-w-0 flex-1">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-dark-500 mb-1.5">You receive</div>
-          <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-primary-900/50 flex items-center justify-center ring-1 ring-primary-500/25">
-            <span className="text-lg font-bold text-primary-400">{quote.to_asset[0]}</span>
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-dark-500 mb-2">You receive</div>
+          <div className="mx-auto mb-2 flex justify-center">
+            <SwapTokenAvatar
+              symbol={quote.to_asset}
+              logoUrl={toLogoUrl ?? undefined}
+              size="xl"
+              variant="accent"
+            />
           </div>
           <div className="text-2xl sm:text-3xl font-bold text-primary-300 tabular-nums leading-tight">
             {formatBalance(quote.to_amount)}
           </div>
-          <div className="text-dark-400 text-sm font-medium">{quote.to_asset}</div>
+          <div className="text-dark-400 text-sm font-medium mt-0.5">{quote.to_asset}</div>
         </div>
       </div>
     </div>
@@ -1057,12 +1085,16 @@ function SuccessContent({
   txHash,
   explorerUrl: providedExplorerUrl,
   receiptSettlement,
+  fromLogoUrl = null,
+  toLogoUrl = null,
   onClose,
 }: {
   quote: SwapQuote;
   txHash: string | null;
   explorerUrl?: string | null;
   receiptSettlement?: SwapReceiptSettlement | null;
+  fromLogoUrl?: string | null;
+  toLogoUrl?: string | null;
   onClose: () => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -1170,17 +1202,28 @@ function SuccessContent({
       )}
 
       {/* Receipt Card — pay/receive context + details */}
-      <div className="bg-dark-800 rounded-xl p-4 mb-3 text-left">
-        <div className="flex items-center justify-center gap-4 pb-3 border-b border-dark-700 mb-3">
+      <div className="bg-dark-800 rounded-xl p-4 mb-3 text-left border border-white/[0.06]">
+        <div className="flex items-center justify-center gap-3 sm:gap-4 pb-3 border-b border-dark-700 mb-3">
           <div className="text-center min-w-0 flex-1">
+            <div className="flex justify-center mb-1.5">
+              <SwapTokenAvatar symbol={quote.from_asset} logoUrl={fromLogoUrl ?? undefined} size="md" />
+            </div>
             <div className="text-[10px] text-dark-500 mb-0.5">You paid</div>
             <div className="text-base font-semibold tabular-nums">{formatBalance(quote.from_amount)}</div>
             <div className="text-dark-400 text-xs">{quote.from_asset}</div>
           </div>
-          <div className="flex-shrink-0 text-dark-500">
+          <div className="flex-shrink-0 text-dark-500 pt-4">
             <ArrowRightIcon />
           </div>
           <div className="text-center min-w-0 flex-1">
+            <div className="flex justify-center mb-1.5">
+              <SwapTokenAvatar
+                symbol={quote.to_asset}
+                logoUrl={toLogoUrl ?? undefined}
+                size="md"
+                variant="accent"
+              />
+            </div>
             <div className="text-[10px] text-dark-500 mb-0.5">Quoted receive</div>
             <div className="text-base font-semibold tabular-nums text-primary-400/90">
               {formatBalance(quote.to_amount)}

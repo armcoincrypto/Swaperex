@@ -22,6 +22,7 @@ import { SavePresetModal } from '@/components/presets/SavePresetModal';
 import { GuardWarningPanel } from '@/components/presets/GuardWarningPanel';
 import { evaluatePresetGuards } from '@/services/presetGuardService';
 import { TokenSafetyBadges } from '@/components/common/TokenSafetyBadges';
+import { SwapTokenAvatar } from '@/components/common/SwapTokenAvatar';
 import {
   LazyCommissionRouteRecoveryChips,
   LazyCommissionRouteRecoveryPanel,
@@ -1725,25 +1726,25 @@ export function SwapInterface() {
           })()}
 
         {/* From Token */}
-        <div className={`relative bg-electro-bgAlt/80 rounded-glass-sm p-4 mb-2 border transition-all duration-200 ${
+        <div className={`relative bg-electro-bgAlt/80 rounded-glass-sm p-3.5 sm:p-4 mb-2 border transition-all duration-200 ${
           showFromSelector ? 'z-30' : 'z-10'
         } ${
           insufficientBalanceForUi ? 'border-danger/50 shadow-glow-danger' : 'border-white/[0.06] hover:border-white/[0.1]'
         }`}>
-          <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2 mb-2.5">
             <span className="text-[10px] font-semibold uppercase tracking-wider text-dark-500 shrink-0">You pay</span>
             <div
-              className={`flex items-center gap-2 sm:gap-3 text-sm min-w-0 justify-end ${
+              className={`flex items-center gap-2 text-xs sm:text-sm min-w-0 ${
                 insufficientBalanceForUi ? 'text-red-400' : 'text-dark-400'
               }`}
             >
-              <span className="tabular-nums whitespace-nowrap">
-                Balance:{' '}
+              <span className="tabular-nums">
+                Balance{' '}
                 <span className={`font-medium ${insufficientBalanceForUi ? 'text-red-300' : 'text-dark-300'}`}>
                   {fromBalance === '…' ? (
                     <InlineSkeleton className="inline-block h-4 w-[4.5rem] align-middle" />
                   ) : fromBalance === 'unavailable' ? (
-                    <span className="text-dark-500 font-normal not-italic">Balance unavailable</span>
+                    <span className="text-dark-500 font-normal not-italic">unavailable</span>
                   ) : fromBalance === '—' ? (
                     <span className="text-dark-500 font-normal">—</span>
                   ) : (
@@ -1760,7 +1761,7 @@ export function SwapInterface() {
                       setFromAmount(maxAmount);
                     }
                   }}
-                  className="shrink-0 px-2.5 py-1 rounded-md text-xs font-semibold tracking-wide text-primary-300 bg-primary-500/15 border border-primary-500/35 hover:bg-primary-500/25 hover:border-primary-400/50 transition-colors"
+                  className="shrink-0 min-h-[2rem] px-2.5 py-1 rounded-md text-xs font-semibold tracking-wide text-primary-300 bg-primary-500/15 border border-primary-500/35 hover:bg-primary-500/25 hover:border-primary-400/50 transition-colors"
                   title={fromAsset?.is_native ? 'Max (leaves small amount for gas)' : 'Use full balance'}
                 >
                   MAX
@@ -1768,7 +1769,7 @@ export function SwapInterface() {
               )}
             </div>
           </div>
-          <div className="flex flex-col gap-3 w-full min-w-0 sm:flex-row sm:items-start sm:gap-4">
+          <div className="flex flex-col gap-3.5 w-full min-w-0 sm:flex-row sm:items-center sm:gap-4">
             <div className="relative shrink-0 self-stretch sm:self-auto min-w-0">
               <TokenButton
                 asset={fromAsset}
@@ -1807,7 +1808,7 @@ export function SwapInterface() {
                     setFromAmount(val);
                   }
                 }}
-                className="w-full min-w-0 bg-transparent text-xl sm:text-2xl font-medium text-right outline-none tabular-nums"
+                className="w-full min-w-0 bg-transparent text-2xl sm:text-[1.65rem] font-semibold text-right outline-none tabular-nums leading-tight py-0.5"
               />
             </div>
           </div>
@@ -1830,28 +1831,28 @@ export function SwapInterface() {
         </div>
 
         {/* To Token */}
-        <div className={`relative bg-electro-bgAlt/80 rounded-glass-sm p-4 mt-2 border border-white/[0.06] hover:border-white/[0.1] transition-all duration-200 ${
+        <div className={`relative bg-electro-bgAlt/80 rounded-glass-sm p-3.5 sm:p-4 mt-2 border border-white/[0.06] hover:border-white/[0.1] transition-all duration-200 ${
           showToSelector ? 'z-30' : 'z-10'
         }`}>
-          <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between sm:gap-2 mb-2.5">
             <div className="flex flex-col gap-0.5 shrink-0 min-w-0">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-dark-500">You receive</span>
-              <span className="text-[11px] text-dark-500">After fees · estimate</span>
+              <span className="text-[10px] text-dark-500/90">After fees · estimate</span>
             </div>
-            <span className="text-sm text-dark-400 tabular-nums whitespace-nowrap">
-              Balance:{' '}
+            <span className="text-xs sm:text-sm text-dark-400 tabular-nums">
+              Balance{' '}
               <span className="font-medium text-dark-300">
                 {(() => {
                   const b = getBalance(toAsset);
                   if (b === '…') return <InlineSkeleton className="inline-block h-4 w-[4.5rem] align-middle" />;
-                  if (b === 'unavailable') return <span className="text-dark-500 font-normal">Balance unavailable</span>;
+                  if (b === 'unavailable') return <span className="text-dark-500 font-normal">unavailable</span>;
                   if (b === '—') return <span className="text-dark-500 font-normal">—</span>;
                   return formatBalance(b);
                 })()}
               </span>
             </span>
           </div>
-          <div className="flex flex-col gap-3 w-full min-w-0 sm:flex-row sm:items-start sm:gap-4">
+          <div className="flex flex-col gap-3.5 w-full min-w-0 sm:flex-row sm:items-center sm:gap-4">
             <div className="relative shrink-0 self-stretch sm:self-auto min-w-0">
               <TokenButton
                 asset={toAsset}
@@ -2632,6 +2633,8 @@ export function SwapInterface() {
             isRefreshing={isRefreshingQuote}
             quoteTtlSecondsRemaining={quoteSecondsRemaining}
             lifecycleFlowId={swapLifecycleFlowId}
+            fromLogoUrl={fromAsset?.logo_url}
+            toLogoUrl={toAsset?.logo_url}
           />
         </Suspense>
       )}
@@ -2701,30 +2704,6 @@ function CommissionRouteRecoveryChipsSection(props: CommissionRouteUiProps) {
   );
 }
 
-// Reusable Token Logo with graceful fallback
-function TokenLogo({ url, symbol, size = 'sm' }: { url?: string; symbol?: string; size?: 'sm' | 'md' }) {
-  const [imgFailed, setImgFailed] = useState(false);
-  const dims = size === 'md' ? 'w-8 h-8' : 'w-6 h-6';
-  const textSize = size === 'md' ? 'text-sm' : 'text-xs';
-
-  if (url && !imgFailed) {
-    return (
-      <img
-        src={url}
-        alt={symbol || ''}
-        className={`${dims} rounded-full flex-shrink-0`}
-        onError={() => setImgFailed(true)}
-      />
-    );
-  }
-
-  return (
-    <div className={`${dims} rounded-full bg-gradient-to-br from-primary-600/40 to-dark-600 flex items-center justify-center ${textSize} font-bold flex-shrink-0`}>
-      {symbol?.[0] || '?'}
-    </div>
-  );
-}
-
 // Token Button Component
 function TokenButton({
   asset,
@@ -2754,11 +2733,16 @@ function TokenButton({
       type="button"
       onClick={onClick}
       title={title}
-      className="flex items-center gap-2.5 px-3 py-2.5 bg-electro-panel/80 rounded-xl hover:bg-electro-panelHover transition-all duration-200 border border-white/[0.06] hover:border-white/[0.1] min-w-0 max-w-[min(100%,11rem)] sm:max-w-[13rem] ring-1 ring-white/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/45"
+      className="flex items-center gap-3 px-3 py-2.5 sm:py-3 min-h-[3.25rem] bg-electro-panel/80 rounded-xl hover:bg-electro-panelHover transition-all duration-200 border border-white/[0.06] hover:border-white/[0.1] min-w-0 w-full sm:w-auto sm:max-w-[14rem] ring-1 ring-white/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/45"
     >
-      <TokenLogo url={asset?.logo_url} symbol={asset?.symbol} size="sm" />
+      <SwapTokenAvatar
+        symbol={asset?.symbol}
+        logoUrl={asset?.logo_url}
+        chainId={chainId}
+        size="lg"
+      />
       <div className="flex flex-col items-start min-w-0 flex-1 text-left gap-0.5">
-        <span className="text-[15px] font-semibold leading-tight tracking-tight truncate w-full">
+        <span className="text-base sm:text-[15px] font-semibold leading-tight tracking-tight truncate w-full">
           {asset?.symbol || 'Select'}
         </span>
         {asset && secondaryMeta && (
@@ -2958,9 +2942,12 @@ function TokenSelectorDropdown({
             <div className="bg-dark-700 rounded-lg p-3">
               {/* Token Header */}
               <div className="flex items-center gap-2 mb-3 pb-2 border-b border-dark-600">
-                <div className="w-10 h-10 rounded-full bg-dark-600 flex items-center justify-center text-lg font-bold">
-                  {importedToken.symbol[0]}
-                </div>
+                <SwapTokenAvatar
+                  symbol={importedToken.symbol}
+                  logoUrl={importedToken.logoURI}
+                  chainId={importedToken.chainId}
+                  size="lg"
+                />
                 <div className="flex-1">
                   <div className="font-medium text-lg">{importedToken.symbol}</div>
                   <div className="text-xs text-dark-400">{importedToken.name}</div>
@@ -3079,7 +3066,7 @@ function TokenSelectorDropdown({
               <div
                 key={`${asset.symbol}-${asset.contract_address}`}
                 onClick={() => !isExcluded && onSelect(asset)}
-                className={`w-full px-4 py-2.5 text-left transition-colors flex items-center gap-3 cursor-pointer ${
+                className={`w-full min-h-[3.25rem] px-4 py-3 text-left transition-colors flex items-center gap-3 cursor-pointer ${
                   isSelected
                     ? 'bg-primary-600/20 text-primary-400'
                     : isExcluded
@@ -3111,7 +3098,13 @@ function TokenSelectorDropdown({
                     <StarIcon filled={!!isFav} />
                   </button>
                 )}
-                <TokenLogo url={asset.logo_url} symbol={asset.symbol} size="md" />
+                <SwapTokenAvatar
+                  symbol={asset.symbol}
+                  logoUrl={asset.logo_url}
+                  chainId={chainId}
+                  size="md"
+                  showChainBadge={false}
+                />
                 <div className="flex-1 min-w-0 text-left">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="font-medium truncate">{asset.symbol}</span>
