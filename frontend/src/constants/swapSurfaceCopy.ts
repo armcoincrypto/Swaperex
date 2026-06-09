@@ -134,9 +134,9 @@ export const SWAP_SURFACE_COPY = {
   networkFeeWalletFallback: 'Network fee is shown in your wallet before confirmation.',
   quoteFreshnessStale: 'Stale — refresh quote',
 
-  /** Global footer — single line to avoid repeating the swap-card trust copy */
+  /** Global footer — one short line; details live in Learn More / legal pages */
   footerTrustCompact:
-    'Non-custodial: funds stay in your wallet until you sign. Swaperex never has your keys. Wrapper routes may take a small protocol fee from output on-chain (quoted receive is net where shown).',
+    'Non-custodial swap interface — you sign every transaction in your wallet.',
 
   /** @deprecated Use footerTrustCompact in layout */
   footerTrustNonCustodial:

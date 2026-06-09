@@ -181,7 +181,7 @@ export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelPro
             </svg>
           }
           title="No activity yet"
-          description="Your completed swaps will appear here for easy reference and quick repeat."
+          description="Completed swaps and transfers appear here."
         />
       )}
 

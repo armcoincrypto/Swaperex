@@ -24,7 +24,7 @@ import { OperationalHealthPanel } from '@/components/admin/OperationalHealthPane
 import type { SwapRecord } from '@/stores/swapHistoryStore';
 import { isDebugMode } from '@/utils/chainHealth';
 import { resolveAdminApiToken } from '@/utils/adminApi';
-import { ShellEmptyState } from '@/components/ui/ShellPrimitives';
+import { ShellEmptyState, ShellAutoUpdateFooter } from '@/components/ui/ShellPrimitives';
 
 interface PortfolioPageProps {
   onSwapToken?: (symbol: string, chainId: number) => void;
@@ -103,6 +103,7 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
   }, [isConnected, showAdminLifecycle, showAdminSystem, adminTabs.length]);
 
   const [adminSharedToken, setAdminSharedToken] = useState(() => resolveAdminApiToken());
+  const updatedAt = usePortfolioStore((s) => s.updatedAt);
 
   // Individual selectors — only re-render when specific values change (FIX-1)
   const setPortfolio = usePortfolioStore((s) => s.setPortfolio);
@@ -232,16 +233,13 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      {/* Portfolio Header (total value, chain chips, refresh, privacy) */}
+    <div className="max-w-2xl mx-auto space-y-5">
       <PortfolioHeader onRefresh={handleRefresh} />
 
-      {/* Token Table (multi-chain, search, sort) */}
       <PortfolioTokenTable onSwapToken={onSwapToken} />
 
-      {/* Activity vs Revenue (local / commission estimates) */}
       <div
-        className={`grid gap-2 w-full rounded-2xl border border-white/[0.08] bg-electro-bgAlt/50 p-1.5 ${portfolioGridCols}`}
+        className={`grid gap-1 w-full rounded-lg border border-white/[0.08] bg-electro-bgAlt/50 p-1 ${portfolioGridCols}`}
         role="tablist"
         aria-label="Portfolio sections"
       >
@@ -252,28 +250,9 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
             role="tab"
             aria-selected={portfolioSubTab === t}
             onClick={() => setPortfolioSubTab(t)}
-            className={`min-w-0 rounded-xl px-3 py-2.5 text-left transition-all duration-200 ${
-              portfolioSubTab === t
-                ? 'bg-electro-panel text-white shadow-md ring-1 ring-white/[0.12]'
-                : 'text-dark-400 hover:text-dark-200 hover:bg-electro-panel/40'
-            }`}
+            className={`shell-tab min-w-0 py-2 text-center ${portfolioSubTab === t ? 'shell-tab-active' : ''}`}
           >
-            <span className="block text-sm font-semibold leading-tight">
-              {t === 'activity' ? 'Activity' : t === 'revenue' ? 'Revenue' : t === 'lifecycle' ? 'Lifecycle' : 'System'}
-            </span>
-            <span
-              className={`mt-0.5 block text-[11px] font-normal leading-snug ${
-                portfolioSubTab === t ? 'text-dark-200/90' : 'text-dark-500'
-              }`}
-            >
-              {t === 'activity'
-                ? 'Swaps & transfers'
-                : t === 'revenue'
-                  ? 'Commission estimates'
-                  : t === 'lifecycle'
-                    ? 'Swap flow telemetry'
-                    : 'Operational health'}
-            </span>
+            {t === 'activity' ? 'Activity' : t === 'revenue' ? 'Revenue' : t === 'lifecycle' ? 'Lifecycle' : 'System'}
           </button>
         ))}
       </div>
@@ -297,12 +276,23 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
       {/* Diagnostics (debug mode only: ?debug=1) */}
       {debugMode && <DiagnosticsPanel />}
 
-      {/* Footer */}
-      <div className="text-center text-[11px] text-dark-500 pb-4 leading-relaxed max-w-md mx-auto">
-        Balances refresh about every 30s (CoinGecko prices). Read-only — keys stay in your wallet.
+      <div className="text-center text-[11px] text-dark-500 pb-2 leading-relaxed space-y-1">
+        <ShellAutoUpdateFooter intervalSeconds={30} />
+        {updatedAt > 0 && (
+          <p className="text-dark-600">
+            Last sync {formatPortfolioRelativeTime(updatedAt)}
+          </p>
+        )}
       </div>
     </div>
   );
+}
+
+function formatPortfolioRelativeTime(ts: number): string {
+  const seconds = Math.floor((Date.now() - ts) / 1000);
+  if (seconds < 60) return 'just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  return `${Math.floor(seconds / 3600)}h ago`;
 }
 
 export default PortfolioPage;

@@ -12,7 +12,7 @@ import { useRadarStore, type RadarSignal } from '@/stores/radarStore';
 import { useUsageStore } from '@/stores/usageStore';
 import { useDebugStore, useDebugMode } from '@/stores/debugStore';
 import { useSignalHistoryStore } from '@/stores/signalHistoryStore';
-import { useSignalFilterStore, shouldShowHistoryEntry } from '@/stores/signalFilterStore';
+import { useSignalFilterStore } from '@/stores/signalFilterStore';
 import { useMonitoringStore } from '@/stores/monitoringStore';
 import { RadarItem } from './RadarItem';
 import { TierBadge } from '@/components/common/TierBadge';
@@ -28,14 +28,24 @@ import { WhyRadar } from '@/components/radar/WhyRadar';
 import { WalletScan } from '@/components/radar/WalletScan';
 import { AlertsPanel } from '@/components/signals/AlertsPanel';
 import { AlertToast } from '@/components/signals/AlertToast';
-import { useSignalAlerts, triggerTestAlert } from '@/hooks/useSignalAlerts';
-import { resetRadarIntro } from '@/utils/onboarding';
+import { useSignalAlerts } from '@/hooks/useSignalAlerts';
 import { fetchSignalsWithHistory, type SignalDebugData, type SignalHistoryCapture } from '@/services/signalsHealth';
 import { isMonitorRunning, startWatchlistMonitor } from '@/services/watchlistMonitor';
+
+import { WhyRadarCompact } from '@/components/radar/WhyRadar';
 
 interface RadarPanelProps {
   onSignalClick: (signal: RadarSignal) => void;
 }
+
+type RadarTab = 'overview' | 'watchlist' | 'scanner' | 'alerts';
+
+const RADAR_TABS: { id: RadarTab; label: string }[] = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'watchlist', label: 'Watchlist' },
+  { id: 'scanner', label: 'Scanner' },
+  { id: 'alerts', label: 'Alerts' },
+];
 
 export function RadarPanel({ onSignalClick }: RadarPanelProps) {
   const { signals, markAsRead, markAllAsRead, removeSignal, getUnreadCount } = useRadarStore();
@@ -50,6 +60,7 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
   const syncMonitoringFromService = useMonitoringStore((s) => s.syncFromService);
 
   const [showTimeline, setShowTimeline] = useState(false);
+  const [activeTab, setActiveTab] = useState<RadarTab>('overview');
 
   // P5-C.1 — defer watchlist monitor until first Radar visit (singleton; no stop on unmount)
   useEffect(() => {
@@ -140,11 +151,6 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
     return { today, yesterday, older };
   }, [filteredLiveSignals]);
 
-  // Filtered history count
-  const filteredHistoryCount = useMemo(() => {
-    return historyEntries.filter((entry) => shouldShowHistoryEntry(entry, signalFilters)).length;
-  }, [historyEntries, signalFilters]);
-
   const handleSignalClick = (signal: RadarSignal) => {
     markAsRead(signal.id);
     onSignalClick(signal);
@@ -158,122 +164,130 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
   return (
     <div className="max-w-2xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <h2 className="text-2xl font-bold">Radar</h2>
-          <span
-            className="text-dark-500 hover:text-dark-300 cursor-help transition-colors"
-            title="Radar monitors token safety. It alerts you to risk and liquidity issues — not price movements."
-          >
-            i
-          </span>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <h2 className="text-xl font-bold text-white">Radar</h2>
           <TierBadge tier="early-access" />
           {unreadCount > 0 && (
-            <span className="px-2 py-0.5 bg-primary-600 text-white text-sm font-medium rounded-full">
-              {unreadCount} new
+            <span className="px-2 py-0.5 bg-primary-600 text-white text-xs font-medium rounded-full">
+              {unreadCount}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          {unreadCount > 0 && (
-            <button
-              onClick={markAllAsRead}
-              className="text-sm text-primary-400 hover:text-primary-300 transition-colors"
-            >
-              Mark all as read
-            </button>
-          )}
-        </div>
+        {unreadCount > 0 && (
+          <button
+            onClick={markAllAsRead}
+            className="text-xs text-accent hover:brightness-110 transition-colors shrink-0"
+          >
+            Mark read
+          </button>
+        )}
       </div>
 
-      {/* First-Visit Intro Card */}
-      <RadarIntroCard className="mb-4" />
+      {/* Tab navigation */}
+      <div className="shell-tab-track mb-4" role="tablist" aria-label="Radar sections">
+        {RADAR_TABS.map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === id}
+            onClick={() => setActiveTab(id)}
+            className={`shell-tab flex-1 text-center ${activeTab === id ? 'shell-tab-active' : ''}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
-      {/* Why Radar Section */}
-      <WhyRadar className="mb-4" />
+      {activeTab === 'overview' && (
+        <>
+          <RadarIntroCard className="mb-3" />
+          <RadarFilterBar className="mb-3" />
+          <SignalsStatusBadge className="mb-3" />
 
-      {/* Usage Guide */}
-      <RadarUsageGuide className="mb-4" />
-
-      {/* Token Intelligence */}
-      <TokenCheckInput className="mb-4" />
-
-      {/* Unified Filter Bar (monitoring status + view scope + filters) */}
-      <RadarFilterBar className="mb-4" />
-
-      {/* Signals Offline Warning */}
-      <SignalsStatusBadge className="mb-4" />
-
-      {/* ─── Live Alerts Section ─── */}
-      {showLiveSection && (
-        <div className="mb-6">
-          {filteredLiveSignals.length === 0 ? (
-            <LiveEmptyState
-              monitoringEnabled={monitoringEnabled}
-              hasHistory={historyEntries.length > 0}
-              onShowTimeline={() => {
-                signalFilters.setViewScope('timeline');
-                setShowTimeline(true);
-              }}
-            />
-          ) : (
-            <div className="space-y-6">
-              <SignalGroup label="Today" signals={groupedLiveSignals.today} onClick={handleSignalClick} onDismiss={removeSignal} />
-              <SignalGroup label="Yesterday" signals={groupedLiveSignals.yesterday} onClick={handleSignalClick} onDismiss={removeSignal} />
-              <SignalGroup label="Older" signals={groupedLiveSignals.older} onClick={handleSignalClick} onDismiss={removeSignal} />
+          {showLiveSection && (
+            <div className="mb-4">
+              {filteredLiveSignals.length === 0 ? (
+                <LiveEmptyState
+                  monitoringEnabled={monitoringEnabled}
+                  hasHistory={historyEntries.length > 0}
+                  onShowTimeline={() => {
+                    signalFilters.setViewScope('timeline');
+                    setActiveTab('alerts');
+                    setShowTimeline(true);
+                  }}
+                />
+              ) : (
+                <div className="space-y-4">
+                  <SignalGroup label="Today" signals={groupedLiveSignals.today} onClick={handleSignalClick} onDismiss={removeSignal} />
+                  <SignalGroup label="Yesterday" signals={groupedLiveSignals.yesterday} onClick={handleSignalClick} onDismiss={removeSignal} />
+                  <SignalGroup label="Older" signals={groupedLiveSignals.older} onClick={handleSignalClick} onDismiss={removeSignal} />
+                </div>
+              )}
             </div>
           )}
-        </div>
-      )}
 
-      {/* ─── Activity Timeline Section ─── */}
-      {showTimelineSection && (
-        <div className="mb-6">
-          {viewScope === 'both' ? (
-            /* In "both" mode, timeline is collapsible */
-            <>
-              <button
-                onClick={() => setShowTimeline(!showTimeline)}
-                className="w-full flex items-center justify-between px-4 py-3 bg-dark-800 rounded-lg hover:bg-dark-700 transition-colors mb-3"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-dark-300">Activity Timeline</span>
-                  {historyEntries.length > 0 && (
-                    <span className="px-1.5 py-0.5 text-xs rounded bg-dark-600 text-dark-300">
-                      {filteredHistoryCount !== historyEntries.length
-                        ? `${filteredHistoryCount} of ${historyEntries.length}`
-                        : historyEntries.length}
-                    </span>
-                  )}
-                </div>
-                <span className="text-dark-500 text-xs">
-                  {showTimeline ? '▼' : '▶'}
-                </span>
-              </button>
-              {showTimeline && <ActivityTimeline maxGroups={20} />}
-            </>
-          ) : (
-            /* In "timeline" mode, show inline (always expanded) */
-            <ActivityTimeline maxGroups={30} />
+          {showTimelineSection && viewScope !== 'both' && (
+            <div className="mb-4">
+              <ActivityTimeline maxGroups={20} />
+            </div>
           )}
-        </div>
+
+          <details className="group rounded-lg border border-white/[0.06] bg-electro-panel/30 px-3 py-2 mb-3">
+            <summary className="cursor-pointer text-xs font-medium text-dark-300 list-none flex items-center justify-between [&::-webkit-details-marker]:hidden">
+              <span>About Radar</span>
+              <span className="text-dark-500 group-open:rotate-180 transition-transform text-[10px]">▾</span>
+            </summary>
+            <div className="mt-2 space-y-2">
+              <WhyRadarCompact />
+              <RadarUsageGuide className="!bg-transparent !border-0 !p-0" />
+            </div>
+          </details>
+        </>
       )}
 
-      {/* Watchlist Section */}
-      <WatchlistPanel className="mt-6" />
+      {activeTab === 'watchlist' && (
+        <>
+          <WhyRadar className="mb-3" />
+          <WatchlistPanel />
+        </>
+      )}
 
-      {/* Wallet Scan Section */}
-      <WalletScan className="mt-6" />
+      {activeTab === 'scanner' && (
+        <>
+          <RadarUsageGuide className="mb-3" />
+          <TokenCheckInput className="mb-3" />
+          <WalletScan />
+        </>
+      )}
 
-      {/* Alerts Section */}
-      <AlertsPanel
-        className="mt-6"
-        onAlertClick={() => {
-          setShowTimeline(true);
-        }}
-      />
+      {activeTab === 'alerts' && (
+        <>
+          <AlertsPanel
+            onAlertClick={() => {
+              setShowTimeline(true);
+            }}
+          />
+          <div className="mt-4">
+            {viewScope === 'both' ? (
+              <>
+                <button
+                  onClick={() => setShowTimeline(!showTimeline)}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg border border-white/[0.06] bg-electro-panel/40 hover:bg-electro-panel/60 transition-colors mb-2"
+                >
+                  <span className="text-sm font-medium text-dark-300">Activity Timeline</span>
+                  <span className="text-dark-500 text-xs">{showTimeline ? '▼' : '▶'}</span>
+                </button>
+                {showTimeline && <ActivityTimeline maxGroups={20} />}
+              </>
+            ) : (
+              <ActivityTimeline maxGroups={30} />
+            )}
+          </div>
+        </>
+      )}
 
-      {/* Debug Panel */}
       {debugEnabled && (
         <SignalDebugPanel
           debug={debugData}
@@ -282,61 +296,16 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
         />
       )}
 
-      {/* Info Footer */}
-      <div className="mt-8 p-4 bg-dark-800 rounded-xl text-center">
-        <p className="text-xs text-dark-400">
-          Radar monitors tokens you interact with and alerts you to significant changes.
-          <br />
-          Signals are stored locally and cleared after 24 hours.
-        </p>
-        <p className="text-[10px] text-dark-500 mt-2">
-          Radar is informational only, not financial advice. Always DYOR.
-        </p>
-
-        {/* Debug Toggle */}
-        <button
-          onClick={toggleDebug}
-          className={`mt-3 text-[10px] font-mono transition-colors ${
-            debugEnabled
-              ? 'text-yellow-500'
-              : 'text-dark-500 hover:text-dark-300'
-          }`}
-        >
-          {debugEnabled ? '[ DEBUG MODE ON ]' : '[ debug ]'}
-        </button>
-
+      <p className="mt-6 text-center text-[10px] text-dark-500 leading-relaxed">
+        Radar is informational only — not financial advice. Signals stored locally (~24h).
         {debugEnabled && (
-          <button
-            onClick={() => {
-              resetRadarIntro();
-              window.location.reload();
-            }}
-            className="ml-3 text-[10px] font-mono text-dark-500 hover:text-dark-300 transition-colors"
-          >
-            [ reset onboarding ]
-          </button>
+          <>
+            {' '}
+            <button onClick={toggleDebug} className="text-yellow-500 font-mono">[ debug ]</button>
+          </>
         )}
+      </p>
 
-        {debugEnabled && (
-          <div className="mt-3 flex items-center justify-center gap-2">
-            <span className="text-[10px] font-mono text-dark-600">Test alerts:</span>
-            <button
-              onClick={() => triggerTestAlert('risk', 'high')}
-              className="text-[10px] font-mono text-red-500 hover:text-red-400 transition-colors"
-            >
-              [ High Risk ]
-            </button>
-            <button
-              onClick={() => triggerTestAlert('liquidity', 'medium')}
-              className="text-[10px] font-mono text-orange-500 hover:text-orange-400 transition-colors"
-            >
-              [ Med Liquidity ]
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Toast Notifications */}
       <AlertToast />
     </div>
   );
