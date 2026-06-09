@@ -7,7 +7,7 @@
  * Calm refresh: no visible Refresh in normal state; retry only when chains degrade.
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import {
   usePortfolioStore,
@@ -24,7 +24,6 @@ import {
   PORTFOLIO_CHAINS,
 } from '@/utils/chainHealth';
 import {
-  ShellAutoUpdateFooter,
   ShellChipButton,
   ShellPanel,
 } from '@/components/ui/ShellPrimitives';
@@ -38,17 +37,9 @@ export function PortfolioHeader({ onRefresh, className = '' }: PortfolioHeaderPr
   const portfolio = usePortfolioStore((s) => s.portfolio);
   const loading = usePortfolioStore((s) => s.loading);
   const errors = usePortfolioStore((s) => s.errors);
-  const updatedAt = usePortfolioStore((s) => s.updatedAt);
   const privacyMode = usePortfolioStore((s) => s.privacyMode);
   const setPrivacyMode = usePortfolioStore((s) => s.setPrivacyMode);
   const chainHealth = usePortfolioStore(useShallow((s) => s.chainHealth));
-  const [, tick] = useState(0);
-
-  // Force re-render for relative time
-  useEffect(() => {
-    const interval = setInterval(() => tick((n) => n + 1), 30_000);
-    return () => clearInterval(interval);
-  }, []);
 
   const totalUsd = portfolio?.totalUsdValue || '0';
   const chainTotals = getChainTotals(portfolio);
@@ -150,8 +141,8 @@ export function PortfolioHeader({ onRefresh, className = '' }: PortfolioHeaderPr
         </div>
       </div>
 
-      {/* Chain Status Chips */}
-      <div className="flex flex-wrap items-center gap-2 mb-2">
+      {/* Chain Status Chips — compact row */}
+      <div className="flex flex-wrap items-center gap-2">
         {PORTFOLIO_CHAINS.map((chain) => {
           const total = chainTotals[chain];
           const health = chainHealth[chain];
@@ -209,9 +200,8 @@ export function PortfolioHeader({ onRefresh, className = '' }: PortfolioHeaderPr
         })}
       </div>
 
-      {/* Bottom row: calm auto-update + retry on error only */}
-      <div className="flex items-center justify-between gap-3 text-[11px] text-dark-500">
-        {showRetry ? (
+      {showRetry && (
+        <div className="mt-3">
           <ShellChipButton
             onClick={onRefresh}
             disabled={loading}
@@ -219,28 +209,10 @@ export function PortfolioHeader({ onRefresh, className = '' }: PortfolioHeaderPr
           >
             {loading ? 'Retrying…' : 'Retry update'}
           </ShellChipButton>
-        ) : (
-          <ShellAutoUpdateFooter intervalSeconds={30} className="!text-left" />
-        )}
-
-        <span className="shrink-0">
-          {updatedAt > 0
-            ? `Updated ${formatRelativeTime(updatedAt)}`
-            : loading && !portfolio
-            ? 'Fetching balances…'
-            : 'Not loaded yet'}
-        </span>
-      </div>
+        </div>
+      )}
     </ShellPanel>
   );
-}
-
-function formatRelativeTime(ts: number): string {
-  const seconds = Math.floor((Date.now() - ts) / 1000);
-  if (seconds < 60) return 'just now';
-  if (seconds < 120) return '1m ago';
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  return `${Math.floor(seconds / 3600)}h ago`;
 }
 
 export default PortfolioHeader;

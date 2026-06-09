@@ -54,20 +54,8 @@ const LazyAdminApp = lazy(() => import('@/components/admin/AdminApp'));
 const LazyTokenList = lazy(() =>
   import('@/components/balances/TokenList').then((m) => ({ default: m.TokenList }))
 );
-const LazyDexLandingIntro = lazy(() =>
-  import('@/components/seo/DexLandingIntro').then((m) => ({ default: m.DexLandingIntro }))
-);
-const LazyDexHowItWorksSection = lazy(() =>
-  import('@/components/seo/DexHowItWorksSection').then((m) => ({ default: m.DexHowItWorksSection }))
-);
-const LazyDexFaqSection = lazy(() =>
-  import('@/components/seo/DexFaqSection').then((m) => ({ default: m.DexFaqSection }))
-);
-const LazyDexSafetyChecklist = lazy(() =>
-  import('@/components/seo/DexSafetyChecklist').then((m) => ({ default: m.DexSafetyChecklist }))
-);
-const LazyDexSeoTrustSection = lazy(() =>
-  import('@/components/seo/DexSeoTrustSection').then((m) => ({ default: m.DexSeoTrustSection }))
+const LazyDexLearnMoreSection = lazy(() =>
+  import('@/components/seo/DexLearnMoreSection').then((m) => ({ default: m.DexLearnMoreSection }))
 );
 
 const lazyAdminFallback = (
@@ -620,11 +608,7 @@ function DexMain() {
             <div ref={belowFoldSeoSentinelRef} className="h-px w-full" aria-hidden />
             {showBelowFoldSeo && (
               <Suspense fallback={lazySwapEducationFallback}>
-                <LazyDexLandingIntro />
-                <LazyDexHowItWorksSection />
-                <LazyDexFaqSection />
-                <LazyDexSafetyChecklist />
-                <LazyDexSeoTrustSection />
+                <LazyDexLearnMoreSection />
               </Suspense>
             )}
           </>
@@ -708,12 +692,9 @@ function DexMain() {
 
       {/* Footer */}
       <footer className="border-t border-white/[0.06] mt-auto bg-electro-bg/40">
-        <div className="max-w-6xl mx-auto px-4 py-6 text-center text-sm text-gray-500">
-          <p className="text-gray-300 font-medium">Swaperex</p>
-          <p className="mt-3 text-xs text-gray-500 leading-relaxed max-w-lg mx-auto">
-            {SWAP_SURFACE_COPY.footerTrustCompact}
-          </p>
-          <div className="mt-3 flex justify-center gap-4">
+        <div className="max-w-6xl mx-auto px-4 py-5 text-center text-sm text-dark-500">
+          <p className="text-dark-300 font-medium">Swaperex</p>
+          <div className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-1">
             <Link
               to="/about"
               className="text-inherit no-underline hover:text-white transition-colors visited:text-inherit"
@@ -739,9 +720,10 @@ function DexMain() {
               Disclaimer
             </Link>
           </div>
-
-          {/* System Status Indicator */}
-          <div className="mt-4 pt-3 border-t border-white/[0.04]">
+          <p className="mt-3 text-[11px] text-dark-500 leading-relaxed max-w-md mx-auto">
+            {SWAP_SURFACE_COPY.footerTrustCompact}
+          </p>
+          <div className="mt-2">
             <SystemStatusIndicator />
           </div>
         </div>
