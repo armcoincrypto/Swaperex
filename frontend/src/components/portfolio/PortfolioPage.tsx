@@ -14,7 +14,7 @@ import { useEffect, useCallback, useRef, useMemo, useState } from 'react';
 import { useWalletStore } from '@/stores/walletStore';
 import { usePortfolioStore } from '@/stores/portfolioStore';
 import { usePortfolio } from '@/hooks/usePortfolio';
-import { PortfolioHeader } from './PortfolioHeader';
+import { PortfolioIntelligenceCenter } from './intelligence/PortfolioIntelligenceCenter';
 import { PortfolioTokenTable } from './PortfolioTokenTable';
 import { ActivityPanel } from './ActivityPanel';
 import { RevenuePanel } from './RevenuePanel';
@@ -204,7 +204,7 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
           </svg>
         }
         title="Connect Your Wallet"
-        description="Connect your wallet to view your multi-chain portfolio, token balances, and transaction history."
+        description="Connect your wallet to view portfolio intelligence — total value, allocation, chain exposure, and wallet health."
       />
     );
   }
@@ -234,7 +234,7 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
 
   return (
     <div className="max-w-2xl mx-auto space-y-5">
-      <PortfolioHeader onRefresh={handleRefresh} />
+      <PortfolioIntelligenceCenter onRefresh={handleRefresh} />
 
       <PortfolioTokenTable onSwapToken={onSwapToken} />
 
