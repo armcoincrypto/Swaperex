@@ -2,16 +2,20 @@
  * P3.1 — Audited commission route shortcuts (display-only; no routing changes).
  */
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { AssetInfo } from '@/types/api';
 import { isCommissionRequiredMode } from '@/config';
 import { getTokenBySymbol, isNativeToken } from '@/tokens';
 import {
   getVerifiedPopularCommissionRoutes,
-  groupPopularCommissionRoutes,
   type PopularCommissionRoute,
 } from '@/constants/popularCommissionRoutes';
+import {
+  getRoutesByBadge,
+  type RouteIntelBadge,
+} from '@/constants/tradingIntelligence';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
+import { RouteIntelBadgePill } from '@/components/trading/RouteIntelBadge';
 
 const CHAIN_NAMES: Record<number, string> = {
   1: 'ethereum',
@@ -24,6 +28,12 @@ const CHAIN_LABELS: Record<number, string> = {
 };
 
 const RECOVERY_ROUTE_LIMIT = 6;
+
+const ROUTE_TABS: { id: RouteIntelBadge; label: string }[] = [
+  { id: 'most-used', label: 'Most used' },
+  { id: 'trending', label: 'Trending' },
+  { id: 'audited', label: 'Audited' },
+];
 
 type Props = {
   activeChainId: number;
@@ -210,15 +220,16 @@ export function PopularCommissionRoutes({
   toAsset,
   onSelectPair,
 }: Props) {
-  const groups = useMemo(() => {
-    const routes = getVerifiedPopularCommissionRoutes();
-    if (routes.length === 0) return [];
-    return groupPopularCommissionRoutes(routes, activeChainId);
-  }, [activeChainId]);
+  const [activeTab, setActiveTab] = useState<RouteIntelBadge>('most-used');
+
+  const tabRoutes = useMemo(
+    () => getRoutesByBadge(activeTab, activeChainId),
+    [activeTab, activeChainId],
+  );
 
   if (!isCommissionRequiredMode()) return null;
   if (activeChainId !== 1 && activeChainId !== 56) return null;
-  if (groups.length === 0) return null;
+  if (tabRoutes.length === 0) return null;
 
   const handleRouteClick = (route: PopularCommissionRoute) => {
     const resolved = resolveAssets(route);
@@ -231,70 +242,70 @@ export function PopularCommissionRoutes({
     onSelectPair(resolved.from, resolved.to);
   };
 
+  const visibleRoutes = tabRoutes.filter((intel) => intel.route.chainId === activeChainId);
+
   return (
     <section
-      className="relative z-10 mt-3 rounded-lg border border-emerald-800/25 bg-emerald-950/15 px-3 py-2.5"
+      className="relative z-10 mt-3 rounded-xl border border-emerald-800/25 bg-emerald-950/15 px-3 py-2.5"
       aria-label={SWAP_SURFACE_COPY.popularCommissionRoutesTitle}
     >
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2">
-        <h3 className="text-[10px] font-semibold uppercase tracking-wide text-emerald-100/90">
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <h3 className="text-xs font-semibold text-emerald-50">
           {SWAP_SURFACE_COPY.popularCommissionRoutesTitle}
         </h3>
-        <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-medium tracking-wide border border-emerald-700/35 bg-emerald-900/30 text-emerald-100/95">
+        <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-medium border border-emerald-700/35 bg-emerald-900/30 text-emerald-100/95">
           {SWAP_SURFACE_COPY.auditedCommissionRouteBadge}
         </span>
       </div>
-      <p className="text-[10px] leading-snug text-emerald-100/70 mb-2">
-        {SWAP_SURFACE_COPY.popularCommissionRoutesHint}
-      </p>
 
-      <div className="space-y-2.5">
-        {groups.map((group) => {
-          const isActiveChain = group.chainId === activeChainId;
-          return (
-            <div key={group.chainId} className={!isActiveChain ? 'opacity-80' : undefined}>
-              <p className="text-[9px] font-semibold uppercase tracking-wider text-dark-500 mb-1.5">
-                {group.chainLabel}
-                {!isActiveChain ? (
-                  <span className="ml-1.5 font-normal normal-case text-dark-500">
-                    (switch network to swap)
-                  </span>
-                ) : null}
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {group.routes.map((route) => {
-                  const resolved = resolveAssets(route);
-                  if (!resolved) return null;
-                  const active = isActiveRoute(route, fromAsset, toAsset);
-                  return (
-                    <button
-                      key={`${route.chainId}-${route.label}`}
-                      type="button"
-                      disabled={!isActiveChain}
-                      onClick={() => handleRouteClick(route)}
-                      title={
-                        isActiveChain
-                          ? route.bidirectional
-                            ? `${SWAP_SURFACE_COPY.auditedCommissionRouteBadge}: ${route.label}. Click again to reverse.`
-                            : `${SWAP_SURFACE_COPY.auditedCommissionRouteBadge}: ${route.label}`
-                          : `Available on ${group.chainLabel} — switch network first`
-                      }
-                      className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
-                        !isActiveChain
-                          ? 'border-white/[0.06] bg-white/[0.02] text-dark-500 cursor-not-allowed'
-                          : active
-                            ? 'border-emerald-500/50 bg-emerald-900/40 text-emerald-50'
-                            : 'border-white/[0.08] bg-white/[0.04] text-dark-200 hover:border-emerald-600/40 hover:bg-emerald-950/30 hover:text-emerald-50'
-                      }`}
-                    >
-                      <span>{route.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
+      <div className="shell-segment-track mb-2.5" role="tablist" aria-label="Route categories">
+        {ROUTE_TABS.map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === id}
+            onClick={() => setActiveTab(id)}
+            className={`shell-segment flex-1 text-center text-[11px] py-1 ${
+              activeTab === id ? 'shell-segment-active' : ''
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {visibleRoutes.length === 0 ? (
+          <p className="text-[10px] text-dark-500 py-1">No routes in this category on this network.</p>
+        ) : (
+          visibleRoutes.map((intel) => {
+            const route = intel.route;
+            const resolved = resolveAssets(route);
+            if (!resolved) return null;
+            const active = isActiveRoute(route, fromAsset, toAsset);
+            return (
+              <button
+                key={`${route.chainId}-${route.label}-${intel.badge}`}
+                type="button"
+                onClick={() => handleRouteClick(route)}
+                title={
+                  route.bidirectional
+                    ? `${route.label} — tap again to reverse`
+                    : route.label
+                }
+                className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
+                  active
+                    ? 'border-emerald-500/50 bg-emerald-900/40 text-emerald-50'
+                    : 'border-white/[0.08] bg-white/[0.04] text-dark-200 hover:border-emerald-600/40 hover:bg-emerald-950/30 hover:text-emerald-50'
+                }`}
+              >
+                <span>{intel.pairLabel}</span>
+                <RouteIntelBadgePill badge={intel.badge} />
+              </button>
+            );
+          })
+        )}
       </div>
     </section>
   );
