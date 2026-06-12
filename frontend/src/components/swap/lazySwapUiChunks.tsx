@@ -2,11 +2,7 @@ import { lazy } from 'react';
 
 const popularCommissionRoutesLoader = () => import('./PopularCommissionRoutes');
 
-/** Shared async chunk for audited route shortcuts + recovery UI (display-only). */
-export const LazyPopularCommissionRoutes = lazy(() =>
-  popularCommissionRoutesLoader().then((m) => ({ default: m.PopularCommissionRoutes })),
-);
-
+/** Shared async chunk for commission route recovery UI (display-only). */
 export const LazyCommissionRouteRecoveryPanel = lazy(() =>
   popularCommissionRoutesLoader().then((m) => ({ default: m.CommissionRouteRecoveryPanel })),
 );

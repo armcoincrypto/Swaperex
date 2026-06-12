@@ -1,40 +1,34 @@
 /**
- * Sidebar / below-fold trading intelligence — lazy-loaded, display-only.
+ * Swap trading intelligence slot — unified route discovery rail.
  */
 
 import type { AssetInfo } from '@/types/api';
-import { isCommissionRequiredMode } from '@/config';
-import { TrendingPairsCard } from './TrendingPairsCard';
-import { PopularActivityCard } from './PopularActivityCard';
+import { RouteDiscoveryRail } from './RouteDiscoveryRail';
 
 export interface TradingIntelligencePanelProps {
   activeChainId: number;
   onSelectPair: (from: AssetInfo, to: AssetInfo) => void;
-  /** `sidebar` stacks vertically; `strip` is compact horizontal-first for mobile below swap */
+  /** `sidebar` stacks in the aside; `strip` sits below the swap card when disconnected. */
   layout?: 'sidebar' | 'strip';
+  fromAsset?: AssetInfo | null;
+  toAsset?: AssetInfo | null;
 }
 
 export function TradingIntelligencePanel({
   activeChainId,
   onSelectPair,
   layout = 'sidebar',
+  fromAsset,
+  toAsset,
 }: TradingIntelligencePanelProps) {
-  if (!isCommissionRequiredMode()) return null;
-  if (activeChainId !== 1 && activeChainId !== 56) return null;
-
-  if (layout === 'strip') {
-    return (
-      <div className="w-full max-w-md lg:max-w-xl 2xl:max-w-2xl mx-auto space-y-3">
-        <TrendingPairsCard activeChainId={activeChainId} onSelectPair={onSelectPair} />
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-4">
-      <TrendingPairsCard activeChainId={activeChainId} onSelectPair={onSelectPair} />
-      <PopularActivityCard activeChainId={activeChainId} onSelectPair={onSelectPair} />
-    </div>
+    <RouteDiscoveryRail
+      activeChainId={activeChainId}
+      onSelectPair={onSelectPair}
+      layout={layout}
+      fromAsset={fromAsset}
+      toAsset={toAsset}
+    />
   );
 }
 
