@@ -26,7 +26,6 @@ import { SwapTokenAvatar } from '@/components/common/SwapTokenAvatar';
 import {
   LazyCommissionRouteRecoveryChips,
   LazyCommissionRouteRecoveryPanel,
-  LazyPopularCommissionRoutes,
   LazySwapPreviewModal,
 } from './lazySwapUiChunks';
 import type { SwapStep } from './swapPreviewTypes';
@@ -1428,10 +1427,7 @@ export function SwapInterface() {
         routingDisplay.showUnsupportedPanel,
     );
 
-  const commissionShortcutsEligible =
-    isCommissionRequiredMode() && (currentChainId === 1 || currentChainId === 56);
-
-  const needCommissionUiChunk = commissionShortcutsEligible || commissionRecoveryNeeded;
+  const needCommissionUiChunk = commissionRecoveryNeeded;
 
   /** Defer display-only commission UI until idle; load immediately for recovery paths. */
   const [commissionUiChunkReady, setCommissionUiChunkReady] = useState(false);
@@ -1905,20 +1901,6 @@ export function SwapInterface() {
             </div>
           </div>
         </div>
-
-        <PopularCommissionRoutesSection
-          ready={commissionUiChunkReady && commissionShortcutsEligible}
-          activeChainId={currentChainId}
-          fromAsset={fromAsset}
-          toAsset={toAsset}
-          onSelectPair={(from, to) => {
-            setShowFromSelector(false);
-            setShowToSelector(false);
-            setFromAsset(from);
-            setToAsset(to);
-            reset();
-          }}
-        />
 
         {/* P2.1 — single routing truth row (display-only; never blocks swap). */}
         {showRoutePrecheckRow && fromAsset && toAsset && (
@@ -2661,20 +2643,6 @@ type CommissionRouteUiProps = {
   toAsset: AssetInfo | null;
   onSelectPair: (from: AssetInfo, to: AssetInfo) => void;
 };
-
-function PopularCommissionRoutesSection(props: CommissionRouteUiProps) {
-  if (!props.ready) return null;
-  return (
-    <Suspense fallback={lazyCommissionRoutesFallback}>
-      <LazyPopularCommissionRoutes
-        activeChainId={props.activeChainId}
-        fromAsset={props.fromAsset}
-        toAsset={props.toAsset}
-        onSelectPair={props.onSelectPair}
-      />
-    </Suspense>
-  );
-}
 
 function CommissionRouteRecoveryPanelSection(props: CommissionRouteUiProps) {
   if (!props.ready) return null;
