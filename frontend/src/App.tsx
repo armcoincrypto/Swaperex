@@ -21,6 +21,7 @@ import { useRadarStore, type RadarSignal } from '@/stores/radarStore';
 import { useSignalsHealthStore } from '@/stores/signalsHealthStore';
 import { useSystemStatusStore } from '@/stores/systemStatusStore';
 import { type SwapRecord } from '@/stores/swapHistoryStore';
+import type { AssetInfo } from '@/types/api';
 import { getTokenBySymbol } from '@/tokens';
 import { useWalletBootstrapStore } from '@/stores/walletBootstrapStore';
 import {
@@ -57,6 +58,11 @@ const LazyTokenList = lazy(() =>
 const LazyDexLearnMoreSection = lazy(() =>
   import('@/components/seo/DexLearnMoreSection').then((m) => ({ default: m.DexLearnMoreSection }))
 );
+const LazyTradingIntelligencePanel = lazy(() =>
+  import('@/components/trading/TradingIntelligencePanel').then((m) => ({
+    default: m.TradingIntelligencePanel,
+  })),
+);
 
 const lazyAdminFallback = (
   <div className="min-h-screen bg-dark-950 flex items-center justify-center">
@@ -84,6 +90,14 @@ const lazySwapEducationFallback = (
     aria-hidden
   >
     <p className="text-sm text-dark-400">Loading…</p>
+  </div>
+);
+
+/** Trading intelligence sidebar — lazy, display-only. */
+const lazyTradingIntelFallback = (
+  <div className="space-y-3" aria-hidden>
+    <div className="h-28 rounded-xl bg-dark-800/60 animate-pulse" />
+    <div className="h-36 rounded-xl bg-dark-800/50 animate-pulse" />
   </div>
 );
 
@@ -496,6 +510,16 @@ function DexMain() {
     goToPage('swap');
   };
 
+  const handleTradingPairSelect = useCallback(
+    (from: AssetInfo, to: AssetInfo) => {
+      setFromAsset(from);
+      setToAsset(to);
+      setFromAmount('');
+      goToPage('swap');
+    },
+    [setFromAsset, setToAsset, setFromAmount, goToPage],
+  );
+
   return (
     <div className="min-h-screen bg-electro-bg bg-bg-mesh">
       {walletHostNeeded && (
@@ -589,20 +613,38 @@ function DexMain() {
         {currentPage === 'swap' && (
           <>
             <div className="flex flex-col lg:flex-row gap-10 lg:items-start">
-              {/* Swap Panel */}
-              <div
-                className={`flex-1 flex min-w-0 justify-center ${isConnected ? 'lg:justify-start' : ''}`}
-              >
-                <SwapInterface />
+              {/* Swap Panel + optional intelligence strip when disconnected */}
+              <div className="flex-1 flex flex-col min-w-0 gap-4">
+                <div
+                  className={`flex min-w-0 justify-center ${isConnected ? 'lg:justify-start' : ''}`}
+                >
+                  <SwapInterface />
+                </div>
+                {!isConnected && (
+                  <Suspense fallback={lazyTradingIntelFallback}>
+                    <LazyTradingIntelligencePanel
+                      activeChainId={chainId ?? 1}
+                      onSelectPair={handleTradingPairSelect}
+                      layout="strip"
+                    />
+                  </Suspense>
+                )}
               </div>
 
-              {/* Balances Sidebar */}
+              {/* Sidebar: balances + trading intelligence when connected */}
               {isConnected && (
-                <Suspense fallback={lazyTokenListSidebarFallback}>
-                  <aside className="w-full lg:w-80">
+                <aside className="w-full lg:w-80 space-y-4">
+                  <Suspense fallback={lazyTokenListSidebarFallback}>
                     <LazyTokenList />
-                  </aside>
-                </Suspense>
+                  </Suspense>
+                  <Suspense fallback={lazyTradingIntelFallback}>
+                    <LazyTradingIntelligencePanel
+                      activeChainId={chainId ?? 1}
+                      onSelectPair={handleTradingPairSelect}
+                      layout="sidebar"
+                    />
+                  </Suspense>
+                </aside>
               )}
             </div>
             <div ref={belowFoldSeoSentinelRef} className="h-px w-full" aria-hidden />
