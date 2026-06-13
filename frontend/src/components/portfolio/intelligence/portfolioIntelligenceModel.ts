@@ -46,11 +46,32 @@ export interface LargestPosition {
   percent: number;
 }
 
+export type ReviewPrioritySeverity = 'info' | 'attention' | 'review';
+
+export interface ReviewPriority {
+  id: string;
+  label: string;
+  detail: string;
+  severity: ReviewPrioritySeverity;
+}
+
+export interface CompositionBucket {
+  id: 'stablecoins' | 'major' | 'longtail' | 'zero';
+  label: string;
+  count: number;
+  usdValue: number;
+  percent: number;
+  /** Up to 4 symbols for compact display */
+  previewSymbols: string[];
+}
+
 export interface PortfolioIntelligenceInput {
   portfolio: Portfolio | null;
   hideSmallBalances?: boolean;
   smallBalanceThreshold?: number;
   hideZeroBalances?: boolean;
+  radarUnreadCount?: number;
+  watchlistCount?: number;
 }
 
 export interface PortfolioIntelligenceModel {
@@ -70,6 +91,9 @@ export interface PortfolioIntelligenceModel {
   walletHealthLabel: WalletHealthLabel;
   isSmallPortfolio: boolean;
   hasPositions: boolean;
+  reviewPriorities: ReviewPriority[];
+  composition: CompositionBucket[];
+  zeroValueAssetCount: number;
 }
 
 const SMALL_PORTFOLIO_USD = 25;
@@ -210,6 +234,198 @@ function walletHealthLabel(score: number): WalletHealthLabel {
   return 'Needs review';
 }
 
+const MAJOR_ASSET_PERCENT = 5;
+const MAJOR_ASSET_TOP_N = 3;
+const LOW_STABLE_THRESHOLD = 15;
+const HIGH_CONCENTRATION_THRESHOLD = 50;
+const SINGLE_CHAIN_THRESHOLD = 80;
+
+function countZeroValueAssets(portfolio: Portfolio | null): number {
+  if (!portfolio) return 0;
+  const tokens = flattenPortfolioTokens(portfolio);
+  return tokens.filter((t) => {
+    const usd = parseUsd(t.usdValue);
+    const bal = parseFloat(t.balanceFormatted || t.balance || '0');
+    return usd <= 0 && bal > 0;
+  }).length;
+}
+
+function buildCompositionBuckets(
+  symbolMap: Map<string, { usd: number; stable: boolean }>,
+  zeroValueCount: number,
+  totalUsd: number,
+): CompositionBucket[] {
+  const stableRows: Array<{ symbol: string; usd: number }> = [];
+  const volatileRows: Array<{ symbol: string; usd: number; percent: number }> = [];
+
+  for (const [symbol, { usd, stable }] of symbolMap) {
+    if (usd <= 0) continue;
+    if (stable) {
+      stableRows.push({ symbol, usd });
+    } else {
+      volatileRows.push({
+        symbol,
+        usd,
+        percent: totalUsd > 0 ? (usd / totalUsd) * 100 : 0,
+      });
+    }
+  }
+
+  volatileRows.sort((a, b) => b.usd - a.usd);
+  const majorSymbols = new Set<string>();
+  volatileRows.slice(0, MAJOR_ASSET_TOP_N).forEach((r) => majorSymbols.add(r.symbol));
+  for (const r of volatileRows) {
+    if (r.percent >= MAJOR_ASSET_PERCENT) majorSymbols.add(r.symbol);
+  }
+
+  const majorRows = volatileRows.filter((r) => majorSymbols.has(r.symbol));
+  const longtailRows = volatileRows.filter((r) => !majorSymbols.has(r.symbol));
+
+  const sumUsd = (rows: Array<{ usd: number }>) => rows.reduce((s, r) => s + r.usd, 0);
+
+  const stableUsd = sumUsd(stableRows);
+  const majorUsd = sumUsd(majorRows);
+  const longtailUsd = sumUsd(longtailRows);
+
+  const buckets: CompositionBucket[] = [
+    {
+      id: 'stablecoins',
+      label: 'Stablecoins',
+      count: stableRows.length,
+      usdValue: stableUsd,
+      percent: totalUsd > 0 ? (stableUsd / totalUsd) * 100 : 0,
+      previewSymbols: stableRows.sort((a, b) => b.usd - a.usd).slice(0, 4).map((r) => r.symbol),
+    },
+    {
+      id: 'major',
+      label: 'Major assets',
+      count: majorRows.length,
+      usdValue: majorUsd,
+      percent: totalUsd > 0 ? (majorUsd / totalUsd) * 100 : 0,
+      previewSymbols: majorRows.slice(0, 4).map((r) => r.symbol),
+    },
+    {
+      id: 'longtail',
+      label: 'Long-tail assets',
+      count: longtailRows.length,
+      usdValue: longtailUsd,
+      percent: totalUsd > 0 ? (longtailUsd / totalUsd) * 100 : 0,
+      previewSymbols: longtailRows.slice(0, 4).map((r) => r.symbol),
+    },
+  ];
+
+  if (zeroValueCount > 0) {
+    buckets.push({
+      id: 'zero',
+      label: 'Zero-value balances',
+      count: zeroValueCount,
+      usdValue: 0,
+      percent: 0,
+      previewSymbols: [],
+    });
+  }
+
+  return buckets;
+}
+
+function buildReviewPriorities(
+  model: Pick<
+    PortfolioIntelligenceModel,
+    | 'largestPositionPercent'
+    | 'largestPosition'
+    | 'chainCount'
+    | 'largestChain'
+    | 'largestChainPercent'
+    | 'stablecoinExposurePercent'
+    | 'totalValueUsd'
+    | 'hasPositions'
+    | 'diversificationLabel'
+  >,
+  radarUnreadCount: number,
+  watchlistCount: number,
+): ReviewPriority[] {
+  const items: ReviewPriority[] = [];
+
+  if (!model.hasPositions) {
+    return [
+      {
+        id: 'empty',
+        label: 'No visible positions',
+        detail: 'Portfolio intelligence appears after balances load.',
+        severity: 'info',
+      },
+    ];
+  }
+
+  if (model.largestPositionPercent >= HIGH_CONCENTRATION_THRESHOLD && model.largestPosition) {
+    items.push({
+      id: 'concentration',
+      label: 'High concentration',
+      detail: `${model.largestPosition.symbol} is ${Math.round(model.largestPositionPercent)}% of visible value — consider rebalancing.`,
+      severity: model.largestPositionPercent >= 75 ? 'review' : 'attention',
+    });
+  }
+
+  if (
+    model.chainCount <= 1 &&
+    model.largestChain &&
+    model.largestChainPercent >= SINGLE_CHAIN_THRESHOLD
+  ) {
+    items.push({
+      id: 'single-chain',
+      label: 'Single-chain exposure',
+      detail: `${model.largestChain.label} holds ${Math.round(model.largestChainPercent)}% of wallet value.`,
+      severity: 'attention',
+    });
+  }
+
+  if (
+    model.totalValueUsd > 0 &&
+    model.stablecoinExposurePercent < LOW_STABLE_THRESHOLD
+  ) {
+    items.push({
+      id: 'low-stable',
+      label: 'Low stablecoin cushion',
+      detail: `Only ${Math.round(model.stablecoinExposurePercent)}% in stables — mostly volatile exposure.`,
+      severity: 'attention',
+    });
+  }
+
+  if (radarUnreadCount > 0) {
+    items.push({
+      id: 'radar-alerts',
+      label: 'Radar alerts pending',
+      detail: `${radarUnreadCount} unread local alert${radarUnreadCount !== 1 ? 's' : ''} on this device — review on Radar.`,
+      severity: 'review',
+    });
+  } else if (watchlistCount === 0) {
+    items.push({
+      id: 'watchlist',
+      label: 'Radar watchlist empty',
+      detail: 'Add tokens to Radar watchlist for local safety monitoring.',
+      severity: 'info',
+    });
+  } else {
+    items.push({
+      id: 'watchlist-ok',
+      label: 'Radar monitoring active',
+      detail: `${watchlistCount} token${watchlistCount !== 1 ? 's' : ''} on local watchlist — no unread alerts.`,
+      severity: 'info',
+    });
+  }
+
+  if (items.length === 0) {
+    items.push({
+      id: 'balanced',
+      label: 'Portfolio looks balanced',
+      detail: `${model.diversificationLabel} diversification based on current visible balances.`,
+      severity: 'info',
+    });
+  }
+
+  return items;
+}
+
 export function buildPortfolioIntelligence(
   input: PortfolioIntelligenceInput,
 ): PortfolioIntelligenceModel {
@@ -249,7 +465,10 @@ export function buildPortfolioIntelligence(
     stablecoinExposurePercent,
   );
 
-  return {
+  const zeroValueAssetCount = countZeroValueAssets(input.portfolio);
+  const composition = buildCompositionBuckets(symbolMap, zeroValueAssetCount, totalValueUsd);
+
+  const partial = {
     totalValueUsd,
     assetCount,
     chainCount,
@@ -266,6 +485,19 @@ export function buildPortfolioIntelligence(
     walletHealthLabel: walletHealthLabel(healthScore),
     isSmallPortfolio: totalValueUsd > 0 && totalValueUsd < SMALL_PORTFOLIO_USD,
     hasPositions: assetCount > 0 && totalValueUsd > 0,
+    zeroValueAssetCount,
+    composition,
+  };
+
+  const reviewPriorities = buildReviewPriorities(
+    partial,
+    input.radarUnreadCount ?? 0,
+    input.watchlistCount ?? 0,
+  );
+
+  return {
+    ...partial,
+    reviewPriorities,
   };
 }
 
