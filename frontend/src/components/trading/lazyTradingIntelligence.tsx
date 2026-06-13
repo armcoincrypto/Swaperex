@@ -1,5 +1,7 @@
 import { lazy } from 'react';
 
 export const LazyTradingIntelligencePanel = lazy(() =>
-  import('./TradingIntelligencePanel').then((m) => ({ default: m.TradingIntelligencePanel })),
+  import('@/components/swap/intelligence/SwapIntelligenceCenter').then((m) => ({
+    default: m.SwapIntelligenceCenter,
+  })),
 );

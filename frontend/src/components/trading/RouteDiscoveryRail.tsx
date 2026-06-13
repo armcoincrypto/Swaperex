@@ -23,10 +23,15 @@ import {
 } from './routeDiscoverySelection';
 
 const ROUTE_TABS: { id: RouteIntelBadge; label: string }[] = [
-  { id: 'most-used', label: 'Most used' },
+  { id: 'most-used', label: 'Most Used' },
   { id: 'trending', label: 'Trending' },
   { id: 'audited', label: 'Audited' },
 ];
+
+const CHAIN_BADGE_CLASS: Record<number, string> = {
+  1: 'bg-indigo-500/15 text-indigo-200 border-indigo-500/30',
+  56: 'bg-amber-500/15 text-amber-100 border-amber-500/35',
+};
 
 export interface RouteDiscoveryRailProps {
   activeChainId: number;
@@ -35,19 +40,24 @@ export interface RouteDiscoveryRailProps {
   layout?: 'sidebar' | 'strip';
   fromAsset?: AssetInfo | null;
   toAsset?: AssetInfo | null;
+  /** Premium tile styling for Swap Intelligence Center. */
+  variant?: 'default' | 'premium';
 }
 
 function RoutePairTile({
   intel,
   active,
   onSelect,
+  premium = false,
 }: {
   intel: TradingRouteIntel;
   active: boolean;
   onSelect: () => void;
+  premium?: boolean;
 }) {
   const fromLogo = getTokenBySymbol(intel.route.fromSymbol, intel.route.chainId)?.logoURI;
   const toLogo = getTokenBySymbol(intel.route.toSymbol, intel.route.chainId)?.logoURI;
+  const chainBadge = CHAIN_BADGE_CLASS[intel.route.chainId] ?? 'bg-electro-panel/60 text-dark-300 border-white/[0.08]';
 
   return (
     <button
@@ -58,18 +68,24 @@ function RoutePairTile({
           ? `${intel.pairLabel} — tap again to reverse`
           : intel.pairLabel
       }
-      className={`snap-start shrink-0 w-[11.5rem] lg:w-auto text-left rounded-xl border p-3 transition-all duration-200 ${
+      className={`snap-start shrink-0 w-[11.75rem] lg:w-auto text-left rounded-xl border p-3 transition-all duration-200 group ${
         active
-          ? 'border-emerald-500/50 bg-emerald-900/35 hover:bg-emerald-900/45'
-          : 'border-white/[0.08] bg-electro-panel/60 hover:bg-electro-panel/80 hover:border-white/[0.12]'
+          ? 'border-emerald-500/55 bg-emerald-900/35 shadow-[0_0_20px_rgba(16,185,129,0.12)]'
+          : premium
+            ? 'border-white/[0.08] bg-electro-panel/55 hover:bg-electro-panel/75 hover:border-accent/25 hover:shadow-[0_8px_24px_rgba(0,0,0,0.35)] hover:-translate-y-0.5'
+            : 'border-white/[0.08] bg-electro-panel/60 hover:bg-electro-panel/80 hover:border-white/[0.12]'
       }`}
     >
       <div className="flex items-center justify-between gap-2 mb-2">
         <RouteIntelBadgePill badge={intel.badge} />
-        <span className="text-[9px] text-dark-500 truncate">{intel.route.chainLabel}</span>
+        <span
+          className={`text-[9px] font-medium truncate rounded-full border px-1.5 py-0.5 ${chainBadge}`}
+        >
+          {intel.route.chainLabel}
+        </span>
       </div>
       <div className="flex items-center gap-2 min-w-0">
-        <div className="flex items-center -space-x-1.5">
+        <div className="flex items-center -space-x-1.5 transition-transform duration-200 group-hover:scale-[1.02]">
           <SwapTokenAvatar symbol={intel.route.fromSymbol} logoUrl={fromLogo} size="sm" />
           <SwapTokenAvatar symbol={intel.route.toSymbol} logoUrl={toLogo} size="sm" />
         </div>
@@ -85,6 +101,7 @@ export function RouteDiscoveryRail({
   layout = 'sidebar',
   fromAsset = null,
   toAsset = null,
+  variant = 'default',
 }: RouteDiscoveryRailProps) {
   const [activeTab, setActiveTab] = useState<RouteIntelBadge>('most-used');
 
@@ -116,7 +133,9 @@ export function RouteDiscoveryRail({
   };
 
   const panel = (
-    <ShellPanel className="p-3 sm:p-4">
+    <ShellPanel
+      className={`p-3 sm:p-4 ${variant === 'premium' ? 'bg-gradient-to-b from-electro-panel/70 to-electro-panel/45' : ''}`}
+    >
       <div className="flex items-start justify-between gap-2 mb-0.5">
         <h3 className="text-sm font-semibold text-white">
           {SWAP_SURFACE_COPY.popularCommissionRoutesTitle}
@@ -160,6 +179,7 @@ export function RouteDiscoveryRail({
               intel={intel}
               active={isActiveCommissionRoute(intel.route, fromAsset, toAsset)}
               onSelect={() => handleIntelClick(intel)}
+              premium={variant === 'premium'}
             />
           ))}
         </div>
