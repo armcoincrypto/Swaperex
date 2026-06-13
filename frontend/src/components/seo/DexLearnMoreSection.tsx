@@ -1,5 +1,5 @@
 /**
- * Collapsed education hub below the swap row — reduces above-the-fold density.
+ * Collapsed education hub below the swap row — compact footprint.
  * Copy-only; FAQ JSON-LD remains in structuredData.ts (not DOM-dependent).
  */
 
@@ -12,54 +12,47 @@ const linkClass =
   'text-accent/90 hover:text-accent underline-offset-2 hover:underline font-medium';
 
 const BEFORE_SIGN_ITEMS = [
-  'Network in your wallet matches the network you intend to use.',
-  'Token symbols, contract addresses, and amounts match what you chose in the app.',
-  'You understand slippage and fee rows shown in the quote preview.',
-  'You accept that on-chain transactions are difficult or impossible to reverse.',
+  'Network matches your intended chain.',
+  'Symbols, addresses, and amounts match the app.',
+  'Slippage and fees reviewed in the preview.',
+  'On-chain trades are difficult to reverse.',
 ] as const;
 
 function LearnMoreBlock({
   title,
   children,
-  defaultOpen = false,
 }: {
   title: string;
   children: ReactNode;
-  defaultOpen?: boolean;
 }) {
   return (
-    <details
-      className="group rounded-lg border border-white/[0.06] bg-dark-900/40 px-3 py-2"
-      {...(defaultOpen ? { open: true } : {})}
-    >
-      <summary className="cursor-pointer text-sm font-medium text-dark-200 list-none flex items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
+    <details className="group rounded-md border border-white/[0.05] bg-black/15 px-2.5 py-1.5">
+      <summary className="cursor-pointer text-xs font-medium text-dark-300 list-none flex items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
         <span>{title}</span>
-        <span className="text-dark-500 text-xs shrink-0 group-open:rotate-180 transition-transform">
+        <span className="text-dark-600 text-[10px] shrink-0 group-open:rotate-180 transition-transform">
           ▾
         </span>
       </summary>
-      <div className="mt-2 text-sm text-dark-400 leading-relaxed">{children}</div>
+      <div className="mt-1.5 text-xs text-dark-500 leading-relaxed">{children}</div>
     </details>
   );
 }
 
 export function DexLearnMoreSection() {
   return (
-    <section className="mt-8 pt-6 border-t border-white/[0.06]" aria-label="Learn more about Kobbex DEX">
-      <details className="group rounded-2xl border border-white/[0.08] bg-electro-panel/20 overflow-hidden">
-        <summary className="cursor-pointer list-none flex items-center justify-between gap-3 px-4 py-3 sm:px-5 [&::-webkit-details-marker]:hidden">
-          <span className="text-sm font-semibold text-white">Learn More</span>
-          <span className="text-xs text-dark-500 group-open:rotate-180 transition-transform">▾</span>
+    <section className="mt-6 pt-4 border-t border-white/[0.05]" aria-label="Learn more about Kobbex DEX">
+      <details className="group rounded-xl border border-white/[0.06] bg-electro-panel/15 overflow-hidden">
+        <summary className="cursor-pointer list-none flex items-center justify-between gap-3 px-3 py-2.5 sm:px-4 [&::-webkit-details-marker]:hidden">
+          <span className="text-xs font-medium text-dark-300">Learn More</span>
+          <span className="text-[10px] text-dark-600 group-open:rotate-180 transition-transform">▾</span>
         </summary>
 
-        <div className="px-4 pb-4 sm:px-5 sm:pb-5 space-y-2 border-t border-white/[0.06] pt-3">
+        <div className="px-3 pb-3 sm:px-4 sm:pb-3.5 space-y-1.5 border-t border-white/[0.05] pt-2">
           <LearnMoreBlock title="Why Swaperex">
-            <p className="mb-2">
-              <strong className="text-dark-200">Kobbex DEX</strong> is a non-custodial swap interface: you
-              connect your wallet, review quotes, and sign transactions yourself.
+            <p className="mb-1.5">
+              Non-custodial swap interface — you connect, review quotes, and sign in your wallet.
             </p>
-            <p>
-              Legal:{' '}
+            <p className="text-[11px]">
               <Link to="/about" className={linkClass}>About</Link>
               {' · '}
               <Link to="/terms" className={linkClass}>Terms</Link>
@@ -71,53 +64,34 @@ export function DexLearnMoreSection() {
           </LearnMoreBlock>
 
           <LearnMoreBlock title="Common questions">
-            <div className="space-y-2">
-              {KOBBEX_DEX_LANDING_FAQ.map((item) => (
+            <div className="space-y-1">
+              {KOBBEX_DEX_LANDING_FAQ.slice(0, 4).map((item) => (
                 <details
                   key={item.question}
-                  className="rounded-md border border-white/[0.04] bg-black/20 px-2.5 py-1.5"
+                  className="rounded border border-white/[0.04] bg-black/10 px-2 py-1"
                 >
-                  <summary className="cursor-pointer text-xs font-medium text-dark-300 list-none [&::-webkit-details-marker]:hidden">
+                  <summary className="cursor-pointer text-[11px] font-medium text-dark-400 list-none [&::-webkit-details-marker]:hidden">
                     {item.question}
                   </summary>
-                  <p className="mt-1.5 text-xs text-dark-500 leading-relaxed">{item.answer}</p>
+                  <p className="mt-1 text-[11px] text-dark-500 leading-snug">{item.answer}</p>
                 </details>
               ))}
             </div>
           </LearnMoreBlock>
 
           <LearnMoreBlock title="Before you sign">
-            <p className="text-xs text-dark-500 mb-2">
-              Your wallet executes trades — pause if anything looks off.
-            </p>
-            <ul className="list-disc list-inside text-xs text-dark-400 space-y-1">
+            <ul className="list-disc list-inside text-[11px] space-y-0.5">
               {BEFORE_SIGN_ITEMS.map((t) => (
                 <li key={t}>{t}</li>
               ))}
             </ul>
           </LearnMoreBlock>
 
-          <LearnMoreBlock title="Wallet safety">
-            <p>
-              Only connect wallets you control. Verify token contracts and amounts in your wallet before
-              signing. If something does not match what you expect, do not sign.
+          <LearnMoreBlock title="Routing & networks">
+            <p className="text-[11px]">
+              Quotes may route via integrated DEX protocols. Supported:{' '}
+              {CHAINS.map((c) => c.name).join(', ')}. Review preview and wallet before signing.
             </p>
-          </LearnMoreBlock>
-
-          <LearnMoreBlock title="Routing & fees">
-            <div className="space-y-2 text-xs">
-              <p>
-                Quotes may come from integrated DEX and aggregator protocols. Amounts can move with
-                liquidity, network fees, and slippage — always review the preview and wallet details.
-              </p>
-              <p>
-                Supported networks include{' '}
-                {CHAINS.map((c) => c.name).join(', ')}.
-              </p>
-              <p className="text-dark-500">
-                You pay network fees to validators. Route or pool fees appear in the quote when provided.
-              </p>
-            </div>
           </LearnMoreBlock>
         </div>
       </details>
