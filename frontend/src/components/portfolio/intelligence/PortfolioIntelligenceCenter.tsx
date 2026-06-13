@@ -1,10 +1,12 @@
 /**
- * Portfolio Intelligence Center — premium dashboard header for Portfolio page.
+ * Portfolio Intelligence Center — professional portfolio terminal header.
  * Presentation-only; reads portfolio store, no calculation changes elsewhere.
  */
 
 import { useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
+import { useRadarStore } from '@/stores/radarStore';
+import { useWatchlistStore } from '@/stores/watchlistStore';
 import {
   usePortfolioStore,
   formatUsdPrivate,
@@ -22,49 +24,13 @@ import {
 } from './portfolioIntelligenceModel';
 import { PortfolioHealthScore } from './PortfolioHealthScore';
 import { PortfolioAllocationBar } from './PortfolioAllocationBar';
-import { PortfolioInsightCards } from './PortfolioInsightCards';
-import { PortfolioSecurityCard } from './PortfolioSecurityCard';
+import { PortfolioChainExposurePanel } from './PortfolioChainExposurePanel';
+import { PortfolioReviewPriorities } from './PortfolioReviewPriorities';
+import { PortfolioCompositionSection } from './PortfolioCompositionSection';
 
 interface Props {
   onRefresh: () => void;
   className?: string;
-}
-
-function ChainExposureBars({
-  chainAllocations,
-  privacyMode,
-}: {
-  chainAllocations: ReturnType<typeof buildPortfolioIntelligence>['chainAllocations'];
-  privacyMode: boolean;
-}) {
-  const allChains: PortfolioChain[] = ['ethereum', 'bsc', 'polygon'];
-  const byChain = new Map(chainAllocations.map((c) => [c.chain, c]));
-
-  return (
-    <ul className="space-y-2">
-      {allChains.map((chain) => {
-        const row = byChain.get(chain);
-        const pct = row?.percent ?? 0;
-        const label = row?.label ?? getPortfolioChainLabel(chain);
-        return (
-          <li key={chain}>
-            <div className="flex items-center justify-between text-[11px] mb-1">
-              <span className="text-dark-300">{label}</span>
-              <span className="text-dark-500 tabular-nums">
-                {formatPercent(pct, privacyMode)}
-              </span>
-            </div>
-            <div className="h-1.5 rounded-full bg-black/30 border border-white/[0.04] overflow-hidden">
-              <div
-                className="h-full bg-accent/70 rounded-full transition-all"
-                style={{ width: privacyMode ? '0%' : `${Math.min(pct, 100)}%` }}
-              />
-            </div>
-          </li>
-        );
-      })}
-    </ul>
-  );
 }
 
 export function PortfolioIntelligenceCenter({ onRefresh, className = '' }: Props) {
@@ -78,6 +44,11 @@ export function PortfolioIntelligenceCenter({ onRefresh, className = '' }: Props
   const hideZeroBalances = usePortfolioStore((s) => s.hideZeroBalances);
   const chainHealth = usePortfolioStore(useShallow((s) => s.chainHealth));
 
+  const radarUnreadCount = useRadarStore((s) =>
+    s.signals.filter((sig) => !sig.read).length,
+  );
+  const watchlistCount = useWatchlistStore((s) => s.tokens.length);
+
   const model = useMemo(
     () =>
       buildPortfolioIntelligence({
@@ -85,8 +56,17 @@ export function PortfolioIntelligenceCenter({ onRefresh, className = '' }: Props
         hideSmallBalances,
         smallBalanceThreshold,
         hideZeroBalances,
+        radarUnreadCount,
+        watchlistCount,
       }),
-    [portfolio, hideSmallBalances, smallBalanceThreshold, hideZeroBalances],
+    [
+      portfolio,
+      hideSmallBalances,
+      smallBalanceThreshold,
+      hideZeroBalances,
+      radarUnreadCount,
+      watchlistCount,
+    ],
   );
 
   const degradedChains = useMemo(() => {
@@ -107,8 +87,8 @@ export function PortfolioIntelligenceCenter({ onRefresh, className = '' }: Props
     degradedChains.length > 0 || PORTFOLIO_CHAINS.some((c) => !!errors[c]);
 
   return (
-    <div className={`space-y-4 ${className}`}>
-      <ShellPanel className="p-4 sm:p-5">
+    <div className={`space-y-3 ${className}`}>
+      <ShellPanel className="p-4 sm:p-5 bg-gradient-to-b from-electro-panel/80 to-electro-panel/50">
         {degradedChains.length > 0 && (
           <div className="mb-3 p-2.5 bg-yellow-900/15 border border-yellow-700/30 rounded-lg space-y-1">
             {degradedChains.map(({ chain, label, isStale }) => (
@@ -123,19 +103,33 @@ export function PortfolioIntelligenceCenter({ onRefresh, className = '' }: Props
         <div className="flex items-start justify-between gap-3 mb-4">
           <div className="min-w-0">
             <p className="text-[10px] uppercase tracking-wider text-dark-500 mb-1">
-              Portfolio Intelligence
+              Portfolio Terminal
             </p>
             <p className="text-xs text-dark-400 mb-1">Total value</p>
-            <p className="text-3xl sm:text-4xl font-bold text-white tabular-nums">
+            <p className="text-3xl sm:text-4xl font-bold text-white tabular-nums tracking-tight">
               {loading && !portfolio ? (
                 <span className="animate-pulse text-dark-500 text-2xl">Loading…</span>
               ) : (
                 formatUsdPrivate(model.totalValueUsd, privacyMode)
               )}
             </p>
-            {!privacyMode && model.isSmallPortfolio && model.hasPositions && (
-              <p className="text-[10px] text-dark-500 mt-1">
-                Small portfolio — insights use visible balances only.
+            {!privacyMode && model.hasPositions && (
+              <p className="text-[10px] text-dark-500 mt-1.5 flex flex-wrap gap-x-2 gap-y-0.5">
+                <span>
+                  {model.assetCount} asset{model.assetCount !== 1 ? 's' : ''}
+                </span>
+                <span className="text-dark-600">·</span>
+                <span>
+                  {model.chainCount} chain{model.chainCount !== 1 ? 's' : ''}
+                </span>
+                <span className="text-dark-600">·</span>
+                <span>{model.diversificationLabel}</span>
+                {model.isSmallPortfolio && (
+                  <>
+                    <span className="text-dark-600">·</span>
+                    <span>Small portfolio</span>
+                  </>
+                )}
               </p>
             )}
           </div>
@@ -148,6 +142,7 @@ export function PortfolioIntelligenceCenter({ onRefresh, className = '' }: Props
                 : 'text-dark-500 hover:text-dark-300 hover:bg-electro-panel/40 border-transparent'
             }`}
             title={privacyMode ? 'Show values' : 'Hide values'}
+            aria-label={privacyMode ? 'Show values' : 'Hide values'}
           >
             {privacyMode ? (
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -168,10 +163,20 @@ export function PortfolioIntelligenceCenter({ onRefresh, className = '' }: Props
           </p>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          <PortfolioHealthScore model={model} privacyMode={privacyMode} />
-          <ShellPanel className="p-4 sm:col-span-1 lg:col-span-2">
-            <p className="text-[10px] uppercase tracking-wider text-dark-500 mb-2">Allocation</p>
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+          <div className="sm:col-span-2">
+            <PortfolioHealthScore model={model} privacyMode={privacyMode} />
+          </div>
+          <ShellPanel className="p-3 sm:p-4 sm:col-span-3">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <p className="text-[10px] uppercase tracking-wider text-dark-500">Allocation</p>
+              {!privacyMode && model.largestPosition && (
+                <span className="text-[10px] text-dark-500 truncate">
+                  Top: {model.largestPosition.symbol}{' '}
+                  {formatPercent(model.largestPosition.percent, false)}
+                </span>
+              )}
+            </div>
             <PortfolioAllocationBar assets={model.topAssets} privacyMode={privacyMode} />
           </ShellPanel>
         </div>
@@ -189,18 +194,45 @@ export function PortfolioIntelligenceCenter({ onRefresh, className = '' }: Props
         )}
       </ShellPanel>
 
-      <PortfolioInsightCards model={model} privacyMode={privacyMode} />
-
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <ShellPanel className="p-4">
-          <p className="text-[10px] uppercase tracking-wider text-dark-500 mb-3">Chain Exposure</p>
-          <ChainExposureBars
-            chainAllocations={model.chainAllocations}
-            privacyMode={privacyMode}
-          />
+        <PortfolioChainExposurePanel
+          chainAllocations={model.chainAllocations}
+          privacyMode={privacyMode}
+        />
+        <ShellPanel className="p-3 sm:p-4 flex flex-col justify-center gap-3">
+          <p className="text-[10px] uppercase tracking-wider text-dark-500">Exposure Summary</p>
+          <dl className="grid grid-cols-2 gap-2 text-[11px]">
+            <div className="rounded-lg border border-white/[0.05] bg-black/10 px-2.5 py-2">
+              <dt className="text-dark-500">Stablecoins</dt>
+              <dd className="text-white font-semibold tabular-nums mt-0.5">
+                {formatPercent(model.stablecoinExposurePercent, privacyMode)}
+              </dd>
+            </div>
+            <div className="rounded-lg border border-white/[0.05] bg-black/10 px-2.5 py-2">
+              <dt className="text-dark-500">Largest chain</dt>
+              <dd className="text-white font-semibold truncate mt-0.5">
+                {privacyMode ? '****' : model.largestChain?.label ?? '—'}
+              </dd>
+            </div>
+            <div className="rounded-lg border border-white/[0.05] bg-black/10 px-2.5 py-2">
+              <dt className="text-dark-500">Risk estimate</dt>
+              <dd className="text-dark-200 font-medium mt-0.5 leading-snug">{model.riskLabel}</dd>
+            </div>
+            <div className="rounded-lg border border-white/[0.05] bg-black/10 px-2.5 py-2">
+              <dt className="text-dark-500">Health</dt>
+              <dd className="text-white font-semibold mt-0.5">{model.walletHealthLabel}</dd>
+            </div>
+          </dl>
         </ShellPanel>
-        <PortfolioSecurityCard />
       </div>
+
+      <PortfolioReviewPriorities priorities={model.reviewPriorities} />
+
+      <PortfolioCompositionSection
+        buckets={model.composition}
+        privacyMode={privacyMode}
+        totalValueUsd={model.totalValueUsd}
+      />
     </div>
   );
 }
