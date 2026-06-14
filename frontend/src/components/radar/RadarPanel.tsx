@@ -21,18 +21,14 @@ import { SignalDebugPanel } from '@/components/signals/SignalDebugPanel';
 import { ActivityTimeline } from '@/components/signals/ActivityTimeline';
 import { TokenCheckInput } from '@/components/signals/TokenCheckInput';
 import { WatchlistPanel } from '@/components/signals/WatchlistPanel';
-import { RadarIntroCard } from '@/components/radar/RadarIntroCard';
-import { RadarUsageGuide } from '@/components/radar/RadarUsageGuide';
 import { RadarFilterBar } from '@/components/radar/RadarFilterBar';
-import { WhyRadar } from '@/components/radar/WhyRadar';
 import { WalletScan } from '@/components/radar/WalletScan';
 import { AlertsPanel } from '@/components/signals/AlertsPanel';
 import { AlertToast } from '@/components/signals/AlertToast';
 import { useSignalAlerts } from '@/hooks/useSignalAlerts';
 import { fetchSignalsWithHistory, type SignalDebugData, type SignalHistoryCapture } from '@/services/signalsHealth';
 import { isMonitorRunning, startWatchlistMonitor } from '@/services/watchlistMonitor';
-
-import { WhyRadarCompact } from '@/components/radar/WhyRadar';
+import { ShellPanel } from '@/components/ui/ShellPrimitives';
 
 interface RadarPanelProps {
   onSignalClick: (signal: RadarSignal) => void;
@@ -41,9 +37,9 @@ interface RadarPanelProps {
 type RadarTab = 'overview' | 'watchlist' | 'scanner' | 'alerts';
 
 const RADAR_TABS: { id: RadarTab; label: string }[] = [
-  { id: 'overview', label: 'Overview' },
+  { id: 'overview', label: 'Security Overview' },
   { id: 'watchlist', label: 'Watchlist' },
-  { id: 'scanner', label: 'Scanner' },
+  { id: 'scanner', label: 'Threat Feed' },
   { id: 'alerts', label: 'Alerts' },
 ];
 
@@ -162,30 +158,40 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
   const showTimelineSection = viewScope === 'timeline' || viewScope === 'both';
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-3xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <h2 className="text-xl font-bold text-white">Radar</h2>
-          <TierBadge tier="early-access" />
+      <ShellPanel className="p-4 sm:p-5 mb-4 bg-gradient-to-br from-electro-panel/90 to-black/30">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-dark-500 mb-1">Security</p>
+            <div className="flex items-center gap-2 min-w-0 flex-wrap">
+              <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+                Security Command Center
+              </h2>
+              <TierBadge tier="early-access" />
+              {unreadCount > 0 && (
+                <span className="px-2 py-0.5 bg-accent/20 text-accent text-xs font-semibold rounded-full border border-accent/30">
+                  {unreadCount} unread
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-dark-500 mt-1">
+              Watchlist monitoring · token checks · local alert history
+            </p>
+          </div>
           {unreadCount > 0 && (
-            <span className="px-2 py-0.5 bg-primary-600 text-white text-xs font-medium rounded-full">
-              {unreadCount}
-            </span>
+            <button
+              onClick={markAllAsRead}
+              className="text-xs text-accent hover:brightness-110 transition-colors shrink-0 px-3 py-1.5 rounded-lg border border-white/[0.08] bg-black/20"
+            >
+              Mark all read
+            </button>
           )}
         </div>
-        {unreadCount > 0 && (
-          <button
-            onClick={markAllAsRead}
-            className="text-xs text-accent hover:brightness-110 transition-colors shrink-0"
-          >
-            Mark read
-          </button>
-        )}
-      </div>
+      </ShellPanel>
 
       {/* Tab navigation */}
-      <div className="shell-tab-track mb-4" role="tablist" aria-label="Radar sections">
+      <div className="shell-tab-track mb-4" role="tablist" aria-label="Security sections">
         {RADAR_TABS.map(({ id, label }) => (
           <button
             key={id}
@@ -202,12 +208,12 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
 
       {activeTab === 'overview' && (
         <>
-          <RadarIntroCard className="mb-3" />
           <RadarFilterBar className="mb-3" />
           <SignalsStatusBadge className="mb-3" />
 
           {showLiveSection && (
-            <div className="mb-4">
+            <ShellPanel className="p-3 sm:p-4 mb-4">
+              <p className="text-[10px] uppercase tracking-wider text-dark-500 mb-3">Live Threat Feed</p>
               {filteredLiveSignals.length === 0 ? (
                 <LiveEmptyState
                   monitoringEnabled={monitoringEnabled}
@@ -225,7 +231,7 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
                   <SignalGroup label="Older" signals={groupedLiveSignals.older} onClick={handleSignalClick} onDismiss={removeSignal} />
                 </div>
               )}
-            </div>
+            </ShellPanel>
           )}
 
           {showTimelineSection && viewScope !== 'both' && (
@@ -233,31 +239,21 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
               <ActivityTimeline maxGroups={20} />
             </div>
           )}
-
-          <details className="group rounded-lg border border-white/[0.06] bg-electro-panel/30 px-3 py-2 mb-3">
-            <summary className="cursor-pointer text-xs font-medium text-dark-300 list-none flex items-center justify-between [&::-webkit-details-marker]:hidden">
-              <span>About Radar</span>
-              <span className="text-dark-500 group-open:rotate-180 transition-transform text-[10px]">▾</span>
-            </summary>
-            <div className="mt-2 space-y-2">
-              <WhyRadarCompact />
-              <RadarUsageGuide className="!bg-transparent !border-0 !p-0" />
-            </div>
-          </details>
         </>
       )}
 
       {activeTab === 'watchlist' && (
-        <>
-          <WhyRadar className="mb-3" />
+        <ShellPanel className="p-3 sm:p-4">
           <WatchlistPanel />
-        </>
+        </ShellPanel>
       )}
 
       {activeTab === 'scanner' && (
         <>
-          <RadarUsageGuide className="mb-3" />
-          <TokenCheckInput className="mb-3" />
+          <ShellPanel className="p-3 sm:p-4 mb-3">
+            <p className="text-[10px] uppercase tracking-wider text-dark-500 mb-2">Token Scanner</p>
+            <TokenCheckInput className="!mb-0" />
+          </ShellPanel>
           <WalletScan />
         </>
       )}
@@ -269,14 +265,15 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
               setShowTimeline(true);
             }}
           />
-          <div className="mt-4">
+          <ShellPanel className="p-3 sm:p-4 mt-4">
+            <p className="text-[10px] uppercase tracking-wider text-dark-500 mb-2">Activity Timeline</p>
             {viewScope === 'both' ? (
               <>
                 <button
                   onClick={() => setShowTimeline(!showTimeline)}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg border border-white/[0.06] bg-electro-panel/40 hover:bg-electro-panel/60 transition-colors mb-2"
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg border border-white/[0.06] bg-black/20 hover:bg-black/30 transition-colors mb-2 text-sm text-dark-300"
                 >
-                  <span className="text-sm font-medium text-dark-300">Activity Timeline</span>
+                  <span>Show timeline</span>
                   <span className="text-dark-500 text-xs">{showTimeline ? '▼' : '▶'}</span>
                 </button>
                 {showTimeline && <ActivityTimeline maxGroups={20} />}
@@ -284,7 +281,7 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
             ) : (
               <ActivityTimeline maxGroups={30} />
             )}
-          </div>
+          </ShellPanel>
         </>
       )}
 
@@ -296,8 +293,8 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
         />
       )}
 
-      <p className="mt-6 text-center text-[10px] text-dark-500 leading-relaxed">
-        Radar is informational only — not financial advice. Signals stored locally (~24h).
+      <p className="mt-6 text-center text-[10px] text-dark-600 leading-relaxed">
+        Informational only · signals stored locally (~24h)
         {debugEnabled && (
           <>
             {' '}

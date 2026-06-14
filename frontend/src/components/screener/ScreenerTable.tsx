@@ -52,10 +52,10 @@ export function ScreenerTable({
   const cols = COLUMNS;
 
   return (
-    <div className="bg-dark-900 rounded-xl border border-dark-800 overflow-hidden">
+    <div className="overflow-hidden">
       {/* Header */}
       <div
-        className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-4 px-4 py-3 bg-dark-800/50 text-sm font-medium text-dark-400"
+        className="sticky top-0 z-10 grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-4 px-4 py-3 bg-electro-panel/95 backdrop-blur-md border-b border-white/[0.08] text-[10px] uppercase tracking-wider font-medium text-dark-500"
       >
         {cols.map((col) => (
           <div

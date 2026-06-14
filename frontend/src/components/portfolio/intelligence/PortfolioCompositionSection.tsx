@@ -2,6 +2,7 @@ import type { CompositionBucket } from './portfolioIntelligenceModel';
 import { formatPercent } from './portfolioIntelligenceModel';
 import { formatUsdPrivate } from '@/stores/portfolioStore';
 import { ShellPanel } from '@/components/ui/ShellPrimitives';
+import { PortfolioAllocationDonut } from './PortfolioAllocationDonut';
 
 interface Props {
   buckets: CompositionBucket[];
@@ -47,17 +48,27 @@ export function PortfolioCompositionSection({
         )}
       </div>
 
-      <div className="flex h-2 w-full overflow-hidden rounded-full bg-black/30 border border-white/[0.06] mb-3">
-        {visibleBuckets
-          .filter((b) => b.id !== 'zero' && b.percent > 0)
-          .map((b) => (
-            <div
-              key={b.id}
-              className={`${BUCKET_BAR_CLASS[b.id]} transition-all`}
-              style={{ width: privacyMode ? '0%' : `${Math.max(b.percent, 0.5)}%` }}
-              title={`${b.label} ${formatPercent(b.percent, privacyMode)}`}
-            />
-          ))}
+      <div className="flex flex-col sm:flex-row gap-4 mb-3">
+        <div className="flex justify-center sm:justify-start shrink-0">
+          <PortfolioAllocationDonut buckets={buckets} privacyMode={privacyMode} size={128} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex h-2 w-full overflow-hidden rounded-full bg-black/30 border border-white/[0.06]">
+            {visibleBuckets
+              .filter((b) => b.id !== 'zero' && b.percent > 0)
+              .map((b) => (
+                <div
+                  key={b.id}
+                  className={`${BUCKET_BAR_CLASS[b.id]} transition-all`}
+                  style={{ width: privacyMode ? '0%' : `${Math.max(b.percent, 0.5)}%` }}
+                  title={`${b.label} ${formatPercent(b.percent, privacyMode)}`}
+                />
+              ))}
+          </div>
+          <p className="text-[10px] text-dark-600 mt-2 leading-snug">
+            Stablecoins, majors, and long-tail from current balances — no historical performance.
+          </p>
+        </div>
       </div>
 
       <ul className="space-y-2">

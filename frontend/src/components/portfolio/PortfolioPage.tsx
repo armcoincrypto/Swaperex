@@ -233,13 +233,13 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-4">
+    <div className="max-w-4xl mx-auto space-y-4">
       <PortfolioIntelligenceCenter onRefresh={handleRefresh} />
 
       <div>
         <div className="flex items-baseline justify-between gap-2 mb-2 px-0.5">
           <p className="text-[10px] uppercase tracking-wider text-dark-500">Holdings</p>
-          <p className="text-[10px] text-dark-600">All chains · tap row to swap</p>
+          <p className="text-[10px] text-dark-600">Professional table · all chains</p>
         </div>
         <PortfolioTokenTable onSwapToken={onSwapToken} />
       </div>

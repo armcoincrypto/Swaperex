@@ -15,6 +15,8 @@ import { useUsageStore } from '@/stores/usageStore';
 import { TierBadge } from '@/components/common/TierBadge';
 import { ScreenerFilters } from './ScreenerFilters';
 import { ScreenerTable } from './ScreenerTable';
+import { MarketDiscoverySections } from './MarketDiscoverySections';
+import { ShellPanel } from '@/components/ui/ShellPrimitives';
 import {
   SCREENER_CHAINS,
   CHAIN_LABELS,
@@ -79,11 +81,15 @@ export function TokenScreener({ onSwapSelect }: TokenScreenerProps) {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-bold">Token Screener</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+              Market Discovery
+            </h2>
             <TierBadge tier="advanced" />
           </div>
           <p className="text-dark-400 text-sm mt-1">
-            {mode === 'basic' ? 'Top tokens by volume' : `${tokens.length} tokens matching filters`}
+            {mode === 'basic'
+              ? 'Explore tokens by volume and momentum'
+              : `${tokens.length} tokens · filters active`}
           </p>
         </div>
 
@@ -181,6 +187,10 @@ export function TokenScreener({ onSwapSelect }: TokenScreenerProps) {
         </div>
       )}
 
+      {!error && !isLoading && tokens.length > 0 && (
+        <MarketDiscoverySections tokens={tokens} onSelect={handleSwap} />
+      )}
+
       {/* Filters (Advanced mode only) */}
       {mode === 'advanced' && (
         <ScreenerFilters
@@ -214,17 +224,19 @@ export function TokenScreener({ onSwapSelect }: TokenScreenerProps) {
       )}
 
       {/* Table */}
-      <ScreenerTable
-        tokens={tokens}
-        isAdvanced={mode === 'advanced'}
-        sortField={sortField}
-        sortDir={sortDir}
-        expandedTokenId={expandedTokenId}
-        onSort={handleSort}
-        onToggleExpand={setExpandedTokenId}
-        onSwap={handleSwap}
-        isLoading={isLoading}
-      />
+      <ShellPanel className="overflow-hidden p-0 mt-1">
+        <ScreenerTable
+          tokens={tokens}
+          isAdvanced={mode === 'advanced'}
+          sortField={sortField}
+          sortDir={sortDir}
+          expandedTokenId={expandedTokenId}
+          onSort={handleSort}
+          onToggleExpand={setExpandedTokenId}
+          onSwap={handleSwap}
+          isLoading={isLoading}
+        />
+      </ShellPanel>
 
       {/* Footer */}
       <div className="mt-4 text-center text-xs text-dark-500">
