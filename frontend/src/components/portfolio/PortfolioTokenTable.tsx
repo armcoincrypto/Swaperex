@@ -1,9 +1,6 @@
 /**
- * Portfolio Token Table
- *
- * Multi-chain token table with search, sort, chain grouping.
- * Uses portfolioStore for sort/filter preferences.
- * Shows token logo, symbol, name, chain badge, balance, USD value, actions.
+ * Portfolio Token Table — P3.8 professional holdings table.
+ * Presentation-only; same data sources and actions as before.
  */
 
 import { useMemo, useCallback } from 'react';
@@ -14,12 +11,13 @@ import {
   filterTokensBySearch,
   filterSmallBalances,
   formatUsdPrivate,
-  getPortfolioChainLabel,
+  getPortfolioChainBadgeLabel,
   type SortMode,
 } from '@/stores/portfolioStore';
 import { useWatchlistStore } from '@/stores/watchlistStore';
 import type { TokenBalance } from '@/services/portfolioTypes';
 import { PORTFOLIO_CHAIN_IDS } from '@/services/portfolioTypes';
+import { SwapTokenAvatar } from '@/components/common/SwapTokenAvatar';
 import {
   ShellEmptyState,
   ShellLoadingRows,
@@ -30,6 +28,12 @@ interface PortfolioTokenTableProps {
   onSwapToken?: (symbol: string, chainId: number) => void;
   className?: string;
 }
+
+const CHAIN_PILL: Record<string, string> = {
+  ethereum: 'bg-blue-500/15 text-blue-300 border-blue-500/25',
+  bsc: 'bg-yellow-500/15 text-yellow-300 border-yellow-500/25',
+  polygon: 'bg-purple-500/15 text-purple-300 border-purple-500/25',
+};
 
 export function PortfolioTokenTable({ onSwapToken, className = '' }: PortfolioTokenTableProps) {
   const portfolio = usePortfolioStore((s) => s.portfolio);
@@ -42,7 +46,6 @@ export function PortfolioTokenTable({ onSwapToken, className = '' }: PortfolioTo
   const smallBalanceThreshold = usePortfolioStore((s) => s.smallBalanceThreshold);
   const privacyMode = usePortfolioStore((s) => s.privacyMode);
 
-  // Flatten, filter, sort
   const displayTokens = useMemo(() => {
     let tokens = flattenPortfolioTokens(portfolio);
     tokens = filterTokensBySearch(tokens, searchQuery);
@@ -51,62 +54,62 @@ export function PortfolioTokenTable({ onSwapToken, className = '' }: PortfolioTo
     return tokens;
   }, [portfolio, searchQuery, hideSmallBalances, smallBalanceThreshold, sortMode]);
 
-  // Loading skeleton — first paint only (no portfolio cached)
+  const totalUsd = useMemo(() => {
+    return displayTokens.reduce((sum, t) => {
+      const v = parseFloat(t.usdValue || '0');
+      return sum + (Number.isFinite(v) && v > 0 ? v : 0);
+    }, 0);
+  }, [displayTokens]);
+
   if (loading && !portfolio) {
     return (
       <div className={`space-y-4 ${className}`}>
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-white">Your Tokens</h2>
-        </div>
-        <ShellLoadingRows count={4} rowClassName="h-16 rounded-xl" />
+        <ShellLoadingRows count={4} rowClassName="h-14 rounded-xl" />
       </div>
     );
   }
 
-  // Empty state
   if (!portfolio || displayTokens.length === 0) {
     return (
-      <div className={`space-y-4 ${className}`}>
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-white">Your Tokens</h2>
-        </div>
-        <ShellEmptyState
-          icon={
-            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-            </svg>
-          }
-          title={
-            searchQuery
-              ? `No tokens match "${searchQuery}"`
-              : hideSmallBalances
+      <ShellEmptyState
+        className={className}
+        icon={
+          <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+            />
+          </svg>
+        }
+        title={
+          searchQuery
+            ? `No tokens match "${searchQuery}"`
+            : hideSmallBalances
               ? 'No tokens above threshold'
               : 'No tokens found across chains'
-          }
-        />
-      </div>
+        }
+      />
     );
   }
 
   return (
     <div className={`space-y-3 animate-fadeIn ${className}`}>
-      {/* Header with search + sort */}
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-bold whitespace-nowrap text-white">Your Tokens</h2>
-
+        <div className="text-[11px] text-dark-500 tabular-nums">
+          {displayTokens.length} holding{displayTokens.length !== 1 ? 's' : ''}
+        </div>
         <div className="flex items-center gap-2 flex-1 justify-end">
-          {/* Search */}
           <input
             id="portfolio-search"
             name="portfolio-search"
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search..."
-            className="w-32 sm:w-40 input text-xs py-1.5"
+            placeholder="Search assets…"
+            className="w-32 sm:w-44 input text-xs py-1.5"
           />
-
-          {/* Sort */}
           <select
             id="portfolio-sort"
             name="portfolio-sort"
@@ -122,45 +125,60 @@ export function PortfolioTokenTable({ onSwapToken, className = '' }: PortfolioTo
         </div>
       </div>
 
-      {/* Token count */}
-      <div className="text-[11px] text-dark-500">
-        {displayTokens.length} token{displayTokens.length !== 1 ? 's' : ''} across{' '}
-        {(() => { const c = new Set(displayTokens.map((t) => t.chain)).size; return `${c} chain${c !== 1 ? 's' : ''}`; })()}
-      </div>
-
-      {/* Token rows */}
-      <ShellPanel className="p-2 space-y-1.5">
-        {displayTokens.map((token, i) => (
-          <PortfolioTokenRow
-            key={`${token.chain}-${token.address}-${i}`}
-            token={token}
-            privacyMode={privacyMode}
-            onSwap={onSwapToken}
-          />
-        ))}
+      <ShellPanel className="overflow-hidden p-0">
+        <div className="overflow-x-auto max-h-[min(70vh,520px)] overflow-y-auto">
+          <table className="w-full min-w-[640px] border-collapse text-sm">
+            <thead className="sticky top-0 z-10 bg-electro-panel/95 backdrop-blur-md border-b border-white/[0.08]">
+              <tr className="text-[10px] uppercase tracking-wider text-dark-500">
+                <th className="text-left font-medium px-4 py-3">Asset</th>
+                <th className="text-left font-medium px-3 py-3">Chain</th>
+                <th className="text-right font-medium px-3 py-3">Balance</th>
+                <th className="text-right font-medium px-3 py-3">Value</th>
+                <th className="text-right font-medium px-3 py-3">Portfolio %</th>
+                <th className="text-right font-medium px-4 py-3 w-28">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayTokens.map((token, i) => (
+                <PortfolioTokenRow
+                  key={`${token.chain}-${token.address}-${i}`}
+                  token={token}
+                  privacyMode={privacyMode}
+                  totalUsd={totalUsd}
+                  onSwap={onSwapToken}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
       </ShellPanel>
     </div>
   );
 }
 
-// ─── Token Row ─────────────────────────────────────────────────────
-
 function PortfolioTokenRow({
   token,
   privacyMode,
+  totalUsd,
   onSwap,
 }: {
   token: TokenBalance;
   privacyMode: boolean;
+  totalUsd: number;
   onSwap?: (symbol: string, chainId: number) => void;
 }) {
   const addToWatchlist = useWatchlistStore((s) => s.addToken);
   const hasInWatchlist = useWatchlistStore((s) => s.hasToken);
-  const chainId = typeof PORTFOLIO_CHAIN_IDS[token.chain] === 'number'
-    ? PORTFOLIO_CHAIN_IDS[token.chain] as number
-    : 1;
+  const chainId =
+    typeof PORTFOLIO_CHAIN_IDS[token.chain] === 'number'
+      ? (PORTFOLIO_CHAIN_IDS[token.chain] as number)
+      : 1;
 
   const isWatched = hasInWatchlist(chainId, token.address);
+  const usd = parseFloat(token.usdValue || '0');
+  const portfolioPct = totalUsd > 0 && usd > 0 ? (usd / totalUsd) * 100 : 0;
+  const chainLabel = getPortfolioChainBadgeLabel(token.chain, token.symbol);
+  const chainPill = CHAIN_PILL[token.chain] ?? 'bg-electro-panel/60 text-dark-300 border-white/[0.08]';
 
   const handleCopyAddress = useCallback(() => {
     if (token.address && !token.isNative) {
@@ -174,125 +192,115 @@ function PortfolioTokenRow({
 
   const handleWatchlist = useCallback(() => {
     if (!isWatched) {
-      addToWatchlist({
-        chainId,
-        address: token.address,
-        symbol: token.symbol,
-      });
+      addToWatchlist({ chainId, address: token.address, symbol: token.symbol });
     }
   }, [isWatched, addToWatchlist, chainId, token.address, token.symbol]);
 
   const explorerBase = getExplorerBase(chainId);
 
   return (
-    <div className="flex items-center justify-between p-3 bg-dark-800/90 rounded-lg border border-white/[0.04] hover:border-white/[0.08] hover:bg-dark-800 transition-colors group">
-      {/* Left: logo + symbol + chain */}
-      <div className="flex items-center gap-3 min-w-0 flex-1">
-        {/* Token Logo */}
-        <div className="w-8 h-8 rounded-full bg-dark-700 flex items-center justify-center overflow-hidden flex-shrink-0">
-          {token.logoUrl ? (
-            <img
-              src={token.logoUrl}
-              alt={token.symbol}
-              className="w-8 h-8 rounded-full"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
-            />
-          ) : (
-            <span className="text-xs font-bold text-dark-400">
-              {token.symbol.slice(0, 2)}
-            </span>
-          )}
-        </div>
-
-        {/* Symbol + Name + Chain */}
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5">
-            <span className="font-medium text-sm truncate">{token.symbol}</span>
-            <span className="px-1.5 py-0.5 bg-dark-700 text-dark-400 text-[9px] font-medium rounded">
-              {getPortfolioChainLabel(token.chain)}
-            </span>
+    <tr className="group border-b border-white/[0.04] last:border-0 hover:bg-white/[0.03] transition-colors">
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <SwapTokenAvatar symbol={token.symbol} logoUrl={token.logoUrl ?? undefined} size="md" />
+          <div className="min-w-0">
+            <p className="font-medium text-white truncate">{token.symbol}</p>
+            <p className="text-[11px] text-dark-500 truncate max-w-[140px]">{token.name}</p>
           </div>
-          <div className="text-[11px] text-dark-500 truncate">{token.name}</div>
         </div>
-      </div>
-
-      {/* Middle: balance + USD */}
-      <div className="text-right mx-3 flex-shrink-0">
-        <div className="text-sm font-medium">
-          {privacyMode ? '****' : formatTokenBalance(token.balanceFormatted)}
-        </div>
-        <div className="text-[11px] text-dark-400">
+      </td>
+      <td className="px-3 py-3">
+        <span
+          className={`inline-flex text-[10px] font-medium rounded-full border px-2 py-0.5 ${chainPill}`}
+        >
+          {chainLabel}
+        </span>
+      </td>
+      <td className="px-3 py-3 text-right tabular-nums text-dark-200">
+        {privacyMode ? '****' : formatTokenBalance(token.balanceFormatted)}
+      </td>
+      <td className="px-3 py-3 text-right tabular-nums">
+        <span className="text-white font-medium">
           {token.usdValue
             ? formatUsdPrivate(token.usdValue, privacyMode)
             : parseFloat(token.balanceFormatted) === 0
-            ? formatUsdPrivate(0, privacyMode)
-            : <span className="text-dark-600" title="Price unavailable">—</span>}
-          {token.usdPrice && !privacyMode && (
-            <span className="text-dark-600 ml-1">
-              @${parseFloat(token.usdPrice).toFixed(
-                parseFloat(token.usdPrice) < 1 ? 4 : 2
-              )}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Right: actions (visible on hover) */}
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-        {onSwap && (
-          <button
-            onClick={handleSwap}
-            className="px-2 py-1 bg-primary-600/20 text-primary-400 rounded text-[11px] font-medium hover:bg-primary-600/30 transition-colors"
-            title="Swap"
-          >
-            Swap
-          </button>
-        )}
-        {!token.isNative && (
-          <>
+              ? formatUsdPrivate(0, privacyMode)
+              : '—'}
+        </span>
+      </td>
+      <td className="px-3 py-3 text-right tabular-nums text-dark-400">
+        {privacyMode || portfolioPct <= 0 ? (privacyMode ? '****' : '—') : `${portfolioPct.toFixed(1)}%`}
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex items-center justify-end gap-0.5 opacity-70 group-hover:opacity-100 transition-opacity">
+          {onSwap && (
             <button
-              onClick={handleCopyAddress}
-              className="p-1.5 text-dark-500 hover:text-dark-300 transition-colors"
-              title="Copy contract address"
+              type="button"
+              onClick={handleSwap}
+              className="px-2 py-1 bg-accent/15 text-accent rounded-md text-[10px] font-semibold hover:bg-accent/25 transition-colors"
             >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
+              Swap
             </button>
-            {explorerBase && (
-              <a
-                href={`${explorerBase}/token/${token.address}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-1.5 text-dark-500 hover:text-dark-300 transition-colors"
-                title="View on explorer"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </a>
-            )}
-            {!isWatched && (
+          )}
+          {!token.isNative && (
+            <>
               <button
-                onClick={handleWatchlist}
-                className="p-1.5 text-dark-500 hover:text-yellow-400 transition-colors"
-                title="Add to watchlist"
+                type="button"
+                onClick={handleCopyAddress}
+                className="p-1.5 text-dark-500 hover:text-dark-300 transition-colors"
+                title="Copy contract"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                  />
                 </svg>
               </button>
-            )}
-          </>
-        )}
-      </div>
-    </div>
+              {explorerBase && (
+                <a
+                  href={`${explorerBase}/token/${token.address}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-1.5 text-dark-500 hover:text-dark-300 transition-colors"
+                  title="Explorer"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                    />
+                  </svg>
+                </a>
+              )}
+              {!isWatched && (
+                <button
+                  type="button"
+                  onClick={handleWatchlist}
+                  className="p-1.5 text-dark-500 hover:text-yellow-400 transition-colors"
+                  title="Watchlist"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                    />
+                  </svg>
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </td>
+    </tr>
   );
 }
-
-// ─── Helpers ───────────────────────────────────────────────────────
 
 function formatTokenBalance(formatted: string): string {
   const num = parseFloat(formatted);
@@ -306,11 +314,16 @@ function formatTokenBalance(formatted: string): string {
 
 function getExplorerBase(chainId: number): string | null {
   switch (chainId) {
-    case 1: return 'https://etherscan.io';
-    case 56: return 'https://bscscan.com';
-    case 137: return 'https://polygonscan.com';
-    case 42161: return 'https://arbiscan.io';
-    default: return null;
+    case 1:
+      return 'https://etherscan.io';
+    case 56:
+      return 'https://bscscan.com';
+    case 137:
+      return 'https://polygonscan.com';
+    case 42161:
+      return 'https://arbiscan.io';
+    default:
+      return null;
   }
 }
 

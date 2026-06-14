@@ -28,7 +28,7 @@ import {
   hasWalletConnectStorageHint,
   subscribeWalletBootstrapRequest,
 } from '@/services/wallet/appKitActionsRegistry';
-import { SHOW_OPTIONAL_PRIMARY_NAV } from '@/config/productShell';
+import { SHOW_OPTIONAL_PRIMARY_NAV, PRIMARY_NAV_ITEMS, TRADE_SUB_NAV } from '@/config/productShell';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 import { applyClientRouteSeo, normalizePublicPath } from '@/utils/routeSeo';
 
@@ -534,43 +534,64 @@ function DexMain() {
             {/* Logo */}
             <h1 className="text-xl font-bold text-accent">Swaperex</h1>
 
-            {/* Navigation */}
-            <nav className="flex gap-1">
+            {/* Navigation — P4.2 Command Center */}
+            <nav className="hidden sm:flex gap-1">
               <NavButton
-                active={currentPage === 'swap'}
+                active={currentPage === 'swap' || currentPage === 'send'}
                 onClick={() => goToPage('swap')}
               >
-                Swap
+                Trade
               </NavButton>
-              <NavButton
-                active={currentPage === 'send'}
-                onClick={() => goToPage('send')}
-              >
-                Send
-              </NavButton>
-              {SHOW_OPTIONAL_PRIMARY_NAV && (
-                <>
+              {SHOW_OPTIONAL_PRIMARY_NAV &&
+                PRIMARY_NAV_ITEMS.filter((item) => item.page !== 'swap').map((item) => (
                   <NavButton
-                    active={currentPage === 'portfolio'}
-                    onClick={() => goToPage('portfolio')}
+                    key={item.page}
+                    active={(item.activeWhen as Page[]).includes(currentPage)}
+                    onClick={() => goToPage(item.page)}
+                    badge={item.page === 'radar' && radarUnreadCount > 0 ? radarUnreadCount : undefined}
                   >
-                    Portfolio
+                    {item.label}
                   </NavButton>
-                  <NavButton
-                    active={currentPage === 'radar'}
-                    onClick={() => goToPage('radar')}
-                    badge={radarUnreadCount > 0 ? radarUnreadCount : undefined}
-                  >
-                    Radar
-                  </NavButton>
-                  <NavButton
-                    active={currentPage === 'screener'}
-                    onClick={() => goToPage('screener')}
-                  >
-                    Screener
-                  </NavButton>
-                </>
-              )}
+                ))}
+            </nav>
+            {/* Mobile nav — compact command center */}
+            <nav className="flex sm:hidden gap-0.5 overflow-x-auto max-w-[52vw]">
+              {(
+                [
+                  {
+                    page: 'swap' as Page,
+                    label: 'Trade',
+                    active: currentPage === 'swap' || currentPage === 'send',
+                    badge: 0,
+                  },
+                  ...(SHOW_OPTIONAL_PRIMARY_NAV
+                    ? PRIMARY_NAV_ITEMS.filter((i) => i.page !== 'swap').map((i) => ({
+                        page: i.page as Page,
+                        label: i.label,
+                        active: (i.activeWhen as Page[]).includes(currentPage),
+                        badge: i.page === 'radar' ? radarUnreadCount : 0,
+                      }))
+                    : []),
+                ] as Array<{ page: Page; label: string; active: boolean; badge: number }>
+              ).map(({ page, label, active, badge }) => (
+                <button
+                  key={page}
+                  type="button"
+                  onClick={() => goToPage(page)}
+                  className={`relative shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    active
+                      ? 'bg-electro-panel text-white border border-white/[0.08]'
+                      : 'text-dark-400'
+                  }`}
+                >
+                  {label}
+                  {badge !== undefined && badge > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-0.5 bg-accent text-electro-bg text-[9px] font-bold rounded-full flex items-center justify-center">
+                      {badge > 9 ? '9+' : badge}
+                    </span>
+                  )}
+                </button>
+              ))}
             </nav>
           </div>
 
@@ -598,6 +619,26 @@ function DexMain() {
           </div>
         </div>
       </header>
+
+      {/* Trade sub-nav — Swap / Send under Command Center Trade */}
+      {(currentPage === 'swap' || currentPage === 'send') && (
+        <div className="border-b border-white/[0.06] bg-electro-bg/60 backdrop-blur-sm">
+          <div className="max-w-6xl mx-auto px-4 py-2">
+            <div className="shell-segment-track inline-flex">
+              {TRADE_SUB_NAV.map(({ page, label }) => (
+                <button
+                  key={page}
+                  type="button"
+                  onClick={() => goToPage(page)}
+                  className={`shell-segment ${currentPage === page ? 'shell-segment-active' : ''}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Chain Warning Banner */}
       {isConnected && isWrongChain && !isReadOnly && !bannerDismissed && (

@@ -7,9 +7,18 @@
  */
 
 import type { ScreenerToken, ScreenerChainId } from '@/services/screener/types';
+import { CHAIN_LABELS } from '@/services/screener/types';
 import { useWatchlistStore } from '@/stores/watchlistStore';
 import { NATIVE_TOKEN_ADDRESS } from '@/tokens';
+import { SwapTokenAvatar } from '@/components/common/SwapTokenAvatar';
 import { TokenDetailsPanel } from './TokenDetailsPanel';
+
+const CHAIN_PILL: Record<ScreenerChainId, string> = {
+  1: 'bg-blue-500/15 text-blue-300 border-blue-500/25',
+  56: 'bg-yellow-500/15 text-yellow-300 border-yellow-500/25',
+  137: 'bg-purple-500/15 text-purple-300 border-purple-500/25',
+  42161: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/25',
+};
 
 interface Props {
   token: ScreenerToken;
@@ -50,31 +59,25 @@ export function TokenRow({ token, isAdvanced, isExpanded, onToggleExpand, onSwap
 
   return (
     <>
-      <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-4 px-4 py-3 border-t border-dark-800 hover:bg-dark-800/30 transition-colors">
+      <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-4 px-4 py-3 border-t border-white/[0.04] hover:bg-white/[0.03] transition-colors group">
         {/* Token Info */}
         <div className="flex items-center gap-3 min-w-0">
-          {token.image ? (
-            <img
-              src={token.image}
-              alt={token.symbol}
-              className="w-8 h-8 rounded-full flex-shrink-0"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-            />
-          ) : (
-            <div className="w-8 h-8 rounded-full bg-dark-700 flex items-center justify-center text-sm font-bold flex-shrink-0">
-              {token.symbol[0]}
-            </div>
-          )}
+          <SwapTokenAvatar symbol={token.symbol} logoUrl={token.image} size="md" />
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span className="font-medium">{token.symbol}</span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-medium text-white">{token.symbol}</span>
+              <span
+                className={`text-[9px] rounded-full border px-1.5 py-0.5 ${CHAIN_PILL[token.chainId]}`}
+              >
+                {CHAIN_LABELS[token.chainId]}
+              </span>
               {isAdvanced && token.trendingScore != null && token.trendingScore >= 70 && (
                 <span className="text-[10px] bg-orange-900/40 text-orange-400 px-1 rounded" title="High trending score">
                   HOT
                 </span>
               )}
             </div>
-            <div className="text-xs text-dark-400 truncate">{token.name}</div>
+            <div className="text-xs text-dark-500 truncate">{token.name}</div>
           </div>
         </div>
 
