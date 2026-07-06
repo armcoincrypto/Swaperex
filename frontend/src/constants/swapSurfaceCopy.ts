@@ -138,6 +138,18 @@ export const SWAP_SURFACE_COPY = {
   footerTrustCompact:
     'Non-custodial swap interface — you sign every transaction in your wallet.',
 
+  /** P5.1 — Markets screener error states */
+  screenerDataUnavailable:
+    'Market data is temporarily unavailable. Prices may be cached or missing — retry shortly.',
+  screenerEmptyHonest:
+    'No tokens match the current filters on this network. Try another chain or reset filters.',
+
+  /** P5.1 — External provider degradation (display-only) */
+  coingeckoUnavailable: 'CoinGecko market data is temporarily unavailable.',
+  goplusUnavailable: 'Token safety data (GoPlus) is temporarily unavailable.',
+  tokenSafetyUnavailable: 'Token safety check unavailable — verify the contract before swapping.',
+  backendHealthDegraded: 'Some services are degraded — core swaps may still work.',
+
   /** @deprecated Use footerTrustCompact in layout */
   footerTrustNonCustodial:
     'Non-custodial: tokens stay in your wallet until you approve a transaction.',

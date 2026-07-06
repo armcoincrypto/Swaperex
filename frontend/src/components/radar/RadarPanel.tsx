@@ -65,6 +65,22 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
     syncMonitoringFromService();
   }, [monitoringEnabled, syncMonitoringFromService]);
 
+  useEffect(() => {
+    const onSection = (event: Event) => {
+      const detail = (event as CustomEvent<{ page?: string; section?: string }>).detail;
+      if (detail?.page !== 'radar' || !detail.section) return;
+      const tabMap: Record<string, RadarTab> = {
+        watchlist: 'watchlist',
+        scanner: 'scanner',
+        alerts: 'alerts',
+      };
+      const tab = tabMap[detail.section];
+      if (tab) setActiveTab(tab);
+    };
+    window.addEventListener('swaperex:section', onSection as EventListener);
+    return () => window.removeEventListener('swaperex:section', onSection as EventListener);
+  }, []);
+
   // Hook signal alerts system
   useSignalAlerts();
 

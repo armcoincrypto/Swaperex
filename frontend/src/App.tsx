@@ -6,14 +6,13 @@
  */
 
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
-import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
+import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { LazyWalletBootstrap, LazyWalletConnect } from '@/components/wallet/lazyWalletChunks';
 import { SwapInterface } from '@/components/swap/SwapInterface';
 import { ChainWarningBanner } from '@/components/chain/ChainWarning';
 import { ToastContainer } from '@/components/common/Toast';
 import { GlobalErrorDisplay } from '@/components/common/GlobalErrorDisplay';
 import { NetworkSelector } from '@/components/common/NetworkSelector';
-import { SystemStatusIndicator } from '@/components/common/SystemStatusIndicator';
 import { useWallet } from '@/hooks/useWallet';
 import { useSwapStore } from '@/stores/swapStore';
 import { useToastStore } from '@/stores/toastStore';
@@ -29,8 +28,8 @@ import {
   subscribeWalletBootstrapRequest,
 } from '@/services/wallet/appKitActionsRegistry';
 import { SHOW_OPTIONAL_PRIMARY_NAV, PRIMARY_NAV_ITEMS, TRADE_SUB_NAV } from '@/config/productShell';
-import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 import { applyClientRouteSeo, normalizePublicPath } from '@/utils/routeSeo';
+import { DexSiteFooter, type FooterNavTarget } from '@/components/layout/DexSiteFooter';
 
 const LazySendPage = lazy(() => import('@/components/send/SendPage'));
 const LazyPortfolioPage = lazy(() => import('@/components/portfolio/PortfolioPage'));
@@ -318,6 +317,22 @@ function DexMain() {
     [navigate, location.pathname],
   );
 
+  const handleFooterNavigate = useCallback(
+    (target: FooterNavTarget) => {
+      goToPage(target.page as Page);
+      if (target.section) {
+        requestAnimationFrame(() => {
+          window.dispatchEvent(
+            new CustomEvent('swaperex:section', {
+              detail: { page: target.page, section: target.section },
+            }),
+          );
+        });
+      }
+    },
+    [goToPage],
+  );
+
   /**
    * P3-A — Keep `currentPage` aligned with informational URLs; unknown paths → `/` + swap.
    * Path `/` does not override send/portfolio/radar/screener.
@@ -521,7 +536,7 @@ function DexMain() {
   );
 
   return (
-    <div className="min-h-screen bg-electro-bg bg-bg-mesh">
+    <div className="min-h-screen bg-electro-bg bg-bg-mesh overflow-x-hidden flex flex-col">
       {walletHostNeeded && (
         <Suspense fallback={null}>
           <LazyWalletBootstrap />
@@ -650,7 +665,7 @@ function DexMain() {
       )}
 
       {/* Main Content */}
-      <main className="max-w-6xl mx-auto px-4 py-8 sm:py-10">
+      <main className="max-w-6xl mx-auto px-4 py-8 sm:py-10 min-w-0 w-full flex-1">
         {currentPage === 'swap' && (
           <>
             <div className="flex flex-col lg:flex-row gap-10 lg:items-start">
@@ -773,44 +788,8 @@ function DexMain() {
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-white/[0.06] mt-auto bg-electro-bg/40">
-        <div className="max-w-6xl mx-auto px-4 py-5 text-center text-sm text-dark-500">
-          <p className="text-dark-300 font-medium">Swaperex</p>
-          <div className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-1">
-            <Link
-              to="/about"
-              className="text-inherit no-underline hover:text-white transition-colors visited:text-inherit"
-            >
-              About
-            </Link>
-            <Link
-              to="/terms"
-              className="text-inherit no-underline hover:text-white transition-colors visited:text-inherit"
-            >
-              Terms
-            </Link>
-            <Link
-              to="/privacy"
-              className="text-inherit no-underline hover:text-white transition-colors visited:text-inherit"
-            >
-              Privacy
-            </Link>
-            <Link
-              to="/disclaimer"
-              className="text-inherit no-underline hover:text-white transition-colors visited:text-inherit"
-            >
-              Disclaimer
-            </Link>
-          </div>
-          <p className="mt-3 text-[11px] text-dark-500 leading-relaxed max-w-md mx-auto">
-            {SWAP_SURFACE_COPY.footerTrustCompact}
-          </p>
-          <div className="mt-2">
-            <SystemStatusIndicator />
-          </div>
-        </div>
-      </footer>
+      {/* Footer — P5.4 professional DEX site footer */}
+      <DexSiteFooter onNavigate={handleFooterNavigate} />
 
       {/* Global Error Display */}
       <GlobalErrorDisplay />

@@ -9,14 +9,15 @@
  * DexScreener + GoPlus fetched on-demand for expanded rows only.
  */
 
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useScreener } from '@/hooks/useScreener';
 import { useUsageStore } from '@/stores/usageStore';
 import { TierBadge } from '@/components/common/TierBadge';
 import { ScreenerFilters } from './ScreenerFilters';
 import { ScreenerTable } from './ScreenerTable';
 import { MarketDiscoverySections } from './MarketDiscoverySections';
-import { ShellPanel } from '@/components/ui/ShellPrimitives';
+import { ShellPanel, ShellBanner, ShellEmptyState } from '@/components/ui/ShellPrimitives';
+import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 import {
   SCREENER_CHAINS,
   CHAIN_LABELS,
@@ -60,6 +61,20 @@ export function TokenScreener({ onSwapSelect }: TokenScreenerProps) {
   } = useScreener();
 
   const { trackEvent } = useUsageStore();
+  const discoveryRef = useRef<HTMLDivElement | null>(null);
+  const screenerTableRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const onSection = (event: Event) => {
+      const detail = (event as CustomEvent<{ page?: string; section?: string }>).detail;
+      if (detail?.page !== 'screener' || !detail.section) return;
+      const target =
+        detail.section === 'discovery' ? discoveryRef.current : screenerTableRef.current;
+      target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    window.addEventListener('swaperex:section', onSection as EventListener);
+    return () => window.removeEventListener('swaperex:section', onSection as EventListener);
+  }, []);
 
   const handleSwap = useCallback(
     (token: ScreenerToken) => {
@@ -179,16 +194,30 @@ export function TokenScreener({ onSwapSelect }: TokenScreenerProps) {
 
       {/* Error */}
       {error && (
-        <div className="bg-red-900/20 border border-red-800 rounded-lg p-4 mb-4 text-red-400 text-sm">
-          {error}
-          <button onClick={refresh} className="ml-4 underline hover:no-underline">
+        <ShellBanner tone="error" className="mb-4">
+          <span>{error || SWAP_SURFACE_COPY.screenerDataUnavailable}</span>
+          <button
+            type="button"
+            onClick={refresh}
+            className="shrink-0 text-sm underline hover:no-underline ml-2"
+          >
             Retry
           </button>
-        </div>
+        </ShellBanner>
+      )}
+
+      {!error && !isLoading && tokens.length === 0 && (
+        <ShellEmptyState
+          className="mb-4"
+          title="No market data"
+          description={SWAP_SURFACE_COPY.screenerEmptyHonest}
+        />
       )}
 
       {!error && !isLoading && tokens.length > 0 && (
-        <MarketDiscoverySections tokens={tokens} onSelect={handleSwap} />
+        <div ref={discoveryRef} id="markets-discovery">
+          <MarketDiscoverySections tokens={tokens} onSelect={handleSwap} />
+        </div>
       )}
 
       {/* Filters (Advanced mode only) */}
@@ -224,7 +253,8 @@ export function TokenScreener({ onSwapSelect }: TokenScreenerProps) {
       )}
 
       {/* Table */}
-      <ShellPanel className="overflow-hidden p-0 mt-1">
+      <div ref={screenerTableRef} id="markets-screener">
+        <ShellPanel className="overflow-hidden p-0 mt-1">
         <ScreenerTable
           tokens={tokens}
           isAdvanced={mode === 'advanced'}
@@ -237,6 +267,7 @@ export function TokenScreener({ onSwapSelect }: TokenScreenerProps) {
           isLoading={isLoading}
         />
       </ShellPanel>
+      </div>
 
       {/* Footer */}
       <div className="mt-4 text-center text-xs text-dark-500">

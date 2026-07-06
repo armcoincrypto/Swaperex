@@ -22,11 +22,17 @@ import {
 interface SystemStatusIndicatorProps {
   /** Show detailed breakdown (default false) */
   detailed?: boolean;
+  /** `footer` maps stable → Operational for site footer (P5.4) */
+  variant?: 'default' | 'footer';
   /** Custom className */
   className?: string;
 }
 
-export function SystemStatusIndicator({ detailed = false, className = '' }: SystemStatusIndicatorProps) {
+export function SystemStatusIndicator({
+  detailed = false,
+  variant = 'default',
+  className = '',
+}: SystemStatusIndicatorProps) {
   const status = useSystemStatus();
   const services = useServicesStatus();
   const refresh = useSystemStatusStore((s) => s.refresh);
@@ -39,7 +45,7 @@ export function SystemStatusIndicator({ detailed = false, className = '' }: Syst
     return () => clearInterval(intervalId);
   }, [refresh]);
 
-  const statusLabel = getStatusLabel(status);
+  const statusLabel = getStatusLabel(status, variant);
   const statusColor = getStatusColor(status);
   const indicator = getStatusIndicator(status);
 
@@ -70,14 +76,14 @@ export function SystemStatusIndicator({ detailed = false, className = '' }: Syst
   );
 }
 
-function getStatusLabel(status: SystemStatus): string {
+function getStatusLabel(status: SystemStatus, variant: 'default' | 'footer' = 'default'): string {
   switch (status) {
     case 'stable':
-      return 'Stable';
+      return variant === 'footer' ? 'Operational' : 'Stable';
     case 'degraded':
-      return 'Partial data';
+      return variant === 'footer' ? 'Degraded — partial data' : 'Partial data';
     case 'unavailable':
-      return 'Backend unavailable';
+      return variant === 'footer' ? 'Unavailable' : 'Backend unavailable';
     default:
       return 'Unknown';
   }

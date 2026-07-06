@@ -79,20 +79,20 @@ interface ErrorState {
  */
 export function getCategoryMessage(category: ErrorCategory): string {
   const messages: Record<ErrorCategory, string> = {
-    user_rejected: 'Transaction cancelled',
-    insufficient_balance: 'Insufficient balance',
-    network_error: 'Network connection error',
-    rpc_timeout: 'Request timed out',
-    rate_limit: 'Too many requests',
+    user_rejected: 'Transaction declined in your wallet',
+    insufficient_balance: 'Insufficient balance for this transaction',
+    network_error: 'Network connection failed — check your connection and retry',
+    rpc_timeout: 'Network request timed out — RPC may be busy, try again',
+    rate_limit: 'Too many requests — wait a moment and retry',
     quote_expired: `${SWAP_SURFACE_COPY.quoteExpiredTitle} — ${SWAP_SURFACE_COPY.refreshQuoteCta}`,
-    slippage_error: 'Price moved too much',
-    chain_mismatch: 'Wrong network',
-    unsupported_chain: 'Chain not supported',
-    contract_error: 'Transaction failed',
-    gas_error: 'Gas estimation failed',
-    invalid_address: 'Invalid address',
-    no_wallet: 'Wallet not connected',
-    unknown: 'Something went wrong',
+    slippage_error: 'Price moved beyond your slippage tolerance',
+    chain_mismatch: 'Switch to a supported network in your wallet',
+    unsupported_chain: 'This network is not supported yet',
+    contract_error: 'Transaction reverted on-chain',
+    gas_error: 'Could not estimate gas — check balance and network',
+    invalid_address: 'Recipient address is invalid',
+    no_wallet: 'Connect a wallet to continue',
+    unknown: 'Something went wrong — try again',
   };
   return messages[category] || 'An error occurred';
 }

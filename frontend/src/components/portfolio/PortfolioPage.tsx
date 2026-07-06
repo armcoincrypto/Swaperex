@@ -112,6 +112,22 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
   const hydrateFromSnapshot = usePortfolioStore((s) => s.hydrateFromSnapshot);
   const clear = usePortfolioStore((s) => s.clear);
 
+  useEffect(() => {
+    const onSection = (event: Event) => {
+      const detail = (event as CustomEvent<{ page?: string; section?: string }>).detail;
+      if (detail?.page !== 'portfolio' || !detail.section) return;
+      if (detail.section === 'activity') {
+        setPortfolioSubTab('activity');
+        return;
+      }
+      const id =
+        detail.section === 'allocation' ? 'portfolio-allocation' : 'portfolio-holdings';
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    window.addEventListener('swaperex:section', onSection as EventListener);
+    return () => window.removeEventListener('swaperex:section', onSection as EventListener);
+  }, []);
+
   // Refresh guard — prevent concurrent fetches (FIX-5)
   const refreshingRef = useRef(false);
   // Track manual vs auto refresh — only manual shows spinner (prevents 30s flicker)
@@ -234,9 +250,11 @@ export function PortfolioPage({ onSwapToken, onRepeatSwap }: PortfolioPageProps)
 
   return (
     <div className="max-w-4xl mx-auto space-y-4">
-      <PortfolioIntelligenceCenter onRefresh={handleRefresh} />
+      <div id="portfolio-allocation">
+        <PortfolioIntelligenceCenter onRefresh={handleRefresh} />
+      </div>
 
-      <div>
+      <div id="portfolio-holdings">
         <div className="flex items-baseline justify-between gap-2 mb-2 px-0.5">
           <p className="text-[10px] uppercase tracking-wider text-dark-500">Holdings</p>
           <p className="text-[10px] text-dark-600">Professional table · all chains</p>
