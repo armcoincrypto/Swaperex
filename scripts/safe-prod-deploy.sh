@@ -9,9 +9,9 @@
 #   1. Verifies branch main, synced with origin/main, safe worktree
 #   2. Optionally stashes untracked docs/audits/ only (never hides code changes)
 #   3. Preflight: npm build + RPC/sourcemap dist audits (prod-deploy rebuilds again)
-#   4. Runs scripts/prod-deploy.sh (rsync, nginx, basic post checks)
-#   5. Extra post-deploy audits + live map count
-#   6. Restores docs/audits stash on success
+#   4. Runs scripts/prod-deploy.sh (rsync, optional nginx, post checks)
+#   5. Runs scripts/audit/post-deploy-certification.sh
+#   6. Restores docs stash on success
 #
 # Why preflight build if prod-deploy also builds:
 #   prod-deploy.sh is unchanged and always rebuilds. Preflight build fails fast
@@ -28,7 +28,12 @@ FRONTEND_DIR="$REPO_DIR/frontend"
 DIST_DIR="$FRONTEND_DIR/dist"
 DEPLOY_DIR="/var/www/swaperex"
 AUDIT_DOCS_DIR="docs/audits"
-STASH_MSG="safe-prod-deploy: untracked audit docs"
+ALLOWED_UNTRACKED_PREFIXES=(
+  "docs/audits/"
+  "docs/certification/"
+  "docs/operations/"
+)
+STASH_MSG="safe-prod-deploy: untracked docs"
 
 DRY_RUN=0
 DOCS_STASHED=0
@@ -103,19 +108,27 @@ if [ "${AHEAD:-0}" -ne 0 ]; then
   die "main is ahead of origin/main by $AHEAD commit(s). Push first: git push origin main"
 fi
 
-# --- Worktree: allow only untracked docs/audits; stash those; fail on anything else ---
+# --- Worktree: allow only untracked docs paths; stash those; fail on anything else ---
 check_worktree_allowed() {
   local had_disallowed=0
-  local line status path
+  local line status path allowed
 
   while IFS= read -r line; do
     [ -z "$line" ] && continue
     status="${line:0:2}"
     path="${line:3}"
 
-    # Untracked under docs/audits/ only — allowed (will stash)
-    if [ "$status" = "??" ] && [[ "$path" == "${AUDIT_DOCS_DIR}/"* || "$path" == "${AUDIT_DOCS_DIR}" ]]; then
-      continue
+    if [ "$status" = "??" ]; then
+      allowed=0
+      for prefix in "${ALLOWED_UNTRACKED_PREFIXES[@]}"; do
+        if [[ "$path" == "$prefix"* || "$path" == "${prefix%/}" ]]; then
+          allowed=1
+          break
+        fi
+      done
+      if [ "$allowed" -eq 1 ]; then
+        continue
+      fi
     fi
 
     echo "Disallowed worktree change: $line" >&2
@@ -123,23 +136,40 @@ check_worktree_allowed() {
   done < <(git status --porcelain)
 
   if [ "$had_disallowed" -ne 0 ]; then
-    die "Worktree has non-audit changes. Commit, revert, or stash them manually. This wrapper only auto-stashes untracked ${AUDIT_DOCS_DIR}/."
+    die "Worktree has non-doc changes. Commit, revert, or stash them manually. Auto-stash only applies to: ${ALLOWED_UNTRACKED_PREFIXES[*]}"
   fi
 }
 
 stash_untracked_audit_docs() {
-  if ! git status --porcelain | grep -q '^?? '"${AUDIT_DOCS_DIR}"; then
-    info "No untracked ${AUDIT_DOCS_DIR}/ to stash"
+  local has_untracked=0
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    [[ "${line:0:2}" == "??" ]] || continue
+    path="${line:3}"
+    for prefix in "${ALLOWED_UNTRACKED_PREFIXES[@]}"; do
+      if [[ "$path" == "$prefix"* || "$path" == "${prefix%/}" ]]; then
+        has_untracked=1
+        break
+      fi
+    done
+  done < <(git status --porcelain)
+
+  if [ "$has_untracked" -eq 0 ]; then
+    info "No untracked docs to stash"
     return 0
   fi
 
   if [ "$DRY_RUN" -eq 1 ]; then
-    info "[dry-run] Would stash untracked ${AUDIT_DOCS_DIR}/"
+    info "[dry-run] Would stash untracked docs under: ${ALLOWED_UNTRACKED_PREFIXES[*]}"
     return 0
   fi
 
-  info "Stash untracked ${AUDIT_DOCS_DIR}/ only"
-  git stash push -u -m "$STASH_MSG" -- "$AUDIT_DOCS_DIR"
+  info "Stash untracked docs only (${ALLOWED_UNTRACKED_PREFIXES[*]})"
+  local stash_paths=()
+  for prefix in "${ALLOWED_UNTRACKED_PREFIXES[@]}"; do
+    stash_paths+=("$prefix")
+  done
+  git stash push -u -m "$STASH_MSG" -- "${stash_paths[@]}"
   DOCS_STASHED=1
 }
 
@@ -200,27 +230,34 @@ info "Preflight dist audits OK"
 
 if [ "$DRY_RUN" -eq 1 ]; then
   info "[dry-run] Would run: bash scripts/prod-deploy.sh"
-  info "[dry-run] Would run post-deploy audits (deploy-match, verify-live, dist audits, map count)"
+  info "[dry-run] Would run: bash scripts/audit/post-deploy-certification.sh"
   info "Dry-run complete — no deploy performed"
   exit 0
 fi
 
-# --- Production deploy (unchanged script) ---
+# --- Production deploy ---
 info "Run scripts/prod-deploy.sh"
-if ! bash "$REPO_DIR/scripts/prod-deploy.sh"; then
-  die "prod-deploy.sh failed — see scripts/logs/prod-deploy.*.log"
+set +e
+bash "$REPO_DIR/scripts/prod-deploy.sh"
+prod_rc=$?
+set -e
+
+case "$prod_rc" in
+  0)
+    info "prod-deploy.sh: DEPLOY_SUCCESS"
+    ;;
+  2)
+    info "prod-deploy.sh: DEPLOY_SUCCESS_WITH_WARNINGS (nginx — see prod-deploy log)"
+    ;;
+  *)
+    die "prod-deploy.sh failed (exit $prod_rc) — see scripts/logs/prod-deploy.*.log"
+    ;;
+esac
+
+info "Post-deploy: post-deploy-certification.sh"
+if ! bash "$REPO_DIR/scripts/audit/post-deploy-certification.sh"; then
+  die "post-deploy-certification.sh failed"
 fi
-
-# --- Post-deploy (extra gates beyond prod-deploy.sh) ---
-info "Post-deploy: deploy-match"
-bash "$REPO_DIR/scripts/audit/deploy-match.sh"
-
-info "Post-deploy: verify-live"
-bash "$REPO_DIR/scripts/audit/verify-live.sh"
-
-info "Post-deploy: dist security audits (on rebuilt dist)"
-run_dist_audit "$REPO_DIR/scripts/audit/verify-no-rpc-secrets-in-dist.sh"
-run_dist_audit "$REPO_DIR/scripts/audit/verify-no-sourcemaps-in-dist.sh"
 
 MAP_LIVE="$(find "$DEPLOY_DIR" -name '*.map' 2>/dev/null | wc -l | tr -d ' ')"
 info "Live .map file count under $DEPLOY_DIR: $MAP_LIVE"
@@ -230,5 +267,9 @@ fi
 
 restore_audit_docs_stash
 
-info "Safe production deploy completed successfully"
+if [ "$prod_rc" -eq 2 ]; then
+  info "Safe production deploy completed with warnings (nginx reload — assets live)"
+else
+  info "Safe production deploy completed successfully"
+fi
 echo "Log: see scripts/logs/prod-deploy.*.log (from prod-deploy.sh)"
