@@ -1,0 +1,138 @@
+{
+  "testedAt": "2026-07-07T11:22:36.702Z",
+  "baseUrl": "http://127.0.0.1:4174",
+  "mockWallet": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+  "note": "Injected EIP-1193 mock (WalletConnect path). Extension MetaMask disabled in app.",
+  "pairResults": [
+    {
+      "id": "wbnb-cake",
+      "chainId": 56,
+      "from": "WBNB",
+      "to": "CAKE",
+      "amount": "0.1",
+      "wrapper": "0x22b1fe0ba0e451707a675cc0ac19162a83e2c3a6",
+      "feeLabel": "0.50",
+      "checks": {
+        "quote": "PASS",
+        "wrapperRoute": "PASS",
+        "commission": "PASS",
+        "minReceived": "PASS",
+        "txTarget": "NOT TESTED",
+        "noRouterBypass": "NOT TESTED",
+        "rejectTx": "PASS"
+      },
+      "verdict": "PASS",
+      "evidence": {
+        "quoteSnippet": "Swaperex\nTrade\nPortfolio\nSecurity\nMarkets\n⬡\nBNB Chain\n▼\n0xd8dA...6045\nBSC\nSwap\nSend\nSwap\n\nBNB Chain\n·\nConnected 0xd8dA...6045\n·\nQuote ready\n·\nExpires in 30s\n\n1\nQuote\n2\nApprove\n3\nSign\n4\nConfirm\n\nRoute via PancakeSwap V3 (Swaperex wrapper V2) · Route ready · Quote expires in 30s\n\nMore options\nYOU PAY\nBalance <0.0001\nMAX\nWBNB\nWrapped BNB · Wrapped\nYOU RECEIVE\nAfter fees · estimate\nBalance 0.5852\nCAKE\nPancakeSwap\n—\nQuote\n30s\nROUTE\nPancakeSwap V3 (Swaperex wrapper V2)\n\nBest price · ~40.649403\n\nSelect"
+      }
+    },
+    {
+      "id": "wbnb-usdc",
+      "chainId": 56,
+      "from": "WBNB",
+      "to": "USDC",
+      "amount": "0.1",
+      "wrapper": "0x22b1fe0ba0e451707a675cc0ac19162a83e2c3a6",
+      "feeLabel": "0.50",
+      "checks": {
+        "quote": "PASS",
+        "wrapperRoute": "PASS",
+        "commission": "PASS",
+        "minReceived": "PASS",
+        "txTarget": "NOT TESTED",
+        "noRouterBypass": "NOT TESTED",
+        "rejectTx": "PASS"
+      },
+      "verdict": "PASS",
+      "evidence": {
+        "quoteSnippet": "Swaperex\nTrade\nPortfolio\nSecurity\nMarkets\n⬡\nBNB Chain\n▼\n0xd8dA...6045\nBSC\nSwap\nSend\nSwap\n\nBNB Chain\n·\nConnected 0xd8dA...6045\n·\nQuote ready\n·\nExpires in 30s\n\n1\nQuote\n2\nApprove\n3\nSign\n4\nConfirm\n\nRoute via PancakeSwap V3 (Swaperex wrapper V2) · Route ready · Quote expires in 30s\n\nMore options\nYOU PAY\nBalance <0.0001\nMAX\nWBNB\nWrapped BNB · Wrapped\nYOU RECEIVE\nAfter fees · estimate\nBalance 48.4169\nUSDC\nUSD Coin\n—\nQuote\n30s\nROUTE\nPancakeSwap V3 (Swaperex wrapper V2)\n\nBest price · ~57.483813\n\nSelected"
+      }
+    },
+    {
+      "id": "wbnb-eth",
+      "chainId": 56,
+      "from": "WBNB",
+      "to": "ETH",
+      "amount": "0.1",
+      "wrapper": "0x22b1fe0ba0e451707a675cc0ac19162a83e2c3a6",
+      "feeLabel": "0.50",
+      "checks": {
+        "quote": "PASS",
+        "wrapperRoute": "PASS",
+        "commission": "PASS",
+        "minReceived": "PASS",
+        "txTarget": "NOT TESTED",
+        "noRouterBypass": "NOT TESTED",
+        "rejectTx": "PASS"
+      },
+      "verdict": "PASS",
+      "evidence": {
+        "quoteSnippet": "Swaperex\nTrade\nPortfolio\nSecurity\nMarkets\n⬡\nBNB Chain\n▼\n0xd8dA...6045\nBSC\nSwap\nSend\nSwap\n\nBNB Chain\n·\nConnected 0xd8dA...6045\n·\nQuote ready\n·\nExpires in 30s\n\n1\nQuote\n2\nApprove\n3\nSign\n4\nConfirm\n\nRoute via PancakeSwap V3 (Swaperex wrapper V2) · Route ready · Quote expires in 30s\n\nMore options\nYOU PAY\nBalance <0.0001\nMAX\nWBNB\nWrapped BNB · Wrapped\nYOU RECEIVE\nAfter fees · estimate\nBalance 0.1965\nETH\nEthereum Token\n—\nQuote\n30s\nROUTE\nPancakeSwap V3 (Swaperex wrapper V2)\n\nBest price · ~0.032409\n\nSelec"
+      }
+    },
+    {
+      "id": "wbnb-fdusd",
+      "chainId": 56,
+      "from": "WBNB",
+      "to": "FDUSD",
+      "amount": "0.1",
+      "wrapper": "0x22b1fe0ba0e451707a675cc0ac19162a83e2c3a6",
+      "feeLabel": "0.50",
+      "checks": {
+        "quote": "PASS",
+        "wrapperRoute": "PASS",
+        "commission": "PASS",
+        "minReceived": "PASS",
+        "txTarget": "NOT TESTED",
+        "noRouterBypass": "NOT TESTED",
+        "rejectTx": "PASS"
+      },
+      "verdict": "PASS",
+      "evidence": {
+        "quoteSnippet": "Swaperex\nTrade\nPortfolio\nSecurity\nMarkets\n⬡\nBNB Chain\n▼\n0xd8dA...6045\nBSC\nSwap\nSend\nSwap\n\nBNB Chain\n·\nConnected 0xd8dA...6045\n·\nQuote ready\n·\nExpires in 30s\n\n1\nQuote\n2\nApprove\n3\nSign\n4\nConfirm\n\nRoute via PancakeSwap V3 (Swaperex wrapper V2) · Route ready · Quote expires in 30s\n\nMore options\nYOU PAY\nBalance <0.0001\nMAX\nWBNB\nWrapped BNB · Wrapped\nYOU RECEIVE\nAfter fees · estimate\nBalance 0\nFD\nFDUSD\nFirst Digital USD\n—\nQuote\n30s\nROUTE\nPancakeSwap V3 (Swaperex wrapper V2)\n\nBest price · ~56.174245\n\nS"
+      }
+    },
+    {
+      "id": "weth-dai",
+      "chainId": 1,
+      "from": "WETH",
+      "to": "DAI",
+      "amount": "0.01",
+      "wrapper": "0xa7702ce9267567fd811b39c886cdabec6eb249fc",
+      "feeLabel": "0.20",
+      "checks": {
+        "quote": "PASS",
+        "wrapperRoute": "PASS",
+        "commission": "PASS",
+        "minReceived": "PASS",
+        "txTarget": "NOT TESTED",
+        "noRouterBypass": "NOT TESTED",
+        "rejectTx": "PASS"
+      },
+      "verdict": "PASS",
+      "evidence": {
+        "quoteSnippet": "Swaperex\nTrade\nPortfolio\nSecurity\nMarkets\n⟠\nEthereum\n▼\n0xd8dA...6045\nETH\nSwap\nSend\nSwap\n\nEthereum\n·\nConnected 0xd8dA...6045\n·\nQuote ready\n·\nExpires in 30s\n\n1\nQuote\n2\nApprove\n3\nSign\n4\nConfirm\n\nRoute via Uniswap V3 (Swaperex wrapper V3) · Route ready · Quote expires in 30s\n\nMore options\nYOU PAY\nBalance 1.4619\nMAX\nWETH\nWrapped Ether · Wrapped\nYOU RECEIVE\nAfter fees · estimate\nBalance unavailable\nDA\nDAI\nDai Stablecoin\n17.675946\nQuote\n30s\nROUTE\nUniswap V3 (Swaperex wrapper V3)\n\nBest price · ~17.67594"
+      }
+    }
+  ],
+  "negativeTests": [
+    {
+      "id": "pepe-block",
+      "verdict": "PASS",
+      "evidence": {
+        "snippet": "Swaperex\nTrade\nPortfolio\nSecurity\nMarkets\n⟠\nEthereum\n▼\n0xd8dA...6045\nETH\nSwap\nSend\nSwap\n\nEthereum\n·\nConnected 0xd8dA...6045\n\n1\nQuote\n—\nApprove\n3\nSign\n4\nConfirm\n\nThis pair is not supported by Swaperex commission routing yet.\n\nMore options\nYOU PAY\nBalance 1.4619\nMAX\nWETH\nWrapped Ether · Wrapped\nYOU RECEIVE\nAfter fees · estimate\nBalance unavailable\nPEPE\nPepe\nGetting quote...\n\nThis pair is not support"
+      }
+    },
+    {
+      "id": "polygon-unsupported",
+      "verdict": "PASS",
+      "evidence": {
+        "snippet": "Swaperex\nTrade\nPortfolio\nSecurity\nMarkets\n⬣\nPolygon\n▼\n0xd8dA...6045\nMATIC\nSwap\nSend\nSwap\n\nPolygon\n·\nConnected 0xd8dA...6045\n\n1\nQuote\n—\nApprove\n3\nSign\n4\nConfirm\n\nCommission routing is not available on this chain.\n\nMore options\nYOU PAY\nBalance unavailable\nWETH\nWrapped Ether\nYOU RECEIVE\nAfter fees · estimate\nBalance 76.6875\nUSDC\nUSD Coin\nGetting quote...\nUnknown route\nRoute support unknown. Quote may"
+      }
+    }
+  ],
+  "summary": {
+    "pairsPass": 5,
+    "pairsFail": 0
+  }
+}

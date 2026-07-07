@@ -82,6 +82,7 @@ import {
   type ConfirmSwapBlockReason,
 } from '@/utils/confirmSwapExecution';
 import { classifyCommissionRoute } from '@/utils/commission';
+import { isCommissionPairAuditBlocked } from '@/constants/commissionCoverage';
 import { estimateWrapperFeeWeiFromNetOutput } from '@/utils/wrapperFee';
 import {
   decodeNativeEthOutputAndFeeFromLogs,
@@ -687,6 +688,22 @@ export function useSwap() {
       }
 
       const commissionRequired = isCommissionRequiredMode();
+      if (
+        commissionRequired &&
+        isCommissionPairAuditBlocked(chainId || 1, fromSymbol, toSymbol)
+      ) {
+        throw attachCommissionRouteFailure(
+          'unsupported_commission_route',
+          'Pair blocked by Swaperex commission audit policy.',
+          {
+            attemptedProvider: 'policy_block',
+            chainId: chainId || 1,
+            fromSymbol,
+            toSymbol,
+            fromAmount,
+          },
+        );
+      }
       const tokenInMetaForMode = getTokenBySymbol(fromSymbol, chainId || 1);
       const tokenOutMetaForMode = getTokenBySymbol(toSymbol, chainId || 1);
       const inNativeForMode = tokenInMetaForMode ? isNativeToken(tokenInMetaForMode.address) : false;
