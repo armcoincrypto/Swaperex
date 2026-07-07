@@ -120,6 +120,17 @@ export function OperatorIntelligencePage({ token }: { token: string }) {
         <p className="text-sm text-dark-400 mt-1">
           Daily decision support — revenue, trends, and actionable recommendations (read-only).
         </p>
+        <p className="text-xs text-dark-500 mt-2">
+          <a
+            href="/trust"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent/90 hover:text-accent underline-offset-2 hover:underline"
+          >
+            Public trust page
+          </a>
+          <span className="text-dark-600"> — user-facing transparency (no operator data)</span>
+        </p>
         <p className="text-[11px] text-dark-500 mt-2 font-mono">
           Generated {data.generated_at} · {data.window.events_scanned} events /{' '}
           {data.window.batches_scanned} batches

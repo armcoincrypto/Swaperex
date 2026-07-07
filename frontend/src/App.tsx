@@ -48,6 +48,9 @@ const LazyPrivacyPage = lazy(() =>
 const LazyDisclaimerPage = lazy(() =>
   import('@/components/pages/StaticPages').then((m) => ({ default: m.DisclaimerPage }))
 );
+const LazyTrustCenterPage = lazy(() =>
+  import('@/components/pages/TrustCenterPage').then((m) => ({ default: m.TrustCenterPage }))
+);
 
 const LazyAdminApp = lazy(() => import('@/components/admin/AdminApp'));
 
@@ -109,13 +112,13 @@ const lazyTokenListSidebarFallback = (
   </aside>
 );
 
-type Page = 'swap' | 'send' | 'portfolio' | 'radar' | 'screener' | 'about' | 'terms' | 'privacy' | 'disclaimer';
+type Page = 'swap' | 'send' | 'portfolio' | 'radar' | 'screener' | 'about' | 'terms' | 'privacy' | 'disclaimer' | 'trust';
 
 /**
  * P3-A: map URL → `currentPage` for crawlable informational routes only.
  * `/` is not mapped here (swap vs send/portfolio share `/` until those routes exist).
  */
-function pathToPage(pathname: string): Extract<Page, 'about' | 'terms' | 'privacy' | 'disclaimer'> | null {
+function pathToPage(pathname: string): Extract<Page, 'about' | 'terms' | 'privacy' | 'disclaimer' | 'trust'> | null {
   switch (normalizePublicPath(pathname)) {
     case '/about':
       return 'about';
@@ -125,13 +128,15 @@ function pathToPage(pathname: string): Extract<Page, 'about' | 'terms' | 'privac
       return 'privacy';
     case '/disclaimer':
       return 'disclaimer';
+    case '/trust':
+      return 'trust';
     default:
       return null;
   }
 }
 
 /** P3-A: map `currentPage` → URL; `null` = leave path handling to caller (non-routed tabs). */
-function pageToPath(page: Page): '/' | '/about' | '/terms' | '/privacy' | '/disclaimer' | null {
+function pageToPath(page: Page): '/' | '/about' | '/terms' | '/privacy' | '/disclaimer' | '/trust' | null {
   switch (page) {
     case 'swap':
       return '/';
@@ -143,6 +148,8 @@ function pageToPath(page: Page): '/' | '/about' | '/terms' | '/privacy' | '/disc
       return '/privacy';
     case 'disclaimer':
       return '/disclaimer';
+    case 'trust':
+      return '/trust';
     default:
       return null;
   }
@@ -353,7 +360,8 @@ function DexMain() {
       currentPage === 'about' ||
       currentPage === 'terms' ||
       currentPage === 'privacy' ||
-      currentPage === 'disclaimer'
+      currentPage === 'disclaimer' ||
+      currentPage === 'trust'
     ) {
       setCurrentPage('swap');
     }
@@ -370,7 +378,7 @@ function DexMain() {
    * `detail.page` to route to a static page like Terms or Privacy.
    */
   useEffect(() => {
-    const allowed: Page[] = ['swap', 'send', 'portfolio', 'radar', 'screener', 'about', 'terms', 'privacy', 'disclaimer'];
+    const allowed: Page[] = ['swap', 'send', 'portfolio', 'radar', 'screener', 'about', 'terms', 'privacy', 'disclaimer', 'trust'];
     const onNav = (event: Event) => {
       const detail = (event as CustomEvent<{ page?: string }>).detail;
       const target = detail?.page;
@@ -784,6 +792,11 @@ function DexMain() {
         {currentPage === 'disclaimer' && (
           <Suspense fallback={lazyTabFallback}>
             <LazyDisclaimerPage onBack={() => navigate('/')} />
+          </Suspense>
+        )}
+        {currentPage === 'trust' && (
+          <Suspense fallback={lazyTabFallback}>
+            <LazyTrustCenterPage onBack={() => navigate('/')} />
           </Suspense>
         )}
       </main>

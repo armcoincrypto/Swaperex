@@ -53,6 +53,8 @@ export function DexLearnMoreSection() {
               Non-custodial swap interface — you connect, review quotes, and sign in your wallet.
             </p>
             <p className="text-[11px]">
+              <Link to="/trust" className={linkClass}>Trust Center</Link>
+              {' · '}
               <Link to="/about" className={linkClass}>About</Link>
               {' · '}
               <Link to="/terms" className={linkClass}>Terms</Link>

@@ -43,6 +43,13 @@ function specForPublicPath(p: string): SeoSpec {
         description: 'Review important risk, wallet, and transaction disclaimers for using Kobbex DEX.',
         canonicalPath: '/disclaimer',
       };
+    case '/trust':
+      return {
+        title: 'Trust Center — Kobbex DEX',
+        description:
+          'Transparency on custody, commission fees, supported networks, and audited swap routes on Swaperex.',
+        canonicalPath: '/trust',
+      };
     case '/':
     default:
       return {

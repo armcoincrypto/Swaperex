@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
+import { Link } from 'react-router-dom';
 import { useWallet } from '@/hooks/useWallet';
 import { useSwap } from '@/hooks/useSwap';
 import { useSwapStore, type ApprovalMode } from '@/stores/swapStore';
@@ -2630,6 +2631,12 @@ export function SwapInterface() {
               <p className="text-[11px] text-dark-400 leading-snug text-left">
                 <span className="text-dark-300 font-medium">{SWAP_SURFACE_COPY.swapCardTrustCompact}</span>
                 <span className="text-dark-500"> {SWAP_SURFACE_COPY.swapCardTrustMicroLine}</span>
+                <span className="text-dark-500">
+                  {' '}
+                  <Link to="/trust" className="text-accent/80 hover:text-accent underline-offset-2 hover:underline">
+                    Trust Center
+                  </Link>
+                </span>
               </p>
             </div>
             {termsAccepted && (

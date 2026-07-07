@@ -2,6 +2,7 @@
  * P4A — Swap-page banner when commission swaps are unavailable on the selected network.
  */
 
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/common/Button';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 import {
@@ -50,6 +51,11 @@ export function CommissionSwapChainBanner({
           ))}
         </div>
       ) : null}
+      <p className="mt-2 text-[11px] text-amber-100/70">
+        <Link to="/trust" className="underline underline-offset-2 hover:text-amber-50">
+          Why only some networks support swaps
+        </Link>
+      </p>
     </div>
   );
 }

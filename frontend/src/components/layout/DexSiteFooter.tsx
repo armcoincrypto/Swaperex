@@ -111,6 +111,12 @@ export function DexSiteFooter({ onNavigate }: DexSiteFooterProps) {
 
           <FooterColumn title="Resources">
             <Link
+              to="/trust"
+              className="text-sm text-dark-400 hover:text-white transition-colors no-underline"
+            >
+              Trust Center
+            </Link>
+            <Link
               to="/about"
               className="text-sm text-dark-400 hover:text-white transition-colors no-underline"
             >
