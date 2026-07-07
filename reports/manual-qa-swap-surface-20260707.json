@@ -1,0 +1,302 @@
+{
+  "testedAt": "2026-07-07T10:36:47.550Z",
+  "commit": "77c039b",
+  "devServer": "http://127.0.0.1:5173 (build OK)",
+  "browserWallet": "NOT TESTED — no browser MCP / wallet in CI environment",
+  "pairResults": [
+    {
+      "id": "wbnb-cake-fwd",
+      "chainId": 56,
+      "from": "WBNB",
+      "to": "CAKE",
+      "amount": "0.1",
+      "pair": "WBNB/CAKE",
+      "checks": {
+        "quote": "PASS",
+        "commission": "PASS",
+        "minReceived": "PASS",
+        "txTarget": "PASS",
+        "noRouterBypass": "PASS",
+        "allowlist": "PASS"
+      },
+      "evidence": {
+        "amountOut": "40.529394292709569474",
+        "minOut": "40.32674732",
+        "feeBps": 50,
+        "provider": "pancakeswap-v3-wrapper-v2",
+        "txTo": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+        "feeTier": 100
+      },
+      "verdict": "PASS"
+    },
+    {
+      "id": "wbnb-cake-rev",
+      "chainId": 56,
+      "from": "CAKE",
+      "to": "WBNB",
+      "amount": "0.1",
+      "pair": "CAKE/WBNB",
+      "checks": {
+        "quote": "PASS",
+        "commission": "PASS",
+        "minReceived": "PASS",
+        "txTarget": "PASS",
+        "noRouterBypass": "PASS",
+        "allowlist": "PASS"
+      },
+      "evidence": {
+        "amountOut": "0.000243992171241081",
+        "minOut": "0.00024277",
+        "feeBps": 50,
+        "provider": "pancakeswap-v3-wrapper-v2",
+        "txTo": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+        "feeTier": 100
+      },
+      "verdict": "PASS"
+    },
+    {
+      "id": "wbnb-usdc-fwd",
+      "chainId": 56,
+      "from": "WBNB",
+      "to": "USDC",
+      "amount": "0.1",
+      "pair": "WBNB/USDC",
+      "checks": {
+        "quote": "PASS",
+        "commission": "PASS",
+        "minReceived": "PASS",
+        "txTarget": "PASS",
+        "noRouterBypass": "PASS",
+        "allowlist": "PASS"
+      },
+      "evidence": {
+        "amountOut": "57.572447023886782026",
+        "minOut": "57.28458479",
+        "feeBps": 50,
+        "provider": "pancakeswap-v3-wrapper-v2",
+        "txTo": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+        "feeTier": 100
+      },
+      "verdict": "PASS"
+    },
+    {
+      "id": "wbnb-usdc-rev",
+      "chainId": 56,
+      "from": "USDC",
+      "to": "WBNB",
+      "amount": "25",
+      "pair": "USDC/WBNB",
+      "checks": {
+        "quote": "PASS",
+        "commission": "PASS",
+        "minReceived": "PASS",
+        "txTarget": "PASS",
+        "noRouterBypass": "PASS",
+        "allowlist": "PASS"
+      },
+      "evidence": {
+        "amountOut": "0.042981545931277942",
+        "minOut": "0.04276664",
+        "feeBps": 50,
+        "provider": "pancakeswap-v3-wrapper-v2",
+        "txTo": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+        "feeTier": 100
+      },
+      "verdict": "PASS"
+    },
+    {
+      "id": "wbnb-eth-fwd",
+      "chainId": 56,
+      "from": "WBNB",
+      "to": "ETH",
+      "amount": "0.1",
+      "pair": "WBNB/ETH",
+      "checks": {
+        "quote": "PASS",
+        "commission": "PASS",
+        "minReceived": "PASS",
+        "txTarget": "PASS",
+        "noRouterBypass": "PASS",
+        "allowlist": "PASS"
+      },
+      "evidence": {
+        "amountOut": "0.032421303386842453",
+        "minOut": "0.03225920",
+        "feeBps": 50,
+        "provider": "pancakeswap-v3-wrapper-v2",
+        "txTo": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+        "feeTier": 100
+      },
+      "verdict": "PASS"
+    },
+    {
+      "id": "wbnb-eth-rev",
+      "chainId": 56,
+      "from": "ETH",
+      "to": "WBNB",
+      "amount": "0.01",
+      "pair": "ETH/WBNB",
+      "checks": {
+        "quote": "PASS",
+        "commission": "PASS",
+        "minReceived": "PASS",
+        "txTarget": "PASS",
+        "noRouterBypass": "PASS",
+        "allowlist": "PASS"
+      },
+      "evidence": {
+        "amountOut": "0.030528500840945463",
+        "minOut": "0.03037586",
+        "feeBps": 50,
+        "provider": "pancakeswap-v3-wrapper-v2",
+        "txTo": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+        "feeTier": 100
+      },
+      "verdict": "PASS"
+    },
+    {
+      "id": "wbnb-fdusd-fwd",
+      "chainId": 56,
+      "from": "WBNB",
+      "to": "FDUSD",
+      "amount": "0.1",
+      "pair": "WBNB/FDUSD",
+      "checks": {
+        "quote": "PASS",
+        "commission": "PASS",
+        "minReceived": "PASS",
+        "txTarget": "PASS",
+        "noRouterBypass": "PASS",
+        "allowlist": "PASS"
+      },
+      "evidence": {
+        "amountOut": "56.176369052451413576",
+        "minOut": "55.89548721",
+        "feeBps": 50,
+        "provider": "pancakeswap-v3-wrapper-v2",
+        "txTo": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+        "feeTier": 500
+      },
+      "verdict": "PASS"
+    },
+    {
+      "id": "wbnb-fdusd-rev",
+      "chainId": 56,
+      "from": "FDUSD",
+      "to": "WBNB",
+      "amount": "0.1",
+      "pair": "FDUSD/WBNB",
+      "checks": {
+        "quote": "PASS",
+        "commission": "PASS",
+        "minReceived": "PASS",
+        "txTarget": "PASS",
+        "noRouterBypass": "PASS",
+        "allowlist": "PASS"
+      },
+      "evidence": {
+        "amountOut": "0.000171607597051413",
+        "minOut": "0.00017075",
+        "feeBps": 50,
+        "provider": "pancakeswap-v3-wrapper-v2",
+        "txTo": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+        "feeTier": 500
+      },
+      "verdict": "PASS"
+    },
+    {
+      "id": "weth-dai-fwd",
+      "chainId": 1,
+      "from": "WETH",
+      "to": "DAI",
+      "amount": "0.01",
+      "pair": "WETH/DAI",
+      "checks": {
+        "quote": "PASS",
+        "commission": "PASS",
+        "minReceived": "PASS",
+        "txTarget": "PASS",
+        "noRouterBypass": "PASS",
+        "allowlist": "PASS"
+      },
+      "evidence": {
+        "amountOut": "17.717168621404676838",
+        "minOut": "17.62858278",
+        "feeBps": 20,
+        "provider": "uniswap-v3-wrapper-v3",
+        "txTo": "0xa7702Ce9267567fd811B39C886CdABeC6eB249fc",
+        "feeTier": 100
+      },
+      "verdict": "PASS"
+    },
+    {
+      "id": "weth-dai-rev",
+      "chainId": 1,
+      "from": "DAI",
+      "to": "WETH",
+      "amount": "0.1",
+      "pair": "DAI/WETH",
+      "checks": {
+        "quote": "PASS",
+        "commission": "PASS",
+        "minReceived": "PASS",
+        "txTarget": "PASS",
+        "noRouterBypass": "PASS",
+        "allowlist": "PASS"
+      },
+      "evidence": {
+        "amountOut": "0.00002202902566967",
+        "minOut": "0.00002192",
+        "feeBps": 20,
+        "provider": "uniswap-v3-wrapper-v2",
+        "txTo": "0x660B2E98E9eeAA4CaE21f319FbF3D6aD6909b491",
+        "feeTier": 100
+      },
+      "verdict": "PASS"
+    }
+  ],
+  "negativeTests": [
+    {
+      "id": "pepe-block",
+      "pair": "WETH/PEPE",
+      "chainId": 1,
+      "verdict": "PASS",
+      "checks": {
+        "policyBlocked": "PASS",
+        "notAllowlisted": "PASS"
+      },
+      "evidence": {
+        "blockedSet": [
+          "1|WETH|PEPE",
+          "1|PEPE|WETH"
+        ],
+        "uiShowsBlockedVia": "isCommissionPairAuditBlocked in SwapInterface"
+      },
+      "walletRejectTx": "NOT TESTED"
+    },
+    {
+      "id": "polygon-unsupported",
+      "chainId": 137,
+      "pair": "WETH/USDC",
+      "verdict": "PASS",
+      "checks": {
+        "commissionModeOnlyEthBsc": "PASS"
+      },
+      "evidence": {
+        "quoteAggregatorBehavior": "throws commission_chain_no_wrapper / unsupported for chainId not in {1,56}",
+        "chainsBlocked": [
+          137,
+          42161,
+          10,
+          8453
+        ]
+      },
+      "walletRejectTx": "NOT TESTED"
+    }
+  ],
+  "summary": {
+    "pairPass": 10,
+    "pairFail": 0,
+    "negativePass": 2
+  }
+}
