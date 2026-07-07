@@ -26,6 +26,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from swaperex.api.dependencies import get_session
 from swaperex.api.health_alerts import build_health_alerts_payload
+from swaperex.api.operator_intelligence import build_operator_intelligence_payload
+from swaperex.api.operator_decision_support import (
+    HARD_MAX_BATCHES,
+    DEFAULT_MAX_BATCHES,
+    persist_daily_snapshot_if_needed,
+)
 from swaperex.api.swap_lifecycle_reconstruction import build_swap_lifecycles_payload
 from swaperex.config import get_settings
 from swaperex.ledger.models import MonitoringIngestBatch
@@ -2003,3 +2009,51 @@ async def admin_wallet_reconnect(session: AsyncSession = Depends(get_session)) -
         "recent_sessions": recent_sessions,
         "reconnect_timeline": reconnect_timeline,
     }
+
+
+@router.get(
+    "/operator-intelligence",
+    summary="P5A operator revenue intelligence (read-only aggregates)",
+    dependencies=[Depends(require_admin_api_token)],
+)
+async def admin_operator_intelligence(
+    session: AsyncSession = Depends(get_session),
+    max_batches: int = Query(default=DEFAULT_MAX_BATCHES, ge=1, le=5000, alias="maxBatches"),
+    persist_daily: bool = Query(default=False, alias="persistDaily"),
+) -> dict[str, Any]:
+    import time
+
+    effective_max = min(max_batches, HARD_MAX_BATCHES)
+    count_stmt = select(func.count()).select_from(MonitoringIngestBatch)
+    total_batches = int((await session.execute(count_stmt)).scalar_one())
+
+    t0 = time.perf_counter()
+    stmt = (
+        select(MonitoringIngestBatch)
+        .order_by(MonitoringIngestBatch.id.desc())
+        .limit(effective_max)
+    )
+    batches = (await session.execute(stmt)).scalars().all()
+    scan_duration_ms = round((time.perf_counter() - t0) * 1000, 1)
+
+    payload = build_operator_intelligence_payload(
+        batches,
+        max_batches=effective_max,
+        scan_metadata={
+            "scan_limited": total_batches > len(batches),
+            "scan_duration_ms": scan_duration_ms,
+            "total_batches_in_db": total_batches,
+        },
+    )
+    if persist_daily:
+        snap = payload.get("_meta", {}).get("persist_snapshot")
+        if isinstance(snap, dict):
+            await persist_daily_snapshot_if_needed(
+                session,
+                batches,
+                snap,
+                exported_at_ms=int(datetime.now(timezone.utc).timestamp() * 1000),
+            )
+        if isinstance(payload.get("_meta"), dict):
+            payload["_meta"] = {k: v for k, v in payload["_meta"].items() if k != "persist_snapshot"}
+    return payload

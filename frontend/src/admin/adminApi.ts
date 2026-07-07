@@ -564,6 +564,168 @@ export async function fetchAdminWalletReconnect(token: string): Promise<AdminWal
   return (await res.json()) as AdminWalletReconnectResponse;
 }
 
+export type AdminOperatorIntelligencePairRow = {
+  pair_key: string;
+  pair_label: string;
+  count?: number;
+  quotes?: number;
+  swaps?: number;
+  conversion_pct?: number | null;
+  previews?: number;
+  abandon_estimate?: number;
+  abandon_pct?: number | null;
+  commission_wei?: string;
+  recommendation?: string;
+};
+
+export type AdminOperatorIntelligenceResponse = {
+  schema_version: number;
+  generated_at: string;
+  p4a_deploy_at: string;
+  window: {
+    max_batches: number;
+    batches_scanned: number;
+    events_scanned: number;
+    scan?: {
+      batches_scanned: number;
+      events_scanned: number;
+      max_batches: number;
+      scan_limited: boolean;
+      scan_duration_ms: number | null;
+      total_batches_in_db: number | null;
+    };
+  };
+  executive_summary: {
+    commission_today: Array<{ token: string; fee_wei: string }>;
+    commission_yesterday: Array<{ token: string; fee_wei: string }>;
+    commission_7d: Array<{ token: string; fee_wei: string }>;
+    commission_30d: Array<{ token: string; fee_wei: string }>;
+    completed_swaps_7d: number;
+    quote_success_rate_pct: number | null;
+    p4a_comparison: Record<string, string | number>;
+  };
+  funnel: {
+    stages: Array<{ stage: string; count: number; conversion_from_prior_pct: number | null }>;
+    largest_drop_off: { from_stage: string; to_stage: string; drop_pct: number } | null;
+    preview_abandonment_sessions: number;
+    approve_abandonment_sessions: number;
+    pair_selected_by_source: Array<{ source: string; count: number }>;
+    limitations: string[];
+  };
+  pairs: {
+    top_requested: AdminOperatorIntelligencePairRow[];
+    top_revenue: AdminOperatorIntelligencePairRow[];
+    top_conversion: AdminOperatorIntelligencePairRow[];
+    top_abandoned: AdminOperatorIntelligencePairRow[];
+    top_unsupported: AdminOperatorIntelligencePairRow[];
+    featured_suggestions: AdminOperatorIntelligencePairRow[];
+  };
+  chains: Array<{
+    chain_id: number;
+    quotes: number;
+    unsupported_chain_selections: number;
+    completed_swaps: number;
+    recommendation: string;
+  }>;
+  revenue: Record<string, unknown>;
+  quality: Record<string, number>;
+  alerts: Array<{
+    id: string;
+    severity: string;
+    trigger: string;
+    action: string;
+  }>;
+  _meta: { limitations: string[] };
+  decision_support?: AdminDecisionSupport;
+};
+
+export type AdminDecisionSupport = {
+  schema_version: number;
+  data_confidence: {
+    level: string;
+    label: string;
+    quotes_7d: number;
+    minimum_required: number;
+    medium_threshold: number;
+    high_threshold: number;
+    message: string | null;
+    ui_hint: string | null;
+  };
+  daily_executive_summary: {
+    status: { level: string; label: string; reasons: string[] };
+    data_confidence: AdminDecisionSupport['data_confidence'];
+    commission_today_wei: number;
+    commission_yesterday_wei: number;
+    commission_7d_change_pct: number | null;
+    swap_count_today: number;
+    swap_count_yesterday: number;
+    quote_count_today: number;
+    quote_count_yesterday: number;
+    quote_success_rate_pct_today: number | null;
+    swap_success_rate_pct_today: number | null;
+    largest_swap_today: Record<string, unknown> | null;
+    largest_commission_today: Record<string, unknown> | null;
+    top_chain_today: { chain_id: number; count: number } | null;
+    top_pair_today: { pair_label: string; count: number } | null;
+    biggest_improvement: { pair_label: string; delta_quotes: number; change_pct: number | null } | null;
+    biggest_decline: { pair_label: string; delta_quotes: number; change_pct: number | null } | null;
+  };
+  recommendations: Array<{
+    id: string;
+    title: string;
+    reason: string;
+    evidence: string;
+    confidence: string;
+    sample_size?: number;
+    pair_quotes_7d?: number;
+    action: string;
+    priority: string;
+  }>;
+  trends: {
+    pairs: Record<string, { growing: Array<Record<string, unknown>>; declining: Array<Record<string, unknown>> }>;
+    chains: Record<string, { growing: Array<Record<string, unknown>>; declining: Array<Record<string, unknown>> }>;
+    commission: Record<string, number | null>;
+    quotes: Record<string, number | null>;
+    swaps: Record<string, number | null>;
+    note: string;
+  };
+  featured_automation: {
+    recommended_featured: Array<Record<string, unknown>>;
+    recommended_removal: Array<Record<string, unknown>>;
+    static_featured_keys: string[];
+    scoring_note: string;
+  };
+  health_score: {
+    score: number | null;
+    sufficient?: boolean;
+    caution?: string | null;
+    message?: string | null;
+    deductions: Array<{ dimension: string; points: number; reason: string }>;
+    dimensions: string[];
+  };
+  insight_history: {
+    today: Record<string, unknown> | null;
+    yesterday: Record<string, unknown> | null;
+    days_7_ago: Record<string, unknown> | null;
+    days_30_ago: Record<string, unknown> | null;
+    stored_days: string[];
+    storage: Record<string, string>;
+  };
+};
+
+export async function fetchAdminOperatorIntelligence(
+  token: string,
+  params: { maxBatches?: number } = {},
+): Promise<AdminOperatorIntelligenceResponse> {
+  const q = new URLSearchParams();
+  if (params.maxBatches != null) q.set('maxBatches', String(params.maxBatches));
+  const qs = q.toString();
+  const path = qs ? `admin/operator-intelligence?${qs}` : 'admin/operator-intelligence';
+  const res = await adminFetch(path, token);
+  if (!res.ok) throw new Error(`admin operator-intelligence ${res.status}`);
+  return (await res.json()) as AdminOperatorIntelligenceResponse;
+}
+
 export type AdminFailureRates = {
   wallet_rejection_rate: number | null;
   provider_timeout_rate: number | null;

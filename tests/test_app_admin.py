@@ -75,6 +75,7 @@ def test_admin_app_exposes_health_monitoring_and_readonly_admin():
     assert "/api/v1/admin/revenue-reconciliation" in paths, paths
     assert "/api/v1/admin/swap-lifecycles" in paths, paths
     assert "/api/v1/admin/health-alerts" in paths, paths
+    assert "/api/v1/admin/operator-intelligence" in paths, paths
 
 
 def test_admin_app_does_not_expose_custodial_routes():
@@ -1233,5 +1234,136 @@ async def test_admin_overview_counts_batches(admin_client, monkeypatch):
     data = ov.json()
     assert data["monitoring_batch_count"] >= 1
     assert data["monitoring_latest_received_at"] is not None
+
+    get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_admin_operator_intelligence_endpoint(admin_client, monkeypatch):
+    """P5A — operator intelligence aggregates monitoring batches (read-only)."""
+    monkeypatch.setenv("ADMIN_API_TOKEN", "panel-secret-test")
+    from swaperex.config import get_settings
+
+    get_settings.cache_clear()
+    client, _ = admin_client
+    hdr = {"X-Admin-Token": "panel-secret-test"}
+
+    await client.post(
+        "/api/v1/monitoring/events",
+        json={
+            "schemaVersion": 1,
+            "clientSessionId": "oi-test",
+            "exportedAt": 1,
+            "events": [
+                {
+                    "event": "quote_success",
+                    "ts": 1_700_000_000_000,
+                    "chainId": 1,
+                    "pairKey": "1|WETH|USDC",
+                },
+                {
+                    "event": "swap_success",
+                    "ts": 1_700_000_000_000,
+                    "chainId": 1,
+                    "pairKey": "1|WETH|USDC",
+                    "fromAmount": "2",
+                    "feeToTreasuryWei": "500",
+                    "feeToken": {"symbol": "USDC"},
+                },
+            ],
+        },
+    )
+
+    res = await client.get("/api/v1/admin/operator-intelligence?maxBatches=10", headers=hdr)
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["schema_version"] == 3
+    assert body["window"]["events_scanned"] >= 2
+    assert "scan" in body["window"]
+    assert body["window"]["scan"]["batches_scanned"] <= 10
+    assert "funnel" in body
+    assert "pairs" in body
+    assert "alerts" in body
+    assert "decision_support" in body
+    assert body["telemetry_inventory_summary"]["event_counts"].get("quote_success", 0) >= 1
+
+    get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_operator_intelligence_plain_get_no_snapshot_write(admin_client, monkeypatch):
+    """P5B.1 — default GET must not persist daily snapshots."""
+    monkeypatch.setenv("ADMIN_API_TOKEN", "panel-secret-test")
+    from swaperex.config import get_settings
+
+    get_settings.cache_clear()
+    client, db_path = admin_client
+    hdr = {"X-Admin-Token": "panel-secret-test"}
+
+    import sqlalchemy as sa
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    engine = create_async_engine(f"sqlite+aiosqlite:///{db_path}")
+    async with engine.begin() as conn:
+        before = (
+            await conn.execute(
+                sa.text(
+                    "SELECT COUNT(*) FROM monitoring_ingest_batches "
+                    "WHERE client_session_id = 'p5b-insight-store'"
+                )
+            )
+        ).scalar_one()
+    await engine.dispose()
+
+    res = await client.get("/api/v1/admin/operator-intelligence", headers=hdr)
+    assert res.status_code == 200
+
+    engine = create_async_engine(f"sqlite+aiosqlite:///{db_path}")
+    async with engine.begin() as conn:
+        after = (
+            await conn.execute(
+                sa.text(
+                    "SELECT COUNT(*) FROM monitoring_ingest_batches "
+                    "WHERE client_session_id = 'p5b-insight-store'"
+                )
+            )
+        ).scalar_one()
+    await engine.dispose()
+    assert after == before
+
+    get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_operator_intelligence_persist_daily_idempotent(admin_client, monkeypatch):
+    """P5B.1 — persistDaily=true writes at most one snapshot per UTC day."""
+    monkeypatch.setenv("ADMIN_API_TOKEN", "panel-secret-test")
+    from swaperex.config import get_settings
+
+    get_settings.cache_clear()
+    client, db_path = admin_client
+    hdr = {"X-Admin-Token": "panel-secret-test"}
+
+    url = "/api/v1/admin/operator-intelligence?persistDaily=true"
+    r1 = await client.get(url, headers=hdr)
+    r2 = await client.get(url, headers=hdr)
+    assert r1.status_code == 200
+    assert r2.status_code == 200
+
+    import sqlalchemy as sa
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    engine = create_async_engine(f"sqlite+aiosqlite:///{db_path}")
+    async with engine.begin() as conn:
+        count = (
+            await conn.execute(
+                sa.text(
+                    "SELECT COUNT(*) FROM monitoring_ingest_batches "
+                    "WHERE client_session_id = 'p5b-insight-store'"
+                )
+            )
+        ).scalar_one()
+    await engine.dispose()
+    assert count == 1
 
     get_settings.cache_clear()

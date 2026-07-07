@@ -43,6 +43,7 @@ import {
   type AdminWalletReconnectResponse,
   type AdminWalletReconnectSessionRow,
 } from '@/admin/adminApi';
+import { OperatorIntelligencePage } from '@/components/admin/OperatorIntelligencePage';
 
 const AdminTokenContext = createContext<{
   token: string;
@@ -135,6 +136,9 @@ function AdminLayout() {
           </NavLink>
           <NavLink to="/admin/revenue" className={navCls}>
             Revenue
+          </NavLink>
+          <NavLink to="/admin/intelligence" className={navCls}>
+            Intelligence
           </NavLink>
           <NavLink to="/admin/lifecycle" className={navCls}>
             Lifecycle
@@ -2398,6 +2402,11 @@ function AdminOverviewPage() {
   );
 }
 
+function AdminOperatorIntelligenceRoute() {
+  const { token } = useAdminToken();
+  return <OperatorIntelligencePage token={token} />;
+}
+
 export default function AdminApp() {
   const [token, setToken] = useState<string | null>(() => getStoredAdminToken());
 
@@ -2424,6 +2433,7 @@ export default function AdminApp() {
           <Route path="events" element={<AdminEventsPage />} />
           <Route path="swaps" element={<AdminSwapsPage />} />
           <Route path="revenue" element={<AdminRevenuePage />} />
+          <Route path="intelligence" element={<AdminOperatorIntelligenceRoute />} />
           <Route path="lifecycle" element={<AdminSwapLifecyclesPage />} />
           <Route path="failures" element={<AdminFailuresPage />} />
           <Route path="wallet" element={<AdminWalletReconnectPage />} />
