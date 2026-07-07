@@ -102,6 +102,10 @@ import {
 } from '@/utils/routingDisplayStatus';
 import type { QuoteFailureReasonCode } from '@/utils/errors';
 import { logProductionEvent } from '@/utils/productionMonitoring';
+import { logRevenueTelemetry } from '@/utils/revenueTelemetry';
+import { isCommissionSwapUnavailableOnChain } from '@/constants/commissionChains';
+import { CommissionSwapChainBanner } from '@/components/swap/CommissionSwapChainBanner';
+import { FeaturedCommissionRoutes } from '@/components/swap/FeaturedCommissionRoutes';
 import { InlineSkeleton } from '@/components/common/InlineSkeleton';
 
 // Chain ID to chain name mapping
@@ -279,7 +283,8 @@ function nativeWrappedBadgeKind(asset: AssetInfo, chainId: number): 'native' | '
 }
 
 export function SwapInterface() {
-  const { isConnected, address, isWrongChain, chainId, provider, isReadOnly } = useWallet();
+  const { isConnected, address, isWrongChain, chainId, provider, isReadOnly, switchNetwork } =
+    useWallet();
   const { getTokenBalance, currentChainUnsupported } = useBalances();
   const chainStatus = useBalanceStore((s) => s.chainStatus);
   const balanceRows = useBalanceStore((s) => s.balances);
@@ -289,6 +294,7 @@ export function SwapInterface() {
 
   // Get available tokens for current chain (static + custom)
   const currentChainId = chainId || 1;
+  const commissionSwapUnavailable = isCommissionSwapUnavailableOnChain(currentChainId);
   const customTokens = getCustomTokens(currentChainId);
 
   const AVAILABLE_TOKENS = useMemo(() => {
@@ -1079,6 +1085,14 @@ export function SwapInterface() {
 
   // Expired quote: refresh only (stay on swap card). Fresh quote: open preview as today.
   const handleMainSwapAction = async () => {
+    if (commissionSwapUnavailable) {
+      try {
+        await switchNetwork(1);
+      } catch {
+        toast.error('Could not switch network. Try from your wallet app.');
+      }
+      return;
+    }
     if (
       status === 'error' &&
       quoteErrorParsed?.reasonCode === 'unsupported_commission_route'
@@ -1156,6 +1170,17 @@ export function SwapInterface() {
           provider: swapQuote?.provider ?? null,
           routeMode: String(routeMode),
           quoteFingerprint: quoteInputFingerprint,
+        });
+        logRevenueTelemetry('preview_opened', {
+          chainId: currentChainId,
+          fromSymbol: fromAsset?.symbol,
+          toSymbol: toAsset?.symbol,
+          pairKey:
+            fromAsset && toAsset
+              ? `${currentChainId}|${fromAsset.symbol}|${toAsset.symbol}`
+              : undefined,
+          source: 'swap_card',
+          provider: swapQuote?.provider,
         });
       }
       await swap();
@@ -1288,6 +1313,7 @@ export function SwapInterface() {
   const getButtonText = (): string => {
     if (!isConnected) return 'Connect Wallet';
     if (isWrongChain) return 'Wrong Network';
+    if (commissionSwapUnavailable) return SWAP_SURFACE_COPY.commissionSwapSwitchNetworkCta;
     if (!fromAmount || parseFloat(fromAmount) === 0) return 'Enter Amount';
     // Phase 2 native quote-only: stable CTA must win over balance / approval / refresh / pipeline labels
     if (isEthNativeV2QuoteOnlyNoExec && hasUsableQuote) {
@@ -1321,6 +1347,7 @@ export function SwapInterface() {
   const isButtonDisabled = (): boolean => {
     if (!isConnected) return true;
     if (isWrongChain) return true;
+    if (commissionSwapUnavailable) return false;
     if (!fromAmount || parseFloat(fromAmount) === 0) return true;
     if (
       status === 'approving' ||
@@ -1469,6 +1496,7 @@ export function SwapInterface() {
   /** Visual-only CTA styling — does not change disabled rules or execution. */
   const ctaVisualState = useMemo(() => {
     if (!isConnected || isWrongChain) return 'neutral' as const;
+    if (commissionSwapUnavailable) return 'unsupported' as const;
     if (
       status === 'error' &&
       quoteErrorParsed?.reasonCode === 'unsupported_commission_route' &&
@@ -1488,6 +1516,7 @@ export function SwapInterface() {
   }, [
     isConnected,
     isWrongChain,
+    commissionSwapUnavailable,
     status,
     quoteErrorParsed?.reasonCode,
     swapQuote,
@@ -1537,6 +1566,15 @@ export function SwapInterface() {
             isQuoteExpired={isQuoteExpired}
           />
         </div>
+
+        <CommissionSwapChainBanner
+          chainId={currentChainId}
+          onSwitchToSwapChain={(targetChainId) => {
+            void switchNetwork(targetChainId).catch(() => {
+              toast.error('Could not switch network. Try from your wallet app.');
+            });
+          }}
+        />
 
         <SwapExecutionRail
           status={status}
@@ -2088,7 +2126,7 @@ export function SwapInterface() {
                 if (q.provider === '1inch' && isMonetizationActiveForProvider('1inch')) {
                   return (
                     <div className="flex justify-between gap-2 min-w-0 items-baseline">
-                      <span className="text-dark-400 shrink-0">Protocol fee</span>
+                      <span className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.swaperexFeeLabel}</span>
                       <span
                         className="min-w-0 text-right text-dark-200 tabular-nums break-words"
                         title="Output-token fee via 1inch on execution; quote output is estimated before this fee"
@@ -2101,7 +2139,7 @@ export function SwapInterface() {
                 if (q.provider === 'uniswap-v3-wrapper') {
                   return (
                     <div className="flex justify-between gap-2 min-w-0 items-baseline">
-                      <span className="text-dark-400 shrink-0">Protocol fee</span>
+                      <span className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.swaperexFeeLabel}</span>
                       <span
                         className="min-w-0 text-right text-dark-200 tabular-nums break-words"
                         title="Taken from gross swap output on-chain; quoted receive amount is net of this fee."
@@ -2114,10 +2152,10 @@ export function SwapInterface() {
                 if (q.provider === 'uniswap-v3-wrapper-v2') {
                   return (
                     <div className="flex justify-between gap-2 min-w-0 items-baseline">
-                      <span className="text-dark-400 shrink-0">Protocol fee</span>
+                      <span className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.swaperexFeeLabel}</span>
                       <span
                         className="min-w-0 text-right text-dark-200 tabular-nums break-words"
-                        title="Swaperex Uniswap wrapper V2 — taken from gross output on-chain; quoted receive amount is net."
+                        title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
                       >
                         {(getUniswapWrapperV2FeeBpsForUi() / 100).toFixed(2)}%
                       </span>
@@ -2127,10 +2165,10 @@ export function SwapInterface() {
                 if (q.provider === 'uniswap-v3-wrapper-v3') {
                   return (
                     <div className="flex justify-between gap-2 min-w-0 items-baseline">
-                      <span className="text-dark-400 shrink-0">Protocol fee</span>
+                      <span className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.swaperexFeeLabel}</span>
                       <span
                         className="min-w-0 text-right text-dark-200 tabular-nums break-words"
-                        title="Swaperex Uniswap wrapper V3 — taken from gross output on-chain; quoted receive amount is net."
+                        title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
                       >
                         {(getUniswapWrapperV3FeeBpsForUi() / 100).toFixed(2)}%
                       </span>
@@ -2140,10 +2178,10 @@ export function SwapInterface() {
                 if (q.provider === 'pancakeswap-v3-wrapper') {
                   return (
                     <div className="flex justify-between gap-2 min-w-0 items-baseline">
-                      <span className="text-dark-400 shrink-0">Protocol fee</span>
+                      <span className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.swaperexFeeLabel}</span>
                       <span
                         className="min-w-0 text-right text-dark-200 tabular-nums break-words"
-                        title="Swaperex Pancake wrapper — taken from gross output on-chain; quoted receive amount is net."
+                        title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
                       >
                         {(getPancakeWrapperFeeBpsForUi() / 100).toFixed(2)}%
                       </span>
@@ -2153,10 +2191,10 @@ export function SwapInterface() {
                 if (q.provider === 'pancakeswap-v3-wrapper-v2') {
                   return (
                     <div className="flex justify-between gap-2 min-w-0 items-baseline">
-                      <span className="text-dark-400 shrink-0">Protocol fee</span>
+                      <span className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.swaperexFeeLabel}</span>
                       <span
                         className="min-w-0 text-right text-dark-200 tabular-nums break-words"
-                        title="Swaperex Pancake wrapper V2 — taken from gross output on-chain; quoted receive amount is net."
+                        title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
                       >
                         {(getPancakeWrapperV2FeeBpsForUi() / 100).toFixed(2)}%
                       </span>
@@ -2165,10 +2203,10 @@ export function SwapInterface() {
                 }
                 return (
                   <div className="flex justify-between gap-2 min-w-0 items-baseline">
-                    <span className="text-dark-400 shrink-0">Protocol fee</span>
+                    <span className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.swaperexFeeLabel}</span>
                     <span
                       className="min-w-0 text-right text-dark-200 tabular-nums break-words"
-                      title="No separate Swaperex protocol fee on this route"
+                      title="No separate Swaperex fee on this route"
                     >
                       None
                     </span>
@@ -2329,7 +2367,7 @@ export function SwapInterface() {
                         <span className="text-dark-400 shrink-0">Wrapper V2 protocol fee</span>
                         <span
                           className="text-right text-dark-200"
-                          title="Swaperex Uniswap wrapper V2 — taken from gross output on-chain; quoted receive amount is net."
+                          title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
                         >
                           {(getUniswapWrapperV2FeeBpsForUi() / 100).toFixed(2)}%
                         </span>
@@ -2348,7 +2386,7 @@ export function SwapInterface() {
                         <span className="text-dark-400 shrink-0">Wrapper V3 protocol fee</span>
                         <span
                           className="text-right text-dark-200"
-                          title="Swaperex Uniswap wrapper V3 — taken from gross output on-chain; quoted receive amount is net."
+                          title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
                         >
                           {(getUniswapWrapperV3FeeBpsForUi() / 100).toFixed(2)}%
                         </span>
@@ -2362,7 +2400,7 @@ export function SwapInterface() {
                         <span className="text-dark-400 shrink-0">Wrapper protocol fee</span>
                         <span
                           className="text-right text-dark-200"
-                          title="Swaperex Pancake wrapper — taken from gross output on-chain; quoted receive amount is net."
+                          title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
                         >
                           {(getPancakeWrapperFeeBpsForUi() / 100).toFixed(2)}%
                         </span>
@@ -2381,7 +2419,7 @@ export function SwapInterface() {
                         <span className="text-dark-400 shrink-0">Wrapper V2 protocol fee</span>
                         <span
                           className="text-right text-dark-200"
-                          title="Swaperex Pancake wrapper V2 — taken from gross output on-chain; quoted receive amount is net."
+                          title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
                         >
                           {(getPancakeWrapperV2FeeBpsForUi() / 100).toFixed(2)}%
                         </span>
@@ -2545,6 +2583,19 @@ export function SwapInterface() {
         )}
 
         {/* Swap Button */}
+        <FeaturedCommissionRoutes
+          activeChainId={currentChainId}
+          fromAsset={fromAsset}
+          toAsset={toAsset}
+          onSelectPair={(from, to) => {
+            setShowFromSelector(false);
+            setShowToSelector(false);
+            setFromAsset(from);
+            setToAsset(to);
+            reset();
+          }}
+        />
+
         <div className="relative z-10 mt-4">
           <button
             id="swap-main-cta"

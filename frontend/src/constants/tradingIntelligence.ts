@@ -120,9 +120,9 @@ export function getRoutesByBadge(
 export function routeIntelBadgeLabel(badge: RouteIntelBadge): string {
   switch (badge) {
     case 'most-used':
-      return 'Most used';
+      return 'Featured';
     case 'trending':
-      return 'Trending';
+      return 'High-liquidity';
     case 'audited':
       return 'Audited';
   }

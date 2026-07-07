@@ -127,7 +127,7 @@ export function buildMarketContext(activeChainId: number): MarketContextRow[] {
     },
     {
       label: 'Route categories',
-      value: 'Most used · Trending · Audited',
+      value: 'Featured · High-liquidity · Audited',
     },
   ];
 

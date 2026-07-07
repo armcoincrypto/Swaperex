@@ -41,12 +41,14 @@ export function syncStructuredDataForPath(normalizedPath: string): void {
   const graph: Record<string, unknown>[] = [
     {
       '@type': 'Organization',
-      name: 'Kobbex DEX',
+      name: 'Swaperex',
+      alternateName: 'Kobbex DEX',
       url: origin,
     },
     {
       '@type': 'WebSite',
-      name: 'Kobbex DEX',
+      name: 'Swaperex',
+      alternateName: 'Kobbex DEX',
       url: origin,
     },
   ];

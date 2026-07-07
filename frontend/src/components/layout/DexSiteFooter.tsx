@@ -29,14 +29,8 @@ interface DexSiteFooterProps {
   onNavigate: (target: FooterNavTarget) => void;
 }
 
-const SUPPORTED_NETWORKS = [
-  'Ethereum',
-  'BNB Chain',
-  'Polygon',
-  'Arbitrum',
-  'Optimism',
-  'Avalanche',
-] as const;
+const SWAP_NETWORKS = ['Ethereum', 'BNB Chain'] as const;
+const BALANCE_VIEW_NETWORKS = ['Polygon', 'Arbitrum', 'Optimism', 'Avalanche'] as const;
 
 function FooterLink({
   children,
@@ -146,10 +140,15 @@ export function DexSiteFooter({ onNavigate }: DexSiteFooterProps) {
         <div className="mt-10 pt-6 border-t border-white/[0.06] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="min-w-0">
             <p className="text-[10px] uppercase tracking-wider text-dark-500 mb-2">
-              Supported Networks
+              Networks
             </p>
             <p className="text-xs text-dark-400 leading-relaxed">
-              {SUPPORTED_NETWORKS.join(' · ')}
+              <span className="text-dark-300">Swap networks:</span>{' '}
+              {SWAP_NETWORKS.join(' · ')}
+            </p>
+            <p className="text-xs text-dark-500 leading-relaxed mt-1">
+              <span className="text-dark-400">Balance view:</span>{' '}
+              {BALANCE_VIEW_NETWORKS.join(' · ')}
             </p>
           </div>
 

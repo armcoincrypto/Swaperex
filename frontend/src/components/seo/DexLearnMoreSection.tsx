@@ -40,7 +40,7 @@ function LearnMoreBlock({
 
 export function DexLearnMoreSection() {
   return (
-    <section className="mt-6 pt-4 border-t border-white/[0.05]" aria-label="Learn more about Kobbex DEX">
+    <section className="mt-6 pt-4 border-t border-white/[0.05]" aria-label="Learn more about Swaperex">
       <details className="group rounded-xl border border-white/[0.06] bg-electro-panel/15 overflow-hidden">
         <summary className="cursor-pointer list-none flex items-center justify-between gap-3 px-3 py-2.5 sm:px-4 [&::-webkit-details-marker]:hidden">
           <span className="text-xs font-medium text-dark-300">Learn More</span>
@@ -89,8 +89,12 @@ export function DexLearnMoreSection() {
 
           <LearnMoreBlock title="Routing & networks">
             <p className="text-[11px]">
-              Quotes may route via integrated DEX protocols. Supported:{' '}
-              {CHAINS.map((c) => c.name).join(', ')}. Review preview and wallet before signing.
+              Swaps with Swaperex commission routing: Ethereum and BNB Chain. Balance and network
+              view also supports{' '}
+              {CHAINS.filter((c) => c.id !== 1 && c.id !== 56)
+                .map((c) => c.name)
+                .join(', ')}
+              . Review preview and wallet before signing.
             </p>
           </LearnMoreBlock>
         </div>

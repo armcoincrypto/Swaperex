@@ -8,6 +8,8 @@
 import { useState } from 'react';
 import { useWallet } from '@/hooks/useWallet';
 import { CHAINS } from '@/utils/constants';
+import { isCommissionSwapChain } from '@/constants/commissionChains';
+import { logRevenueTelemetry } from '@/utils/revenueTelemetry';
 
 interface NetworkInfo {
   chainId: number;
@@ -58,6 +60,11 @@ export function NetworkSelector() {
     setIsSwitching(true);
     try {
       await switchNetwork(network.chainId);
+      logRevenueTelemetry('chain_selected', {
+        chainId: network.chainId,
+        source: 'network_selector',
+        swapCapable: isCommissionSwapChain(network.chainId),
+      });
       setIsOpen(false);
     } catch (error) {
       console.error('[NetworkSelector] Failed to switch network:', error);

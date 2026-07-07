@@ -7,6 +7,7 @@ import { useMemo, useState } from 'react';
 import type { AssetInfo } from '@/types/api';
 import { isCommissionRequiredMode } from '@/config';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
+import { logRevenueTelemetry } from '@/utils/revenueTelemetry';
 import {
   getRoutesByBadge,
   routeIntelToAssets,
@@ -23,8 +24,8 @@ import {
 } from './routeDiscoverySelection';
 
 const ROUTE_TABS: { id: RouteIntelBadge; label: string }[] = [
-  { id: 'most-used', label: 'Most Used' },
-  { id: 'trending', label: 'Trending' },
+  { id: 'most-used', label: 'Featured' },
+  { id: 'trending', label: 'High-liquidity' },
   { id: 'audited', label: 'Audited' },
 ];
 
@@ -117,6 +118,13 @@ export function RouteDiscoveryRail({
   if (activeChainId !== 1 && activeChainId !== 56) return null;
 
   const handleIntelClick = (intel: TradingRouteIntel) => {
+    logRevenueTelemetry('pair_selected', {
+      chainId: intel.route.chainId,
+      fromSymbol: intel.route.fromSymbol,
+      toSymbol: intel.route.toSymbol,
+      pairKey: `${intel.route.chainId}|${intel.route.fromSymbol}|${intel.route.toSymbol}`,
+      source: 'route_discovery',
+    });
     const assets = routeIntelToAssets(intel);
     if (assets) {
       if (

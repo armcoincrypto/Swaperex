@@ -10,6 +10,7 @@ import {
   type PopularCommissionRoute,
 } from '@/constants/popularCommissionRoutes';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
+import { logRevenueTelemetry } from '@/utils/revenueTelemetry';
 import {
   isActiveCommissionRoute,
   resolveRouteAssets,
@@ -104,9 +105,16 @@ export function CommissionRouteRecoveryChips({
             active={isActiveCommissionRoute(route, fromAsset, toAsset)}
             isActiveChain
             chainLabel={chainLabel}
-            onSelect={(selected) =>
-              selectCommissionRoute(selected, fromAsset, toAsset, onSelectPair)
-            }
+            onSelect={(selected) => {
+              logRevenueTelemetry('pair_selected', {
+                chainId: selected.chainId,
+                fromSymbol: selected.fromSymbol,
+                toSymbol: selected.toSymbol,
+                pairKey: `${selected.chainId}|${selected.fromSymbol}|${selected.toSymbol}`,
+                source: 'recovery_chip',
+              });
+              selectCommissionRoute(selected, fromAsset, toAsset, onSelectPair);
+            }}
           />
         );
       })}

@@ -23,6 +23,7 @@ export type PopularCommissionRoute = {
 const ROUTE_CATALOG: PopularCommissionRoute[] = [
   { chainId: 1, chainLabel: 'Ethereum', fromSymbol: 'WETH', toSymbol: 'USDC', label: 'WETH ⇄ USDC', bidirectional: true },
   { chainId: 1, chainLabel: 'Ethereum', fromSymbol: 'WETH', toSymbol: 'USDT', label: 'WETH ⇄ USDT', bidirectional: true },
+  { chainId: 1, chainLabel: 'Ethereum', fromSymbol: 'WETH', toSymbol: 'DAI', label: 'WETH ⇄ DAI', bidirectional: true },
   { chainId: 1, chainLabel: 'Ethereum', fromSymbol: 'ETH', toSymbol: 'USDC', label: 'ETH ⇄ USDC', bidirectional: true },
   { chainId: 1, chainLabel: 'Ethereum', fromSymbol: 'ETH', toSymbol: 'USDT', label: 'ETH ⇄ USDT', bidirectional: true },
   { chainId: 1, chainLabel: 'Ethereum', fromSymbol: 'WETH', toSymbol: 'WBTC', label: 'WETH ⇄ WBTC', bidirectional: true },
@@ -59,7 +60,7 @@ function routeIsAuditVerified(route: PopularCommissionRoute): boolean {
   return true;
 }
 
-/** Audited routes only — never includes DAI, SNX, native wrap, etc. */
+/** Audited routes only — filtered against live commission audit allowlist. */
 export function getVerifiedPopularCommissionRoutes(): PopularCommissionRoute[] {
   return ROUTE_CATALOG.filter(routeIsAuditVerified);
 }

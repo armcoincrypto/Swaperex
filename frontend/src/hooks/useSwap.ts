@@ -93,6 +93,11 @@ import {
   logProductionEvent,
   type ProductionMonitoringPayload,
 } from '@/utils/productionMonitoring';
+import {
+  buildRevenuePairKey,
+  logRevenueTelemetry,
+  notionalBucketFromAmount,
+} from '@/utils/revenueTelemetry';
 import { getTokenRouteSupport } from '@/utils/routeSupport';
 import { recordSuccessfulSwapPair } from '@/utils/routePrecheck';
 
@@ -1555,6 +1560,17 @@ export function useSwap() {
         console.warn('[Radar] Signal processing failed:', radarErr);
       }
 
+      logRevenueTelemetry('quote_success', {
+        chainId: chainId ?? 0,
+        fromSymbol,
+        toSymbol,
+        pairKey: buildRevenuePairKey(chainId ?? 0, fromSymbol, toSymbol),
+        provider: aggregatedQuote.provider,
+        feeBps: chainId === 56 ? 50 : chainId === 1 ? 20 : undefined,
+        notionalBucket: notionalBucketFromAmount(fromAmount),
+        source: 'swap_card',
+      });
+
       return extendedQuote;
     } catch (err) {
       if (thisRequestId !== quoteRequestIdRef.current) {
@@ -1683,6 +1699,15 @@ export function useSwap() {
     try {
       logLifecycle(state.status, 'approving', { token: swapQuote.fromSymbol, provider: swapQuote.provider });
       setState((s) => ({ ...s, status: 'approving' }));
+      logRevenueTelemetry('approve_clicked', {
+        chainId: chainId ?? 0,
+        fromSymbol: swapQuote.fromSymbol,
+        toSymbol: swapQuote.toSymbol,
+        pairKey: buildRevenuePairKey(chainId ?? 0, swapQuote.fromSymbol, swapQuote.toSymbol),
+        provider: swapQuote.provider,
+        feeBps: chainId === 56 ? 50 : chainId === 1 ? 20 : undefined,
+        source: 'swap_card',
+      });
       toast.info('Approving token spending...');
 
       const signer = await getSigner();

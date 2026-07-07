@@ -46,9 +46,9 @@ function specForPublicPath(p: string): SeoSpec {
     case '/':
     default:
       return {
-        title: 'Kobbex DEX',
+        title: 'Swaperex',
         description:
-          'Non-custodial decentralized exchange interface for swapping crypto across supported networks.',
+          'Non-custodial swap interface for Ethereum and BNB Chain. Balance view on additional EVM networks.',
         canonicalPath: '/',
       };
   }

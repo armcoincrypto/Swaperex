@@ -13,7 +13,12 @@ export const SWAP_SURFACE_COPY = {
   trustLineQuoteEstimate:
     'Amounts reflect this quote (estimate). Final tokens received are confirmed on-chain.',
 
-  /** Swap card / preview: 1inch path — aggregator route cost (not Swaperex protocol fee unless separately shown). */
+  /** P4A — user-facing Swaperex wrapper fee label (not pool / route cost). */
+  swaperexFeeLabel: 'Swaperex fee',
+  swaperexFeeTooltip:
+    'This fee is applied by the Swaperex wrapper and supports platform operations. The quoted receive amount is already net of this fee.',
+
+  /** Swap card / preview: 1inch path — aggregator route cost (not Swaperex fee unless separately shown). */
   feeRouteCostLabel: 'Route cost',
 
   /** Swap card / preview: direct DEX pool fee tier (Uniswap / Pancake path). */
@@ -78,6 +83,18 @@ export const SWAP_SURFACE_COPY = {
   auditedCommissionRouteBadge: 'Audited commission route',
   popularCommissionRoutesHint:
     'These pairs passed a live wrapper quote audit. Pick one to pre-fill pay and receive tokens.',
+
+  /** P4A — always-visible featured pairs on swap card */
+  featuredCommissionRoutesTitle: 'Featured pairs',
+  featuredCommissionRoutesLabel: 'Featured audited commission routes',
+  featuredCommissionRoutesHint: 'High-liquidity · Audited',
+  featuredRoutesSwitchNetworkHint:
+    'Swaps run on Ethereum and BNB Chain. Switch network to use routes on {network}.',
+
+  /** P4A — commission swap unavailable on balance-view networks */
+  commissionSwapUnavailableTitle: 'Swaps not available on this network',
+  commissionSwapUnavailableBody:
+    'Swaps with Swaperex commission are available on Ethereum and BNB Chain only. {network} is available for balance viewing, not swaps.',
 
   /** Primary CTA when the last on-chain swap attempt failed (quote may still be present) */
   swapFailedCta: 'Swap failed — try again',
@@ -161,7 +178,7 @@ export const SWAP_SURFACE_COPY = {
 
   /** Swap preview: one line under wrapper fee rows (replaces repeated “not gas” paragraphs) */
   previewWrapperNetFeeNote:
-    'Protocol fee is not gas. Expected / minimum received are net of the wrapper fee where applicable.',
+    'Swaperex fee is not gas. Expected / minimum received are net of the wrapper fee where applicable.',
 
   /** Slightly shorter modal trust strip */
   trustLineQuoteEstimateShort:
@@ -196,7 +213,10 @@ export const SWAP_SURFACE_COPY = {
 
   /** Muted footnote under grouped rate & fee rows on the swap card */
   quoteFeesFootnote:
-    'Pool and route costs are in the DEX path. Swaperex wrapper protocol fees (when shown) come from gross output on-chain — quoted receive is already net.',
+    'Pool and route costs are in the DEX path. Swaperex fees (when shown) come from gross output on-chain — quoted receive is already net.',
+
+  /** Primary CTA when commission swaps are unavailable on the active chain */
+  commissionSwapSwitchNetworkCta: 'Switch to swap network',
 
   /** Success modal — protocol fee parentheticals */
   successFeeOnChainTreasury: '(on-chain, sent to treasury)',

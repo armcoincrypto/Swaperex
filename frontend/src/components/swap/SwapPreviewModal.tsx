@@ -394,9 +394,9 @@ export function SwapPreviewModal({
             {quote.provider === '1inch' && isMonetizationActiveForProvider('1inch') && (
               <>
                 <DetailRow
-                  label="Platform fee"
+                  label={SWAP_SURFACE_COPY.swaperexFeeLabel}
                   value={`${(getMonetizationConfig().feeBps / 100).toFixed(2)}%`}
-                  title="Swaperex platform fee via 1inch — taken from the output token when the swap executes"
+                  title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
                 />
                 <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
                   Not gas — applied to output when the swap executes (quote is pre-fee).
@@ -406,9 +406,9 @@ export function SwapPreviewModal({
             {quote.provider === 'uniswap-v3-wrapper' && (
               <>
                 <DetailRow
-                  label="Wrapper protocol fee"
+                  label={SWAP_SURFACE_COPY.swaperexFeeLabel}
                   value={`${(getUniswapWrapperFeeBpsForUi() / 100).toFixed(2)}%`}
-                  title="Swaperex Uniswap wrapper — taken from gross output on-chain; quoted receive amount is net."
+                  title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
                 />
                 {isUniswapWrapperFeeBpsUnverified() && (
                   <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
@@ -420,9 +420,9 @@ export function SwapPreviewModal({
             {quote.provider === 'uniswap-v3-wrapper-v2' && (
               <>
                 <DetailRow
-                  label="Wrapper V2 protocol fee"
+                  label={`${SWAP_SURFACE_COPY.swaperexFeeLabel} (V2)`}
                   value={`${(getUniswapWrapperV2FeeBpsForUi() / 100).toFixed(2)}%`}
-                  title="Swaperex Uniswap wrapper V2 — taken from gross output on-chain; quoted receive amount is net."
+                  title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
                 />
                 {isUniswapWrapperV2FeeBpsUnverified() && (
                   <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
@@ -434,18 +434,18 @@ export function SwapPreviewModal({
             {quote.provider === 'uniswap-v3-wrapper-v3' && (
               <>
                 <DetailRow
-                  label="Wrapper V3 protocol fee"
+                  label={`${SWAP_SURFACE_COPY.swaperexFeeLabel} (V3)`}
                   value={`${(getUniswapWrapperV3FeeBpsForUi() / 100).toFixed(2)}%`}
-                  title="Swaperex Uniswap wrapper V3 (multi-hop) — taken from gross output on-chain; quoted receive amount is net."
+                  title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
                 />
               </>
             )}
             {quote.provider === 'pancakeswap-v3-wrapper' && (
               <>
                 <DetailRow
-                  label="Wrapper protocol fee"
+                  label={SWAP_SURFACE_COPY.swaperexFeeLabel}
                   value={`${(getPancakeWrapperFeeBpsForUi() / 100).toFixed(2)}%`}
-                  title="Swaperex Pancake wrapper — taken from gross output on-chain; quoted receive amount is net."
+                  title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
                 />
                 {isPancakeWrapperFeeBpsUnverified() && (
                   <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
@@ -457,9 +457,9 @@ export function SwapPreviewModal({
             {quote.provider === 'pancakeswap-v3-wrapper-v2' && (
               <>
                 <DetailRow
-                  label="Wrapper V2 protocol fee"
+                  label={`${SWAP_SURFACE_COPY.swaperexFeeLabel} (V2)`}
                   value={`${(getPancakeWrapperV2FeeBpsForUi() / 100).toFixed(2)}%`}
-                  title="Swaperex Pancake wrapper V2 — taken from gross output on-chain; quoted receive amount is net."
+                  title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
                 />
                 {isPancakeWrapperV2FeeBpsUnverified() && (
                   <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
@@ -843,9 +843,9 @@ function PreviewFeesAdvancedSection({
         {quote.provider === '1inch' && isMonetizationActiveForProvider('1inch') && (
           <>
             <DetailRow
-              label="Platform fee"
+              label={SWAP_SURFACE_COPY.swaperexFeeLabel}
               value={`${(getMonetizationConfig().feeBps / 100).toFixed(2)}%`}
-              title="Swaperex platform fee via 1inch — taken from the output token when the swap executes"
+              title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
             />
             <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
               Not gas — applied to output when the swap executes (quote is pre-fee).
@@ -855,9 +855,9 @@ function PreviewFeesAdvancedSection({
         {quote.provider === 'uniswap-v3-wrapper' && (
           <>
             <DetailRow
-              label="Wrapper protocol fee"
+              label={SWAP_SURFACE_COPY.swaperexFeeLabel}
               value={`${(getUniswapWrapperFeeBpsForUi() / 100).toFixed(2)}%`}
-              title="Swaperex Uniswap wrapper — taken from gross output on-chain; quoted receive amount is net."
+              title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
             />
             {isUniswapWrapperFeeBpsUnverified() && (
               <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
@@ -869,9 +869,9 @@ function PreviewFeesAdvancedSection({
         {quote.provider === 'uniswap-v3-wrapper-v2' && (
           <>
             <DetailRow
-              label="Wrapper V2 protocol fee"
+              label={`${SWAP_SURFACE_COPY.swaperexFeeLabel} (V2)`}
               value={`${(getUniswapWrapperV2FeeBpsForUi() / 100).toFixed(2)}%`}
-              title="Swaperex Uniswap wrapper V2 — taken from gross output on-chain; quoted receive amount is net."
+              title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
             />
             {isUniswapWrapperV2FeeBpsUnverified() && (
               <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
@@ -882,17 +882,17 @@ function PreviewFeesAdvancedSection({
         )}
         {quote.provider === 'uniswap-v3-wrapper-v3' && (
           <DetailRow
-            label="Wrapper V3 protocol fee"
+            label={`${SWAP_SURFACE_COPY.swaperexFeeLabel} (V3)`}
             value={`${(getUniswapWrapperV3FeeBpsForUi() / 100).toFixed(2)}%`}
-            title="Swaperex Uniswap wrapper V3 (multi-hop) — taken from gross output on-chain; quoted receive amount is net."
+            title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
           />
         )}
         {quote.provider === 'pancakeswap-v3-wrapper' && (
           <>
             <DetailRow
-              label="Wrapper protocol fee"
+              label={SWAP_SURFACE_COPY.swaperexFeeLabel}
               value={`${(getPancakeWrapperFeeBpsForUi() / 100).toFixed(2)}%`}
-              title="Swaperex Pancake wrapper — taken from gross output on-chain; quoted receive amount is net."
+              title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
             />
             {isPancakeWrapperFeeBpsUnverified() && (
               <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
@@ -904,9 +904,9 @@ function PreviewFeesAdvancedSection({
         {quote.provider === 'pancakeswap-v3-wrapper-v2' && (
           <>
             <DetailRow
-              label="Wrapper V2 protocol fee"
+              label={`${SWAP_SURFACE_COPY.swaperexFeeLabel} (V2)`}
               value={`${(getPancakeWrapperV2FeeBpsForUi() / 100).toFixed(2)}%`}
-              title="Swaperex Pancake wrapper V2 — taken from gross output on-chain; quoted receive amount is net."
+              title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
             />
             {isPancakeWrapperV2FeeBpsUnverified() && (
               <p className="text-[11px] text-dark-500 leading-snug -mt-1 pl-0">
@@ -1176,7 +1176,7 @@ function SuccessContent({
         <p className="text-[11px] text-dark-400 mt-1.5 leading-snug">{receivedSubline}</p>
         {showProtocolFeeAmount ? (
           <p className="text-sm text-dark-300 mt-3 pt-3 border-t border-green-900/40">
-            Protocol fee:{' '}
+            Swaperex fee:{' '}
             <span className="font-medium tabular-nums text-dark-100">
               {receiptSettlement!.feeHuman} {receiptSettlement!.feeSymbol}
             </span>

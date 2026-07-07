@@ -13,7 +13,7 @@ export const KOBBEX_DEX_LANDING_FAQ: readonly KobbexDexFaqItem[] = [
   {
     question: 'What is Kobbex DEX?',
     answer:
-      'Kobbex DEX is a non-custodial interface for swapping tokens on supported EVM networks. You connect your own wallet, request quotes, and sign transactions yourself; settlement happens on-chain.',
+      'Swaperex (Kobbex DEX) is a non-custodial interface for swapping tokens. Commission swaps are available on Ethereum and BNB Chain; you connect your wallet, request quotes, and sign transactions yourself. Settlement happens on-chain.',
   },
   {
     question: 'Does Kobbex DEX custody my tokens?',

@@ -126,6 +126,12 @@ export const PERSISTED_MONITORING_EVENTS = [
   /** P2.6 — wallet cancel / pending sign (no raw error text; reasonCode only). */
   'wallet_rejected',
   'wallet_request_pending',
+  /** P4A — revenue conversion telemetry (safe fields only). */
+  'quote_success',
+  'pair_selected',
+  'chain_selected',
+  'preview_opened',
+  'approve_clicked',
   'wallet_autoreconnect_scan',
   'legacy_wc_reconnect_attempt',
   'legacy_wc_reconnect_success',
