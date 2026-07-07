@@ -9,8 +9,8 @@ import { getTokenBySymbol, isNativeToken, isStaticToken, NATIVE_SYMBOLS } from '
 
 export type RouteSupportStatus = 'supported' | 'likely_supported' | 'limited' | 'unknown';
 
-const ETH_SUPPORTED = new Set(['ETH', 'WETH', 'USDT', 'USDC', 'WBTC']);
-const ETH_LIKELY = new Set(['DAI', 'LINK', 'UNI', 'AAVE', 'LDO', 'CRV']);
+const ETH_SUPPORTED = new Set(['ETH', 'WETH', 'USDT', 'USDC', 'DAI', 'WBTC']);
+const ETH_LIKELY = new Set(['LINK', 'UNI', 'AAVE', 'LDO', 'SNX', 'CRV']);
 const ETH_LIMITED = new Set([
   'PENDLE',
   'PEPE',
@@ -22,15 +22,14 @@ const ETH_LIMITED = new Set([
   'FET',
   'GRT',
   'SUSHI',
-  'SNX',
   'COMP',
   'MANA',
   'SAND',
   'APE',
 ]);
 
-const BSC_SUPPORTED = new Set(['BNB', 'WBNB', 'USDT', 'USDC', 'FDUSD', 'BTCB']);
-const BSC_LIKELY = new Set(['ETH', 'CAKE', 'LINK', 'XRP', 'DOGE']);
+const BSC_SUPPORTED = new Set(['BNB', 'WBNB', 'USDT', 'USDC', 'FDUSD', 'BTCB', 'CAKE', 'ETH']);
+const BSC_LIKELY = new Set(['LINK', 'XRP', 'DOGE']);
 const BSC_LIMITED = new Set(['ADA', 'DOT', 'LTC', 'TRX', 'PEPE', 'FLOKI', 'TWT', 'XVS']);
 
 const ROUTE_WRAP_TOOLTIP =

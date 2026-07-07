@@ -33,7 +33,7 @@
     {
       "symbol": "DAI",
       "name": "Dai Stablecoin",
-      "address": "0x6B175474E89094C44Da98b954EedcdeCB5BE3830",
+      "address": "0x6B175474E89094C44Da98b954EedeAC495271d0F",
       "decimals": 18,
       "logoURI": "https://tokens.1inch.io/0x6b175474e89094c44da98b954eedcdecb5be3830.png"
     },
@@ -117,7 +117,7 @@
     {
       "symbol": "SNX",
       "name": "Synthetix Network Token",
-      "address": "0xC011a73ee8576Fb46F5E1c5751cA3b9Fe0af2a6F",
+      "address": "0xC011a73ee8576Fb46F5E1c5751cA3B9Fe0af2a6F",
       "decimals": 18,
       "logoURI": "https://tokens.1inch.io/0xc011a73ee8576fb46f5e1c5751ca3b9fe0af2a6f.png"
     },
@@ -131,7 +131,7 @@
     {
       "symbol": "PENDLE",
       "name": "Pendle",
-      "address": "0x808507121B80C02388fAd14726482e061B8da827",
+      "address": "0x808507121B80c02388fAd14726482e061B8da827",
       "decimals": 18,
       "logoURI": "https://tokens.1inch.io/0x808507121b80c02388fad14726482e061b8da827.png"
     },

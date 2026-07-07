@@ -1,10 +1,10 @@
 /**
  * P3.1 — Commission pair audit snapshot (display-only).
- * Regenerate: `node scripts/audit/commission-coverage-audit.mjs` from repo root.
- * Source: reports/commission-coverage-audit.json (P3.6-B PEPE policy block).
+ * Regenerate: `node scripts/audit/audit-commission-pairs.mjs` from repo root.
+ * Source: reports/commission-pair-audit-YYYYMMDD.json
  */
 
-export const COMMISSION_COVERAGE_AUDIT_AT = '2026-05-24T23:07:24.894Z';
+export const COMMISSION_COVERAGE_AUDIT_AT = '2026-07-07T09:35:20.471Z';
 
 /** Pairs that returned a live wrapper quote in the audit (directional). */
 export const COMMISSION_AUDIT_SUPPORTED_PAIR_KEYS = new Set<string>([
@@ -42,6 +42,14 @@ export const COMMISSION_AUDIT_SUPPORTED_PAIR_KEYS = new Set<string>([
   '56|BTCB|WBNB',
   '56|CAKE|USDT',
   '56|USDT|CAKE',
+  '56|WBNB|CAKE',
+  '56|CAKE|WBNB',
+  '56|WBNB|USDC',
+  '56|USDC|WBNB',
+  '56|WBNB|ETH',
+  '56|ETH|WBNB',
+  '56|WBNB|FDUSD',
+  '56|FDUSD|WBNB',
 ]);
 
 /** Pairs blocked by product policy or failed audit — never promote (directional). */

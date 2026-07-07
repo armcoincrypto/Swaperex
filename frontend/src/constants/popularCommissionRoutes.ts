@@ -1,7 +1,7 @@
 /**
  * P3.1 — Popular commission routes (display-only presets).
  * Every entry must pass `isCommissionPairAuditSupported`; regenerate audit via
- * `node scripts/audit/commission-coverage-audit.mjs`.
+ * `node scripts/audit/audit-commission-pairs.mjs`.
  */
 
 import {
@@ -25,17 +25,20 @@ const ROUTE_CATALOG: PopularCommissionRoute[] = [
   { chainId: 1, chainLabel: 'Ethereum', fromSymbol: 'WETH', toSymbol: 'USDT', label: 'WETH ⇄ USDT', bidirectional: true },
   { chainId: 1, chainLabel: 'Ethereum', fromSymbol: 'ETH', toSymbol: 'USDC', label: 'ETH ⇄ USDC', bidirectional: true },
   { chainId: 1, chainLabel: 'Ethereum', fromSymbol: 'ETH', toSymbol: 'USDT', label: 'ETH ⇄ USDT', bidirectional: true },
-  { chainId: 1, chainLabel: 'Ethereum', fromSymbol: 'WETH', toSymbol: 'WBTC', label: 'WETH → WBTC', bidirectional: false },
+  { chainId: 1, chainLabel: 'Ethereum', fromSymbol: 'WETH', toSymbol: 'WBTC', label: 'WETH ⇄ WBTC', bidirectional: true },
   { chainId: 1, chainLabel: 'Ethereum', fromSymbol: 'WETH', toSymbol: 'LINK', label: 'WETH ⇄ LINK', bidirectional: true },
   { chainId: 1, chainLabel: 'Ethereum', fromSymbol: 'WETH', toSymbol: 'UNI', label: 'WETH ⇄ UNI', bidirectional: true },
-  { chainId: 1, chainLabel: 'Ethereum', fromSymbol: 'WETH', toSymbol: 'AAVE', label: 'WETH → AAVE', bidirectional: false },
-  { chainId: 1, chainLabel: 'Ethereum', fromSymbol: 'WETH', toSymbol: 'LDO', label: 'WETH → LDO', bidirectional: false },
-  { chainId: 1, chainLabel: 'Ethereum', fromSymbol: 'WETH', toSymbol: 'PEPE', label: 'WETH → PEPE', bidirectional: false },
+  { chainId: 1, chainLabel: 'Ethereum', fromSymbol: 'WETH', toSymbol: 'AAVE', label: 'WETH ⇄ AAVE', bidirectional: true },
+  { chainId: 1, chainLabel: 'Ethereum', fromSymbol: 'WETH', toSymbol: 'LDO', label: 'WETH ⇄ LDO', bidirectional: true },
   { chainId: 56, chainLabel: 'BNB Chain', fromSymbol: 'BNB', toSymbol: 'USDT', label: 'BNB ⇄ USDT', bidirectional: true },
   { chainId: 56, chainLabel: 'BNB Chain', fromSymbol: 'BNB', toSymbol: 'USDC', label: 'BNB ⇄ USDC', bidirectional: true },
   { chainId: 56, chainLabel: 'BNB Chain', fromSymbol: 'WBNB', toSymbol: 'USDT', label: 'WBNB ⇄ USDT', bidirectional: true },
-  { chainId: 56, chainLabel: 'BNB Chain', fromSymbol: 'WBNB', toSymbol: 'BTCB', label: 'WBNB → BTCB', bidirectional: false },
-  { chainId: 56, chainLabel: 'BNB Chain', fromSymbol: 'CAKE', toSymbol: 'USDT', label: 'CAKE → USDT', bidirectional: false },
+  { chainId: 56, chainLabel: 'BNB Chain', fromSymbol: 'WBNB', toSymbol: 'BTCB', label: 'WBNB ⇄ BTCB', bidirectional: true },
+  { chainId: 56, chainLabel: 'BNB Chain', fromSymbol: 'CAKE', toSymbol: 'USDT', label: 'CAKE ⇄ USDT', bidirectional: true },
+  { chainId: 56, chainLabel: 'BNB Chain', fromSymbol: 'WBNB', toSymbol: 'CAKE', label: 'WBNB ⇄ CAKE', bidirectional: true },
+  { chainId: 56, chainLabel: 'BNB Chain', fromSymbol: 'WBNB', toSymbol: 'USDC', label: 'WBNB ⇄ USDC', bidirectional: true },
+  { chainId: 56, chainLabel: 'BNB Chain', fromSymbol: 'WBNB', toSymbol: 'ETH', label: 'WBNB ⇄ ETH', bidirectional: true },
+  { chainId: 56, chainLabel: 'BNB Chain', fromSymbol: 'WBNB', toSymbol: 'FDUSD', label: 'WBNB ⇄ FDUSD', bidirectional: true },
 ];
 
 const NATIVE_WRAP_KEYS = new Set([
