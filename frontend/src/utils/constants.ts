@@ -5,10 +5,12 @@
  * Re-exported here for backwards compatibility.
  */
 
+// Import from the leaf module, not the wallet barrel, to avoid
+// constants ↔ wallet ↔ connectors circular dependencies (P7C TDZ).
 import {
   CHAINS as WALLET_CHAINS,
   SUPPORTED_CHAIN_IDS as WALLET_SUPPORTED_CHAIN_IDS,
-} from '@/wallet';
+} from '@/wallet/chains';
 
 // Re-export chain config from wallet module (single source of truth)
 // Legacy shape kept for backwards compat with components that use CHAINS.ethereum.rpcUrl etc.
