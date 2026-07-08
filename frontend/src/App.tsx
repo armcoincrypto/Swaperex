@@ -8,7 +8,6 @@
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { LazyWalletBootstrap, LazyWalletConnect } from '@/components/wallet/lazyWalletChunks';
-import { SwapInterface } from '@/components/swap/SwapInterface';
 import { ChainWarningBanner } from '@/components/chain/ChainWarning';
 import { ToastContainer } from '@/components/common/Toast';
 import { GlobalErrorDisplay } from '@/components/common/GlobalErrorDisplay';
@@ -66,6 +65,11 @@ const LazyTradingIntelligencePanel = lazy(() =>
   })),
 );
 
+/** P7C — Swap shell deferred from entry bundle; only fetched when swap tab is active. */
+const LazySwapInterface = lazy(() =>
+  import('@/components/swap/SwapInterface').then((m) => ({ default: m.SwapInterface })),
+);
+
 const lazyAdminFallback = (
   <div className="min-h-screen bg-dark-950 flex items-center justify-center">
     <p className="text-sm text-dark-400">Loading admin…</p>
@@ -75,6 +79,13 @@ const lazyAdminFallback = (
 const lazyTabFallback = (
   <div className="flex justify-center py-16">
     <p className="text-sm text-dark-400">Loading…</p>
+  </div>
+);
+
+/** P7C — swap panel placeholder while SwapInterface chunk loads. */
+const lazySwapInterfaceFallback = (
+  <div className="dex-loading-shell flex min-h-[24rem] w-full max-w-md items-center justify-center rounded-2xl border border-white/[0.06] bg-electro-panel/20">
+    <p className="text-sm text-dark-400">Loading swap…</p>
   </div>
 );
 
@@ -682,7 +693,9 @@ function DexMain() {
                 <div
                   className={`flex min-w-0 justify-center ${isConnected ? 'lg:justify-start' : ''}`}
                 >
-                  <SwapInterface />
+                  <Suspense fallback={lazySwapInterfaceFallback}>
+                    <LazySwapInterface />
+                  </Suspense>
                 </div>
                 {!isConnected && (
                   <Suspense fallback={lazyTradingIntelFallback}>
