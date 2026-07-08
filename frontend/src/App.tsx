@@ -30,6 +30,7 @@ import {
 import { SHOW_OPTIONAL_PRIMARY_NAV, PRIMARY_NAV_ITEMS, TRADE_SUB_NAV } from '@/config/productShell';
 import { applyClientRouteSeo, normalizePublicPath } from '@/utils/routeSeo';
 import { DexSiteFooter, type FooterNavTarget } from '@/components/layout/DexSiteFooter';
+import { PassiveShell } from '@/components/layout/PassiveShell';
 
 const LazySendPage = lazy(() => import('@/components/send/SendPage'));
 const LazyPortfolioPage = lazy(() => import('@/components/portfolio/PortfolioPage'));
@@ -194,8 +195,30 @@ export default function App() {
           </Suspense>
         }
       />
+      {/* P8A.2 — wallet-free PassiveShell; Trade remains DexMain (static SwapInterface). */}
+      <Route path="/trust" element={<PassiveRoute Page={LazyTrustCenterPage} />} />
+      <Route path="/about" element={<PassiveRoute Page={LazyAboutPage} />} />
+      <Route path="/terms" element={<PassiveRoute Page={LazyTermsPage} />} />
+      <Route path="/privacy" element={<PassiveRoute Page={LazyPrivacyPage} />} />
+      <Route path="/disclaimer" element={<PassiveRoute Page={LazyDisclaimerPage} />} />
       <Route path="/*" element={<DexMain />} />
     </Routes>
+  );
+}
+
+/** Informational routes: PassiveShell only — must not mount DexMain / useWallet. */
+function PassiveRoute({
+  Page,
+}: {
+  Page: React.LazyExoticComponent<React.ComponentType<{ onBack: () => void }>>;
+}) {
+  const navigate = useNavigate();
+  return (
+    <PassiveShell>
+      <Suspense fallback={lazyTabFallback}>
+        <Page onBack={() => navigate('/')} />
+      </Suspense>
+    </PassiveShell>
   );
 }
 
@@ -218,6 +241,31 @@ function DexMain() {
   // Health checks
   const refreshSignalsHealth = useSignalsHealthStore((s) => s.refresh);
   const refreshSystemStatus = useSystemStatusStore((s) => s.refresh);
+
+  // P8A.2 — accept PassiveShell footer handoff (trade tabs) without mounting wallet on passive routes.
+  useEffect(() => {
+    const state = location.state as { dexPage?: Page; section?: string } | null;
+    if (!state?.dexPage) return;
+    const page = state.dexPage;
+    if (
+      page === 'about' ||
+      page === 'terms' ||
+      page === 'privacy' ||
+      page === 'disclaimer' ||
+      page === 'trust'
+    ) {
+      return;
+    }
+    setCurrentPage(page);
+    if (state.section) {
+      requestAnimationFrame(() => {
+        window.dispatchEvent(
+          new CustomEvent('swaperex:section', { detail: { page, section: state.section } }),
+        );
+      });
+    }
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.state, location.pathname, navigate]);
 
   // Auto-check health on mount and every 60 seconds
   useEffect(() => {
