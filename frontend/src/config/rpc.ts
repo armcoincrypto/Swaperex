@@ -42,6 +42,20 @@ export function getSameOriginRpcProxyUrl(chain: 'eth' | 'bsc'): string | null {
   return `${origin.replace(/\/+$/, '')}/rpc/${chain}`;
 }
 
+/**
+ * Production static builds prepend same-origin `/rpc/*` on dex.kobbex.com (nginx → backend-signals).
+ * Plain `vite preview` / `serve dist` on localhost has no RPC proxy — skip to public fallbacks.
+ */
+export function shouldPreferSameOriginRpcProxy(hostname?: string): boolean {
+  if (!import.meta.env.PROD) return false;
+  const h =
+    hostname ??
+    (typeof window !== 'undefined' ? window.location.hostname : '');
+  if (!h) return false;
+  if (h === 'localhost' || h === '127.0.0.1' || h === '[::1]') return false;
+  return true;
+}
+
 function prependUniqueCandidate(url: string | null, candidates: string[]): string[] {
   if (!url) return candidates;
   const normalized = url.replace(/\/+$/, '');
@@ -57,7 +71,7 @@ export function getEthereumReadRpcCandidates(): string[] {
   if (env && /^https?:\/\//i.test(env)) {
     return prependUniqueCandidate(env, base);
   }
-  const proxy = import.meta.env.PROD ? getSameOriginRpcProxyUrl('eth') : null;
+  const proxy = shouldPreferSameOriginRpcProxy() ? getSameOriginRpcProxyUrl('eth') : null;
   return prependUniqueCandidate(proxy, base);
 }
 
@@ -100,7 +114,7 @@ export function getBscReadRpcCandidates(): string[] {
   for (const u of envExtras) {
     push(u);
   }
-  if (import.meta.env.PROD) {
+  if (shouldPreferSameOriginRpcProxy()) {
     const proxy = getSameOriginRpcProxyUrl('bsc');
     if (proxy) {
       push(proxy);
