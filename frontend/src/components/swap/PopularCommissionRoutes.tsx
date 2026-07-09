@@ -10,6 +10,7 @@ import {
   type PopularCommissionRoute,
 } from '@/constants/popularCommissionRoutes';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
+import { getCommissionRouteIssueCopy } from '@/utils/commissionRouteDisplay';
 import { logRevenueTelemetry } from '@/utils/revenueTelemetry';
 import {
   isActiveCommissionRoute,
@@ -133,18 +134,22 @@ export function CommissionRouteRecoveryPanel({
   if (activeChainId !== 1 && activeChainId !== 56) return null;
   if (recoveryRoutesForChain(activeChainId).length === 0) return null;
 
+  const issueCopy =
+    fromAsset && toAsset
+      ? getCommissionRouteIssueCopy(activeChainId, fromAsset.symbol, toAsset.symbol)
+      : {
+          title: SWAP_SURFACE_COPY.unsupportedCommissionRouteTitle,
+          helper: SWAP_SURFACE_COPY.commissionRouteRecoveryHelper,
+        };
+
   return (
     <div
       className="relative z-10 mt-3 rounded-xl border border-amber-700/35 bg-amber-900/15 px-3 py-2.5 text-sm text-amber-100"
       role="alert"
       aria-live="polite"
     >
-      <p className="font-medium text-amber-50">
-        {SWAP_SURFACE_COPY.unsupportedCommissionRouteTitle}
-      </p>
-      <p className="mt-1.5 text-xs leading-relaxed text-amber-100/90">
-        {SWAP_SURFACE_COPY.commissionRouteRecoveryHelper}
-      </p>
+      <p className="font-medium text-amber-50">{issueCopy.title}</p>
+      <p className="mt-1.5 text-xs leading-relaxed text-amber-100/90">{issueCopy.helper}</p>
       <div className="mt-2">
         <CommissionRouteRecoveryChips
           activeChainId={activeChainId}

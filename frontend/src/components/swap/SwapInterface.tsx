@@ -93,6 +93,7 @@ import {
   type RouteSupportStatus,
 } from '@/utils/routeSupport';
 import { isCommissionPairAuditBlocked } from '@/constants/commissionCoverage';
+import { getCommissionRouteIssueCopy } from '@/utils/commissionRouteDisplay';
 import {
   getRoutingDisplayStatus,
   getRoutingDisplayBadgeLabel,
@@ -1442,6 +1443,16 @@ export function SwapInterface() {
             toAsset.symbol,
           ))));
 
+  const commissionRouteIssueCopy = useMemo(() => {
+    if (!fromAsset || !toAsset) {
+      return {
+        title: SWAP_SURFACE_COPY.unsupportedCommissionRouteTitle,
+        helper: SWAP_SURFACE_COPY.commissionRouteRecoveryHelper,
+      };
+    }
+    return getCommissionRouteIssueCopy(currentChainId, fromAsset.symbol, toAsset.symbol);
+  }, [currentChainId, fromAsset, toAsset]);
+
   const showRoutePrecheckRow =
     routingDisplay.showPrecheckRow && !showCommissionRouteIssue;
 
@@ -2548,10 +2559,10 @@ export function SwapInterface() {
           (routingDisplay.showUnsupportedPanel ? (
             <div className="mt-4 p-3 bg-amber-900/15 border border-amber-700/35 rounded-xl text-sm text-amber-100">
               <p className="font-medium text-amber-50">
-                {SWAP_SURFACE_COPY.unsupportedCommissionRouteTitle}
+                {commissionRouteIssueCopy.title}
               </p>
               <p className="mt-2 text-xs leading-relaxed text-amber-100/90">
-                {SWAP_SURFACE_COPY.commissionRouteRecoveryHelper}
+                {commissionRouteIssueCopy.helper}
               </p>
               <div className="mt-2">
                 <CommissionRouteRecoveryChipsSection

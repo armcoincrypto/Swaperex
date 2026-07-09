@@ -3,6 +3,7 @@
  * Does not gate execution; quotes and commission enforcement remain authoritative.
  */
 
+import { isCommissionPairAuditSupported } from '@/constants/commissionCoverage';
 import type { RouteSupportStatus } from '@/utils/routeSupport';
 
 export const RECENT_SUCCESSFUL_PAIRS_KEY = 'swaperex-recent-successful-pairs';
@@ -140,6 +141,10 @@ export function computeRoutePrecheck(input: {
   if (normSym(fs) === normSym(ts)) return 'unknown';
 
   if (fromAsset.isCustom === true || toAsset.isCustom === true) return 'unknown';
+
+  if (isCommissionPairAuditSupported(chainId, fs, ts)) {
+    return 'likely_routable';
+  }
 
   if (fromRouteSupport === 'unknown' || toRouteSupport === 'unknown') return 'unknown';
 

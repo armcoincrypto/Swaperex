@@ -54,10 +54,17 @@ export const SWAP_SURFACE_COPY = {
   unsupportedCommissionRouteTitle:
     'This pair is not supported by Swaperex commission routing yet.',
   unsupportedCommissionRouteHelper:
-    'Swaperex only enables pairs that can route through its commission wrapper. Try ETH ⇄ USDC, ETH ⇄ USDT, WETH ⇄ USDC, or WETH ⇄ USDT.',
+    'Swaperex only enables pairs that can route through its commission wrapper. Try WETH ⇄ USDC, WETH ⇄ USDT, ETH ⇄ USDC, or ETH ⇄ USDT.',
+  /** P9.2 — audited catalog pair when a live wrapper quote could not be fetched (display-only). */
+  auditedCommissionQuoteFailedTitle:
+    'Live wrapper quote unavailable for this pair.',
+  auditedCommissionQuoteFailedHelper:
+    'This direction is in the Swaperex audit catalog. Final quotes depend on live liquidity and network conditions — refresh or try again shortly.',
+  auditedCommissionQuoteFailedNativeEthHelper:
+    'This direction is in the Swaperex audit catalog. Native ETH routes through WETH inside the wrapper — refresh or try WETH if the quote keeps failing.',
   /** One-line majors hint under the unsupported commission panel (P4.1-B). */
   unsupportedCommissionRouteQuickTokensEthereum:
-    'Quick picks on Ethereum: ETH ⇄ USDC, ETH ⇄ USDT, WETH ⇄ USDC, WETH ⇄ USDT — then search for anything else.',
+    'Quick picks on Ethereum: WETH ⇄ USDC, WETH ⇄ USDT, ETH ⇄ USDC, ETH ⇄ USDT — then search for anything else.',
   /** P2.1 — native ↔ wrapped on swap card (display-only; no wrap execution). */
   nativeWrappedPairRouteHelperEth:
     'ETH ↔ WETH is a wrap/unwrap action, not a normal DEX swap route. Dedicated wrap support is not enabled here yet.',

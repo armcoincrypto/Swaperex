@@ -2,6 +2,10 @@
  * P3.1 — Popular commission routes (display-only presets).
  * Every entry must pass `isCommissionPairAuditSupported`; regenerate audit via
  * `node scripts/audit/audit-commission-pairs.mjs`.
+ *
+ * P9.2: Ethereum majors use WETH labels in this catalog. Native ETH/USDC and
+ * ETH/USDT remain in the audit allowlist and swap UI; wrapper V2 quotes native
+ * ETH via WETH under the hood.
  */
 
 import {
@@ -24,8 +28,6 @@ const ROUTE_CATALOG: PopularCommissionRoute[] = [
   { chainId: 1, chainLabel: 'Ethereum', fromSymbol: 'WETH', toSymbol: 'USDC', label: 'WETH ⇄ USDC', bidirectional: true },
   { chainId: 1, chainLabel: 'Ethereum', fromSymbol: 'WETH', toSymbol: 'USDT', label: 'WETH ⇄ USDT', bidirectional: true },
   { chainId: 1, chainLabel: 'Ethereum', fromSymbol: 'WETH', toSymbol: 'DAI', label: 'WETH ⇄ DAI', bidirectional: true },
-  { chainId: 1, chainLabel: 'Ethereum', fromSymbol: 'ETH', toSymbol: 'USDC', label: 'ETH ⇄ USDC', bidirectional: true },
-  { chainId: 1, chainLabel: 'Ethereum', fromSymbol: 'ETH', toSymbol: 'USDT', label: 'ETH ⇄ USDT', bidirectional: true },
   { chainId: 1, chainLabel: 'Ethereum', fromSymbol: 'WETH', toSymbol: 'WBTC', label: 'WETH ⇄ WBTC', bidirectional: true },
   { chainId: 1, chainLabel: 'Ethereum', fromSymbol: 'WETH', toSymbol: 'LINK', label: 'WETH ⇄ LINK', bidirectional: true },
   { chainId: 1, chainLabel: 'Ethereum', fromSymbol: 'WETH', toSymbol: 'UNI', label: 'WETH ⇄ UNI', bidirectional: true },
