@@ -162,9 +162,9 @@ export function computeRoutePrecheck(input: {
 export function getRoutePrecheckBadgeLabel(status: RoutePrecheckStatus): string {
   switch (status) {
     case 'likely_routable':
-      return 'Likely routable';
+      return 'Audited route available';
     case 'limited':
-      return 'Limited route';
+      return 'Route depends on live liquidity';
     case 'no_recent_success':
       return 'No recent route';
     case 'checking':
@@ -177,9 +177,9 @@ export function getRoutePrecheckBadgeLabel(status: RoutePrecheckStatus): string 
 export function getRoutePrecheckDescription(status: RoutePrecheckStatus): string {
   switch (status) {
     case 'likely_routable':
-      return 'Likely routable through Swaperex wrapper. Quote still depends on liquidity.';
+      return 'Audited wrapper route available. Final quote depends on live liquidity.';
     case 'limited':
-      return 'This pair may not quote through Swaperex commission routing.';
+      return 'Route depends on live liquidity. This pair may not quote through Swaperex commission routing.';
     case 'no_recent_success':
       return 'No recent successful wrapper route seen for this pair.';
     case 'checking':

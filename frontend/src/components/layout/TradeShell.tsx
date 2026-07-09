@@ -31,6 +31,11 @@ import {
 import { SHOW_OPTIONAL_PRIMARY_NAV, PRIMARY_NAV_ITEMS, TRADE_SUB_NAV } from '@/config/productShell';
 import { applyClientRouteSeo, normalizePublicPath } from '@/utils/routeSeo';
 import { DexSiteFooter, type FooterNavTarget } from '@/components/layout/DexSiteFooter';
+import { HomepageTrustStrip } from '@/components/homepage/HomepageTrustStrip';
+import { HomepageHeroWorkspace } from '@/components/homepage/HomepageHeroWorkspace';
+import { HomepageProtocolStats } from '@/components/homepage/HomepageProtocolStats';
+import { HomepageWhySwaperex } from '@/components/homepage/HomepageWhySwaperex';
+import { HomepagePopularRoutes } from '@/components/homepage/HomepagePopularRoutes';
 
 const LazySendPage = lazy(() => import('@/components/send/SendPage'));
 const LazyPortfolioPage = lazy(() => import('@/components/portfolio/PortfolioPage'));
@@ -678,24 +683,29 @@ export default function TradeShell() {
       <main className="max-w-6xl mx-auto px-4 py-8 sm:py-10 min-w-0 w-full flex-1">
         {currentPage === 'swap' && (
           <>
+            <HomepageTrustStrip />
             <div className="flex flex-col lg:flex-row gap-10 lg:items-start">
               {/* Swap Panel + optional intelligence strip when disconnected */}
-              <div className="flex-1 flex flex-col min-w-0 gap-4">
-                <div
-                  className={`flex min-w-0 justify-center ${isConnected ? 'lg:justify-start' : ''}`}
-                >
-                  <SwapInterface />
+              <HomepageHeroWorkspace>
+                <div className="flex-1 flex flex-col min-w-0 gap-4">
+                  <div
+                    className={`homepage-swap-panel-ring flex min-w-0 justify-center ${
+                      isConnected ? 'lg:justify-start' : ''
+                    }`}
+                  >
+                    <SwapInterface />
+                  </div>
+                  {!isConnected && (
+                    <Suspense fallback={lazyTradingIntelFallback}>
+                      <LazyTradingIntelligencePanel
+                        activeChainId={chainId ?? 1}
+                        onSelectPair={handleTradingPairSelect}
+                        layout="strip"
+                      />
+                    </Suspense>
+                  )}
                 </div>
-                {!isConnected && (
-                  <Suspense fallback={lazyTradingIntelFallback}>
-                    <LazyTradingIntelligencePanel
-                      activeChainId={chainId ?? 1}
-                      onSelectPair={handleTradingPairSelect}
-                      layout="strip"
-                    />
-                  </Suspense>
-                )}
-              </div>
+              </HomepageHeroWorkspace>
 
               {/* Sidebar: balances + trading intelligence when connected */}
               {isConnected && (
@@ -713,6 +723,9 @@ export default function TradeShell() {
                 </aside>
               )}
             </div>
+            <HomepageProtocolStats />
+            <HomepageWhySwaperex />
+            <HomepagePopularRoutes activeChainId={chainId ?? 1} />
             <div ref={belowFoldSeoSentinelRef} className="h-px w-full" aria-hidden />
             {showBelowFoldSeo && (
               <Suspense fallback={lazySwapEducationFallback}>

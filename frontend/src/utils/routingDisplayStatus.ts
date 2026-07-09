@@ -197,15 +197,15 @@ export function getRoutingDisplayBadgeLabel(status: RoutingDisplayStatus): strin
     case 'loading_quote':
       return 'Getting quote…';
     case 'heuristic_likely':
-      return 'Likely routable';
+      return 'Audited route available';
     case 'heuristic_limited':
-      return 'Limited route';
+      return 'Route depends on live liquidity';
     case 'heuristic_no_recent':
       return 'No recent route';
     case 'heuristic_checking':
       return 'Checking…';
     case 'success_route':
-      return 'Route ready';
+      return 'Wrapper route supported';
     default:
       return 'Unknown route';
   }
@@ -225,15 +225,15 @@ export function getRoutingDisplayDescription(
     case 'loading_quote':
       return 'Checking route with Swaperex commission wrapper…';
     case 'heuristic_likely':
-      return 'Likely routable through Swaperex wrapper. Quote still depends on liquidity.';
+      return 'Audited wrapper route available. Final quote depends on live liquidity.';
     case 'heuristic_limited':
-      return 'This pair may not quote through Swaperex commission routing.';
+      return 'Route depends on live liquidity. This pair may not quote through Swaperex commission routing.';
     case 'heuristic_no_recent':
       return 'No recent successful wrapper route seen for this pair.';
     case 'heuristic_checking':
       return 'Checking route confidence…';
     case 'success_route':
-      return '';
+      return 'Audited wrapper route available. Final quote depends on live liquidity.';
     default:
       return 'Route support unknown. Quote may fail.';
   }

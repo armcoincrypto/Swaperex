@@ -7,6 +7,10 @@ import { Link } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { SystemStatusIndicator } from '@/components/common/SystemStatusIndicator';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
+import {
+  HOMEPAGE_INTEGRATIONS,
+  HOMEPAGE_INTEGRATIONS_DISCLAIMER,
+} from '@/constants/homepageProductCopy';
 
 export type FooterPage =
   | 'swap'
@@ -143,7 +147,25 @@ export function DexSiteFooter({ onNavigate }: DexSiteFooterProps) {
           </FooterColumn>
         </div>
 
-        <div className="mt-10 pt-6 border-t border-white/[0.06] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="mt-10 pt-6 border-t border-white/[0.06]">
+          <p className="text-[10px] uppercase tracking-wider text-dark-500 mb-2">
+            Routing infrastructure
+          </p>
+          <p className="text-xs text-dark-400 leading-relaxed">
+            Integrates with{' '}
+            {HOMEPAGE_INTEGRATIONS.map((name) => (
+              <span key={name} className="text-dark-300">
+                {name}
+                {name !== HOMEPAGE_INTEGRATIONS[HOMEPAGE_INTEGRATIONS.length - 1] ? ' · ' : ''}
+              </span>
+            ))}
+          </p>
+          <p className="mt-1.5 text-[11px] text-dark-600 leading-relaxed max-w-2xl">
+            {HOMEPAGE_INTEGRATIONS_DISCLAIMER}
+          </p>
+        </div>
+
+        <div className="mt-6 pt-6 border-t border-white/[0.06] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="min-w-0">
             <p className="text-[10px] uppercase tracking-wider text-dark-500 mb-2">
               Networks
