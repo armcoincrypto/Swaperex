@@ -1,0 +1,13 @@
+[Unit]
+Description=Run Swaperex route/quote smoke every 6 hours
+Documentation=file:/root/Swaperex/docs/audits/SWAPEREX_P13_1_SCHEDULED_ROUTE_QUOTE_SMOKE.md
+
+[Timer]
+OnBootSec=15min
+OnUnitActiveSec=6h
+Persistent=true
+RandomizedDelaySec=300
+Unit=swaperex-route-quote-smoke.service
+
+[Install]
+WantedBy=timers.target

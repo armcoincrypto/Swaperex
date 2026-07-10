@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "timestamp": "2026-07-10T10:00:00.000Z",
+  "verdict": "P12_5_ROUTE_QUOTE_REGRESSION_SMOKE_FAIL",
+  "productionVersion": "eee0264",
+  "summary": { "total": 19, "pass": 18, "fail": 1 },
+  "results": [
+    { "id": "homepage_swap_surface", "layer": "browser", "status": "PASS" },
+    { "id": "eth_usdc_to_weth", "layer": "onchain", "status": "FAIL", "latencyMs": 1200, "provider": "synthetic" }
+  ],
+  "p13Envelope": {
+    "timestamp": "2026-07-10T10:00:00.000Z",
+    "finalExitCode": 1,
+    "finalClassification": "confirmed_quote_regression",
+    "finalVerdict": "P12_5_ROUTE_QUOTE_REGRESSION_SMOKE_FAIL",
+    "attempts": [{ "attempt": 1, "exitCode": 1, "classification": "confirmed_quote_regression" }]
+  }
+}

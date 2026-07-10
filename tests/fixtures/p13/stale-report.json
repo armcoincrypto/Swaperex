@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "timestamp": "2020-01-01T00:00:00.000Z",
+  "verdict": "P12_5_ROUTE_QUOTE_REGRESSION_SMOKE_PASS",
+  "productionVersion": "eee0264",
+  "results": [{ "id": "homepage_swap_surface", "layer": "browser", "status": "PASS" }],
+  "p13Envelope": {
+    "timestamp": "2020-01-01T00:00:00.000Z",
+    "finalExitCode": 0,
+    "finalClassification": "success",
+    "finalVerdict": "P12_5_ROUTE_QUOTE_REGRESSION_SMOKE_PASS"
+  }
+}

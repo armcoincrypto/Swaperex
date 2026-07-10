@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-07-10T10:00:00.000Z",
+  "productionVersion": "eee0264",
+  "warningInventory": [
+    {
+      "fingerprint": "synthetic-app-fatal-001",
+      "classification": "APP_FATAL",
+      "messageSample": "ReferenceError: Cannot access before initialization",
+      "count": 3,
+      "baselineId": null
+    }
+  ]
+}

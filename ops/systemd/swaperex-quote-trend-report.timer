@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Swaperex quote trend aggregation
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=300
+Unit=swaperex-quote-trend-report.service
+
+[Install]
+WantedBy=timers.target

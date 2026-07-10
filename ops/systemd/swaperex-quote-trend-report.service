@@ -1,0 +1,14 @@
+[Unit]
+Description=Swaperex P13 daily quote trend report
+After=network.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/root/Swaperex
+ExecStart=/usr/bin/node /root/Swaperex/scripts/ops/p13-quote-trend-report.mjs --window 7d --output /root/Swaperex/reports/p13/quote-trends/p13-quote-trends.json --markdown /root/Swaperex/reports/p13/quote-trends/p13-quote-trends.md
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

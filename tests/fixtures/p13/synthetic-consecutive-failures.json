@@ -1,0 +1,16 @@
+[
+  {
+    "schemaVersion": 1,
+    "timestamp": "2026-07-10T08:00:00.000Z",
+    "verdict": "P12_5_ROUTE_QUOTE_REGRESSION_SMOKE_FAIL",
+    "results": [{ "id": "eth_usdc_to_weth", "layer": "onchain", "status": "FAIL" }],
+    "p13Envelope": { "finalExitCode": 1, "finalClassification": "confirmed_quote_regression" }
+  },
+  {
+    "schemaVersion": 1,
+    "timestamp": "2026-07-10T14:00:00.000Z",
+    "verdict": "P12_5_ROUTE_QUOTE_REGRESSION_SMOKE_FAIL",
+    "results": [{ "id": "eth_usdc_to_weth", "layer": "onchain", "status": "FAIL" }],
+    "p13Envelope": { "finalExitCode": 1, "finalClassification": "confirmed_quote_regression" }
+  }
+]

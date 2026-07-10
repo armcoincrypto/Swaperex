@@ -1,0 +1,21 @@
+[Unit]
+Description=Swaperex P13 route/quote regression smoke (read-only)
+Documentation=file:/root/Swaperex/docs/audits/SWAPEREX_P13_1_SCHEDULED_ROUTE_QUOTE_SMOKE.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/root/Swaperex
+Environment=SWAPEREX_QA_URL=https://dex.kobbex.com
+Environment=P12_SKIP_BROWSER=0
+TimeoutStartSec=900
+ExecStart=/usr/bin/flock -n /var/lock/swaperex-route-quote-smoke.lock /usr/bin/node /root/Swaperex/scripts/ops/p13-run-route-quote-smoke.mjs
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=swaperex-route-smoke
+
+[Install]
+WantedBy=multi-user.target
