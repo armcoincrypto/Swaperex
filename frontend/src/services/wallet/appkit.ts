@@ -14,6 +14,7 @@ import {
   avalanche,
 } from '@reown/appkit/networks';
 import { toast } from '@/stores/toastStore';
+import { sanitizeAppKitPersistedState } from '@/services/wallet/sanitizeAppKitPersistedState';
 import {
   WALLETCONNECT_PROJECT_ID,
   HAS_WALLETCONNECT_PROJECT_ID,
@@ -59,6 +60,8 @@ export function initAppKit() {
 
   const networks = [mainnet, bsc, polygon, arbitrum, optimism, avalanche];
 
+  sanitizeAppKitPersistedState();
+
   createAppKit({
     adapters: [new EthersAdapter()],
     networks: networks as [typeof mainnet, ...typeof mainnet[]],
@@ -66,6 +69,8 @@ export function initAppKit() {
     metadata,
     // Browser-extension / injected connectors are disabled; WalletConnect + read-only are used in the app UI.
     enableInjected: false,
+    enableEIP6963: false,
+    enableCoinbase: false,
     // Embedded email/social login pulls extra chunks (crypto/UI). Swaperex uses WalletConnect + read-only only.
     features: {
       analytics: false,

@@ -28,11 +28,42 @@ function AppKitActionsRegistrar() {
   return null;
 }
 
+/**
+ * Recovers from Reown router goBack() leaving ConnectingExternal view without connector data
+ * (vendor edge case when enableInjected is false and modal history is stale).
+ */
+function AppKitModalErrorGuard() {
+  const { close } = useAppKit();
+
+  useEffect(() => {
+    const onError = (event: ErrorEvent) => {
+      const message = event.message ?? '';
+      if (!message.includes('w3m-connecting-view: No connector provided')) {
+        return;
+      }
+      event.preventDefault();
+      try {
+        close();
+      } catch {
+        /* modal may already be closed */
+      }
+      console.warn(
+        '[WalletBootstrap] Closed AppKit modal after stale connecting-view error (injected connector state cleared).',
+      );
+    };
+    window.addEventListener('error', onError);
+    return () => window.removeEventListener('error', onError);
+  }, [close]);
+
+  return null;
+}
+
 export default function WalletBootstrap() {
   return (
     <>
       <AppKitBridge />
       <AppKitActionsRegistrar />
+      <AppKitModalErrorGuard />
     </>
   );
 }
