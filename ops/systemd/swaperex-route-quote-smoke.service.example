@@ -1,0 +1,14 @@
+[Unit]
+Description=Swaperex route/quote regression smoke (read-only)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/root/Swaperex
+Environment=SWAPEREX_QA_URL=https://dex.kobbex.com
+ExecStart=/usr/bin/flock -n /var/lock/swaperex-route-quote-smoke.lock /usr/bin/node scripts/audit/p12-5-route-quote-regression-smoke.mjs --output /root/Swaperex/reports/p12-5-route-quote-smoke.json
+# Non-zero exit surfaces to journal; integrate alerting via exit code or JSON report path.
+
+[Install]
+WantedBy=multi-user.target

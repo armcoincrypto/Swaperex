@@ -1,0 +1,12 @@
+[Unit]
+Description=Run Swaperex route/quote regression smoke every 6 hours
+
+[Timer]
+OnBootSec=15min
+OnUnitActiveSec=6h
+Persistent=true
+RandomizedDelaySec=300
+Unit=swaperex-route-quote-smoke.service
+
+[Install]
+WantedBy=timers.target

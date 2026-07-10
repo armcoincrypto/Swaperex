@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "baselineCommit": "eee0264",
+  "firstVerifiedDate": "2026-07-10",
+  "reviewDate": "2026-10-10",
+  "allowedFingerprints": [
+    {
+      "id": "reown-font-preload-khteka",
+      "pattern": "fonts.reown.com/KHTeka-Medium.woff2 was preloaded",
+      "classification": "COSMETIC_RESOURCE_HINT",
+      "reason": "Reown AppKit injects font preload; font consumed when modal opens",
+      "sourceOwnership": "VENDOR_REOWN",
+      "userImpact": "none"
+    },
+    {
+      "id": "walletconnect-pulse-closed",
+      "pattern": "pulse.walletconnect|ERR_CONNECTION_CLOSED",
+      "classification": "NETWORK_TELEMETRY",
+      "reason": "WalletConnect pulse analytics endpoint may fail without blocking quotes",
+      "sourceOwnership": "VENDOR_WALLETCONNECT",
+      "userImpact": "none"
+    },
+    {
+      "id": "discarding-cache-address",
+      "pattern": "Discarding cache for address",
+      "classification": "INFORMATIONAL",
+      "reason": "Reown/ethers internal address cache refresh",
+      "sourceOwnership": "VENDOR_REOWN",
+      "userImpact": "none"
+    }
+  ],
+  "operatorEnvironmentOnly": [
+    {
+      "id": "max-listeners-extension",
+      "pattern": "MaxListenersExceededWarning",
+      "classification": "BROWSER_EXTENSION",
+      "reason": "Browser extension contentscript listener leak",
+      "sourceOwnership": "WALLET_EXTENSION",
+      "reproduction": "OPERATOR_ENVIRONMENT_ONLY"
+    },
+    {
+      "id": "object-multiplex-orphan",
+      "pattern": "ObjectMultiplex.*orphaned|malformed",
+      "classification": "WALLET_EXTENSION",
+      "reason": "Injected wallet extension IPC noise",
+      "sourceOwnership": "WALLET_EXTENSION",
+      "reproduction": "OPERATOR_ENVIRONMENT_ONLY"
+    }
+  ],
+  "fatalPatterns": [
+    "w3m-connecting-view: No connector provided",
+    "Please call .*createAppKit",
+    "Uncaught ReferenceError",
+    "Cannot access .* before initialization"
+  ]
+}
