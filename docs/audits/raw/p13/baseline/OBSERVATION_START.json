@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "purpose": "P13.8 observation period start manifest (durable baseline, not volatile runtime output)",
+  "observationStartUtc": "2026-07-10T11:32:00Z",
+  "productionUrl": "https://dex.kobbex.com",
+  "productionCommit": "eee0264",
+  "rollbackFloor": "75b2ce7",
+  "gitHeadAtStart": "eee0264",
+  "monitoringTimer": "swaperex-route-quote-smoke.timer",
+  "smokeCadenceHours": 6,
+  "expectedRunsIn7Days": 28,
+  "validScheduledSamplesAtStart": 2,
+  "productionStatusAtStart": "HEALTHY",
+  "p13ProgramVerdict": "P13_PRODUCTION_OBSERVABILITY_PASS",
+  "serviceExecutionUser": "root",
+  "notes": "Volatile reports under reports/p13/ and raw journal captures are excluded from Git per .gitignore policy."
+}
