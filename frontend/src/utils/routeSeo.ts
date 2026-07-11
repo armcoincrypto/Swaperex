@@ -1,8 +1,10 @@
 /**
  * P3-C — Client-side document head updates for public info routes (no SSR).
+ * P16 — Brand hierarchy + trade route SEO.
  * `index.html` remains the static fallback for first paint / no-JS.
  */
 
+import { BRAND, brandPageTitle } from '@/constants/brand';
 import { syncStructuredDataForPath } from '@/utils/structuredData';
 
 export function normalizePublicPath(pathname: string): string {
@@ -19,41 +21,72 @@ type SeoSpec = {
 
 function specForPublicPath(p: string): SeoSpec {
   switch (p) {
+    case '/swap':
+      return {
+        title: BRAND.displayName,
+        description:
+          'Non-custodial swap interface for Ethereum and BNB Chain. Balance view on additional EVM networks.',
+        canonicalPath: '/swap',
+      };
+    case '/send':
+      return {
+        title: brandPageTitle('Send'),
+        description: 'Send tokens on supported EVM networks with your connected wallet.',
+        canonicalPath: '/send',
+      };
+    case '/portfolio':
+      return {
+        title: brandPageTitle('Portfolio'),
+        description: 'View holdings, allocation, and activity across supported networks.',
+        canonicalPath: '/portfolio',
+      };
+    case '/radar':
+      return {
+        title: brandPageTitle('Security'),
+        description: 'Token watchlist, scanner, and security alerts on Swaperex.',
+        canonicalPath: '/radar',
+      };
+    case '/screener':
+      return {
+        title: brandPageTitle('Markets'),
+        description: 'Token screener and market discovery for supported networks.',
+        canonicalPath: '/screener',
+      };
     case '/about':
       return {
-        title: 'About — Kobbex DEX',
-        description: 'Learn how Kobbex DEX works as a non-custodial crypto swap interface.',
+        title: brandPageTitle('About'),
+        description: `Learn how ${BRAND.productName} works as a non-custodial crypto swap interface ${BRAND.byline}.`,
         canonicalPath: '/about',
       };
     case '/terms':
       return {
-        title: 'Terms — Kobbex DEX',
-        description: 'Review the terms for using Kobbex DEX.',
+        title: brandPageTitle('Terms'),
+        description: `Review the terms for using ${BRAND.productName}.`,
         canonicalPath: '/terms',
       };
     case '/privacy':
       return {
-        title: 'Privacy — Kobbex DEX',
-        description: 'Review how Kobbex DEX handles wallet, browser, and public blockchain data.',
+        title: brandPageTitle('Privacy'),
+        description: `Review how ${BRAND.productName} handles wallet, browser, and public blockchain data.`,
         canonicalPath: '/privacy',
       };
     case '/disclaimer':
       return {
-        title: 'Disclaimer — Kobbex DEX',
-        description: 'Review important risk, wallet, and transaction disclaimers for using Kobbex DEX.',
+        title: brandPageTitle('Disclaimer'),
+        description: `Review important risk, wallet, and transaction disclaimers for ${BRAND.productName}.`,
         canonicalPath: '/disclaimer',
       };
     case '/trust':
       return {
-        title: 'Trust Center — Kobbex DEX',
+        title: brandPageTitle('Trust Center'),
         description:
-          'Transparency on custody, commission fees, supported networks, and audited swap routes on Swaperex.',
+          'Transparency on custody, commission fees, supported networks, and audited swap routes.',
         canonicalPath: '/trust',
       };
     case '/':
     default:
       return {
-        title: 'Swaperex',
+        title: BRAND.displayName,
         description:
           'Non-custodial swap interface for Ethereum and BNB Chain. Balance view on additional EVM networks.',
         canonicalPath: '/',

@@ -42,18 +42,18 @@ export function syncStructuredDataForPath(normalizedPath: string): void {
     {
       '@type': 'Organization',
       name: 'Swaperex',
-      alternateName: 'Kobbex DEX',
+      alternateName: 'Kobbex',
       url: origin,
     },
     {
       '@type': 'WebSite',
       name: 'Swaperex',
-      alternateName: 'Kobbex DEX',
+      alternateName: 'Kobbex',
       url: origin,
     },
   ];
 
-  if (normalizedPath === '/') {
+  if (normalizedPath === '/' || normalizedPath === '/swap') {
     graph.push({
       '@type': 'FAQPage',
       mainEntity: buildFaqMainEntity(),

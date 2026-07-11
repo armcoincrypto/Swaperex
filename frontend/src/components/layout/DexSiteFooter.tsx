@@ -7,6 +7,8 @@ import { Link } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { SystemStatusIndicator } from '@/components/common/SystemStatusIndicator';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
+import { BRAND } from '@/constants/brand';
+import { APP_ROUTE_PATHS } from '@/config/appRoutes';
 import {
   HOMEPAGE_INTEGRATIONS,
   HOMEPAGE_INTEGRATIONS_DISCLAIMER,
@@ -69,7 +71,8 @@ export function DexSiteFooter({ onNavigate }: DexSiteFooterProps) {
       <div className="max-w-6xl mx-auto px-4 py-10 sm:py-12">
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-8 lg:gap-6">
           <div className="col-span-2 sm:col-span-3 lg:col-span-1 lg:pr-4">
-            <p className="text-lg font-bold text-accent">Swaperex</p>
+            <p className="text-lg font-bold text-accent">{BRAND.displayName}</p>
+            <p className="text-[10px] font-medium text-dark-500 tracking-wide">{BRAND.byline}</p>
             <p className="mt-2 text-xs text-dark-500 leading-relaxed max-w-xs">
               {SWAP_SURFACE_COPY.footerTrustCompact}
             </p>
@@ -115,7 +118,7 @@ export function DexSiteFooter({ onNavigate }: DexSiteFooterProps) {
 
           <FooterColumn title="Resources">
             <Link
-              to="/trust"
+              to={APP_ROUTE_PATHS.trust}
               className="text-sm text-dark-400 hover:text-white transition-colors no-underline"
             >
               Trust Center
@@ -187,7 +190,7 @@ export function DexSiteFooter({ onNavigate }: DexSiteFooterProps) {
         </div>
 
         <p className="mt-6 text-center text-[11px] text-dark-600">
-          © {new Date().getFullYear()} Swaperex · Non-custodial DEX interface
+          © {new Date().getFullYear()} {BRAND.displayName} {BRAND.byline} · {BRAND.domain}
         </p>
       </div>
     </footer>
