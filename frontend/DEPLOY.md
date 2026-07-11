@@ -13,7 +13,15 @@
    git pull
    sudo REPO_DIR=/root/Swaperex-2 bash scripts/deploy-frontend.sh
    ```
-   The script will: `npm ci` + build in `frontend/`, backup `/var/www/swaperex`, deploy `frontend/dist/` to `/var/www/swaperex`, write `version.txt`, remove `.map` files, reload nginx, run smoke tests.
+   The script will: `npm ci` + build in `frontend/`, backup `/var/www/swaperex`, deploy `frontend/dist/` to `/var/www/swaperex`, write `version.txt` (including `environment=production`), remove `.map` files, reload nginx, run smoke tests.
+
+   **Browser certification (P16+ release gates):** after `npm ci`, install Chromium for Playwright:
+
+   ```bash
+   npm --prefix frontend run playwright:install
+   ```
+
+   Playwright is declared in `frontend/package.json`. Mandatory certification uses `--require-browser` and fails closed if the package or Chromium binary is missing.
 
 3. **Restart backend-signals** (if you changed it):
    ```bash

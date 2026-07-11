@@ -95,7 +95,7 @@ async function main() {
     report.automatedVerdict = 'P16_MOBILE_WC_BROWSER_DEPENDENCY_FAIL';
     report.verdict = 'P16_MOBILE_WC_CONNECTIVITY_ASSIST_FAIL';
     report.notes.push(String(err));
-    report.notes.push('Install browsers: cd frontend && npx playwright install chromium');
+    report.notes.push('Install browsers: npm --prefix frontend ci && npm --prefix frontend run playwright:install');
     fs.mkdirSync(path.dirname(opts.output), { recursive: true });
     fs.writeFileSync(opts.output, JSON.stringify(report, null, 2));
     console.log(JSON.stringify(report, null, 2));

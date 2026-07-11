@@ -12,7 +12,8 @@
     "lint": "eslint src --ext ts,tsx",
     "format": "prettier --write src",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "playwright:install": "playwright install chromium"
   },
   "dependencies": {
     "@headlessui/react": "^1.7.17",
@@ -44,6 +45,7 @@
     "eslint": "^8.55.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "jsdom": "^28.0.0",
+    "playwright": "1.61.1",
     "postcss": "^8.4.32",
     "prettier": "^3.1.0",
     "rollup-plugin-visualizer": "^5.14.0",
