@@ -1,0 +1,54 @@
+{
+  "program": "P17.2",
+  "verdict": "P17_2_LOCAL_KNOWN_TRANSACTION_JOURNAL_HARDENING_PASS",
+  "startingHead": "28ddb66",
+  "storageKey": "swaperex-transaction-journal-v2",
+  "envelopeSchemaVersion": 2,
+  "recordSchemaVersion": 2,
+  "recordKinds": ["approval", "swap"],
+  "statuses": ["submitted", "pending", "confirmed", "reverted", "unknown", "stale"],
+  "legacyWritesDisabled": true,
+  "migration": {
+    "fromKeys": ["swaperex-pending-swap-v1", "swaperex-swap-history"],
+    "unscopedLegacyPolicy": "quarantine",
+    "idempotent": true,
+    "legacyKeysPreserved": true
+  },
+  "walletIsolation": {
+    "enforced": true,
+    "normalization": "lowercase",
+    "quarantineExcludedFromSelectors": true
+  },
+  "approvalJournaling": {
+    "enabled": true,
+    "writeTiming": "immediately after sendTransaction hash",
+    "receiptHandling": "applyJournalReceiptUpdate"
+  },
+  "swapJournaling": {
+    "enabled": true,
+    "flowIdAtConfirmSwap": true,
+    "writeTiming": "immediately after sendTransaction hash",
+    "receiptHandling": "applyJournalReceiptUpdate",
+    "approvalLinkage": true
+  },
+  "tests": {
+    "frontendFiles": 47,
+    "frontendTests": 548,
+    "frontendTestsPass": 548,
+    "build": "PASS",
+    "p16ReleaseCertification": "P16_RELEASE_CERTIFICATION_PASS",
+    "productionRouteSmoke": "P16_ROUTE_SMOKE_PASS"
+  },
+  "production": {
+    "url": "https://dex.kobbex.com",
+    "artifact": "b6024e3",
+    "mutation": false,
+    "deployment": false
+  },
+  "deferred": [
+    "P17.3 reconciliation scheduler",
+    "P17.3 recovery UX",
+    "replacement/drop detection",
+    "multi-tab BroadcastChannel"
+  ]
+}
