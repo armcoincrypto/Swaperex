@@ -1,6 +1,7 @@
 {
-  "timestamp": "2026-07-11T10:57:51.795Z",
+  "timestamp": "2026-07-11T12:04:18.077Z",
   "baseUrl": "http://127.0.0.1:4173",
+  "routeCount": 14,
   "routes": [
     {
       "route": "/",
@@ -10,6 +11,7 @@
       "hasRoot": true,
       "hasSwaperex": true,
       "isSpaShell": true,
+      "failureKind": null,
       "pass": true
     },
     {
@@ -20,6 +22,7 @@
       "hasRoot": true,
       "hasSwaperex": true,
       "isSpaShell": true,
+      "failureKind": null,
       "pass": true
     },
     {
@@ -30,6 +33,7 @@
       "hasRoot": true,
       "hasSwaperex": true,
       "isSpaShell": true,
+      "failureKind": null,
       "pass": true
     },
     {
@@ -40,6 +44,7 @@
       "hasRoot": true,
       "hasSwaperex": true,
       "isSpaShell": true,
+      "failureKind": null,
       "pass": true
     },
     {
@@ -50,6 +55,7 @@
       "hasRoot": true,
       "hasSwaperex": true,
       "isSpaShell": true,
+      "failureKind": null,
       "pass": true
     },
     {
@@ -60,6 +66,7 @@
       "hasRoot": true,
       "hasSwaperex": true,
       "isSpaShell": true,
+      "failureKind": null,
       "pass": true
     },
     {
@@ -70,6 +77,7 @@
       "hasRoot": true,
       "hasSwaperex": true,
       "isSpaShell": true,
+      "failureKind": null,
       "pass": true
     },
     {
@@ -80,6 +88,7 @@
       "hasRoot": true,
       "hasSwaperex": true,
       "isSpaShell": true,
+      "failureKind": null,
       "pass": true
     },
     {
@@ -90,6 +99,7 @@
       "hasRoot": true,
       "hasSwaperex": true,
       "isSpaShell": true,
+      "failureKind": null,
       "pass": true
     },
     {
@@ -100,6 +110,7 @@
       "hasRoot": true,
       "hasSwaperex": true,
       "isSpaShell": true,
+      "failureKind": null,
       "pass": true
     },
     {
@@ -110,6 +121,7 @@
       "hasRoot": true,
       "hasSwaperex": true,
       "isSpaShell": true,
+      "failureKind": null,
       "pass": true
     },
     {
@@ -120,9 +132,33 @@
       "hasRoot": true,
       "hasSwaperex": true,
       "isSpaShell": true,
+      "failureKind": null,
+      "pass": true
+    },
+    {
+      "route": "/swap?chain=56&from=WBNB&to=USDC&slippage=0.5",
+      "url": "http://127.0.0.1:4173/swap?chain=56&from=WBNB&to=USDC&slippage=0.5",
+      "status": 200,
+      "ok": true,
+      "hasRoot": true,
+      "hasSwaperex": true,
+      "isSpaShell": true,
+      "failureKind": null,
+      "pass": true
+    },
+    {
+      "route": "/portfolio#holdings",
+      "url": "http://127.0.0.1:4173/portfolio#holdings",
+      "status": 200,
+      "ok": true,
+      "hasRoot": true,
+      "hasSwaperex": true,
+      "isSpaShell": true,
+      "failureKind": null,
       "pass": true
     }
   ],
   "verdict": "P16_ROUTE_SMOKE_PASS",
-  "failCount": 0
+  "failCount": 0,
+  "connectionFailureCount": 0
 }
