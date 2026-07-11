@@ -1,16 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+const contractInstances: Array<{ allowance: ReturnType<typeof vi.fn> }> = [];
+
 vi.mock('ethers', () => {
-  class MockContract {
-    allowance = vi.fn();
-    constructor(
-      _token: string,
-      _abi: unknown,
-      _provider: unknown,
-    ) {}
-  }
+  const Contract = vi.fn(function ContractMock() {
+    const instance = { allowance: vi.fn() };
+    contractInstances.push(instance);
+    return instance;
+  });
   return {
-    Contract: MockContract,
+    Contract,
     JsonRpcProvider: vi.fn(),
     Network: { from: vi.fn(() => ({})) },
   };
@@ -35,21 +34,24 @@ vi.mock('@/utils/swapObservability', () => ({
 
 describe('readCommissionWrapperAllowanceVsRequired', () => {
   beforeEach(() => {
+    contractInstances.length = 0;
     vi.resetModules();
     vi.clearAllMocks();
   });
 
   it('retries once when first static read throws', async () => {
     vi.useFakeTimers();
-    const { Contract } = await import('ethers');
     const allowanceMock = vi
       .fn()
       .mockRejectedValueOnce(new Error('timeout'))
       .mockResolvedValueOnce(1000n);
 
-    (Contract as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => ({
-      allowance: allowanceMock,
-    }));
+    const { Contract } = await import('ethers');
+    Contract.mockImplementation(
+      class {
+        allowance = allowanceMock;
+      },
+    );
 
     const { readCommissionWrapperAllowanceVsRequired } = await import('../allowanceRead');
 

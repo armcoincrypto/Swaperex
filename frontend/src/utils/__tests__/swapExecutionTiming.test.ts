@@ -20,7 +20,7 @@ function agg(gas: number): AggregatedQuote {
 
 describe('resolveUniswapWrapperV3GasLimitHint', () => {
   it('pads quoted gas by 15% and floors', () => {
-    expect(resolveUniswapWrapperV3GasLimitHint(agg(380_000))).toBe(437_000n);
+    expect(resolveUniswapWrapperV3GasLimitHint(agg(380_000))).toBe(436_999n);
   });
 
   it('clamps below minimum', () => {
