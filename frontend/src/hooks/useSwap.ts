@@ -40,6 +40,17 @@ import { walletEvents, getWalletEventMessage } from '@/services/walletEvents';
 import { processQuoteForSignals } from '@/services/radarService';
 import { getSwapQuoteInputFingerprint } from '@/utils/swapQuoteInputFingerprint';
 import { useSwapHistoryStore } from '@/stores/swapHistoryStore';
+import {
+  applyJournalReceiptUpdate,
+  getJournalRecordId,
+  useTransactionJournalStore,
+} from '@/stores/transactionJournalStore';
+import { createFlowId } from '@/utils/transactionJournalIdentity';
+import {
+  buildApprovalJournalContext,
+  buildSwapJournalContext,
+  warnJournalWriteFailure,
+} from '@/utils/swapJournalIntegration';
 import { useUsageStore } from '@/stores/usageStore';
 import { useCommissionMonitorStore } from '@/stores/commissionMonitorStore';
 import {
@@ -188,9 +199,7 @@ import {
 import {
   clearPendingSwap,
   getPendingSwapForAccount,
-  markPendingSwapOutcomeUncertain,
   readPendingSwap,
-  writePendingSwap,
 } from '@/utils/pendingSwapStorage';
 import type { AssetInfo } from '@/types/api';
 
@@ -407,7 +416,7 @@ export function useSwap() {
     clearQuote,
   } = useSwapStore();
   const { fetchBalances } = useBalanceStore();
-  const { addRecord: addSwapRecord, updateRecordStatus } = useSwapHistoryStore();
+  const { updateRecordStatus } = useSwapHistoryStore();
   const { trackEvent } = useUsageStore();
   const { addConfirmedSwapEvent } = useCommissionMonitorStore();
 
@@ -496,6 +505,10 @@ export function useSwap() {
   /** Blocks a second swap `sendTransaction` while the first is still with the wallet. */
   const swapWalletSigningInFlightRef = useRef(false);
   const swapWalletGuardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Links approval + swap records within one confirmSwap execution flow. */
+  const swapFlowIdRef = useRef<string | null>(null);
+  /** Last approval journal record id in the active flow (for linkage). */
+  const lastApprovalRecordIdRef = useRef<string | null>(null);
 
   const clearApprovalWalletSigningGuard = useCallback(() => {
     if (approvalWalletGuardTimerRef.current != null) {
@@ -1877,8 +1890,49 @@ export function useSwap() {
         clearApprovalWalletSigningGuard();
       }
 
+      if (!address || !chainId) {
+        throw new Error('Wallet disconnected after approval broadcast.');
+      }
+
+      const approvalContext = buildApprovalJournalContext({
+        swapQuote,
+        chainId,
+        approvalMode,
+        spenderAddress: approvalTx.to,
+        exactAmountRaw: useExact ? exactAmount : undefined,
+      });
+
+      const flowId = swapFlowIdRef.current ?? createFlowId();
+      swapFlowIdRef.current = flowId;
+
+      const journalStore = useTransactionJournalStore.getState();
+      const journalResult = journalStore.journalApprovalSubmitted({
+        flowId,
+        walletAddress: address,
+        chainId,
+        transactionHash: tx.hash,
+        context: approvalContext,
+        explorerUrl: getExplorerTxUrl(chainId, tx.hash),
+      });
+
+      if (!journalResult.ok) {
+        warnJournalWriteFailure(journalResult.reason, tx.hash);
+      } else {
+        lastApprovalRecordIdRef.current = journalResult.record.id;
+        journalStore.markTransactionPending(journalResult.record.id);
+      }
+
       toast.info('Approval sent — waiting for on-chain confirmation…');
-      await tx.wait();
+      const receipt = await tx.wait();
+
+      if (receipt) {
+        applyJournalReceiptUpdate({
+          chainId,
+          kind: 'approval',
+          transactionHash: tx.hash,
+          receipt,
+        });
+      }
 
       swapTrace('[Swap Lifecycle] Approval confirmed:', tx.hash, '| Provider:', swapQuote.provider);
       swapObsLog('approval_tx_confirmed', { hash: tx.hash, provider: swapQuote.provider });
@@ -1927,7 +1981,7 @@ export function useSwap() {
     approvalMode,
     getSigner,
     state.status,
-    fromAsset,
+    address,
     armApprovalWalletSigningGuard,
     clearApprovalWalletSigningGuard,
   ]);
@@ -2428,33 +2482,38 @@ export function useSwap() {
       logLifecycle('swapping', 'confirming', { txHash: tx.hash, explorerUrl });
       setState((s) => ({ ...s, status: 'confirming', txHash: tx.hash, explorerUrl }));
 
-      writePendingSwap({
+      const flowId = swapFlowIdRef.current ?? createFlowId();
+      swapFlowIdRef.current = flowId;
+
+      const swapContext = buildSwapJournalContext({
+        swapQuote,
         chainId,
-        fromAddress: address.toLowerCase(),
-        txHash: tx.hash,
-        explorerUrl,
-        submittedAt: Date.now(),
-        fromSymbol: swapQuote.fromSymbol,
-        toSymbol: swapQuote.toSymbol,
+        fromAsset,
+        toAsset,
         fromAmount,
-        toAmount: swapQuote.amountOutFormatted,
+        slippage,
+        recipient: address,
+        routerAddress: swapTx.to,
+        approvalRecordId: lastApprovalRecordIdRef.current ?? undefined,
       });
 
-      if (fromAsset && toAsset && swapQuote) {
-        addSwapRecord({
-          timestamp: Date.now(),
-          chainId: chainId || 1,
-          fromAsset,
-          toAsset,
-          fromAmount,
-          toAmount: swapQuote.amountOutFormatted,
-          minimumToAmount: swapQuote.minimum_received,
-          txHash: tx.hash,
-          explorerUrl,
-          status: 'pending',
-          provider: swapQuote.provider,
-          slippage,
-        });
+      const journalStore = useTransactionJournalStore.getState();
+      const journalResult = journalStore.journalSwapSubmitted({
+        flowId,
+        walletAddress: address,
+        chainId,
+        transactionHash: tx.hash,
+        context: swapContext,
+        explorerUrl,
+      });
+
+      if (!journalResult.ok) {
+        warnJournalWriteFailure(journalResult.reason, tx.hash);
+      } else {
+        journalStore.markTransactionPending(journalResult.record.id);
+        if (lastApprovalRecordIdRef.current) {
+          journalStore.linkApprovalAndSwap(lastApprovalRecordIdRef.current, journalResult.record.id);
+        }
       }
 
       toast.info('Swap submitted — waiting for on-chain confirmation…');
@@ -2464,6 +2523,13 @@ export function useSwap() {
 
       if (receipt?.status === 1) {
         clearPendingSwap();
+        applyJournalReceiptUpdate({
+          chainId,
+          kind: 'swap',
+          transactionHash: tx.hash,
+          receipt,
+        });
+        updateRecordStatus(tx.hash, 'success');
         swapObsLog('swap_tx_confirmed', {
           hash: tx.hash,
           chainId: chainId ?? 0,
@@ -2728,25 +2794,7 @@ export function useSwap() {
           });
         }
 
-        // Record swap to local history for Quick Repeat
-        if (fromAsset && toAsset && swapQuote) {
-          addSwapRecord({
-            timestamp: Date.now(),
-            chainId: chainId || 1,
-            fromAsset,
-            toAsset,
-            fromAmount,
-            toAmount: swapQuote.amountOutFormatted,
-            minimumToAmount: swapQuote.minimum_received,
-            txHash: tx.hash,
-            explorerUrl,
-            status: 'success',
-            provider: swapQuote.provider,
-            slippage,
-          });
-        }
-
-        // Track usage for analytics (local only, no personal data)
+        // Journal + history adapter updated via receipt handler above
         trackEvent('swap_completed');
 
         // Refresh balances once (non-blocking so success modal is not held on RPC)
@@ -2780,6 +2828,12 @@ export function useSwap() {
           provider: swapQuote.provider,
         });
         updateRecordStatus(tx.hash, 'failed');
+        applyJournalReceiptUpdate({
+          chainId,
+          kind: 'swap',
+          transactionHash: tx.hash,
+          receipt: receipt ?? { status: 0, blockNumber: 0 },
+        });
         throw new Error('Transaction was not successful. The blockchain rejected the swap. Check your transaction on the explorer for details.');
       }
     } catch (err) {
@@ -2823,7 +2877,17 @@ export function useSwap() {
         console.warn('[Swap] Wallet sign request already pending (-32002)');
       } else {
         if (broadcastTx) {
-          markPendingSwapOutcomeUncertain();
+          const recordId = getJournalRecordId(chainId ?? 0, 'swap', broadcastTx.hash);
+          if (recordId) {
+            useTransactionJournalStore.getState().markTransactionUnknown(recordId, {
+              category: parsed.category,
+              technicalSummary: parsed.message.slice(0, 240),
+              occurredAt: new Date().toISOString(),
+              stage: 'swap-confirm',
+              broadcastKnown: true,
+              retryable: parsed.category === 'network_error' || parsed.category === 'rpc_error',
+            });
+          }
           updateRecordStatus(broadcastTx.hash, 'uncertain');
         }
         logProductionEvent('swap_failure', {
@@ -2867,7 +2931,6 @@ export function useSwap() {
     fromAmount,
     fromAsset,
     toAsset,
-    addSwapRecord,
     updateRecordStatus,
     addConfirmedSwapEvent,
     slippage,
@@ -3108,11 +3171,15 @@ export function useSwap() {
 
     swapExecutionLockRef.current = true;
     swapExecutionLockStartedAtRef.current = Date.now();
+    swapFlowIdRef.current = createFlowId();
+    lastApprovalRecordIdRef.current = null;
     try {
       return await executeSwap();
     } finally {
       swapExecutionLockRef.current = false;
       swapExecutionLockStartedAtRef.current = null;
+      swapFlowIdRef.current = null;
+      lastApprovalRecordIdRef.current = null;
       clearSwapExecutionTiming();
     }
   }, [state.status, swapQuote, executeSwap, chainId]);
@@ -3170,6 +3237,12 @@ export function useSwap() {
 
         if (receipt !== null) {
           clearPendingSwap();
+          applyJournalReceiptUpdate({
+            chainId,
+            kind: 'swap',
+            transactionHash: pending.txHash,
+            receipt,
+          });
           updateRecordStatus(pending.txHash, receipt.status === 1 ? 'success' : 'failed');
           swapObsLog('pending_reconciled', {
             hash: pending.txHash,
@@ -3256,6 +3329,12 @@ export function useSwap() {
         const explorerUrlResolved = getExplorerTxUrl(chainId, hash);
 
         if (receipt?.status === 1) {
+          applyJournalReceiptUpdate({
+            chainId,
+            kind: 'swap',
+            transactionHash: hash,
+            receipt,
+          });
           updateRecordStatus(hash, 'success');
           swapObsLog('recovery_tx_confirmed', { hash, chainId, status: 1 });
           toast.success('Swap confirmed on-chain. Balances may take a moment to update.');
@@ -3275,6 +3354,12 @@ export function useSwap() {
         }
 
         toast.warning('This swap reverted on-chain.');
+        applyJournalReceiptUpdate({
+          chainId,
+          kind: 'swap',
+          transactionHash: hash,
+          receipt: receipt ?? { status: 0, blockNumber: 0 },
+        });
         updateRecordStatus(hash, 'failed');
         swapObsLog('recovery_tx_failed', { hash, chainId, status: 0 });
         setState((s) => ({
@@ -3287,7 +3372,10 @@ export function useSwap() {
         }));
       } catch {
         if (cancelled) return;
-        markPendingSwapOutcomeUncertain();
+        const recordId = getJournalRecordId(chainId, 'swap', hash);
+        if (recordId) {
+          useTransactionJournalStore.getState().markTransactionUnknown(recordId);
+        }
         updateRecordStatus(hash, 'uncertain');
         swapObsLog('recovery_tx_uncertain', { hash, chainId });
         const explorerUrlResolved = getExplorerTxUrl(chainId, hash);
