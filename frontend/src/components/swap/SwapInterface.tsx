@@ -10,6 +10,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { useWallet } from '@/hooks/useWallet';
+import { useSwapUrlSync } from '@/hooks/useSwapUrlSync';
 import { useSwap } from '@/hooks/useSwap';
 import { useSwapStore, type ApprovalMode } from '@/stores/swapStore';
 import { toast } from '@/stores/toastStore';
@@ -108,7 +109,10 @@ import type { QuoteFailureReasonCode } from '@/utils/errors';
 import { logProductionEvent } from '@/utils/productionMonitoring';
 import { logRevenueTelemetry } from '@/utils/revenueTelemetry';
 import { isCommissionSwapUnavailableOnChain } from '@/constants/commissionChains';
+import { resolveSwapCtaState } from '@/constants/swapCtaStates';
+import { mapSwapStatusToLifecycle, getTransactionLifecycleSpec } from '@/constants/transactionLifecycle';
 import { CommissionSwapChainBanner } from '@/components/swap/CommissionSwapChainBanner';
+import { UnsupportedSwapNetworkExperience } from '@/components/swap/UnsupportedSwapNetworkExperience';
 import { FeaturedCommissionRoutes } from '@/components/swap/FeaturedCommissionRoutes';
 import { InlineSkeleton } from '@/components/common/InlineSkeleton';
 
@@ -299,6 +303,7 @@ export function SwapInterface() {
   // Get available tokens for current chain (static + custom)
   const currentChainId = chainId || 1;
   const commissionSwapUnavailable = isCommissionSwapUnavailableOnChain(currentChainId);
+  useSwapUrlSync(!commissionSwapUnavailable);
   const customTokens = getCustomTokens(currentChainId);
 
   const AVAILABLE_TOKENS = useMemo(() => {
@@ -1439,6 +1444,58 @@ export function SwapInterface() {
 
   const mainCtaLabel = getButtonText();
 
+  const ctaSpec = useMemo(
+    () =>
+      resolveSwapCtaState({
+        isConnected,
+        isWrongChain,
+        commissionSwapUnavailable,
+        hasAmount: Boolean(fromAmount && parseFloat(fromAmount) > 0),
+        insufficientBalance: Boolean(insufficientBalance),
+        isQuoteLoading: isQuoteFetchUiLoading,
+        hasQuote: Boolean(hasUsableQuote),
+        isQuoteExpired,
+        needsApproval: Boolean(swapQuote?.needsApproval),
+        status,
+        isReadOnly,
+        guardsBlocked: Boolean(guardEvaluation?.blocked && !guardsDismissed),
+        unsupportedRoute: Boolean(
+          status === 'error' &&
+            !swapQuote &&
+            quoteErrorParsed?.reasonCode === 'unsupported_commission_route',
+        ),
+      }),
+    [
+      isConnected,
+      isWrongChain,
+      commissionSwapUnavailable,
+      fromAmount,
+      insufficientBalance,
+      isQuoteFetchUiLoading,
+      hasUsableQuote,
+      isQuoteExpired,
+      swapQuote?.needsApproval,
+      status,
+      isReadOnly,
+      guardEvaluation?.blocked,
+      guardsDismissed,
+      swapQuote,
+      quoteErrorParsed?.reasonCode,
+    ],
+  );
+
+  const lifecycleState = useMemo(
+    () =>
+      mapSwapStatusToLifecycle({
+        status,
+        hasQuote: Boolean(hasUsableQuote),
+        isQuoteExpired,
+        needsApproval: swapQuote?.needsApproval,
+        error,
+      }),
+    [status, hasUsableQuote, isQuoteExpired, swapQuote?.needsApproval, error],
+  );
+
   const showCommissionRouteIssue =
     isCommissionRequiredMode() &&
     fromAsset &&
@@ -1568,6 +1625,27 @@ export function SwapInterface() {
   }, [ctaVisualState]);
 
   // Render swap form
+  if (commissionSwapUnavailable) {
+    return (
+      <>
+        <div className="w-full max-w-md lg:max-w-xl 2xl:max-w-2xl mx-auto bg-electro-panel/90 backdrop-blur-glass rounded-2xl p-5 sm:p-6 border border-white/[0.1] shadow-[0_20px_60px_rgba(0,0,0,0.45)] relative overflow-x-hidden min-w-0">
+          <div className="relative z-10 mb-3">
+            <h2 className="text-xl font-bold text-white">Swap</h2>
+            <p className="mt-1 text-xs text-dark-400">Not available on the selected network.</p>
+          </div>
+          <UnsupportedSwapNetworkExperience
+            chainId={currentChainId}
+            onSwitchToSwapChain={(targetChainId) => {
+              void switchNetwork(targetChainId).catch(() => {
+                toast.error('Could not switch network. Try from your wallet app.');
+              });
+            }}
+          />
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <div className="w-full max-w-md lg:max-w-xl 2xl:max-w-2xl mx-auto bg-electro-panel/90 backdrop-blur-glass rounded-2xl p-5 sm:p-6 border border-white/[0.1] shadow-[0_20px_60px_rgba(0,0,0,0.45)] relative overflow-x-hidden overflow-y-visible min-w-0">
@@ -2637,8 +2715,12 @@ export function SwapInterface() {
             )}
           </button>
           <span id="swap-main-cta-desc" className="sr-only">
-            {mainCtaLabel}
+            {ctaSpec.reason} {ctaSpec.nextStep}
           </span>
+          <p className="sr-only" aria-live="polite">
+            {getTransactionLifecycleSpec(lifecycleState).title}:{' '}
+            {getTransactionLifecycleSpec(lifecycleState).description}
+          </p>
         </div>
 
         {/* Security Footer */}
