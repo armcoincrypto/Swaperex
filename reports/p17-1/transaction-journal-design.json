@@ -1,0 +1,132 @@
+{
+  "program": "P17.1",
+  "schemaVersion": 1,
+  "verdict": "P17_1_TRANSACTION_JOURNAL_AND_RECONCILIATION_DESIGN_PASS",
+  "journal": {
+    "storageKey": "swaperex-transaction-journal-v2",
+    "envelopeSchemaVersion": 2,
+    "recordSchemaVersion": 2,
+    "architecture": "hybrid-unified-journal-with-legacy-migration",
+    "recordKinds": ["approval", "swap"],
+    "sources": ["swaperex-client", "legacy-migrated"],
+    "statuses": ["submitted", "pending", "confirmed", "reverted", "unknown", "stale"],
+    "preBroadcastInJournal": false,
+    "requiredFields": [
+      "schemaVersion",
+      "id",
+      "flowId",
+      "kind",
+      "source",
+      "walletAddress",
+      "chainId",
+      "transactionHash",
+      "status",
+      "submittedAt",
+      "updatedAt",
+      "context"
+    ],
+    "optionalFields": [
+      "lastCheckedAt",
+      "confirmedAt",
+      "blockNumber",
+      "confirmations",
+      "explorerUrl",
+      "receipt",
+      "error",
+      "reconciliation",
+      "relatedRecordIds"
+    ]
+  },
+  "identity": {
+    "recordId": "lowercase(chainId):kind:lowercase(txHash)",
+    "flowId": "UUID v4 at flow start (confirmSwap entry)",
+    "hashNormalization": "lowercase for storage and comparison",
+    "walletNormalization": "lowercase for storage and queries; checksum retained in context.displayWalletAddress optional",
+    "retryPolicy": "new hash => new record; same flowId optional link"
+  },
+  "scoping": {
+    "walletScoped": true,
+    "chainInRecord": true,
+    "defaultView": "connected wallet, all supported chains with labels",
+    "disconnectedView": "no wallet-specific history; optional device-local legacy section read-only",
+    "crossDevice": false
+  },
+  "retention": {
+    "maxRecords": 200,
+    "pendingActiveTtlHours": 48,
+    "staleAfterHours": 48,
+    "cleanupOrder": ["oldest confirmed", "oldest reverted", "oldest stale"],
+    "neverDeleteNewestUnresolvedFirst": true
+  },
+  "migration": {
+    "fromKeys": ["swaperex-pending-swap-v1", "swaperex-swap-history"],
+    "unscopedLegacyPolicy": "quarantine bucket legacy-unscoped-v1; never assign to active wallet without walletAddress proof",
+    "dedupeBy": "record id",
+    "idempotent": true,
+    "legacyKeyRemovalPhase": "P17.10 after certification"
+  },
+  "reconciliation": {
+    "sourceOfTruth": "on-chain receipt",
+    "providerHierarchy": ["same-origin /rpc read provider", "configured public RPC fallbacks"],
+    "walletProviderForReconcile": false,
+    "service": "reconcileKnownTransaction(record, readProvider)",
+    "retryPhases": [
+      {"windowMinutes": 2, "intervalSeconds": 4},
+      {"windowMinutes": 15, "intervalSeconds": 30},
+      {"windowMinutes": 120, "intervalSeconds": 300},
+      {"untilHours": 48, "trigger": "app-open, wallet-reconnect, manual-refresh"}
+    ],
+    "unknownOn": "provider_error after bounded attempts",
+    "staleOn": "no receipt after 48h",
+    "replacementDropStates": "deferred metadata only"
+  },
+  "transitions": [
+    {"from": "submitted", "event": "receipt_missing", "to": "pending", "allowed": true},
+    {"from": "submitted", "event": "receipt_success", "to": "confirmed", "allowed": true},
+    {"from": "submitted", "event": "receipt_reverted", "to": "reverted", "allowed": true},
+    {"from": "pending", "event": "receipt_success", "to": "confirmed", "allowed": true},
+    {"from": "pending", "event": "receipt_reverted", "to": "reverted", "allowed": true},
+    {"from": "pending", "event": "provider_error", "to": "unknown", "allowed": true},
+    {"from": "unknown", "event": "receipt_success", "to": "confirmed", "allowed": true},
+    {"from": "unknown", "event": "receipt_reverted", "to": "reverted", "allowed": true},
+    {"from": "unknown", "event": "timeout_48h", "to": "stale", "allowed": true},
+    {"from": "confirmed", "event": "any", "to": "pending", "allowed": false},
+    {"from": "reverted", "event": "retry", "to": "pending", "allowed": false}
+  ],
+  "privacy": {
+    "localStorageClearable": true,
+    "walletIsolationEnforced": true,
+    "monitoringOptIn": true,
+    "userDisclaimerRequired": true
+  },
+  "implementationPhases": {
+    "P17.2": [
+      "types and validators",
+      "transactionJournalStore",
+      "migration service",
+      "journal on broadcast (swap + approval)",
+      "wallet-scoped selectors",
+      "transition guards",
+      "unit tests"
+    ],
+    "P17.3": [
+      "reconciliation service",
+      "connect useSwap recovery",
+      "SwapPreviewModal recoveredTrace wiring",
+      "unknown/stale UX",
+      "integration tests"
+    ]
+  },
+  "adrs": [
+    "ADR-01 chain receipt authoritative",
+    "ADR-02 device-local known-hash journal",
+    "ADR-03 unified versioned journal v2",
+    "ADR-04 approval and swap separate linked records",
+    "ADR-05 wallet plus chain isolation",
+    "ADR-06 unknown stale before dropped replaced",
+    "ADR-07 no cross-device sync initial P17",
+    "ADR-08 no database indexer initial P17",
+    "ADR-09 operator-first observability unchanged",
+    "ADR-10 no public status page in P17.1"
+  ]
+}
