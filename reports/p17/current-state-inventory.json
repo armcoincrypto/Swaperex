@@ -1,0 +1,98 @@
+{
+  "program": "P17_HISTORY_STATUS_AND_OBSERVABILITY_UX_CURRENT_STATE_AUDIT",
+  "date": "2026-07-11",
+  "productionUrl": "https://dex.kobbex.com",
+  "productionArtifact": "b6024e3",
+  "repositoryHead": "11b4afa",
+  "verdict": "P17_HISTORY_STATUS_AND_OBSERVABILITY_UX_CURRENT_STATE_AUDIT_PASS",
+  "transactionLifecycle": {
+    "runtimeStatusModel": "frontend/src/hooks/useSwap.ts SwapStatus: idle|fetching_quote|checking_allowance|previewing|approving|swapping|confirming|success|error",
+    "presentationalModel": "frontend/src/constants/transactionLifecycle.ts TransactionLifecycleId (12 states)",
+    "ctaModel": "frontend/src/constants/swapCtaStates.ts SwapCtaStateId",
+    "modalSteps": "frontend/src/components/swap/swapPreviewTypes.ts SwapStep",
+    "gap": "P16 lifecycle is UI copy mapping; runtime truth remains SwapStatus + receipt fields. Approval rejected collapses into swap_failed when error lacks userRejected flag."
+  },
+  "persistence": {
+    "pendingInFlight": {
+      "key": "swaperex-pending-swap-v1",
+      "module": "frontend/src/utils/pendingSwapStorage.ts",
+      "ttlHours": 48,
+      "scopedBy": ["chainId", "fromAddress"],
+      "fields": ["txHash", "explorerUrl", "fromSymbol", "toSymbol", "fromAmount", "toAmount", "outcomeUncertain"]
+    },
+    "swapHistory": {
+      "key": "swaperex-swap-history",
+      "module": "frontend/src/stores/swapHistoryStore.ts",
+      "maxRecords": 100,
+      "statuses": ["success", "failed", "pending", "uncertain"],
+      "walletScoped": false,
+      "deviceScoped": true
+    },
+    "approvalsPersisted": false,
+    "refreshRecovery": true,
+    "crossDevice": false
+  },
+  "reconciliation": {
+    "inSession": "ethers tx.wait() in useSwap.executeSwap and executeApproval",
+    "postRefresh": [
+      "getTransactionReceipt once on mount (pendingSwapStorage)",
+      "waitForTransaction when confirming without quote (post-refresh)"
+    ],
+    "pollingInterval": "ethers internal (no custom interval)",
+    "replacementDetection": false,
+    "droppedDetection": false,
+    "confirmationPolicy": "receipt.status === 1 success else failed; no explicit confirmation count"
+  },
+  "apis": [
+    {"path": "/api/v1/health", "purpose": "signals engine health", "consumer": "systemStatusStore"},
+    {"path": "/api/health", "purpose": "alias to signals health", "consumer": "verify-live.sh"},
+    {"path": "/rpc/eth|bsc", "purpose": "read-only RPC proxy", "consumer": "wallet/read providers"},
+    {"path": "/explorer/{chain}", "purpose": "Etherscan/BSCScan/PolygonScan proxy", "consumer": "transactionHistory, activityService"},
+    {"path": "/oneinch/*", "purpose": "quote/build proxy", "consumer": "oneInchQuote, oneInchTxBuilder"},
+    {"path": "/api/v1/monitoring/events", "purpose": "optional client telemetry ingest", "consumer": "productionMonitoring.ts", "defaultEnabled": false}
+  ],
+  "providers": [
+    {"chainId": 1, "readRpc": "same-origin /rpc/eth + public fallbacks", "config": "frontend/src/config/rpc.ts"},
+    {"chainId": 56, "readRpc": "same-origin /rpc/bsc + public fallbacks", "config": "frontend/src/config/rpc.ts"},
+    {"explorerCanonical": "frontend/src/config/chains.ts getExplorerTxUrl"}
+  ],
+  "healthChecks": [
+    {"name": "verify-live.sh", "scope": "SPA + /api/health + version.txt", "trigger": "manual/deploy"},
+    {"name": "post-deploy-certification.sh", "scope": "deploy parity + verify-live + scans", "trigger": "manual"},
+    {"name": "p13-run-route-quote-smoke.mjs", "scope": "quote regression matrix", "trigger": "scheduled 6h"},
+    {"name": "p13-production-status.mjs", "scope": "aggregate smoke/trends/version", "trigger": "manual"},
+    {"name": "p12-4-runtime-warning-monitor.mjs", "scope": "browser console on prod routes", "trigger": "manual/release"},
+    {"name": "systemStatusStore", "scope": "signals /health every 60s", "trigger": "in-app footer/radar"}
+  ],
+  "statusSurfaces": [
+    {"surface": "SwapPreviewModal", "durability": "session/modal", "types": ["preview", "approving", "broadcasting", "success", "error"]},
+    {"surface": "react-hot-toast", "durability": "transient", "types": ["info", "success", "warning", "error"]},
+    {"surface": "ActivityPanel /portfolio", "durability": "merged feed", "requiresWallet": true},
+    {"surface": "DeviceSwapActivityStrip /swap", "durability": "local device only", "requiresWallet": false},
+    {"surface": "SystemStatusIndicator", "durability": "signals health pill", "publicRoute": false},
+    {"surface": "UnsupportedSwapNetworkExperience", "durability": "page state", "types": ["network capability"]}
+  ],
+  "observability": {
+    "clientTelemetry": "frontend/src/utils/productionMonitoring.ts (localStorage outbox, optional POST)",
+    "swapObsLog": "useSwap structured console in dev/flags",
+    "operatorReports": "reports/p13/*, reports/p12-4-runtime-warnings.json",
+    "noPublicStatusRoute": true
+  },
+  "findings": [
+    {"id": "P17-F01", "severity": "High", "area": "History", "summary": "Approvals not journaled; only swap txs in swapHistoryStore"},
+    {"id": "P17-F02", "severity": "High", "area": "Recovery UX", "summary": "pendingSubmittedSwap recovery not wired to SwapPreviewModal UI"},
+    {"id": "P17-F03", "severity": "Medium", "area": "Reconciliation", "summary": "No replacement/dropped tx detection"},
+    {"id": "P17-F04", "severity": "Medium", "area": "History scope", "summary": "Local history not wallet-scoped; cross-wallet leakage on shared browser"},
+    {"id": "P17-F05", "severity": "Medium", "area": "Status durability", "summary": "Critical post-broadcast state often toast-only"},
+    {"id": "P17-F06", "severity": "Low", "area": "Public status", "summary": "No /status route; signals health != swap health"},
+    {"id": "P17-F07", "severity": "Informational", "area": "Existing assets", "summary": "ActivityPanel + explorer merge already provide partial history UX"}
+  ],
+  "recommendations": {
+    "historyArchitecture": "Option A+B hybrid — extend existing browser-local journal + on-chain hash reconciliation",
+    "persistence": "Reuse pendingSwapStorage + swapHistoryStore; add wallet scoping and optional approval rows",
+    "reconciliation": "Formalize receipt polling/backoff helper; wire recovery banner to modal",
+    "crossDevice": "Not recommended now — insufficient evidence of need vs privacy/cost",
+    "publicStatus": "Operator-first; minimal public surface later if continuous probes exist",
+    "nextPhase": "P17.1_TRANSACTION_JOURNAL_AND_RECONCILIATION_DESIGN"
+  }
+}
