@@ -1,45 +1,28 @@
 /**
- * Network Selector Component
+ * Network Selector Component — P15 capability-aware network picker.
  *
  * Switches chain via `useWallet().switchNetwork` (EIP-1193: same provider as WalletConnect / AppKit).
- * Injected-wallet add-network fallback uses `window.ethereum` only when not on WalletConnect.
  */
 
 import { useState } from 'react';
 import { useWallet } from '@/hooks/useWallet';
-import { CHAINS } from '@/utils/constants';
-import { isCommissionSwapChain } from '@/constants/commissionChains';
+import { getChain } from '@/wallet/chains';
+import {
+  getNetworkCapabilityLabel,
+  getSwapUnavailableReason,
+  getWalletNetworkCapabilities,
+  isSwapEnabledNetwork,
+} from '@/config/networkCapabilities';
 import { logRevenueTelemetry } from '@/utils/revenueTelemetry';
 
-interface NetworkInfo {
-  chainId: number;
-  name: string;
-  symbol: string;
-  icon: string;
-  rpcUrl: string;
-  explorerUrl: string;
-}
-
 const CHAIN_ICONS: Record<number, string> = {
-  1: '\u27E0',      // Ethereum
-  56: '\u2B21',      // BNB
-  137: '\u2B23',     // Polygon
-  42161: '\uD83D\uDD35',  // Arbitrum
-  10: '\uD83D\uDD34',     // Optimism
-  43114: '\uD83D\uDD3A',  // Avalanche
-  100: '\uD83E\uDD89',    // Gnosis
-  250: '\uD83D\uDC7B',    // Fantom
-  8453: '\uD83D\uDFE6',   // Base
+  1: '\u27E0',
+  56: '\u2B21',
+  137: '\u2B23',
+  42161: '\uD83D\uDD35',
+  10: '\uD83D\uDD34',
+  43114: '\uD83D\uDD3A',
 };
-
-const SUPPORTED_NETWORKS: NetworkInfo[] = Object.values(CHAINS).map((chain) => ({
-  chainId: chain.id,
-  name: chain.name,
-  symbol: chain.nativeSymbol,
-  icon: CHAIN_ICONS[chain.id] || '\u26D3',
-  rpcUrl: chain.rpcUrl,
-  explorerUrl: chain.explorer,
-}));
 
 export function NetworkSelector() {
   const { chainId, isConnected, switchNetwork, walletType } = useWallet();
@@ -47,11 +30,12 @@ export function NetworkSelector() {
   const [isSwitching, setIsSwitching] = useState(false);
   const [switchMessage, setSwitchMessage] = useState<string | null>(null);
 
-  const currentNetwork = SUPPORTED_NETWORKS.find((n) => n.chainId === chainId);
+  const networks = getWalletNetworkCapabilities();
+  const currentNetwork = networks.find((n) => n.chainId === chainId);
   const isUnsupportedNetwork = isConnected && !currentNetwork;
 
-  const handleNetworkSwitch = async (network: NetworkInfo) => {
-    if (network.chainId === chainId) {
+  const handleNetworkSwitch = async (targetChainId: number) => {
+    if (targetChainId === chainId) {
       setIsOpen(false);
       return;
     }
@@ -59,11 +43,11 @@ export function NetworkSelector() {
     setSwitchMessage(null);
     setIsSwitching(true);
     try {
-      await switchNetwork(network.chainId);
+      await switchNetwork(targetChainId);
       logRevenueTelemetry('chain_selected', {
-        chainId: network.chainId,
+        chainId: targetChainId,
         source: 'network_selector',
-        swapCapable: isCommissionSwapChain(network.chainId),
+        swapCapable: isSwapEnabledNetwork(targetChainId),
       });
       setIsOpen(false);
     } catch (error) {
@@ -72,8 +56,9 @@ export function NetworkSelector() {
         error instanceof Error ? error.message : 'Could not switch network. Try again from your wallet app.';
       setSwitchMessage(msg);
 
-      // Injected wallets only: WC / AppKit handles add-chain inside useWallet; window.ethereum is often wrong here.
+      const chain = getChain(targetChainId);
       if (
+        chain &&
         walletType !== 'walletconnect' &&
         window.ethereum &&
         typeof (window.ethereum as { request?: unknown }).request === 'function'
@@ -81,19 +66,7 @@ export function NetworkSelector() {
         try {
           await (window.ethereum as { request: (args: unknown) => Promise<unknown> }).request({
             method: 'wallet_addEthereumChain',
-            params: [
-              {
-                chainId: `0x${network.chainId.toString(16)}`,
-                chainName: network.name,
-                nativeCurrency: {
-                  name: network.symbol,
-                  symbol: network.symbol,
-                  decimals: 18,
-                },
-                rpcUrls: [network.rpcUrl],
-                blockExplorerUrls: [network.explorerUrl],
-              },
-            ],
+            params: [chain.addChainParams],
           });
           setIsOpen(false);
           setSwitchMessage(null);
@@ -110,15 +83,19 @@ export function NetworkSelector() {
     return null;
   }
 
+  const currentLabel = currentNetwork ? getNetworkCapabilityLabel(currentNetwork.chainId) : null;
+
   return (
     <div className="relative">
-      {/* Current Network Button */}
       <button
+        type="button"
         onClick={() => {
           setSwitchMessage(null);
           setIsOpen(!isOpen);
         }}
         disabled={isSwitching}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
         className={`
           flex items-center gap-2 px-3 py-2 rounded-lg
           ${isUnsupportedNetwork
@@ -141,8 +118,13 @@ export function NetworkSelector() {
           </>
         ) : (
           <>
-            <span className="text-lg">{currentNetwork?.icon}</span>
-            <span className="text-sm font-medium">{currentNetwork?.name}</span>
+            <span className="text-lg">{CHAIN_ICONS[chainId] ?? '\u26D3'}</span>
+            <span className="flex flex-col items-start leading-tight">
+              <span className="text-sm font-medium">{currentNetwork?.name}</span>
+              {currentLabel && (
+                <span className="text-[10px] text-dark-400">{currentLabel}</span>
+              )}
+            </span>
             <span className="text-xs text-gray-400">{'\u25BC'}</span>
           </>
         )}
@@ -154,40 +136,58 @@ export function NetworkSelector() {
         </p>
       )}
 
-      {/* Dropdown */}
       {isOpen && (
         <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 z-40"
-            onClick={() => setIsOpen(false)}
-          />
+          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} aria-hidden />
 
-          {/* Network List */}
-          <div className="absolute right-0 mt-2 w-52 bg-dark-800 border border-dark-700 rounded-lg shadow-xl z-50 overflow-hidden max-h-[70vh] overflow-y-auto">
-            <div className="p-2 border-b border-dark-700">
-              <span className="text-xs text-gray-400 font-medium">Select Network</span>
+          <div
+            className="absolute right-0 mt-2 w-64 bg-dark-800 border border-dark-700 rounded-lg shadow-xl z-50 overflow-hidden max-h-[70vh] overflow-y-auto"
+            role="listbox"
+            aria-label="Select network"
+          >
+            <div className="p-2 border-b border-dark-700 space-y-1">
+              <span className="text-xs text-gray-400 font-medium block">Select network</span>
+              <p className="text-[10px] text-dark-500 leading-snug">
+                Swaps run on Ethereum and BNB Chain. Other networks are for balances, send, and portfolio.
+              </p>
             </div>
-            {SUPPORTED_NETWORKS.map((network) => (
-              <button
-                key={network.chainId}
-                onClick={() => handleNetworkSwitch(network)}
-                className={`
-                  w-full flex items-center gap-3 px-3 py-2.5
-                  hover:bg-dark-700 transition-colors
-                  ${network.chainId === chainId ? 'bg-dark-700' : ''}
-                `}
-              >
-                <span className="text-lg">{network.icon}</span>
-                <div className="flex-1 text-left">
-                  <div className="text-sm font-medium text-white">{network.name}</div>
-                  <div className="text-xs text-gray-400">{network.symbol}</div>
-                </div>
-                {network.chainId === chainId && (
-                  <span className="text-green-400 text-sm">{'\u2713'}</span>
-                )}
-              </button>
-            ))}
+            {networks.map((network) => {
+              const badge = getNetworkCapabilityLabel(network.chainId);
+              const isSwap = network.swapSupported;
+              return (
+                <button
+                  key={network.chainId}
+                  type="button"
+                  role="option"
+                  aria-selected={network.chainId === chainId}
+                  title={!isSwap ? getSwapUnavailableReason(network.chainId) : undefined}
+                  onClick={() => handleNetworkSwitch(network.chainId)}
+                  className={`
+                    w-full flex items-start gap-3 px-3 py-2.5
+                    hover:bg-dark-700 transition-colors text-left
+                    ${network.chainId === chainId ? 'bg-dark-700' : ''}
+                  `}
+                >
+                  <span className="text-lg pt-0.5">{CHAIN_ICONS[network.chainId] ?? '\u26D3'}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-white">{network.name}</div>
+                    <div className="text-xs text-gray-400">{network.nativeToken}</div>
+                    <span
+                      className={`inline-flex mt-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                        isSwap
+                          ? 'bg-emerald-950/50 text-emerald-300 border border-emerald-700/40'
+                          : 'bg-dark-700/80 text-dark-300 border border-dark-600/50'
+                      }`}
+                    >
+                      {badge}
+                    </span>
+                  </div>
+                  {network.chainId === chainId && (
+                    <span className="text-green-400 text-sm pt-1">{'\u2713'}</span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </>
       )}

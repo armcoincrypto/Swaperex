@@ -44,6 +44,7 @@ import { classifyCommissionRoute } from '@/utils/commission';
 import { isDebugMode } from '@/utils/chainHealth';
 import { emitSwapLifecycleStage } from '@/utils/swapLifecycleTelemetry';
 import { SwapTokenAvatar } from '@/components/common/SwapTokenAvatar';
+import { NetworkFeeEstimateRow } from '@/components/swap/NetworkFeeEstimateRow';
 
 export type { SwapStep } from './swapPreviewTypes';
 import type { SwapStep } from './swapPreviewTypes';
@@ -79,6 +80,8 @@ interface SwapPreviewModalProps {
   isRefreshing: boolean;
   /** Active chain for network label (from wallet / swap context; display-only) */
   chainId?: number | null;
+  walletProvider?: unknown;
+  walletConnected?: boolean;
   /**
    * Quote TTL seconds remaining — owned by `SwapInterface` (single 1s interval).
    * `null` when the parent TTL ticker is inactive (e.g. non-preview swap status).
@@ -104,6 +107,8 @@ export function SwapPreviewModal({
   onRefreshQuote,
   isRefreshing,
   chainId = null,
+  walletProvider,
+  walletConnected = false,
   quoteTtlSecondsRemaining,
   lifecycleFlowId = null,
   fromLogoUrl = null,
@@ -350,8 +355,19 @@ export function SwapPreviewModal({
               chainId={chainId}
               secondsRemaining={secondsRemaining}
               isExpired={isExpired}
+              walletProvider={walletProvider}
+              walletConnected={walletConnected}
             />
           )}
+
+          {step === 'preview' &&
+            chainId === 1 &&
+            (quote.from_asset === 'ETH' || quote.to_asset === 'ETH') &&
+            quote.from_asset !== quote.to_asset && (
+              <p className="text-[11px] text-dark-400 mb-4 leading-relaxed rounded-lg border border-white/[0.06] bg-dark-900/40 px-3 py-2">
+                {SWAP_SURFACE_COPY.nativeEthWrapPreviewNote}
+              </p>
+            )}
 
           {/* Quote Expiry Timer */}
           {step === 'preview' && (
@@ -741,11 +757,15 @@ function PreSignConfidenceBlock({
   chainId,
   secondsRemaining,
   isExpired,
+  walletProvider,
+  walletConnected = false,
 }: {
   quote: SwapQuote;
   chainId: number | null | undefined;
   secondsRemaining: number;
   isExpired: boolean;
+  walletProvider?: unknown;
+  walletConnected?: boolean;
 }) {
   const chainCfg = chainId != null ? getChainById(chainId) : undefined;
   const networkDisplay =
@@ -799,6 +819,17 @@ function PreSignConfidenceBlock({
           <dt className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.slippageToleranceLabel}</dt>
           <dd className="text-right text-dark-100">{quote.slippage}%</dd>
         </div>
+        {chainId != null && (
+          <div className="pt-2 border-t border-white/[0.06]">
+            <NetworkFeeEstimateRow
+              chainId={chainId}
+              gasEstimate={quote.gasEstimate}
+              provider={walletProvider}
+              walletConnected={walletConnected}
+              compact={false}
+            />
+          </div>
+        )}
       </dl>
     </div>
   );

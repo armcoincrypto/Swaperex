@@ -152,10 +152,13 @@ export function ChainWarningBanner({
   chainId,
   onSwitch,
   onDismiss,
+  allowDismiss = true,
 }: {
   chainId: number;
   onSwitch: () => void;
-  onDismiss: () => void;
+  onDismiss?: () => void;
+  /** P15 — keep visible on swap when wrong network affects trading */
+  allowDismiss?: boolean;
 }) {
   const chainName = getChainName(chainId);
   const isUnsupported = !SUPPORTED_CHAIN_IDS.includes(chainId);
@@ -163,28 +166,37 @@ export function ChainWarningBanner({
   if (!isUnsupported) return null;
 
   return (
-    <div className="bg-yellow-900/90 text-yellow-100 px-4 py-3">
-      <div className="max-w-6xl mx-auto flex items-center justify-between">
-        <div className="flex items-center gap-2">
+    <div
+      className="bg-yellow-900/90 text-yellow-100 px-4 py-3"
+      role="alert"
+      aria-live="polite"
+    >
+      <div className="max-w-6xl mx-auto flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0">
           <WarningIcon />
           <span className="text-sm">
-            <strong>{chainName || `Chain ${chainId}`}</strong> is not supported.
-            Some features may be unavailable.
+            <strong>{chainName || `Chain ${chainId}`}</strong> is not supported in Swaperex.
+            Connect to Ethereum, BNB Chain, or another listed network to continue.
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <button
+            type="button"
             onClick={onSwitch}
             className="px-3 py-1 bg-yellow-800 hover:bg-yellow-700 rounded text-sm font-medium transition-colors"
           >
-            Switch Network
+            Switch network
           </button>
-          <button
-            onClick={onDismiss}
-            className="p-1 hover:bg-yellow-800 rounded transition-colors"
-          >
-            <CloseIcon />
-          </button>
+          {allowDismiss && onDismiss ? (
+            <button
+              type="button"
+              onClick={onDismiss}
+              className="p-1 hover:bg-yellow-800 rounded transition-colors"
+              aria-label="Dismiss network warning"
+            >
+              <CloseIcon />
+            </button>
+          ) : null}
         </div>
       </div>
     </div>

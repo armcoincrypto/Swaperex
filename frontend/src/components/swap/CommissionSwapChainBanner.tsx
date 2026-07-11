@@ -5,10 +5,12 @@
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/common/Button';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
+import { COMMISSION_SWAP_CHAIN_IDS, isCommissionSwapUnavailableOnChain } from '@/constants/commissionChains';
 import {
-  COMMISSION_SWAP_CHAIN_IDS,
-  isCommissionSwapUnavailableOnChain,
-} from '@/constants/commissionChains';
+  formatSwapEnabledNetworkList,
+  getNetworkCapability,
+  getSwapUnavailableReason,
+} from '@/config/networkCapabilities';
 import { getChainName } from '@/utils/format';
 
 type Props = {
@@ -24,7 +26,9 @@ export function CommissionSwapChainBanner({
 }: Props) {
   if (!isCommissionSwapUnavailableOnChain(chainId)) return null;
 
-  const chainName = getChainName(chainId) || `Chain ${chainId}`;
+  const chainName = getChainName(chainId) || getNetworkCapability(chainId)?.name || `Chain ${chainId}`;
+  const swapNetworks = formatSwapEnabledNetworkList();
+  const reason = getSwapUnavailableReason(chainId);
 
   return (
     <div
@@ -34,7 +38,11 @@ export function CommissionSwapChainBanner({
     >
       <p className="font-medium text-amber-100">{SWAP_SURFACE_COPY.commissionSwapUnavailableTitle}</p>
       <p className="mt-1 text-xs leading-relaxed text-amber-100/90">
-        {SWAP_SURFACE_COPY.commissionSwapUnavailableBody.replace('{network}', chainName)}
+        {reason ||
+          SWAP_SURFACE_COPY.commissionSwapUnavailableBody.replace('{network}', chainName)}
+      </p>
+      <p className="mt-1 text-[11px] text-amber-100/75">
+        Swap-enabled networks: <strong>{swapNetworks}</strong>.
       </p>
       {onSwitchToSwapChain ? (
         <div className="mt-2.5 flex flex-wrap gap-2">

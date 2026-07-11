@@ -109,6 +109,7 @@ export function RouteTransparencyCard({
         </span>
         <span className="text-dark-500">
           Gas <span className="text-dark-300 font-mono">{gasUnitsDisplay ?? '—'}</span>
+          <span className="text-dark-600"> (network, not commission)</span>
         </span>
       </div>
 

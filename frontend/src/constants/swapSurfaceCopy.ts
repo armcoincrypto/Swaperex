@@ -225,6 +225,15 @@ export const SWAP_SURFACE_COPY = {
   /** Primary CTA when commission swaps are unavailable on the active chain */
   commissionSwapSwitchNetworkCta: 'Switch to swap network',
 
+  /** P15 — custom token import */
+  customTokenRiskAckLabel:
+    'I understand this is an unverified custom token. Swaperex does not guarantee its safety or liquidity.',
+  customTokenImportBlockedNonSwapChain:
+    'Custom tokens can only be added for swapping on Ethereum and BNB Chain. Switch network to import.',
+  customTokenUnverifiedBadge: 'Custom · unverified',
+  nativeEthWrapPreviewNote:
+    'Native ETH may be wrapped to WETH internally for routing. You receive the token shown in “Minimum received”, not WETH, unless WETH is the output token.',
+
   /** Success modal — protocol fee parentheticals */
   successFeeOnChainTreasury: '(on-chain, sent to treasury)',
   successFeeEstimated: '(estimated)',

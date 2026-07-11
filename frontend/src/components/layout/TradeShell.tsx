@@ -671,11 +671,12 @@ export default function TradeShell() {
       )}
 
       {/* Chain Warning Banner */}
-      {isConnected && isWrongChain && !isReadOnly && !bannerDismissed && (
+      {isConnected && isWrongChain && !isReadOnly && (!bannerDismissed || currentPage === 'swap') && (
         <ChainWarningBanner
           chainId={chainId}
           onSwitch={handleBannerSwitch}
-          onDismiss={() => setBannerDismissed(true)}
+          onDismiss={currentPage === 'swap' ? undefined : () => setBannerDismissed(true)}
+          allowDismiss={currentPage !== 'swap'}
         />
       )}
 

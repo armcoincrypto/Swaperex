@@ -32,6 +32,8 @@ import {
 import type { SwapStep } from './swapPreviewTypes';
 import { SwapExecutionRail } from './SwapExecutionRail';
 import { RouteTransparencyCard } from './RouteTransparencyCard';
+import { NetworkFeeEstimateRow } from './NetworkFeeEstimateRow';
+import { isSwapEnabledNetwork } from '@/config/networkCapabilities';
 import { TermsGateModal } from '@/components/common/TermsGateModal';
 import { useTermsStore } from '@/stores/termsStore';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
@@ -963,6 +965,14 @@ export function SwapInterface() {
       return;
     }
 
+    // Don't fetch quotes on networks without commission swap support (P15)
+    if (commissionSwapUnavailable) {
+      if (status === 'idle' || status === 'fetching_quote' || status === 'checking_allowance') {
+        clearQuote();
+      }
+      return;
+    }
+
     // Don't fetch if other conditions not met
     if (!isConnected || !fromAsset || !toAsset) {
       return;
@@ -1029,7 +1039,7 @@ export function SwapInterface() {
     };
   // Note: status removed from deps to prevent infinite loop - we check it inside the effect
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fromAmount, fromAsset, toAsset, isConnected, fetchSwapQuote, clearQuote, routeMode, swapUiTrace]);
+  }, [fromAmount, fromAsset, toAsset, isConnected, fetchSwapQuote, clearQuote, routeMode, swapUiTrace, commissionSwapUnavailable]);
 
   // Token selection handlers
   const handleFromTokenSelect = useCallback((asset: AssetInfo) => {
@@ -2449,16 +2459,13 @@ export function SwapInterface() {
                     <span>{swapQuote.slippage}%</span>
                   </div>
 
-                  <div className="border-t border-dark-700 pt-2 space-y-1">
-                    <div className="flex justify-between gap-2">
-                      <span className="text-dark-400 shrink-0">Est. gas (units)</span>
-                      <span className="text-dark-300 font-mono text-right">
-                        {formatGasLimitUnits(swapQuote.gasEstimate) ?? '—'}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-dark-500 leading-snug">
-                      Simulation estimate from the quote route. Your wallet confirms the final gas limit and network fee.
-                    </p>
+                  <div className="border-t border-dark-700 pt-2 space-y-2">
+                    <NetworkFeeEstimateRow
+                      chainId={currentChainId}
+                      gasEstimate={swapQuote.gasEstimate}
+                      provider={provider}
+                      walletConnected={isConnected && !isReadOnly}
+                    />
                   </div>
 
                   <div className="flex justify-between items-center gap-2">
@@ -2678,6 +2685,8 @@ export function SwapInterface() {
             receiptSettlement={receiptSettlement}
             approvalMode={approvalMode}
             chainId={currentChainId}
+            walletProvider={provider}
+            walletConnected={isConnected && !isReadOnly}
             onConfirm={handleConfirmSwap}
             onCancel={handleCancelPreview}
             onRefreshQuote={handleRefreshQuote}
@@ -2847,6 +2856,8 @@ function TokenSelectorDropdown({
   const [isImporting, setIsImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [importedToken, setImportedToken] = useState<CustomToken | null>(null);
+  const [customTokenRiskAck, setCustomTokenRiskAck] = useState(false);
+  const swapChainForImport = chainId != null && isSwapEnabledNetwork(chainId);
 
   // Close on click outside
   useEffect(() => {
@@ -2895,7 +2906,7 @@ function TokenSelectorDropdown({
 
   // Confirm adding the imported token
   const handleConfirmImport = () => {
-    if (importedToken && onAddToken) {
+    if (importedToken && onAddToken && customTokenRiskAck) {
       onAddToken(importedToken);
       // Convert to AssetInfo and select it
       const assetInfo: AssetInfo = {
@@ -2908,6 +2919,7 @@ function TokenSelectorDropdown({
       };
       onSelect(assetInfo);
       setImportedToken(null);
+      setCustomTokenRiskAck(false);
       setSearchQuery('');
     }
   };
@@ -2955,6 +2967,11 @@ function TokenSelectorDropdown({
     >
       {/* Search Input */}
       <div className="px-3 pb-2 mb-2 border-b border-dark-700">
+        {chainId != null && !swapChainForImport && (
+          <p className="text-[10px] text-amber-200/90 mb-2 leading-snug">
+            {SWAP_SURFACE_COPY.customTokenImportBlockedNonSwapChain}
+          </p>
+        )}
         <input
           id="token-search"
           name="token-search"
@@ -2972,7 +2989,7 @@ function TokenSelectorDropdown({
       </div>
 
       {/* Import Token Section - shown when contract address is detected */}
-      {isContractAddress && !tokenExists && !isStatic && !!provider && chainId && onAddToken && (
+      {isContractAddress && !tokenExists && !isStatic && !!provider && chainId && onAddToken && swapChainForImport && (
         <div className="px-3 pb-3 mb-2 border-b border-dark-700">
           {importedToken ? (
             // Show imported token details for confirmation with security data
@@ -3015,22 +3032,37 @@ function TokenSelectorDropdown({
                 {importedToken.address}
               </div>
 
-              {/* Disclaimer */}
-              <div className="text-[10px] text-dark-500 mb-3 leading-relaxed">
-                Security data is informational only, not financial advice. Always DYOR.
+              {/* Disclaimer + risk acknowledgement */}
+              <div className="text-[10px] text-dark-500 mb-2 leading-relaxed">
+                Security data is informational only, not financial advice. Custom tokens are not verified by Swaperex.
               </div>
+              <label className="flex items-start gap-2 mb-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={customTokenRiskAck}
+                  onChange={(e) => setCustomTokenRiskAck(e.target.checked)}
+                  className="mt-0.5 rounded border-dark-600"
+                />
+                <span className="text-[11px] text-dark-300 leading-snug">
+                  {SWAP_SURFACE_COPY.customTokenRiskAckLabel}
+                </span>
+              </label>
 
               {/* Actions */}
               <div className="flex gap-2">
                 <button
-                  onClick={() => setImportedToken(null)}
+                  onClick={() => {
+                    setImportedToken(null);
+                    setCustomTokenRiskAck(false);
+                  }}
                   className="flex-1 px-3 py-1.5 bg-dark-600 rounded text-sm hover:bg-dark-500"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleConfirmImport}
-                  className="flex-1 px-3 py-1.5 bg-primary-600 rounded text-sm hover:bg-primary-500 text-white"
+                  disabled={!customTokenRiskAck}
+                  className="flex-1 px-3 py-1.5 bg-primary-600 rounded text-sm hover:bg-primary-500 text-white disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Import Token
                 </button>
