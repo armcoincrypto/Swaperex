@@ -2,6 +2,7 @@
 set -euo pipefail
 
 BASE="https://dex.kobbex.com"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Require JSON health payload (not SPA HTML with HTTP 200).
 validate_json_health_endpoint() {
@@ -95,12 +96,8 @@ if [ -z "$VERSION_BODY" ]; then
   echo "❌ FAIL /version.txt — empty body"
   exit 14
 fi
-if ! printf '%s\n' "$VERSION_BODY" | grep -qE '^commit='; then
-  echo "❌ FAIL /version.txt — missing commit= line"
-  exit 15
-fi
-if ! printf '%s\n' "$VERSION_BODY" | grep -qE '^environment=production'; then
-  echo "❌ FAIL /version.txt — missing environment=production"
+if ! node "$SCRIPT_DIR/version-metadata.mjs" validate --text "$VERSION_BODY" --require-environment production; then
+  echo "❌ FAIL /version.txt — schema validation failed"
   exit 16
 fi
 echo "✅ version.txt OK"

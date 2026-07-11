@@ -75,11 +75,13 @@ section "5. Live version.txt"
 LIVE_VERSION="$(curl -fsSL https://dex.kobbex.com/version.txt 2>/dev/null || true)"
 if [ -n "$LIVE_VERSION" ]; then
   echo "$LIVE_VERSION"
-  if printf '%s\n' "$LIVE_VERSION" | grep -qE '^commit='; then
-    echo "✅ version.txt commit present"
+  if node "$ROOT_DIR/scripts/audit/version-metadata.mjs" validate \
+    --text "$LIVE_VERSION" \
+    --require-environment production; then
+    echo "✅ version.txt schema valid"
   else
-    echo "❌ version.txt missing commit="
-    FAILURES+=("version.txt commit line")
+    echo "❌ version.txt schema validation failed"
+    FAILURES+=("version.txt schema")
   fi
 else
   echo "❌ Could not fetch live version.txt"

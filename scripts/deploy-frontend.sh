@@ -119,13 +119,17 @@ find "$DEPLOY_DIR" -mindepth 1 -delete 2>/dev/null || true
 # Copy new build
 cp -a "$FRONTEND_DIR/dist/." "$DEPLOY_DIR/"
 
-# Write version marker
-cat > "$DEPLOY_DIR/version.txt" <<VEOF
+# Write version marker (backward-compatible production schema)
+VERSION_TMP="$(mktemp)"
+cat > "$VERSION_TMP" <<VEOF
+environment=production
 commit=$COMMIT_HASH
 short=$COMMIT_SHORT
 branch=$BRANCH
 deployed=$TIMESTAMP
 VEOF
+install -m 0644 "$VERSION_TMP" "$DEPLOY_DIR/version.txt"
+rm -f "$VERSION_TMP"
 
 # Remove source maps from public serving (security hardening)
 find "$DEPLOY_DIR" -name '*.map' -delete 2>/dev/null || true
