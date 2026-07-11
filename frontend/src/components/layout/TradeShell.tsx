@@ -6,7 +6,7 @@
  * SECURITY: All signing happens client-side via connected wallet.
  */
 
-import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { LazyWalletBootstrap, LazyWalletConnect } from '@/components/wallet/lazyWalletChunks';
 import { SwapInterface } from '@/components/swap/SwapInterface';
@@ -29,6 +29,14 @@ import {
   subscribeWalletBootstrapRequest,
 } from '@/services/wallet/appKitActionsRegistry';
 import { SHOW_OPTIONAL_PRIMARY_NAV, PRIMARY_NAV_ITEMS, TRADE_SUB_NAV } from '@/config/productShell';
+import {
+  type AppPage,
+  pathToPage,
+  pageToPath,
+  isKnownPublicPath,
+  APP_ROUTE_PATHS,
+} from '@/config/appRoutes';
+import { BRAND } from '@/constants/brand';
 import { applyClientRouteSeo, normalizePublicPath } from '@/utils/routeSeo';
 import { DexSiteFooter, type FooterNavTarget } from '@/components/layout/DexSiteFooter';
 import { HomepageTrustStrip } from '@/components/homepage/HomepageTrustStrip';
@@ -36,27 +44,12 @@ import { HomepageHeroWorkspace } from '@/components/homepage/HomepageHeroWorkspa
 import { HomepageProtocolStats } from '@/components/homepage/HomepageProtocolStats';
 import { HomepageWhySwaperex } from '@/components/homepage/HomepageWhySwaperex';
 import { HomepagePopularRoutes } from '@/components/homepage/HomepagePopularRoutes';
+import { useSwapUrlSync } from '@/hooks/useSwapUrlSync';
 
 const LazySendPage = lazy(() => import('@/components/send/SendPage'));
 const LazyPortfolioPage = lazy(() => import('@/components/portfolio/PortfolioPage'));
 const LazyTokenScreener = lazy(() => import('@/components/screener/TokenScreener'));
 const LazyRadarPanel = lazy(() => import('@/components/radar/RadarPanel'));
-
-const LazyAboutPage = lazy(() =>
-  import('@/components/pages/StaticPages').then((m) => ({ default: m.AboutPage }))
-);
-const LazyTermsPage = lazy(() =>
-  import('@/components/pages/StaticPages').then((m) => ({ default: m.TermsPage }))
-);
-const LazyPrivacyPage = lazy(() =>
-  import('@/components/pages/StaticPages').then((m) => ({ default: m.PrivacyPage }))
-);
-const LazyDisclaimerPage = lazy(() =>
-  import('@/components/pages/StaticPages').then((m) => ({ default: m.DisclaimerPage }))
-);
-const LazyTrustCenterPage = lazy(() =>
-  import('@/components/pages/TrustCenterPage').then((m) => ({ default: m.TrustCenterPage }))
-);
 
 const LazyTokenList = lazy(() =>
   import('@/components/balances/TokenList').then((m) => ({ default: m.TokenList }))
@@ -110,53 +103,13 @@ const lazyTokenListSidebarFallback = (
   </aside>
 );
 
-type Page = 'swap' | 'send' | 'portfolio' | 'radar' | 'screener' | 'about' | 'terms' | 'privacy' | 'disclaimer' | 'trust';
+type Page = AppPage;
 
 /**
- * P3-A: map URL → `currentPage` for crawlable informational routes only.
- * `/` is not mapped here (swap vs send/portfolio share `/` until those routes exist).
+ * P16 — Derive active page from URL (first-class routes for all trade tabs).
  */
-function pathToPage(pathname: string): Extract<Page, 'about' | 'terms' | 'privacy' | 'disclaimer' | 'trust'> | null {
-  switch (normalizePublicPath(pathname)) {
-    case '/about':
-      return 'about';
-    case '/terms':
-      return 'terms';
-    case '/privacy':
-      return 'privacy';
-    case '/disclaimer':
-      return 'disclaimer';
-    case '/trust':
-      return 'trust';
-    default:
-      return null;
-  }
-}
-
-/** P3-A: map `currentPage` → URL; `null` = leave path handling to caller (non-routed tabs). */
-function pageToPath(page: Page): '/' | '/about' | '/terms' | '/privacy' | '/disclaimer' | '/trust' | null {
-  switch (page) {
-    case 'swap':
-      return '/';
-    case 'about':
-      return '/about';
-    case 'terms':
-      return '/terms';
-    case 'privacy':
-      return '/privacy';
-    case 'disclaimer':
-      return '/disclaimer';
-    case 'trust':
-      return '/trust';
-    default:
-      return null;
-  }
-}
-
-function readInitialPageFromUrl(): Page {
-  if (typeof window === 'undefined') return 'swap';
-  const mapped = pathToPage(window.location.pathname);
-  return mapped ?? 'swap';
+function readPageFromUrl(pathname: string): Page {
+  return pathToPage(pathname) ?? 'swap';
 }
 
 /**
@@ -184,7 +137,12 @@ function shouldLoadHeaderWalletChunk(params: {
 export default function TradeShell() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [currentPage, setCurrentPage] = useState<Page>(readInitialPageFromUrl);
+  const currentPage = useMemo(() => readPageFromUrl(location.pathname), [location.pathname]);
+  const onSwapRoute =
+    currentPage === 'swap' &&
+    (normalizePublicPath(location.pathname) === '/' ||
+      normalizePublicPath(location.pathname) === APP_ROUTE_PATHS.swap);
+  useSwapUrlSync(onSwapRoute);
   const walletHostNeeded = useWalletBootstrapStore((s) => s.needed);
   const { isConnected, isWrongChain, isReadOnly, chainId, switchNetwork } = useWallet();
   const { setFromAsset, setToAsset, setFromAmount } = useSwapStore();
@@ -201,30 +159,21 @@ export default function TradeShell() {
   const refreshSignalsHealth = useSignalsHealthStore((s) => s.refresh);
   const refreshSystemStatus = useSystemStatusStore((s) => s.refresh);
 
-  // P8A.2 — accept PassiveShell footer handoff (trade tabs) without mounting wallet on passive routes.
+  // P16 — Legacy PassiveShell footer handoff: navigate to real route + optional section hash.
   useEffect(() => {
     const state = location.state as { dexPage?: Page; section?: string } | null;
     if (!state?.dexPage) return;
-    const page = state.dexPage;
-    if (
-      page === 'about' ||
-      page === 'terms' ||
-      page === 'privacy' ||
-      page === 'disclaimer' ||
-      page === 'trust'
-    ) {
-      return;
-    }
-    setCurrentPage(page);
+    const path = pageToPath(state.dexPage);
+    const hash = state.section ? `#${state.section}` : '';
+    navigate(`${path}${hash}`, { replace: true, state: null });
     if (state.section) {
       requestAnimationFrame(() => {
         window.dispatchEvent(
-          new CustomEvent('swaperex:section', { detail: { page, section: state.section } }),
+          new CustomEvent('swaperex:section', { detail: { page: state.dexPage, section: state.section } }),
         );
       });
     }
-    navigate(location.pathname, { replace: true, state: null });
-  }, [location.state, location.pathname, navigate]);
+  }, [location.state, navigate]);
 
   // Auto-check health on mount and every 60 seconds
   useEffect(() => {
@@ -319,60 +268,48 @@ export default function TradeShell() {
   }, []);
 
   const goToPage = useCallback(
-    (page: Page) => {
+    (page: Page, section?: string) => {
       const path = pageToPath(page);
-      if (path !== null) {
-        navigate(path);
-      } else if (pathToPage(location.pathname) != null) {
-        navigate('/');
+      const hash = section ? `#${section}` : location.hash && page === currentPage ? location.hash : '';
+      navigate(`${path}${hash}`);
+      if (section) {
+        requestAnimationFrame(() => {
+          window.dispatchEvent(
+            new CustomEvent('swaperex:section', { detail: { page, section } }),
+          );
+        });
       }
-      setCurrentPage(page);
     },
-    [navigate, location.pathname],
+    [navigate, location.hash, currentPage],
   );
 
   const handleFooterNavigate = useCallback(
     (target: FooterNavTarget) => {
-      goToPage(target.page as Page);
-      if (target.section) {
-        requestAnimationFrame(() => {
-          window.dispatchEvent(
-            new CustomEvent('swaperex:section', {
-              detail: { page: target.page, section: target.section },
-            }),
-          );
-        });
-      }
+      goToPage(target.page as Page, target.section);
     },
     [goToPage],
   );
 
   /**
-   * P3-A — Keep `currentPage` aligned with informational URLs; unknown paths → `/` + swap.
-   * Path `/` does not override send/portfolio/radar/screener.
+   * P16 — Unknown paths redirect to /swap; informational routes are served by PassiveShell in App.
    */
   useEffect(() => {
     const p = normalizePublicPath(location.pathname);
-    const mapped = pathToPage(p);
-    if (mapped) {
-      setCurrentPage(mapped);
-      return;
+    if (!isKnownPublicPath(p)) {
+      navigate(APP_ROUTE_PATHS.swap, { replace: true });
     }
-    if (p !== '/') {
-      navigate('/', { replace: true });
-      setCurrentPage('swap');
-      return;
-    }
-    if (
-      currentPage === 'about' ||
-      currentPage === 'terms' ||
-      currentPage === 'privacy' ||
-      currentPage === 'disclaimer' ||
-      currentPage === 'trust'
-    ) {
-      setCurrentPage('swap');
-    }
-  }, [location.pathname, navigate, currentPage]);
+  }, [location.pathname, navigate]);
+
+  /** P16 — Section deep-links via URL hash */
+  useEffect(() => {
+    const hash = location.hash.replace(/^#/, '');
+    if (!hash || !currentPage) return;
+    requestAnimationFrame(() => {
+      window.dispatchEvent(
+        new CustomEvent('swaperex:section', { detail: { page: currentPage, section: hash } }),
+      );
+    });
+  }, [location.hash, currentPage]);
 
   /** P3-C — title, meta description, canonical, og/twitter from public path. */
   useEffect(() => {
@@ -385,17 +322,25 @@ export default function TradeShell() {
    * `detail.page` to route to a static page like Terms or Privacy.
    */
   useEffect(() => {
-    const allowed: Page[] = ['swap', 'send', 'portfolio', 'radar', 'screener', 'about', 'terms', 'privacy', 'disclaimer', 'trust'];
+    const allowed: Page[] = ['swap', 'send', 'portfolio', 'radar', 'screener'];
     const onNav = (event: Event) => {
       const detail = (event as CustomEvent<{ page?: string }>).detail;
       const target = detail?.page;
       if (target && (allowed as string[]).includes(target)) {
         goToPage(target as Page);
+      } else if (
+        target === 'about' ||
+        target === 'terms' ||
+        target === 'privacy' ||
+        target === 'disclaimer' ||
+        target === 'trust'
+      ) {
+        navigate(pageToPath(target as Page));
       }
     };
     window.addEventListener('swaperex:navigate', onNav as EventListener);
     return () => window.removeEventListener('swaperex:navigate', onNav as EventListener);
-  }, [goToPage]);
+  }, [goToPage, navigate]);
 
   // Handle chain switch from banner
   const handleBannerSwitch = async () => {
@@ -551,18 +496,21 @@ export default function TradeShell() {
   );
 
   return (
-    <div className="min-h-screen bg-electro-bg bg-bg-mesh overflow-x-hidden flex flex-col">
+    <div className="min-h-screen bg-electro-bg bg-bg-mesh overflow-x-hidden flex flex-col pb-[env(safe-area-inset-bottom)]">
       {walletHostNeeded && (
         <Suspense fallback={null}>
           <LazyWalletBootstrap />
         </Suspense>
       )}
       {/* Header */}
-      <header className="border-b border-white/[0.06] backdrop-blur-sm bg-electro-bg/80 sticky top-0 z-40">
+      <header className="border-b border-white/[0.06] backdrop-blur-sm bg-electro-bg/80 sticky top-0 z-40 pt-[env(safe-area-inset-top)]">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-8">
-            {/* Logo */}
-            <h1 className="text-xl font-bold text-accent">Swaperex</h1>
+            {/* Logo — P16 brand hierarchy */}
+            <div className="flex flex-col leading-tight">
+              <h1 className="text-xl font-bold text-accent">{BRAND.displayName}</h1>
+              <span className="text-[10px] font-medium text-dark-500 tracking-wide">{BRAND.byline}</span>
+            </div>
 
             {/* Navigation — P4.2 Command Center */}
             <nav className="hidden sm:flex gap-1">
@@ -786,33 +734,6 @@ export default function TradeShell() {
         {currentPage === 'screener' && (
           <Suspense fallback={lazyTabFallback}>
             <LazyTokenScreener onSwapSelect={handleScreenerSwapSelect} />
-          </Suspense>
-        )}
-
-        {/* Static Pages */}
-        {currentPage === 'about' && (
-          <Suspense fallback={lazyTabFallback}>
-            <LazyAboutPage onBack={() => navigate('/')} />
-          </Suspense>
-        )}
-        {currentPage === 'terms' && (
-          <Suspense fallback={lazyTabFallback}>
-            <LazyTermsPage onBack={() => navigate('/')} />
-          </Suspense>
-        )}
-        {currentPage === 'privacy' && (
-          <Suspense fallback={lazyTabFallback}>
-            <LazyPrivacyPage onBack={() => navigate('/')} />
-          </Suspense>
-        )}
-        {currentPage === 'disclaimer' && (
-          <Suspense fallback={lazyTabFallback}>
-            <LazyDisclaimerPage onBack={() => navigate('/')} />
-          </Suspense>
-        )}
-        {currentPage === 'trust' && (
-          <Suspense fallback={lazyTabFallback}>
-            <LazyTrustCenterPage onBack={() => navigate('/')} />
           </Suspense>
         )}
       </main>
