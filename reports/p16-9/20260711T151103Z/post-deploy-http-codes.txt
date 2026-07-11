@@ -1,0 +1,11 @@
+/ 200
+/swap 200
+/send 200
+/portfolio 200
+/radar 200
+/screener 200
+/trust 200
+/about 200
+/terms 200
+/privacy 200
+/disclaimer 200

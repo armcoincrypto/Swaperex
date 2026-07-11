@@ -1,0 +1,2 @@
+2606:4700:3037::ac43:a13f dex.kobbex.com
+2606:4700:3035::6815:227e dex.kobbex.com

@@ -1,0 +1,30 @@
+{
+  "timestamp": "2026-07-11T15:44:28.151Z",
+  "checks": {
+    "deepLinkUrl": "https://dex.kobbex.com/swap?chain=1&from=WETH&to=USDT&slippage=0.5",
+    "deepLinkHasSwap": true,
+    "refreshUrl": "https://dex.kobbex.com/swap?chain=1&from=WETH&to=USDT&slippage=0.5",
+    "refreshSurvives": true,
+    "invalidQueryNoCrash": true,
+    "invalidQueryHasRoot": true,
+    "unknownRouteUrl": "https://dex.kobbex.com/swap?chain=1&from=ETH&to=USDT&slippage=0.5",
+    "unknownRouteHandled": true,
+    "backUrl": "https://dex.kobbex.com/portfolio",
+    "backTwiceUrl": "https://dex.kobbex.com/swap",
+    "forwardUrl": "https://dex.kobbex.com/portfolio",
+    "backForwardOk": true,
+    "connectVisible": true,
+    "networkSelector": true,
+    "feeLabelMentionsCommission": true,
+    "feeLabelMentionsGas": false,
+    "consoleErrorCount": 0,
+    "consoleErrorsSample": []
+  },
+  "unsupportedNetworkNotes": {
+    "chain137UrlSanitized": true,
+    "chain137Url": "https://dex.kobbex.com/swap?chain=137",
+    "uiDefaultedToEthereumWhenDisconnected": true,
+    "fullUnsupportedExperienceRequiresConnectedWallet": true,
+    "polygonSelectorAutomatedClickInconclusive": true
+  }
+}
