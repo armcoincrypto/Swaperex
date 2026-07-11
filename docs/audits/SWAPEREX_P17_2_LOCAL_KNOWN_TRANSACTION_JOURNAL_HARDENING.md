@@ -13,6 +13,7 @@
 | Production URL | https://dex.kobbex.com |
 | Production artifact | `b6024e3` (unchanged) |
 | Starting HEAD | `28ddb66` |
+| Final HEAD | `9b50e90` |
 | Design authority | `docs/audits/SWAPEREX_P17_1_TRANSACTION_JOURNAL_AND_RECONCILIATION_DESIGN.md` |
 
 ## Scope

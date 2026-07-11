@@ -2,6 +2,7 @@
   "program": "P17.2",
   "verdict": "P17_2_LOCAL_KNOWN_TRANSACTION_JOURNAL_HARDENING_PASS",
   "startingHead": "28ddb66",
+  "finalHead": "9b50e90",
   "storageKey": "swaperex-transaction-journal-v2",
   "envelopeSchemaVersion": 2,
   "recordSchemaVersion": 2,
