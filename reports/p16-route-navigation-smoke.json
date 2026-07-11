@@ -1,0 +1,128 @@
+{
+  "timestamp": "2026-07-11T10:57:51.795Z",
+  "baseUrl": "http://127.0.0.1:4173",
+  "routes": [
+    {
+      "route": "/",
+      "url": "http://127.0.0.1:4173/",
+      "status": 200,
+      "ok": true,
+      "hasRoot": true,
+      "hasSwaperex": true,
+      "isSpaShell": true,
+      "pass": true
+    },
+    {
+      "route": "/swap",
+      "url": "http://127.0.0.1:4173/swap",
+      "status": 200,
+      "ok": true,
+      "hasRoot": true,
+      "hasSwaperex": true,
+      "isSpaShell": true,
+      "pass": true
+    },
+    {
+      "route": "/send",
+      "url": "http://127.0.0.1:4173/send",
+      "status": 200,
+      "ok": true,
+      "hasRoot": true,
+      "hasSwaperex": true,
+      "isSpaShell": true,
+      "pass": true
+    },
+    {
+      "route": "/portfolio",
+      "url": "http://127.0.0.1:4173/portfolio",
+      "status": 200,
+      "ok": true,
+      "hasRoot": true,
+      "hasSwaperex": true,
+      "isSpaShell": true,
+      "pass": true
+    },
+    {
+      "route": "/radar",
+      "url": "http://127.0.0.1:4173/radar",
+      "status": 200,
+      "ok": true,
+      "hasRoot": true,
+      "hasSwaperex": true,
+      "isSpaShell": true,
+      "pass": true
+    },
+    {
+      "route": "/screener",
+      "url": "http://127.0.0.1:4173/screener",
+      "status": 200,
+      "ok": true,
+      "hasRoot": true,
+      "hasSwaperex": true,
+      "isSpaShell": true,
+      "pass": true
+    },
+    {
+      "route": "/trust",
+      "url": "http://127.0.0.1:4173/trust",
+      "status": 200,
+      "ok": true,
+      "hasRoot": true,
+      "hasSwaperex": true,
+      "isSpaShell": true,
+      "pass": true
+    },
+    {
+      "route": "/about",
+      "url": "http://127.0.0.1:4173/about",
+      "status": 200,
+      "ok": true,
+      "hasRoot": true,
+      "hasSwaperex": true,
+      "isSpaShell": true,
+      "pass": true
+    },
+    {
+      "route": "/terms",
+      "url": "http://127.0.0.1:4173/terms",
+      "status": 200,
+      "ok": true,
+      "hasRoot": true,
+      "hasSwaperex": true,
+      "isSpaShell": true,
+      "pass": true
+    },
+    {
+      "route": "/privacy",
+      "url": "http://127.0.0.1:4173/privacy",
+      "status": 200,
+      "ok": true,
+      "hasRoot": true,
+      "hasSwaperex": true,
+      "isSpaShell": true,
+      "pass": true
+    },
+    {
+      "route": "/disclaimer",
+      "url": "http://127.0.0.1:4173/disclaimer",
+      "status": 200,
+      "ok": true,
+      "hasRoot": true,
+      "hasSwaperex": true,
+      "isSpaShell": true,
+      "pass": true
+    },
+    {
+      "route": "/swap?chain=1&from=WETH&to=USDT",
+      "url": "http://127.0.0.1:4173/swap?chain=1&from=WETH&to=USDT",
+      "status": 200,
+      "ok": true,
+      "hasRoot": true,
+      "hasSwaperex": true,
+      "isSpaShell": true,
+      "pass": true
+    }
+  ],
+  "verdict": "P16_ROUTE_SMOKE_PASS",
+  "failCount": 0
+}
