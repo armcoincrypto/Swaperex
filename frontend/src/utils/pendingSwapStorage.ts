@@ -1,7 +1,10 @@
 /**
- * Minimal persistence for in-flight swap transactions (client-side only).
- * Survives refresh so users can recover traceability and avoid premature retries.
+ * Pending swap read adapter — canonical writes go to transaction journal v2.
+ * Legacy key preserved read-only for migration; no new writes after P17.2 cutover.
  */
+
+import { useTransactionJournalStore } from '@/stores/transactionJournalStore';
+import { getLatestPendingSwapJournalRecord } from '@/utils/journalToSwapHistoryAdapter';
 
 export const PENDING_SWAP_STORAGE_KEY = 'swaperex-pending-swap-v1';
 
@@ -20,84 +23,91 @@ export type PendingSwapV1 = {
   toSymbol: string;
   fromAmount: string;
   toAmount: string;
-  /**
-   * Set when the app lost RPC during confirmation or hit an ambiguous error.
-   * Explorer is authoritative; do not treat UI error as final on-chain failure.
-   */
   outcomeUncertain?: boolean;
 };
 
-function parsePendingSwapRaw(raw: string | null): PendingSwapV1 | null {
-  if (!raw) return null;
-  try {
-    const o = JSON.parse(raw) as Partial<PendingSwapV1>;
-    if (o.v !== 1) return null;
-    if (
-      typeof o.chainId !== 'number' ||
-      typeof o.fromAddress !== 'string' ||
-      typeof o.txHash !== 'string' ||
-      typeof o.explorerUrl !== 'string' ||
-      typeof o.submittedAt !== 'number' ||
-      typeof o.fromSymbol !== 'string' ||
-      typeof o.toSymbol !== 'string' ||
-      typeof o.fromAmount !== 'string' ||
-      typeof o.toAmount !== 'string'
-    ) {
-      return null;
-    }
-    return o as PendingSwapV1;
-  } catch {
-    return null;
-  }
+function journalRecordToPendingSwapV1(
+  record: ReturnType<typeof getLatestPendingSwapJournalRecord>,
+): PendingSwapV1 | null {
+  if (!record) return null;
+  const ctx = record.context;
+  return {
+    v: 1,
+    chainId: record.chainId,
+    fromAddress: record.walletAddress,
+    txHash: record.transactionHash,
+    explorerUrl: record.explorerUrl ?? '',
+    submittedAt: Date.parse(record.submittedAt) || Date.now(),
+    fromSymbol: ctx.fromTokenSymbol,
+    toSymbol: ctx.toTokenSymbol,
+    fromAmount: ctx.inputAmountDisplay,
+    toAmount: ctx.expectedOutputDisplay,
+    outcomeUncertain: record.status === 'unknown' || record.status === 'stale',
+  };
 }
 
 export function readPendingSwap(): PendingSwapV1 | null {
   try {
-    const p = parsePendingSwapRaw(localStorage.getItem(PENDING_SWAP_STORAGE_KEY));
-    if (!p) return null;
-    if (Date.now() - p.submittedAt > PENDING_SWAP_MAX_AGE_MS) {
-      localStorage.removeItem(PENDING_SWAP_STORAGE_KEY);
-      return null;
+    useTransactionJournalStore.getState().runMigrationIfNeeded();
+    const records = useTransactionJournalStore.getState().records;
+    const pending = records
+      .filter(
+        (r) =>
+          r.kind === 'swap' &&
+          ['submitted', 'pending', 'unknown', 'stale'].includes(r.status),
+      )
+      .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))[0];
+
+    if (pending?.kind === 'swap') {
+      const mapped = journalRecordToPendingSwapV1(pending);
+      if (mapped && Date.now() - mapped.submittedAt <= PENDING_SWAP_MAX_AGE_MS) {
+        return mapped;
+      }
     }
-    return p;
+    return null;
   } catch {
     return null;
   }
 }
 
-export function writePendingSwap(entry: Omit<PendingSwapV1, 'v'>): void {
-  try {
-    const payload: PendingSwapV1 = { v: 1, ...entry, outcomeUncertain: false };
-    localStorage.setItem(PENDING_SWAP_STORAGE_KEY, JSON.stringify(payload));
-  } catch {
-    /* quota / private mode */
-  }
+/** @deprecated P17.2 cutover — journal is the write path. No-op for backwards compatibility. */
+export function writePendingSwap(_entry: Omit<PendingSwapV1, 'v'>): void {
+  /* no new legacy writes */
 }
 
+/** @deprecated Updates journal record via uncertain status path in useSwap. */
 export function markPendingSwapOutcomeUncertain(): void {
-  try {
-    const p = parsePendingSwapRaw(localStorage.getItem(PENDING_SWAP_STORAGE_KEY));
-    if (!p) return;
-    const next: PendingSwapV1 = { ...p, outcomeUncertain: true };
-    localStorage.setItem(PENDING_SWAP_STORAGE_KEY, JSON.stringify(next));
-  } catch {
-    /* noop */
-  }
+  /* legacy no-op — useSwap marks journal unknown directly */
 }
 
+/** Clears unresolved pending swap state in journal (marks stale) for active account. */
 export function clearPendingSwap(): void {
   try {
-    localStorage.removeItem(PENDING_SWAP_STORAGE_KEY);
+    const raw = readPendingSwap();
+    if (!raw) return;
+    const id = `${raw.chainId}:swap:${raw.txHash.toLowerCase()}`;
+    const record = useTransactionJournalStore.getState().getRecordById(id);
+    if (record && ['submitted', 'pending', 'unknown'].includes(record.status)) {
+      useTransactionJournalStore.getState().markTransactionStale(id);
+    }
   } catch {
     /* noop */
   }
 }
 
-/** Returns stored row only if it matches the active wallet chain and address */
 export function getPendingSwapForAccount(chainId: number, address: string): PendingSwapV1 | null {
-  const p = readPendingSwap();
-  if (!p) return null;
-  if (p.chainId !== chainId) return null;
-  if (p.fromAddress.toLowerCase() !== address.toLowerCase()) return null;
-  return p;
+  try {
+    useTransactionJournalStore.getState().runMigrationIfNeeded();
+    const record = getLatestPendingSwapJournalRecord(
+      useTransactionJournalStore.getState().records,
+      chainId,
+      address,
+    );
+    const mapped = journalRecordToPendingSwapV1(record);
+    if (!mapped) return null;
+    if (Date.now() - mapped.submittedAt > PENDING_SWAP_MAX_AGE_MS) return null;
+    return mapped;
+  } catch {
+    return null;
+  }
 }
