@@ -1,0 +1,140 @@
+{
+  "program": "P17.6",
+  "verdict": "P17_6_ERROR_TAXONOMY_AND_UNCERTAIN_STATE_HARDENING_PASS_WITH_WARNING",
+  "startingHead": "751f53862e9d4396f257324065aec473016764ff",
+  "finalHead": "640763623e9e7fa65742d7b4fe031517073ae65e",
+  "canonicalClassifier": "frontend/src/utils/swaperexErrorClassification.ts#normalizeSwaperexError",
+  "presentationOwner": "frontend/src/utils/swaperexErrorPresentation.ts",
+  "typesOwner": "frontend/src/types/swaperexErrors.ts",
+  "legacyBridge": "frontend/src/utils/errors.ts",
+  "categories": [
+    "user_rejected",
+    "wallet_request_pending",
+    "wallet_unavailable",
+    "wrong_network",
+    "unsupported_chain",
+    "insufficient_native_gas",
+    "insufficient_token_balance",
+    "allowance_insufficient",
+    "approval_submission_failed",
+    "approval_reverted",
+    "quote_unavailable",
+    "quote_expired",
+    "quote_changed",
+    "slippage_exceeded",
+    "provider_route_unavailable",
+    "swap_submission_failed",
+    "swap_reverted",
+    "contract_revert",
+    "rpc_timeout",
+    "rpc_unavailable",
+    "receipt_unavailable",
+    "transaction_not_found",
+    "transaction_unknown",
+    "transaction_stale",
+    "storage_unavailable",
+    "storage_corrupt",
+    "explorer_unavailable",
+    "configuration_error",
+    "validation_error",
+    "unknown_error"
+  ],
+  "stages": [
+    "wallet-connect",
+    "quote",
+    "allowance-check",
+    "approval-submit",
+    "approval-confirm",
+    "swap-submit",
+    "swap-confirm",
+    "reconciliation",
+    "history",
+    "details",
+    "storage",
+    "configuration"
+  ],
+  "finality": [
+    "pre_broadcast",
+    "post_broadcast_nonfinal",
+    "post_broadcast_final",
+    "not_transaction_related"
+  ],
+  "retryability": [
+    "safe_now",
+    "safe_after_user_action",
+    "check_status_first",
+    "not_recommended",
+    "unknown"
+  ],
+  "recommendedActions": [
+    "retry_quote",
+    "reconnect_wallet",
+    "switch_network",
+    "add_native_gas",
+    "reduce_amount",
+    "check_balance",
+    "check_status",
+    "view_explorer",
+    "wait",
+    "contact_support",
+    "return_to_swap",
+    "none"
+  ],
+  "precedence": [
+    "receipt_status",
+    "journal_terminal_or_uncertain_status",
+    "structured_wallet_provider_code",
+    "structured_application_fields",
+    "bounded_message_patterns",
+    "unknown_fallback_with_broadcast_context"
+  ],
+  "uncertainStates": {
+    "unknown": {
+      "category": "transaction_unknown",
+      "finality": "post_broadcast_nonfinal",
+      "safeActions": ["check_status", "view_explorer", "wait", "contact_support"],
+      "unsafeActions": ["resubmit", "approve_again"]
+    },
+    "stale": {
+      "category": "transaction_stale",
+      "finality": "post_broadcast_nonfinal",
+      "safeActions": ["check_status", "view_explorer", "contact_support"],
+      "unsafeActions": ["resubmit", "approve_again"]
+    }
+  },
+  "duplicateClassifiersRemoved": [
+    "SwapPreviewModal.categorizeError",
+    "errors.parseRpcError inline patterns",
+    "errors.parseSwapExecutionError inline patterns",
+    "TransactionError.parseTransactionError raw string parsing"
+  ],
+  "duplicateClassifiersRetainedBounded": [
+    "transactionReconciliation.classifyProviderError (reconciliation-only)",
+    "wrapperQuoteDiagnostics.classifyWrapperQuoteFailure (quote diagnostics-only)",
+    "portfolioErrorHandler.categorizeError (portfolio-only, non-swap)"
+  ],
+  "tests": {
+    "files": 56,
+    "total": 624,
+    "taxonomyFile": "frontend/src/utils/__tests__/swaperexErrorClassification.test.ts",
+    "pass": true
+  },
+  "build": {
+    "pass": true
+  },
+  "releaseCertification": {
+    "combinedPipeline": "P16_RELEASE_CERTIFICATION_FAIL",
+    "failureStep": "p16-mobile-walletconnect-cert inside combined pipeline",
+    "independentBrowserAssistReruns": 2,
+    "independentBrowserAssistPass": 2,
+    "verdict": "PASS_WITH_WARNING"
+  },
+  "productionRouteSmoke": {
+    "verdict": "P16_ROUTE_SMOKE_PASS",
+    "baseUrl": "https://dex.kobbex.com",
+    "artifact": "b6024e3"
+  },
+  "productionMutation": false,
+  "deployment": false,
+  "remotePush": false
+}

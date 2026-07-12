@@ -1,0 +1,59 @@
+frontend/src/config/api.ts:18:/** Signals backend API base. Proxy /api/v1 to 4001 in production. */
+frontend/src/config/api.ts:21:  (isDev ? 'http://localhost:4001/api/v1' : '/api/v1');
+frontend/src/config/api.ts:25: * Prod: /coingecko (same-origin). Dev: localhost:4001/coingecko.
+frontend/src/config/api.ts:34: * Prod: /rpc. Dev: localhost:4001/rpc.
+frontend/src/config/api.ts:43: * Prod: /explorer. Dev: localhost:4001/explorer.
+frontend/src/components/swap/SwapPreviewModal.tsx:46:  normalizeSwaperexErrorFromMessage,
+frontend/src/components/swap/SwapPreviewModal.tsx:1389:  const normalized = normalizeSwaperexErrorFromMessage(error, context);
+frontend/src/components/common/TransactionError.tsx:8:import { normalizeSwaperexError } from '@/utils/swaperexErrorClassification';
+frontend/src/components/common/TransactionError.tsx:121:  const normalized = normalizeSwaperexError(error, { stage: 'swap-submit' });
+frontend/src/utils/swaperexErrorPresentation.ts:8:  NormalizedSwaperexError,
+frontend/src/utils/swaperexErrorPresentation.ts:14:  normalizeSwaperexErrorFromMessage,
+frontend/src/utils/swaperexErrorPresentation.ts:18:function severityFor(category: SwaperexErrorCategory, finality: NormalizedSwaperexError['finality']): ErrorPresentation['severity'] {
+frontend/src/utils/swaperexErrorPresentation.ts:29:function suggestionFor(error: NormalizedSwaperexError): string | undefined {
+frontend/src/utils/swaperexErrorPresentation.ts:90:export function getPermittedErrorActions(error: NormalizedSwaperexError): ErrorRecommendedAction[] {
+frontend/src/utils/swaperexErrorPresentation.ts:106:  error: NormalizedSwaperexError,
+frontend/src/utils/swaperexErrorPresentation.ts:112:export function getErrorPresentation(error: NormalizedSwaperexError): ErrorPresentation {
+frontend/src/utils/swaperexErrorPresentation.ts:135:  return getErrorPresentation(normalizeSwaperexErrorFromMessage(message, context));
+frontend/src/utils/wrapperQuoteDiagnostics.ts:18: * Classify a raw wrapper / RPC error string into a coarse diagnostic bucket.
+frontend/src/utils/errors.ts:13:import type { ErrorClassificationContext, NormalizedSwaperexError } from '@/types/swaperexErrors';
+frontend/src/utils/errors.ts:16:  normalizeSwaperexError,
+frontend/src/utils/errors.ts:21:  normalizeSwaperexError,
+frontend/src/utils/errors.ts:22:  normalizeSwaperexErrorFromMessage,
+frontend/src/utils/errors.ts:37:  NormalizedSwaperexError,
+frontend/src/utils/errors.ts:43:  normalized: NormalizedSwaperexError,
+frontend/src/utils/errors.ts:71:/** Trust Wallet / injected providers when a second sign request is sent while one is still open (JSON-RPC -32002). */
+frontend/src/utils/errors.ts:77: * `PUBLIC_signTransaction already pending`, JSON-RPC code -32002).
+frontend/src/utils/errors.ts:82:  if (err.code === -32002 || err.code === '-32002') return true;
+frontend/src/utils/errors.ts:162:  if (err.code === 4001) return true;
+frontend/src/utils/errors.ts:163:  if (err.code === 'ACTION_REJECTED') return true;
+frontend/src/utils/errors.ts:239:    normalizeSwaperexError(error, {
+frontend/src/utils/errors.ts:263:  const normalized = normalizeSwaperexError(error, {
+frontend/src/utils/errors.ts:347:  const normalized = normalizeSwaperexError(error, {
+frontend/src/utils/errors.ts:356:    normalized.category === 'unknown_error'
+frontend/src/utils/swaperexErrorClassification.ts:10:  NormalizedSwaperexError,
+frontend/src/utils/swaperexErrorClassification.ts:45:}): NormalizedSwaperexError {
+frontend/src/utils/swaperexErrorClassification.ts:64:): NormalizedSwaperexError {
+frontend/src/utils/swaperexErrorClassification.ts:125:export function normalizeSwaperexError(
+frontend/src/utils/swaperexErrorClassification.ts:128:): NormalizedSwaperexError {
+frontend/src/utils/swaperexErrorClassification.ts:169:  if (code === 4001 || code === 'ACTION_REJECTED' || isUserRejection(error)) {
+frontend/src/utils/swaperexErrorClassification.ts:181:      code: String(code ?? '4001'),
+frontend/src/utils/swaperexErrorClassification.ts:185:  if (isWalletSignRequestPending(error) || code === -32002 || code === '-32002') {
+frontend/src/utils/swaperexErrorClassification.ts:195:      code: '-32002',
+frontend/src/utils/swaperexErrorClassification.ts:449:export function normalizeSwaperexErrorFromMessage(
+frontend/src/utils/swaperexErrorClassification.ts:452:): NormalizedSwaperexError {
+frontend/src/utils/swaperexErrorClassification.ts:453:  return normalizeSwaperexError(message ? new Error(message) : new Error(''), context);
+frontend/src/services/allowanceRead.ts:53:function classifyAllowanceError(err: unknown): string {
+frontend/src/services/allowanceRead.ts:169:        errorClass: classifyAllowanceError(err),
+frontend/src/services/transactionReconciliation.ts:17:export interface NormalizedReconciliationError {
+frontend/src/services/transactionReconciliation.ts:28:function classifyProviderError(err: unknown): NormalizedReconciliationError {
+frontend/src/services/transactionReconciliation.ts:107:      error: classifyProviderError(err),
+frontend/src/services/transactionDetailService.ts:39:import { getErrorPresentation, normalizeSwaperexErrorFromMessage } from '@/utils/errors';
+frontend/src/services/transactionDetailService.ts:125:  const normalized = normalizeSwaperexErrorFromMessage(err.technicalSummary ?? err.userMessage, {
+frontend/src/types/swaperexErrors.ts:93:export interface NormalizedSwaperexError {
+frontend/src/hooks/useSwap.ts:506:  /** Blocks a second approval `sendTransaction` while the first is still with the wallet (Trust -32002). */
+frontend/src/hooks/useSwap.ts:1877:          code: -32002,
+frontend/src/hooks/useSwap.ts:1972:        logLifecycle('approving', 'previewing', { reason: 'wallet_sign_pending', code: -32002 });
+frontend/src/hooks/useSwap.ts:2431:          code: -32002,
+frontend/src/hooks/useSwap.ts:2900:        logLifecycle(state.status, 'previewing', { reason: 'wallet_sign_pending', code: -32002 });
+frontend/src/hooks/useSwap.ts:2903:        console.warn('[Swap] Wallet sign request already pending (-32002)');
