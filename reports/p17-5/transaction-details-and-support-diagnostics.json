@@ -1,0 +1,84 @@
+{
+  "program": "P17.5",
+  "verdict": "P17_5_TRANSACTION_DETAILS_AND_SUPPORT_DIAGNOSTICS_PASS_WITH_WARNING",
+  "detailModel": "frontend/src/types/transactionDetails.ts#TransactionDetailModel",
+  "detailBuilder": "frontend/src/services/transactionDetailService.ts",
+  "detailSurface": "frontend/src/components/transactions/TransactionDetailsDialog.tsx",
+  "entryPoints": [
+    "frontend/src/components/portfolio/ActivityPanel.tsx",
+    "frontend/src/components/swap/RecoveredTransactionCard.tsx",
+    "frontend/src/components/history/SwapHistory.tsx#DeviceSwapActivityStrip",
+    "frontend/src/components/swap/SwapInterface.tsx"
+  ],
+  "diagnostics": {
+    "schemaVersion": 1,
+    "builder": "frontend/src/services/supportDiagnosticService.ts",
+    "formats": ["human-readable", "json"],
+    "walletMasked": true,
+    "automaticUpload": false,
+    "allowlistedFields": [
+      "schemaVersion",
+      "generatedAt",
+      "appVersion",
+      "recordId",
+      "flowId",
+      "source",
+      "kind",
+      "status",
+      "walletAddressMasked",
+      "chainId",
+      "chainName",
+      "transactionHash",
+      "approvalHash",
+      "swapHash",
+      "tokenPair",
+      "inputAmount",
+      "expectedOutput",
+      "provider",
+      "submittedAt",
+      "lastCheckedAt",
+      "confirmedAt",
+      "receiptStatus",
+      "blockNumber",
+      "errorCategory",
+      "errorStage",
+      "broadcastKnown",
+      "retryable",
+      "browser",
+      "walletProvider",
+      "explorerUrl",
+      "limitations"
+    ],
+    "excludedFields": [
+      "privateKey",
+      "seedPhrase",
+      "signature",
+      "walletConnectTopic",
+      "rpcUrl",
+      "rawStack",
+      "fullWalletAddress",
+      "quoteCalldata"
+    ]
+  },
+  "walletIsolation": {
+    "journalWalletMatchRequired": true,
+    "wrongWalletBlocked": true
+  },
+  "tests": {
+    "files": 55,
+    "passed": 601
+  },
+  "build": "PASS",
+  "releaseCertification": {
+    "pipelineVerdict": "P16_RELEASE_CERTIFICATION_FAIL",
+    "failure": "P16_MOBILE_WC_CONNECTIVITY_ASSIST_FAIL in certify pipeline",
+    "independentBrowserAssistReruns": [
+      "P16_MOBILE_WC_CONNECTIVITY_ASSIST_PASS",
+      "P16_MOBILE_WC_CONNECTIVITY_ASSIST_PASS"
+    ]
+  },
+  "productionRouteSmoke": "P16_ROUTE_SMOKE_PASS",
+  "productionMutation": false,
+  "startingHead": "b58aea6",
+  "finalHead": "193c6fa",
+}

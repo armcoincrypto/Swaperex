@@ -1,0 +1,8 @@
+Starting HEAD: b58aea6
+Tests: 55 files, 601/601 PASS
+Build: PASS
+Release cert pipeline: P16_RELEASE_CERTIFICATION_FAIL (WC assist in pipeline)
+Browser assist rerun 1: P16_MOBILE_WC_CONNECTIVITY_ASSIST_PASS
+Browser assist rerun 2: P16_MOBILE_WC_CONNECTIVITY_ASSIST_PASS
+Route smoke: P16_ROUTE_SMOKE_PASS
+Production mutation: false
