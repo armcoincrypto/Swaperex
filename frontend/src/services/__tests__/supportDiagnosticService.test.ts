@@ -39,6 +39,11 @@ function swapRecord(): SwapJournalRecord {
       slippageBps: 50,
       provider: 'uniswap-v3',
     },
+    reconciliation: {
+      attempts: 2,
+      lastProviderErrorCategory: 'timeout',
+      lastProviderError: 'provider timeout',
+    },
     error: {
       category: 'rpc_error',
       stage: 'swap-confirm',
@@ -51,6 +56,20 @@ function swapRecord(): SwapJournalRecord {
 }
 
 describe('supportDiagnosticService', () => {
+  it('includes correlation and reconciliation fields', () => {
+    const detail = buildDetailFromJournalRecord(swapRecord(), [swapRecord()], WALLET)!;
+    const bundle = buildSupportDiagnosticBundle(detail);
+    expect(bundle.correlationId).toBe('flow-1');
+    expect(bundle.flowId).toBe('flow-1');
+    expect(bundle.journalStatus).toBe('pending');
+    expect(bundle.reconciliationAttempts).toBe(2);
+    expect(bundle.reconciliationState).toBe('timeout');
+    const text = renderSupportDiagnosticText(bundle);
+    expect(text).toContain('Correlation: flow-1');
+    expect(text).toContain('Journal status:');
+    expect(text).toContain('Reconciliation:');
+  });
+
   it('masks wallet in diagnostic bundle', () => {
     const detail = buildDetailFromJournalRecord(swapRecord(), [swapRecord()], WALLET)!;
     const bundle = buildSupportDiagnosticBundle(detail);

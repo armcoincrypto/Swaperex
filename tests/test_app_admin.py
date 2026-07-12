@@ -894,6 +894,31 @@ def test_swap_lifecycle_reconstruction_lifecycle_id_filter():
     assert ids == {"aaa"}
 
 
+def test_swap_lifecycle_reconstruction_accepts_flow_id_alias():
+    from datetime import datetime, timezone
+
+    from swaperex.api.swap_lifecycle_reconstruction import build_swap_lifecycles_payload
+
+    class FakeBatch:
+        received_at = datetime.now(timezone.utc)
+        client_session_id = "s1"
+        envelope = {
+            "events": [
+                {
+                    "event": "swap_lifecycle",
+                    "ts": 100,
+                    "flowId": "canonical-flow-1",
+                    "stage": "quote_requested",
+                    "chainId": 1,
+                },
+            ],
+        }
+
+    out = build_swap_lifecycles_payload([FakeBatch()], lifecycle_id_filter="canonical-flow-1")
+    ids = {r["lifecycle_id"] for r in out["recent_lifecycles"]}
+    assert ids == {"canonical-flow-1"}
+
+
 @pytest.mark.asyncio
 async def test_admin_health_alerts_endpoint(admin_client, monkeypatch):
     monkeypatch.setenv("ADMIN_API_TOKEN", "health-alerts-test")
