@@ -91,7 +91,7 @@ import type { AssetInfo } from '@/types/api';
 import { isAddress } from 'ethers';
 import { isDebugMode } from '@/utils/chainHealth';
 import { getSwapQuoteInputFingerprint } from '@/utils/swapQuoteInputFingerprint';
-import { emitSwapLifecycleStage, newSwapFlowId } from '@/utils/swapLifecycleTelemetry';
+import { emitSwapLifecycleStage } from '@/utils/swapLifecycleTelemetry';
 import {
   compareRouteSupport,
   getRouteSupportLabel,
@@ -347,6 +347,8 @@ export function SwapInterface() {
     fetchSwapQuote,
     reset,
     dismissQuoteError,
+    activeFlowId,
+    ensureActiveFlowId,
   } = useSwap();
 
   const {
@@ -530,8 +532,6 @@ export function SwapInterface() {
   const statusRef = useRef(status);
   statusRef.current = status;
 
-  const [swapLifecycleFlowId, setSwapLifecycleFlowId] = useState<string | null>(null);
-  const lastQuoteFingerprintForFlowRef = useRef<string | null>(null);
   const lastQuoteReceivedKeyRef = useRef<string>('');
 
   const quoteInputFingerprint = useMemo(
@@ -560,12 +560,12 @@ export function SwapInterface() {
 
   /** P3.3 — quote_received when a new quote lands for the active flow. */
   useEffect(() => {
-    if (!swapLifecycleFlowId || !swapQuote?.quoteTimestamp) return;
-    const key = `${swapLifecycleFlowId}:${swapQuote.quoteTimestamp}`;
+    if (!activeFlowId || !swapQuote?.quoteTimestamp) return;
+    const key = `${activeFlowId}:${swapQuote.quoteTimestamp}`;
     if (lastQuoteReceivedKeyRef.current === key) return;
     lastQuoteReceivedKeyRef.current = key;
     emitSwapLifecycleStage({
-      swapFlowId: swapLifecycleFlowId,
+      swapFlowId: activeFlowId,
       stage: 'quote_received',
       chainId: currentChainId,
       provider: swapQuote.provider ?? null,
@@ -573,7 +573,7 @@ export function SwapInterface() {
       quoteFingerprint: quoteInputFingerprint,
     });
   }, [
-    swapLifecycleFlowId,
+    activeFlowId,
     swapQuote?.quoteTimestamp,
     swapQuote?.provider,
     currentChainId,
@@ -586,13 +586,13 @@ export function SwapInterface() {
   const failureLifecycleDoneForFlowRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!swapLifecycleFlowId) return;
+    if (!activeFlowId) return;
 
     if (status === 'success') {
-      if (successLifecycleDoneForFlowRef.current === swapLifecycleFlowId) return;
-      successLifecycleDoneForFlowRef.current = swapLifecycleFlowId;
+      if (successLifecycleDoneForFlowRef.current === activeFlowId) return;
+      successLifecycleDoneForFlowRef.current = activeFlowId;
       emitSwapLifecycleStage({
-        swapFlowId: swapLifecycleFlowId,
+        swapFlowId: activeFlowId,
         stage: 'tx_mined',
         chainId: currentChainId,
         provider: swapQuote?.provider ?? null,
@@ -602,7 +602,7 @@ export function SwapInterface() {
       });
       if (receiptSettlement?.feeProvenance === 'treasury_transfer') {
         emitSwapLifecycleStage({
-          swapFlowId: swapLifecycleFlowId,
+          swapFlowId: activeFlowId,
           stage: 'receipt_decoded',
           chainId: currentChainId,
           provider: swapQuote?.provider ?? null,
@@ -611,7 +611,7 @@ export function SwapInterface() {
           txHash: txHash ?? null,
         });
         emitSwapLifecycleStage({
-          swapFlowId: swapLifecycleFlowId,
+          swapFlowId: activeFlowId,
           stage: 'reconciliation_completed',
           chainId: currentChainId,
           provider: swapQuote?.provider ?? null,
@@ -626,10 +626,10 @@ export function SwapInterface() {
     successLifecycleDoneForFlowRef.current = null;
 
     if (status === 'error') {
-      if (failureLifecycleDoneForFlowRef.current === swapLifecycleFlowId) return;
-      failureLifecycleDoneForFlowRef.current = swapLifecycleFlowId;
+      if (failureLifecycleDoneForFlowRef.current === activeFlowId) return;
+      failureLifecycleDoneForFlowRef.current = activeFlowId;
       emitSwapLifecycleStage({
-        swapFlowId: swapLifecycleFlowId,
+        swapFlowId: activeFlowId,
         stage: 'swap_failed',
         chainId: currentChainId,
         provider: swapQuote?.provider ?? null,
@@ -643,7 +643,7 @@ export function SwapInterface() {
     }
   }, [
     status,
-    swapLifecycleFlowId,
+    activeFlowId,
     currentChainId,
     swapQuote?.provider,
     routeMode,
@@ -1028,15 +1028,7 @@ export function SwapInterface() {
         toAsset,
         routeMode,
       });
-      let fid = swapLifecycleFlowId;
-      if (fp !== lastQuoteFingerprintForFlowRef.current) {
-        fid = newSwapFlowId();
-        lastQuoteFingerprintForFlowRef.current = fp;
-        setSwapLifecycleFlowId(fid);
-      } else if (!fid) {
-        fid = newSwapFlowId();
-        setSwapLifecycleFlowId(fid);
-      }
+      const fid = ensureActiveFlowId(fp);
       emitSwapLifecycleStage({
         swapFlowId: fid,
         stage: 'quote_requested',
@@ -1193,9 +1185,9 @@ export function SwapInterface() {
     }
 
     try {
-      if (swapLifecycleFlowId) {
+      if (activeFlowId) {
         emitSwapLifecycleStage({
-          swapFlowId: swapLifecycleFlowId,
+          swapFlowId: activeFlowId,
           stage: 'preview_opened',
           chainId: currentChainId,
           provider: swapQuote?.provider ?? null,
@@ -1242,9 +1234,9 @@ export function SwapInterface() {
       return;
     }
 
-    if (showPreview && swapLifecycleFlowId && status !== 'success') {
+    if (showPreview && activeFlowId && status !== 'success') {
       emitSwapLifecycleStage({
-        swapFlowId: swapLifecycleFlowId,
+        swapFlowId: activeFlowId,
         stage: 'abandoned',
         chainId: currentChainId,
         provider: swapQuote?.provider ?? null,
@@ -2810,7 +2802,7 @@ export function SwapInterface() {
             onRefreshQuote={handleRefreshQuote}
             isRefreshing={isRefreshingQuote}
             quoteTtlSecondsRemaining={quoteSecondsRemaining}
-            lifecycleFlowId={swapLifecycleFlowId}
+            lifecycleFlowId={activeFlowId}
             fromLogoUrl={fromAsset?.logo_url}
             toLogoUrl={toAsset?.logo_url}
           />

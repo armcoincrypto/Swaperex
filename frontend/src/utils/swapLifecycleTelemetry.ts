@@ -4,8 +4,13 @@
  */
 
 import { logProductionEvent } from '@/utils/productionMonitoring';
+import {
+  createTransactionCorrelationId,
+  lifecycleCorrelationWireFields,
+} from '@/utils/transactionCorrelation';
 
 export type SwapLifecycleTelemetryPayload = {
+  /** Canonical correlation id (same as journal flowId). */
   swapFlowId: string;
   stage: string;
   chainId?: number;
@@ -17,21 +22,16 @@ export type SwapLifecycleTelemetryPayload = {
   priorStage?: string;
 };
 
+/** @deprecated Use createTransactionCorrelationId from transactionCorrelation — same format. */
 export function newSwapFlowId(): string {
-  try {
-    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-      return crypto.randomUUID();
-    }
-  } catch {
-    // ignore
-  }
-  return `swap-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  return createTransactionCorrelationId();
 }
 
 export function emitSwapLifecycleStage(payload: SwapLifecycleTelemetryPayload): void {
   try {
     const { swapFlowId, stage, ...rest } = payload;
-    logProductionEvent('swap_lifecycle', { swapFlowId, stage, ...rest });
+    const correlation = lifecycleCorrelationWireFields(swapFlowId);
+    logProductionEvent('swap_lifecycle', { ...correlation, stage, ...rest });
   } catch {
     // ignore
   }

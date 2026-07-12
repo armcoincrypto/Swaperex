@@ -45,7 +45,7 @@ import {
   getJournalRecordId,
   useTransactionJournalStore,
 } from '@/stores/transactionJournalStore';
-import { createFlowId } from '@/utils/transactionJournalIdentity';
+import { createTransactionCorrelationId } from '@/utils/transactionCorrelation';
 import {
   buildApprovalJournalContext,
   buildSwapJournalContext,
@@ -479,6 +479,10 @@ export function useSwap() {
     if (prev === null) return;
     if (prev === quoteInputFingerprint) return;
 
+    activeFlowIdRef.current = createTransactionCorrelationId();
+    activeFlowFingerprintRef.current = quoteInputFingerprint;
+    setActiveFlowId(activeFlowIdRef.current);
+
     const statusBlocking =
       state.status === 'approving' || state.status === 'swapping' || state.status === 'confirming';
     if (statusBlocking) return;
@@ -509,10 +513,31 @@ export function useSwap() {
   /** Blocks a second swap `sendTransaction` while the first is still with the wallet. */
   const swapWalletSigningInFlightRef = useRef(false);
   const swapWalletGuardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** Links approval + swap records within one confirmSwap execution flow. */
-  const swapFlowIdRef = useRef<string | null>(null);
+  /** Links approval + swap journal records and telemetry for one swap attempt. */
+  const activeFlowIdRef = useRef<string | null>(null);
+  const activeFlowFingerprintRef = useRef<string | null>(null);
+  const [activeFlowId, setActiveFlowId] = useState<string | null>(null);
   /** Last approval journal record id in the active flow (for linkage). */
   const lastApprovalRecordIdRef = useRef<string | null>(null);
+
+  const resetActiveFlowId = useCallback(() => {
+    activeFlowIdRef.current = null;
+    activeFlowFingerprintRef.current = null;
+    setActiveFlowId(null);
+  }, []);
+
+  const ensureActiveFlowId = useCallback(
+    (fingerprint?: string): string => {
+      const fp = fingerprint ?? quoteInputFingerprint;
+      if (fp !== activeFlowFingerprintRef.current || !activeFlowIdRef.current) {
+        activeFlowIdRef.current = createTransactionCorrelationId();
+        activeFlowFingerprintRef.current = fp;
+        setActiveFlowId(activeFlowIdRef.current);
+      }
+      return activeFlowIdRef.current;
+    },
+    [quoteInputFingerprint],
+  );
 
   const clearApprovalWalletSigningGuard = useCallback(() => {
     if (approvalWalletGuardTimerRef.current != null) {
@@ -619,10 +644,11 @@ export function useSwap() {
     });
     setSwapQuote(null);
     clearQuote();
+    resetActiveFlowId();
   // Note: state.status removed from deps to prevent reset identity from changing
   // when status changes, which would cause infinite loops in consuming components
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clearQuote]);
+  }, [clearQuote, resetActiveFlowId]);
 
   /** Clear quote error banner + stale quote so user can pick another token (P4.1-A). */
   const dismissQuoteError = useCallback(() => {
@@ -677,6 +703,7 @@ export function useSwap() {
     }
 
     // Increment request ID and capture it for this request
+    ensureActiveFlowId();
     quoteRequestIdRef.current += 1;
     const thisRequestId = quoteRequestIdRef.current;
     swapTrace('[Swap] Quote request started, ID:', thisRequestId);
@@ -1906,8 +1933,7 @@ export function useSwap() {
         exactAmountRaw: useExact ? exactAmount : undefined,
       });
 
-      const flowId = swapFlowIdRef.current ?? createFlowId();
-      swapFlowIdRef.current = flowId;
+      const flowId = ensureActiveFlowId();
 
       const journalStore = useTransactionJournalStore.getState();
       const journalResult = journalStore.journalApprovalSubmitted({
@@ -2493,8 +2519,7 @@ export function useSwap() {
       logLifecycle('swapping', 'confirming', { txHash: tx.hash, explorerUrl });
       setState((s) => ({ ...s, status: 'confirming', txHash: tx.hash, explorerUrl }));
 
-      const flowId = swapFlowIdRef.current ?? createFlowId();
-      swapFlowIdRef.current = flowId;
+      const flowId = ensureActiveFlowId();
 
       const swapContext = buildSwapJournalContext({
         swapQuote,
@@ -3197,18 +3222,17 @@ export function useSwap() {
 
     swapExecutionLockRef.current = true;
     swapExecutionLockStartedAtRef.current = Date.now();
-    swapFlowIdRef.current = createFlowId();
+    ensureActiveFlowId();
     lastApprovalRecordIdRef.current = null;
     try {
       return await executeSwap();
     } finally {
       swapExecutionLockRef.current = false;
       swapExecutionLockStartedAtRef.current = null;
-      swapFlowIdRef.current = null;
       lastApprovalRecordIdRef.current = null;
       clearSwapExecutionTiming();
     }
-  }, [state.status, swapQuote, executeSwap, chainId]);
+  }, [state.status, swapQuote, executeSwap, chainId, ensureActiveFlowId]);
 
   // Quote TTL for UX / refresh CTA only while we are still in "quote + preview" — not during wallet/on-chain execution.
   // Otherwise the wall-clock age keeps growing and leaks "expired" / refresh messaging behind an in-flight swap.
@@ -3265,6 +3289,8 @@ export function useSwap() {
     isQuoteExpired,
     pendingSubmittedSwap,
     dismissPendingSubmitted,
+    activeFlowId,
+    ensureActiveFlowId,
 
     dismissQuoteError,
 

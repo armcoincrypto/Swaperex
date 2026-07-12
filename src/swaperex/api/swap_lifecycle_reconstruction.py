@@ -280,13 +280,13 @@ def build_swap_lifecycles_payload(
     for ts, batch_iso, sid, ev in flat:
         if ev.get("event") != "swap_lifecycle":
             continue
-        fid = _safe_str(ev.get("swapFlowId"))
+        fid = _safe_str(ev.get("flowId")) or _safe_str(ev.get("swapFlowId"))
         if not fid:
             continue
         fl = get_flow(fid, sid)
         st = _safe_str(ev.get("stage")) or "unknown"
         phase = STAGE_TO_PHASE.get(st, "unknown_end_state")
-        meta = {k: v for k, v in ev.items() if k not in ("event", "ts", "swapFlowId")}
+        meta = {k: v for k, v in ev.items() if k not in ("event", "ts", "swapFlowId", "flowId")}
         _append_phase(fl, phase=phase, ts_ms=ts, event_name="swap_lifecycle", metadata=meta, batch_iso=batch_iso)
         cid = ev.get("chainId")
         if isinstance(cid, int):
