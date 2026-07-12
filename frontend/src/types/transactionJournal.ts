@@ -177,6 +177,8 @@ export type JournalStoreResult<T = TransactionJournalRecord> =
 export type ReconcileTransactionResult =
   | { kind: 'confirmed'; receipt: ReceiptSnapshot }
   | { kind: 'reverted'; receipt: ReceiptSnapshot }
-  | { kind: 'pending' }
+  | { kind: 'pending'; transactionSeen: boolean }
   | { kind: 'not_found' }
-  | { kind: 'provider_error'; error: { category: string; message: string } };
+  | { kind: 'provider_error'; error: { category: string; message: string } }
+  | { kind: 'unsupported_chain' }
+  | { kind: 'invalid_record' };
