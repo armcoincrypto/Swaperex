@@ -1,0 +1,54 @@
+{
+  "program": "P17.7",
+  "verdict": "P17_7_OPERATOR_STATUS_AND_OBSERVABILITY_CONSOLIDATION_PASS",
+  "startingHead": "b3f44789029a7fb706fec55d78a30b3f0f780c87",
+  "finalHead": "ea65459b728ebe84d62fd6d91bc2d58e02a349ed",
+  "canonicalCorrelationId": {
+    "field": "flowId",
+    "telemetryAlias": "swapFlowId",
+    "owner": "frontend/src/utils/transactionCorrelation.ts",
+    "creator": "createTransactionCorrelationId",
+    "lifecycleEmitter": "swapLifecycleTelemetry.emitSwapLifecycleStage"
+  },
+  "observabilityOwnership": {
+    "deviceTransactionTruth": "transactionJournalStore + transactionReconciliationCoordinator",
+    "receiptReconciliation": "transactionReconciliation.ts + applyReconciliationToJournal.ts",
+    "errorSemantics": "swaperexErrorClassification.ts",
+    "sessionTelemetry": "productionMonitoring.ts + swapLifecycleTelemetry.ts",
+    "supportHandoff": "supportDiagnosticService.ts",
+    "adminLifecycleView": "swap_lifecycle_reconstruction.py",
+    "adminRevenueReconciliation": "admin health domain reconciliation",
+    "environmentHealth": "scripts/ops/p13-production-status.mjs"
+  },
+  "terminology": {
+    "clientReceiptReconciliation": "Client receipt reconciliation",
+    "adminRevenueReconciliation": "Revenue / commission reconciliation"
+  },
+  "journalStatusMatrix": [
+    "submitted",
+    "pending",
+    "confirmed",
+    "reverted",
+    "unknown",
+    "stale"
+  ],
+  "supportDiagnosticFieldsAdded": [
+    "correlationId",
+    "journalStatus",
+    "reconciliationAttempts",
+    "reconciliationLastResult",
+    "reconciliationState"
+  ],
+  "duplicateClassifiersRemoved": [
+    "SwapInterface.newSwapFlowId local flow id generation"
+  ],
+  "tests": {
+    "frontendFiles": 58,
+    "frontendTotal": 630,
+    "pythonLifecycleTestAdded": "test_swap_lifecycle_reconstruction_accepts_flow_id_alias"
+  },
+  "build": { "pass": true },
+  "productionMutation": false,
+  "deployment": false,
+  "remotePush": false
+}
