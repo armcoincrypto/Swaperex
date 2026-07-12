@@ -23,7 +23,7 @@ import {
   SUPPORTED_CHAINS,
 } from '@/stores/monitoringStore';
 import { useWatchlistStore } from '@/stores/watchlistStore';
-import { useSystemStatusStore, type SystemStatus } from '@/stores/systemStatusStore';
+import { useSystemStatusStore, resolveSystemDisplayStatus, type SystemDisplayStatus } from '@/stores/systemStatusStore';
 import { getLastPollTime, isMonitorRunning } from '@/services/watchlistMonitor';
 
 interface RadarFilterBarProps {
@@ -34,7 +34,13 @@ interface RadarFilterBarProps {
 
 function MonitoringStatusRow() {
   const tokens = useWatchlistStore((s) => s.tokens);
-  const systemStatus = useSystemStatusStore((s) => s.status);
+  const systemStatus = useSystemStatusStore((s) =>
+    resolveSystemDisplayStatus({
+      status: s.status,
+      lastCheck: s.lastCheck,
+      failureCount: s.failureCount,
+    }),
+  );
   const services = useSystemStatusStore((s) => s.services);
   const monitoring = useMonitoringStore();
   const [, tick] = useState(0);
@@ -120,13 +126,15 @@ function BackendStatusPill({
   status,
   services,
 }: {
-  status: SystemStatus;
+  status: SystemDisplayStatus;
   services: { dexscreener: 'up' | 'down'; goplus: 'up' | 'down' } | null;
 }) {
-  const config: Record<SystemStatus, { label: string; dot: string; bg: string; text: string }> = {
+  const config: Record<SystemDisplayStatus, { label: string; dot: string; bg: string; text: string }> = {
     stable: { label: 'Online', dot: 'bg-green-400', bg: 'bg-green-900/20', text: 'text-green-400' },
     degraded: { label: 'Degraded', dot: 'bg-yellow-400', bg: 'bg-yellow-900/20', text: 'text-yellow-400' },
     unavailable: { label: 'Offline', dot: 'bg-red-400', bg: 'bg-red-900/20', text: 'text-red-400' },
+    unknown: { label: 'Checking', dot: 'bg-dark-400', bg: 'bg-dark-800/40', text: 'text-dark-400' },
+    stale: { label: 'Delayed', dot: 'bg-yellow-400', bg: 'bg-yellow-900/20', text: 'text-yellow-400' },
   };
   const c = config[status];
 

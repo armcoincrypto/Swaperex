@@ -1,28 +1,24 @@
 /**
  * System Status Indicator Component
  *
- * Shows trust-building system status in footer:
- * - Stable (green): All systems running
- * - Partial (yellow): Some data unavailable
- * - Unavailable (red): Backend offline
- *
- * Priority 9.0.4 - Trust Mode UI
+ * Evidence-backed application availability in footer.
+ * Does not claim swap settlement or on-chain finality.
  */
 
 import { useEffect } from 'react';
 import {
   useSystemStatusStore,
-  useSystemStatus,
+  useSystemDisplayStatus,
   useServicesStatus,
   getStatusColor,
   getStatusIndicator,
-  type SystemStatus,
+  getSystemDisplayLabel,
 } from '@/stores/systemStatusStore';
 
 interface SystemStatusIndicatorProps {
   /** Show detailed breakdown (default false) */
   detailed?: boolean;
-  /** `footer` maps stable → Operational for site footer (P5.4) */
+  /** `footer` uses compact labels for site footer */
   variant?: 'default' | 'footer';
   /** Custom className */
   className?: string;
@@ -33,24 +29,28 @@ export function SystemStatusIndicator({
   variant = 'default',
   className = '',
 }: SystemStatusIndicatorProps) {
-  const status = useSystemStatus();
+  const displayStatus = useSystemDisplayStatus();
   const services = useServicesStatus();
   const refresh = useSystemStatusStore((s) => s.refresh);
   const lastCheck = useSystemStatusStore((s) => s.lastCheck);
 
-  // Auto-refresh on mount and every 60 seconds
   useEffect(() => {
     refresh();
     const intervalId = setInterval(refresh, 60_000);
     return () => clearInterval(intervalId);
   }, [refresh]);
 
-  const statusLabel = getStatusLabel(status, variant);
-  const statusColor = getStatusColor(status);
-  const indicator = getStatusIndicator(status);
+  const statusLabel = getSystemDisplayLabel(displayStatus, variant);
+  const statusColor = getStatusColor(displayStatus);
+  const indicator = getStatusIndicator(displayStatus);
 
   return (
-    <div className={`inline-flex items-center gap-2 ${className}`}>
+    <div
+      className={`inline-flex items-center gap-2 ${className}`}
+      role="status"
+      aria-live="polite"
+      aria-label={statusLabel}
+    >
       <span className={`${statusColor} text-xs font-mono`}>
         {indicator} {statusLabel}
       </span>
@@ -74,19 +74,6 @@ export function SystemStatusIndicator({
       )}
     </div>
   );
-}
-
-function getStatusLabel(status: SystemStatus, variant: 'default' | 'footer' = 'default'): string {
-  switch (status) {
-    case 'stable':
-      return variant === 'footer' ? 'Operational' : 'Stable';
-    case 'degraded':
-      return variant === 'footer' ? 'Degraded — partial data' : 'Partial data';
-    case 'unavailable':
-      return variant === 'footer' ? 'Unavailable' : 'Backend unavailable';
-    default:
-      return 'Unknown';
-  }
 }
 
 function formatLastCheck(timestamp: number): string {

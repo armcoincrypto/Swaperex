@@ -14,6 +14,12 @@ import { joinSignalsUrl } from '@/config/api';
 
 export type SystemStatus = 'stable' | 'degraded' | 'unavailable';
 
+/** UI-facing status including freshness semantics (not persisted). */
+export type SystemDisplayStatus = SystemStatus | 'unknown' | 'stale';
+
+/** After this interval without a successful check, show stale — not healthy. */
+export const SYSTEM_STATUS_STALE_MS = 5 * 60 * 1000;
+
 export interface SystemHealthResponse {
   status: 'ok' | 'partial' | 'error';
   signalsEngine: 'running' | 'degraded' | 'unavailable' | 'disabled';
@@ -50,7 +56,7 @@ interface SystemStatusState {
 }
 
 export const useSystemStatusStore = create<SystemStatusState>((set, get) => ({
-  status: 'stable', // Assume stable until proven otherwise
+  status: 'degraded',
   signalsEngine: null,
   services: null,
   version: null,
@@ -103,14 +109,15 @@ export const useSystemStatusStore = create<SystemStatusState>((set, get) => ({
 
     } catch (err) {
       const currentFailures = get().failureCount;
+      const hadCheck = get().lastCheck != null;
 
-      // After 2 consecutive failures, mark as unavailable
-      const newStatus: SystemStatus = currentFailures >= 1 ? 'unavailable' : get().status;
+      const newStatus: SystemStatus =
+        currentFailures >= 1 || !hadCheck ? 'unavailable' : get().status;
 
       set({
         status: newStatus,
-        signalsEngine: null,
-        services: null,
+        signalsEngine: hadCheck ? get().signalsEngine : null,
+        services: hadCheck ? get().services : null,
         checking: false,
         failureCount: currentFailures + 1,
       });
@@ -123,7 +130,7 @@ export const useSystemStatusStore = create<SystemStatusState>((set, get) => ({
 
   reset: () => {
     set({
-      status: 'stable',
+      status: 'degraded',
       signalsEngine: null,
       services: null,
       version: null,
@@ -135,35 +142,87 @@ export const useSystemStatusStore = create<SystemStatusState>((set, get) => ({
   },
 }));
 
+export function resolveSystemDisplayStatus(state: {
+  status: SystemStatus;
+  lastCheck: number | null;
+  failureCount: number;
+  now?: number;
+}): SystemDisplayStatus {
+  const now = state.now ?? Date.now();
+  if (!state.lastCheck) {
+    return state.failureCount > 0 ? 'unavailable' : 'unknown';
+  }
+  if (now - state.lastCheck > SYSTEM_STATUS_STALE_MS) {
+    return 'stale';
+  }
+  return state.status;
+}
+
+export function useSystemDisplayStatus(): SystemDisplayStatus {
+  return useSystemStatusStore((s) =>
+    resolveSystemDisplayStatus({
+      status: s.status,
+      lastCheck: s.lastCheck,
+      failureCount: s.failureCount,
+    }),
+  );
+}
+
 // Convenient selector hooks
 export const useSystemStatus = () => useSystemStatusStore((s) => s.status);
 export const useSignalsEngineStatus = () => useSystemStatusStore((s) => s.signalsEngine);
 export const useServicesStatus = () => useSystemStatusStore((s) => s.services);
 
 // Get status color for UI
-export function getStatusColor(status: SystemStatus): string {
+export function getStatusColor(status: SystemDisplayStatus): string {
   switch (status) {
     case 'stable':
       return 'text-green-400';
     case 'degraded':
+    case 'stale':
       return 'text-yellow-400';
     case 'unavailable':
       return 'text-red-400';
+    case 'unknown':
+      return 'text-dark-400';
     default:
       return 'text-gray-400';
   }
 }
 
 // Get status indicator
-export function getStatusIndicator(status: SystemStatus): string {
+export function getStatusIndicator(status: SystemDisplayStatus): string {
   switch (status) {
     case 'stable':
       return '●';
     case 'degraded':
+    case 'stale':
       return '◐';
     case 'unavailable':
       return '○';
+    case 'unknown':
+      return '…';
     default:
       return '?';
+  }
+}
+
+export function getSystemDisplayLabel(
+  status: SystemDisplayStatus,
+  variant: 'default' | 'footer' = 'default',
+): string {
+  switch (status) {
+    case 'stable':
+      return variant === 'footer' ? 'Application responding' : 'Application responding';
+    case 'degraded':
+      return variant === 'footer' ? 'Partial data unavailable' : 'Partial data unavailable';
+    case 'stale':
+      return variant === 'footer' ? 'Status delayed' : 'Status delayed';
+    case 'unavailable':
+      return variant === 'footer' ? 'Application unavailable' : 'Application unavailable';
+    case 'unknown':
+      return variant === 'footer' ? 'Checking status' : 'Checking status';
+    default:
+      return 'Status unknown';
   }
 }
