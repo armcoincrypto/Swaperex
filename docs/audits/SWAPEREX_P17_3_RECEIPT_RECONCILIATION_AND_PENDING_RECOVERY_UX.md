@@ -13,6 +13,7 @@
 | Production URL | https://dex.kobbex.com |
 | Production artifact | `b6024e3` (unchanged) |
 | Starting HEAD | `0607116` |
+| Final HEAD | `5493bec` |
 
 ## Scope
 

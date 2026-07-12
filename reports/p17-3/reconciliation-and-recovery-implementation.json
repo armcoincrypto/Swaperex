@@ -2,6 +2,7 @@
   "program": "P17.3",
   "verdict": "P17_3_RECEIPT_RECONCILIATION_AND_PENDING_RECOVERY_UX_PASS_WITH_WARNING",
   "startingHead": "0607116",
+  "finalHead": "5493bec",
   "reconciliationService": "frontend/src/services/transactionReconciliation.ts",
   "coordinator": "frontend/src/services/transactionReconciliationCoordinator.ts",
   "providerHierarchy": ["same-origin /rpc read provider", "configured public RPC fallbacks"],
