@@ -10,7 +10,49 @@
  * - NO silent failures
  */
 
-import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
+import type { ErrorClassificationContext, NormalizedSwaperexError } from '@/types/swaperexErrors';
+import { toLegacyErrorCategory } from '@/types/swaperexErrors';
+import {
+  normalizeSwaperexError,
+} from '@/utils/swaperexErrorClassification';
+import { getErrorPresentation } from '@/utils/swaperexErrorPresentation';
+
+export {
+  normalizeSwaperexError,
+  normalizeSwaperexErrorFromMessage,
+  normalizeJournalUncertainty,
+} from '@/utils/swaperexErrorClassification';
+export {
+  getErrorPresentation,
+  getErrorPresentationFromMessage,
+  getJournalStatusPresentation,
+  getPermittedErrorActions,
+  isActionPermitted,
+  presentErrorCategoryLabel,
+} from '@/utils/swaperexErrorPresentation';
+export type {
+  ErrorClassificationContext,
+  ErrorPresentation,
+  ErrorRecommendedAction,
+  NormalizedSwaperexError,
+  SwaperexErrorCategory,
+  SwaperexErrorStage,
+} from '@/types/swaperexErrors';
+
+function normalizedToParsed(
+  normalized: NormalizedSwaperexError,
+  extras?: Partial<ParsedError>,
+): ParsedError {
+  const presentation = getErrorPresentation(normalized);
+  return {
+    category: toLegacyErrorCategory(normalized.category),
+    message: normalized.userMessage,
+    isRecoverable: normalized.retryability !== 'not_recommended',
+    shouldShowRetry: presentation.canResubmit || presentation.canRetryQuote,
+    technicalReason: normalized.technicalSummary,
+    ...extras,
+  };
+}
 
 // Error categories
 export type ErrorCategory =
@@ -189,105 +231,17 @@ export function parseWalletError(error: unknown): ParsedError {
 /**
  * Parse transaction errors (swap, approval, withdrawal)
  */
-export function parseTransactionError(error: unknown): ParsedError {
-  if (isUserRejection(error)) {
-    return {
-      category: 'user_rejected',
-      message: 'Transaction cancelled in your wallet. No funds were moved.',
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
-  }
-
-  if (isWalletSignRequestPending(error)) {
-    return {
-      category: 'wallet_sign_pending',
-      message: WALLET_SIGN_REQUEST_PENDING_MESSAGE,
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
-  }
-
-  const err = error as { code?: number; message?: string; reason?: string };
-  const rawTx = (err.message || err.reason || '').trim();
-  const message = rawTx.toLowerCase();
-
-  // Keep full 1inch builder errors (quote + /swap build + fetch wrapper). Match anywhere for wrapped errors.
-  if (rawTx && message.includes('1inch:')) {
-    return {
-      category: 'quote_error',
-      message: rawTx,
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
-  }
-
-  // Insufficient funds
-  if (message.includes('insufficient funds') || message.includes('insufficient balance')) {
-    return {
-      category: 'insufficient_balance',
-      message: 'Insufficient balance to complete this swap. Check your wallet balance and try a smaller amount.',
-      isRecoverable: false,
-      shouldShowRetry: false,
-    };
-  }
-
-  // Gas estimation failed
-  if (message.includes('gas') && (message.includes('failed') || message.includes('required'))) {
-    return {
-      category: 'transaction_error',
-      message: 'Insufficient funds for transaction fees. Add more ETH/BNB to cover gas costs.',
-      isRecoverable: false,
-      shouldShowRetry: false,
-    };
-  }
-
-  // Slippage too high
-  if (message.includes('slippage') || message.includes('price movement')) {
-    return {
-      category: 'transaction_error',
-      message: 'Swap failed: price moved beyond your slippage tolerance. Increase slippage in settings or try a smaller amount.',
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
-  }
-
-  // Transaction reverted
-  if (message.includes('reverted') || message.includes('revert')) {
-    return {
-      category: 'transaction_error',
-      message: 'Transaction reverted by the smart contract. This often happens when price moves too fast. Try increasing slippage or reducing the swap amount.',
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
-  }
-
-  // Nonce error
-  if (message.includes('nonce')) {
-    return {
-      category: 'transaction_error',
-      message: 'Transaction sequence conflict. You may have a pending transaction. Wait a moment and try again.',
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
-  }
-
-  // Network error
-  if (message.includes('network') || message.includes('timeout') || message.includes('connection')) {
-    return {
-      category: 'network_error',
-      message: 'Network connection lost. Check your internet connection and try again.',
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
-  }
-
-  return {
-    category: 'unknown',
-    message: err.message || 'Transaction could not be completed. Please try again or contact support if the issue persists.',
-    isRecoverable: true,
-    shouldShowRetry: true,
-  };
+export function parseTransactionError(
+  error: unknown,
+  context?: ErrorClassificationContext,
+): ParsedError {
+  return normalizedToParsed(
+    normalizeSwaperexError(error, {
+      stage: context?.stage ?? 'swap-submit',
+      broadcastKnown: context?.broadcastKnown ?? Boolean(context?.transactionHash),
+      ...context,
+    }),
+  );
 }
 
 /**
@@ -295,259 +249,45 @@ export function parseTransactionError(error: unknown): ParsedError {
  *
  * Maps low-level failures to short, actionable copy (logic upstream unchanged).
  */
-export function parseQuoteError(error: unknown): ParsedError {
+export function parseQuoteError(
+  error: unknown,
+  context?: ErrorClassificationContext,
+): ParsedError {
   const err = error as {
     message?: string;
     response?: { data?: { error?: string } };
-    code?: string | number;
     swapErrorReasonCode?: QuoteFailureReasonCode | string;
     technicalReason?: string;
   };
   const raw = (err.message || err.response?.data?.error || '').trim();
-  const message = raw.toLowerCase();
-  const codeStr = String(err.code ?? '');
-  const sr = err.swapErrorReasonCode;
+  const normalized = normalizeSwaperexError(error, {
+    stage: 'quote',
+    quoteExpired: raw === 'QUOTE_EXPIRED' || raw.toLowerCase().includes('quote expired'),
+    ...context,
+  });
 
-  if (sr === 'unsupported_commission_route') {
-    return {
-      category: 'quote_error',
-      reasonCode: 'unsupported_commission_route',
-      message: 'This pair is not supported by Swaperex commission routing yet.',
-      userAction:
-        'Swaperex only enables pairs that can route through its commission wrapper. Try ETH ⇄ USDC, ETH ⇄ USDT, WETH ⇄ USDC, or WETH ⇄ USDT.',
-      technicalReason: err.technicalReason || raw || undefined,
-      isRecoverable: true,
-      shouldShowRetry: false,
-    };
-  }
-  if (sr === 'commission_eth_native_v2_required') {
-    return {
-      category: 'quote_error',
-      reasonCode: 'commission_eth_native_v2_required',
-      message:
-        'Native ETH on Ethereum needs Uniswap wrapper V2 with native quoting enabled for this deployment.',
-      userAction: 'Use WETH instead of ETH, or ask the operator to enable wrapper V2 native quote settings.',
-      technicalReason: err.technicalReason || raw || undefined,
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
-  }
-  if (sr === 'commission_bsc_native_disabled') {
-    return {
-      category: 'quote_error',
-      reasonCode: 'commission_bsc_native_disabled',
-      message: 'BNB native swaps are not enabled for commission routing in this deployment.',
-      userAction: 'Use WBNB or an ERC‑20 pair, or ask the operator to enable Pancake wrapper V2 native settings.',
-      technicalReason: err.technicalReason || raw || undefined,
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
-  }
-  if (sr === 'commission_native_unsupported_chain') {
-    return {
-      category: 'quote_error',
-      reasonCode: 'commission_native_unsupported_chain',
-      message: 'Commission routing with native gas tokens is not available on this network.',
-      userAction: 'Switch to Ethereum or BNB Chain, or use wrapped native tokens.',
-      technicalReason: err.technicalReason || raw || undefined,
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
-  }
-  if (sr === 'commission_chain_no_wrapper') {
-    return {
-      category: 'quote_error',
-      reasonCode: 'commission_chain_no_wrapper',
-      message: 'Commission routing is not available on this chain.',
-      userAction: 'Switch to Ethereum (chain 1) or BNB Chain (chain 56).',
-      technicalReason: err.technicalReason || raw || undefined,
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
-  }
-
-  // Preserve explicit 1inch / aggregator messages (avoid replacing with generic "pricing unavailable")
-  if (
-    raw &&
-    (message.startsWith('1inch:') ||
-      message.startsWith('unknown token:') ||
-      message.includes('1inch does not support chain') ||
-      message.includes('no quotes available from any provider') ||
-      message.includes('no quote from 1inch'))
-  ) {
-    return {
-      category: 'quote_error',
-      message: raw,
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
-  }
-
-  // Slippage / min-out (before generic "reverted")
-  if (
-    message.includes('slippage') ||
-    message.includes('price moved') ||
-    message.includes('too little received') ||
-    (message.includes('amount out') && message.includes('minimum')) ||
-    message.includes('returned amount') ||
-    message.includes('min return') ||
-    message.includes('minamount') ||
-    message.includes('minimum received') ||
-    message.includes('output is less')
-  ) {
-    return {
-      category: 'quote_error',
-      message: 'Price moved, refresh quote',
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
-  }
-
-  // Liquidity / no pool / no route
-  if (
-    message.includes('no liquidity') ||
-    message.includes('no pool') ||
-    message.includes('insufficient liquidity') ||
-    message.includes('no valid uniswap v3 pool') ||
-    message.includes('no pool found') ||
-    message.includes('spl') ||
-    message.includes('no route') ||
-    (message.includes('execution reverted') &&
-      (message.includes('liquidity') || message.includes('pool') || message.includes('swap')))
-  ) {
-    return {
-      category: 'quote_error',
-      message: 'No liquidity for this pair',
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
-  }
-
-  // RPC / transport (browser + JSON-RPC)
-  if (
-    message.includes('unsupported_operation') ||
-    message.includes('missing revert data') ||
-    message.includes('could not coalesce error') ||
-    message.includes('failed to fetch') ||
-    message.includes('networkerror') ||
-    message.includes('load failed') ||
-    message.includes('fetch failed') ||
-    message.includes('timeout') ||
-    message.includes('timed out') ||
-    message.includes('econnreset') ||
-    message.includes('econnrefused') ||
-    message.includes('socket hang up') ||
-    message.includes('429') ||
-    message.includes('rate limit') ||
-    message.includes('502') ||
-    message.includes('503') ||
-    message.includes('504') ||
-    message.includes('bad gateway') ||
-    message.includes('service unavailable') ||
-    message.includes('internal error') ||
-    codeStr === '-32603' ||
-    message.includes('json-rpc') ||
-    message.includes('eth_call') ||
-    (message.includes('network') && !message.includes('wrong chain'))
-  ) {
-    return {
-      category: 'network_error',
-      message: 'Network issue, retrying...',
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
-  }
-
-  // Commission-required: fixed route must be wrapper (user picked invalid fixed route)
-  if (message.includes('commission-required mode only allows')) {
-    return {
-      category: 'quote_error',
-      reasonCode: 'commission_route_mode_required',
-      message: raw,
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
-  }
-
-  // Commission / wrapper strings (narrow — avoid swallowing unrelated RPC noise)
-  if (message.includes('eth native swaps require') || message.includes('native swaps require')) {
-    return {
-      category: 'quote_error',
-      reasonCode: 'commission_eth_native_v2_required',
-      message:
-        'Native ETH on Ethereum needs Uniswap wrapper V2 with native quoting enabled for this deployment.',
-      userAction: 'Use WETH instead of ETH, or ask the operator to enable wrapper V2 native quote settings.',
-      technicalReason: raw,
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
-  }
-  if (message.includes('commission route unavailable for this pair')) {
-    return {
-      category: 'quote_error',
-      reasonCode: 'unsupported_commission_route',
-      message: 'This pair is not supported by Swaperex commission routing yet.',
-      userAction:
-        'Swaperex only enables pairs that can route through its commission wrapper. Try ETH ⇄ USDC, ETH ⇄ USDT, WETH ⇄ USDC, or WETH ⇄ USDT.',
-      technicalReason: raw,
-      isRecoverable: true,
-      shouldShowRetry: false,
-    };
-  }
-  if (
-    message.includes('wrapper_quote_failed') ||
-    message.includes('wrapper quote failed') ||
-    message.includes('no uniswap wrapper v2 quote') ||
-    message.includes('no pancake wrapper v2 quote')
-  ) {
-    return {
-      category: 'quote_error',
-      message: "Couldn't get a commission-route quote for this request.",
-      technicalReason: raw,
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
-  }
-  if (
-    message.includes('commission required') ||
-    message.includes('pancake wrapper v2 native-leg quoting') ||
-    (raw.includes('Commission') && message.includes('wrapper'))
-  ) {
-    return {
-      category: 'quote_error',
-      message: raw || 'Commission routing is not available for this request.',
-      technicalReason: raw,
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
-  }
-
-  // Quote expired
-  if (message.includes('expired') || message.includes('stale')) {
-    return {
-      category: 'quote_error',
-      message: SWAP_SURFACE_COPY.quoteExpiredDetail,
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
-  }
-
-  // Amount too low
-  if (message.includes('minimum') || message.includes('too small')) {
-    return {
-      category: 'quote_error',
-      message: 'Swap amount too small. Please enter a larger amount to cover minimum trade requirements.',
-      isRecoverable: false,
-      shouldShowRetry: false,
-    };
-  }
-
-  return {
-    category: 'quote_error',
-    message: "Couldn't get a price. Wait a moment and try again.",
-    isRecoverable: true,
-    shouldShowRetry: true,
+  const commissionActions: Partial<Record<string, string>> = {
+    unsupported_commission_route:
+      'Swaperex only enables pairs that can route through its commission wrapper. Try ETH ⇄ USDC, ETH ⇄ USDT, WETH ⇄ USDC, or WETH ⇄ USDT.',
+    commission_eth_native_v2_required:
+      'Use WETH instead of ETH, or ask the operator to enable wrapper V2 native quote settings.',
+    commission_bsc_native_disabled:
+      'Use WBNB or an ERC‑20 pair, or ask the operator to enable Pancake wrapper V2 native settings.',
+    commission_native_unsupported_chain:
+      'Switch to Ethereum or BNB Chain, or use wrapped native tokens.',
+    commission_chain_no_wrapper: 'Switch to Ethereum (chain 1) or BNB Chain (chain 56).',
   };
+
+  const sr = err.swapErrorReasonCode;
+  return normalizedToParsed(normalized, {
+    reasonCode: sr,
+    userAction: sr ? commissionActions[sr] : undefined,
+    technicalReason: err.technicalReason || raw || normalized.technicalSummary,
+    shouldShowRetry:
+      sr === 'unsupported_commission_route'
+        ? false
+        : getErrorPresentation(normalized).canRetryQuote,
+  });
 }
 
 /**
@@ -599,115 +339,30 @@ export function getRejectionMessage(action: 'connect' | 'approve' | 'swap' | 'wi
  * Parse RPC/Provider errors
  * Common errors from ethers.js and JSON-RPC
  */
-export function parseRpcError(error: unknown): ParsedError {
-  const err = error as { code?: number | string; message?: string; reason?: string; data?: unknown };
-  const message = (err.message || err.reason || '').toLowerCase();
-  const code = err.code;
-
-  // User rejection (code 4001 or ACTION_REJECTED)
-  if (code === 4001 || code === 'ACTION_REJECTED' || isUserRejection(error)) {
-    return {
-      category: 'user_rejected',
-      message: 'Transaction cancelled in your wallet. No funds were moved.',
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
-  }
-
-  if (isWalletSignRequestPending(error)) {
-    console.warn('[RPC Error] Wallet sign request already pending', { code: err.code, message: err.message });
-    return {
-      category: 'wallet_sign_pending',
-      message: WALLET_SIGN_REQUEST_PENDING_MESSAGE,
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
-  }
-
-  // Log remaining RPC errors for debugging (NO silent failures)
-  console.error('[RPC Error]', {
-    code,
-    message: err.message,
-    reason: err.reason,
-    data: err.data,
+export function parseRpcError(
+  error: unknown,
+  context?: ErrorClassificationContext,
+): ParsedError {
+  const err = error as { code?: number | string; message?: string };
+  const normalized = normalizeSwaperexError(error, {
+    stage: context?.stage ?? 'reconciliation',
+    broadcastKnown: context?.broadcastKnown ?? Boolean(context?.transactionHash),
+    ...context,
   });
 
-  // Insufficient funds (code -32000 often)
-  if (code === -32000 || message.includes('insufficient funds')) {
-    return {
-      category: 'insufficient_balance',
-      message: 'Insufficient funds for transaction fees. Add more ETH/BNB to your wallet to cover gas costs.',
-      isRecoverable: false,
-      shouldShowRetry: false,
-    };
+  if (
+    normalized.category === 'rpc_unavailable' ||
+    normalized.category === 'rpc_timeout' ||
+    normalized.category === 'unknown_error'
+  ) {
+    console.error('[RPC Error]', {
+      code: err.code,
+      category: normalized.category,
+      message: err.message?.slice(0, 120),
+    });
   }
 
-  // RPC rate limit
-  if (code === 429 || message.includes('rate limit') || message.includes('too many requests')) {
-    return {
-      category: 'rpc_error',
-      message: 'Too many requests. Please wait and try again.',
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
-  }
-
-  // RPC timeout
-  if (message.includes('timeout') || message.includes('timed out')) {
-    return {
-      category: 'rpc_error',
-      message: 'Request timed out. Network may be congested.',
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
-  }
-
-  // RPC connection error
-  if (message.includes('failed to fetch') || message.includes('network error') || message.includes('econnrefused')) {
-    return {
-      category: 'rpc_error',
-      message: 'Cannot connect to network. Check your connection.',
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
-  }
-
-  // Contract execution reverted
-  if (message.includes('execution reverted') || message.includes('revert')) {
-    // Try to extract revert reason
-    let revertReason = 'Transaction would fail on-chain. The token or pool may have restrictions.';
-    if (message.includes('stf')) {
-      revertReason = 'Swap failed: price moved beyond your slippage tolerance. Increase slippage or try a smaller amount.';
-    } else if (message.includes('too little received') || message.includes('insufficient output')) {
-      revertReason = 'Output amount too low due to price movement. Increase your slippage tolerance and try again.';
-    } else if (message.includes('expired') || message.includes('deadline')) {
-      revertReason = 'Transaction deadline passed. Refresh quote and try again.';
-    }
-
-    return {
-      category: 'contract_error',
-      message: revertReason,
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
-  }
-
-  // Generic RPC error
-  if (code === -32603 || code === -32602 || code === -32601) {
-    return {
-      category: 'rpc_error',
-      message: 'Blockchain node error. The network may be congested. Please wait a moment and try again.',
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
-  }
-
-  return {
-    category: 'unknown',
-    message: err.message || 'An unexpected error occurred. Please try again or contact support if the issue persists.',
-    isRecoverable: true,
-    shouldShowRetry: true,
-  };
+  return normalizedToParsed(normalized);
 }
 
 /**
@@ -717,37 +372,31 @@ export function parseRpcError(error: unknown): ParsedError {
  * messages. `executeSwap` previously preferred `parseRpcError` whenever it was not `unknown`, which
  * replaced e.g. `1inch: Network error: Failed to fetch` with a generic cannot-connect string.
  */
-export function parseSwapExecutionError(error: unknown): ParsedError {
+export function parseSwapExecutionError(
+  error: unknown,
+  context?: ErrorClassificationContext,
+): ParsedError {
+  const stage = context?.stage ?? 'swap-submit';
+  const broadcastKnown = context?.broadcastKnown ?? Boolean(context?.transactionHash);
+
   if (isUserRejection(error)) {
-    return parseTransactionError(error);
+    return parseTransactionError(error, { ...context, stage, broadcastKnown });
   }
 
   if (isWalletSignRequestPending(error)) {
-    return {
-      category: 'wallet_sign_pending',
-      message: WALLET_SIGN_REQUEST_PENDING_MESSAGE,
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
+    return parseTransactionError(error, { ...context, stage, broadcastKnown });
   }
 
   const raw = (getErrorMessage(error, '') || '').trim();
   if (raw.toLowerCase().includes('1inch:')) {
-    return {
-      category: 'quote_error',
-      message: raw,
-      isRecoverable: true,
-      shouldShowRetry: true,
-    };
+    return parseQuoteError(error, context);
   }
 
-  const rpcParsed = parseRpcError(error);
-  const txParsed = parseTransactionError(error);
-
+  const rpcParsed = parseRpcError(error, { ...context, stage, broadcastKnown });
   if (rpcParsed.category !== 'unknown') {
     return rpcParsed;
   }
-  return txParsed;
+  return parseTransactionError(error, { ...context, stage, broadcastKnown });
 }
 
 /**
