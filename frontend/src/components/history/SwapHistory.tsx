@@ -35,12 +35,14 @@ export function DeviceSwapActivityStrip({
   maxItems = 3,
   onRepeatSwap,
   excludeFlowId,
+  onViewDetails,
 }: {
   chainId: number;
   maxItems?: number;
   onRepeatSwap?: (record: SwapRecord) => void;
   /** Hide active recovery flow to avoid duplicating RecoveredTransactionCard. */
   excludeFlowId?: string | null;
+  onViewDetails?: (item: UnifiedActivityItem) => void;
 }) {
   const address = useWalletStore((s) => s.address);
   const isConnected = useWalletStore((s) => s.isConnected);
@@ -67,7 +69,7 @@ export function DeviceSwapActivityStrip({
       <ul className="space-y-2 list-none p-0 m-0" aria-label="Recent Swaperex activity">
         {rows.map((item) => (
           <li key={item.id}>
-            <CompactJournalRow item={item} onRepeat={onRepeatSwap} />
+            <CompactJournalRow item={item} onRepeat={onRepeatSwap} onViewDetails={onViewDetails} />
           </li>
         ))}
       </ul>
@@ -78,9 +80,11 @@ export function DeviceSwapActivityStrip({
 function CompactJournalRow({
   item,
   onRepeat,
+  onViewDetails,
 }: {
   item: UnifiedActivityItem;
   onRepeat?: (record: SwapRecord) => void;
+  onViewDetails?: (item: UnifiedActivityItem) => void;
 }) {
   const statusLabel = presentActivityStatus(item.status);
   return (
@@ -106,6 +110,15 @@ function CompactJournalRow({
             className="text-[10px] text-primary-400 hover:text-primary-300 px-1"
           >
             Repeat
+          </button>
+        )}
+        {onViewDetails && (
+          <button
+            type="button"
+            onClick={() => onViewDetails(item)}
+            className="text-[10px] text-dark-400 hover:text-dark-200 px-1"
+          >
+            Details
           </button>
         )}
       </div>

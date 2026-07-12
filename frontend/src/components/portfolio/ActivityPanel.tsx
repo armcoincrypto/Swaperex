@@ -33,6 +33,7 @@ import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 import { swapAggregatorProviderLabel } from '@/utils/format';
 import { isCommissionRequiredMode } from '@/config';
 import { isCommissionWrapperExecutionProvider } from '@/services/quoteAggregator';
+import { useTransactionDetailsDialog } from '@/hooks/useTransactionDetailsDialog';
 import {
   ShellEmptyState,
   ShellLoadingRows,
@@ -55,6 +56,7 @@ export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelPro
   const [explorerLoading, setExplorerLoading] = useState(false);
   const [tab, setTab] = useState<TabFilter>('all');
   const fetchGeneration = useRef(0);
+  const { openFromActivityItem, dialog: detailsDialog } = useTransactionDetailsDialog();
 
   const localResult = useMemo(() => {
     if (!address || !isConnected) return null;
@@ -163,6 +165,7 @@ export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelPro
 
   return (
     <div className={className} role="region" aria-label="Swaps, transfers, and approvals">
+      {detailsDialog}
       <p className="text-[11px] text-dark-500 leading-snug mb-3" data-testid="activity-disclaimer">
         {ACTIVITY_HISTORY_DISCLAIMER}
       </p>
@@ -267,7 +270,12 @@ export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelPro
           <ul className="space-y-1 list-none p-0 m-0">
             {displayResult!.attentionItems.slice(0, 5).map((item) => (
               <li key={`attention-${item.id}`}>
-                <ActivityRow item={item} onRepeat={onRepeatSwap} compact />
+                <ActivityRow
+                  item={item}
+                  onRepeat={onRepeatSwap}
+                  onViewDetails={openFromActivityItem}
+                  compact
+                />
               </li>
             ))}
           </ul>
@@ -279,9 +287,17 @@ export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelPro
           {filteredGroups.map((group) => (
             <li key={group.key}>
               {group.isFlow ? (
-                <FlowGroupCard group={group} onRepeat={onRepeatSwap} />
+                <FlowGroupCard
+                  group={group}
+                  onRepeat={onRepeatSwap}
+                  onViewDetails={openFromActivityItem}
+                />
               ) : (
-                <ActivityRow item={group.items[0]} onRepeat={onRepeatSwap} />
+                <ActivityRow
+                  item={group.items[0]}
+                  onRepeat={onRepeatSwap}
+                  onViewDetails={openFromActivityItem}
+                />
               )}
             </li>
           ))}
@@ -300,15 +316,23 @@ export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelPro
 function FlowGroupCard({
   group,
   onRepeat,
+  onViewDetails,
 }: {
   group: UnifiedActivityGroup;
   onRepeat?: (record: SwapRecord) => void;
+  onViewDetails?: (item: UnifiedActivityItem) => void;
 }) {
   return (
     <div className="rounded-lg border border-white/[0.06] bg-dark-800/60 p-2 space-y-1">
       <div className="text-[10px] font-medium text-dark-400 px-1">Swap flow</div>
       {group.items.map((item) => (
-        <ActivityRow key={item.id} item={item} onRepeat={onRepeat} nested />
+        <ActivityRow
+          key={item.id}
+          item={item}
+          onRepeat={onRepeat}
+          onViewDetails={onViewDetails}
+          nested
+        />
       ))}
     </div>
   );
@@ -317,11 +341,13 @@ function FlowGroupCard({
 function ActivityRow({
   item,
   onRepeat,
+  onViewDetails,
   compact = false,
   nested = false,
 }: {
   item: UnifiedActivityItem;
   onRepeat?: (record: SwapRecord) => void;
+  onViewDetails?: (item: UnifiedActivityItem) => void;
   compact?: boolean;
   nested?: boolean;
 }) {
@@ -396,6 +422,15 @@ function ActivityRow({
       <div className="flex flex-col items-end gap-1 shrink-0 pt-0.5">
         <span className="text-[10px] text-dark-500 whitespace-nowrap">{formatActivityTime(item.ts)}</span>
         <div className="flex items-center gap-0.5">
+          {onViewDetails && (
+            <button
+              type="button"
+              onClick={() => onViewDetails(item)}
+              className="min-h-[32px] px-2 py-1 text-[10px] text-dark-400 hover:text-dark-200"
+            >
+              Details
+            </button>
+          )}
           {item.canRepeat && item.localRecord && onRepeat && (
             <button
               type="button"

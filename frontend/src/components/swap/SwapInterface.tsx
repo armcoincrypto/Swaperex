@@ -13,10 +13,9 @@ import { useWallet } from '@/hooks/useWallet';
 import { useSwapUrlSync } from '@/hooks/useSwapUrlSync';
 import { useSwap } from '@/hooks/useSwap';
 import { useTransactionReconciliation } from '@/hooks/useTransactionReconciliation';
+import { useTransactionDetailsDialog } from '@/hooks/useTransactionDetailsDialog';
 import { RecoveredTransactionCard } from '@/components/swap/RecoveredTransactionCard';
 import { DeviceSwapActivityStrip } from '@/components/history/SwapHistory';
-import type { RecoveredSwapTrace } from '@/utils/recoveredSwapTrace';
-import { getRecoveryStatusCopy } from '@/utils/recoveredSwapTrace';
 import { useSwapStore, type ApprovalMode } from '@/stores/swapStore';
 import { toast } from '@/stores/toastStore';
 import { useBalances } from '@/hooks/useBalances';
@@ -348,7 +347,6 @@ export function SwapInterface() {
     fetchSwapQuote,
     reset,
     dismissQuoteError,
-    dismissPendingSubmitted,
   } = useSwap();
 
   const {
@@ -357,6 +355,9 @@ export function SwapInterface() {
     manualRecheckDisabled,
     isReconciling,
   } = useTransactionReconciliation();
+
+  const { openFromRecoveredTrace, openFromActivityItem, dialog: transactionDetailsDialog } =
+    useTransactionDetailsDialog();
 
   const {
     fromAsset,
@@ -655,7 +656,6 @@ export function SwapInterface() {
   /** Power-user controls (settings, quick pairs, presets) — hidden until opened. */
   const [showMoreOptions, setShowMoreOptions] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
-  const [showRecoveryModal, setShowRecoveryModal] = useState(false);
   /** Terms / Privacy gate — opens before preview when user has not accepted yet. */
   const termsAccepted = useTermsStore((s) => s.accepted);
   const [showTermsGate, setShowTermsGate] = useState(false);
@@ -1339,17 +1339,9 @@ export function SwapInterface() {
     }
   };
 
-  const getRecoveryModalStep = (trace: RecoveredSwapTrace): SwapStep => {
-    if (trace.phase === 'swap_confirmed') return 'success';
-    if (trace.phase === 'swap_reverted') return 'error';
-    if (trace.phase === 'status_unavailable' || trace.phase === 'stale') return 'error';
-    return 'broadcasting';
-  };
-
   const showRecoveryCard =
     Boolean(recoveredTrace) &&
     !showPreview &&
-    !showRecoveryModal &&
     !['approving', 'swapping', 'confirming'].includes(status);
 
   // Get button text
@@ -2156,7 +2148,7 @@ export function SwapInterface() {
           <div className="relative z-10 mt-4">
             <RecoveredTransactionCard
               trace={recoveredTrace}
-              onOpenDetails={() => setShowRecoveryModal(true)}
+              onOpenDetails={() => openFromRecoveredTrace(recoveredTrace)}
               onManualRecheck={manualRecheck}
               manualRecheckDisabled={manualRecheckDisabled}
               isReconciling={isReconciling}
@@ -2167,6 +2159,7 @@ export function SwapInterface() {
         <DeviceSwapActivityStrip
           chainId={currentChainId}
           excludeFlowId={showRecoveryCard ? recoveredTrace?.flowId : undefined}
+          onViewDetails={openFromActivityItem}
         />
 
         {/* Quote Details (when quote available) */}
@@ -2824,37 +2817,7 @@ export function SwapInterface() {
         </Suspense>
       )}
 
-      {showRecoveryModal && recoveredTrace && (
-        <Suspense fallback={null}>
-          <LazySwapPreviewModal
-            isOpen={showRecoveryModal}
-            quote={null}
-            step={getRecoveryModalStep(recoveredTrace)}
-            error={
-              recoveredTrace.phase === 'status_unavailable' || recoveredTrace.phase === 'stale'
-                ? getRecoveryStatusCopy(recoveredTrace.phase).description
-                : null
-            }
-            txHash={recoveredTrace.transactionHash}
-            explorerUrl={recoveredTrace.explorerUrl}
-            chainId={recoveredTrace.chainId}
-            walletConnected={isConnected && !isReadOnly}
-            recoveredTrace={recoveredTrace}
-            onClearPendingSwap={dismissPendingSubmitted}
-            onManualRecheck={manualRecheck}
-            manualRecheckDisabled={manualRecheckDisabled}
-            isReconciling={isReconciling}
-            onConfirm={() => setShowRecoveryModal(false)}
-            onCancel={() => setShowRecoveryModal(false)}
-            onRefreshQuote={() => {}}
-            isRefreshing={false}
-            quoteTtlSecondsRemaining={null}
-          />
-        </Suspense>
-      )}
-
-      {/* Save Preset Modal */}
-      {fromAsset && toAsset && (
+      {showSavePreset && fromAsset && toAsset && (
         <SavePresetModal
           isOpen={showSavePreset}
           onClose={() => setShowSavePreset(false)}
@@ -2864,6 +2827,8 @@ export function SwapInterface() {
           slippage={slippage}
         />
       )}
+
+      {transactionDetailsDialog}
     </>
   );
 }
