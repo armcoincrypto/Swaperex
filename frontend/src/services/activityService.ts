@@ -1,17 +1,32 @@
 /**
- * Activity Service
+ * Activity Service — canonical wallet-scoped activity aggregation (P17.4).
  *
- * Merges local swap history (localStorage) with blockchain explorer data.
- * Deduplicates by txHash, normalizes to a unified ActivityItem format.
- * Supports export as CSV/JSON.
+ * Merges journal records, legacy transfers, and explorer data into
+ * UnifiedActivityItem presentation rows. Legacy ActivityItem helpers remain
+ * for export compatibility and older tests.
  */
 
 import type { SwapRecord } from '@/stores/swapHistoryStore';
+import type { TransactionJournalRecord } from '@/types/transactionJournal';
+import type {
+  UnifiedActivityItem,
+  UnifiedActivityResult,
+} from '@/types/unifiedActivity';
 import {
   getMultiChainTransactions,
   type Transaction,
   formatTimeAgo as txFormatTimeAgo,
 } from '@/services/transactionHistory';
+import {
+  explorerTransactionToUnifiedItem,
+  journalRecordToUnifiedItem,
+  legacyTransferToUnifiedItem,
+} from '@/utils/unifiedActivityAdapters';
+import { dedupeUnifiedActivityItems } from '@/utils/unifiedActivityDedupe';
+import {
+  filterUnifiedActivityGroups,
+  groupUnifiedActivityItems,
+} from '@/utils/unifiedActivityFlowGrouping';
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -188,15 +203,217 @@ export async function fetchMergedActivity(
   return mergeLocalAndExplorer(localRecords, explorerTxs);
 }
 
+// ─── P17.4 Unified aggregation ───────────────────────────────────────
+
+/** Explorer-supported chain IDs for portfolio activity. */
+export const ACTIVITY_CHAIN_IDS = [1, 56, 137];
+
+const MAX_JOURNAL_ACTIVITY = 200;
+
+function journalItemsForWallet(
+  walletAddress: string,
+  journalRecords: TransactionJournalRecord[],
+): UnifiedActivityItem[] {
+  const wallet = walletAddress.toLowerCase();
+  const items: UnifiedActivityItem[] = [];
+  for (const record of journalRecords.slice(0, MAX_JOURNAL_ACTIVITY)) {
+    if (record.walletAddress !== wallet) continue;
+    const item = journalRecordToUnifiedItem(record);
+    if (item) items.push(item);
+  }
+  return items;
+}
+
+function transferItemsForWallet(
+  walletAddress: string,
+  transferRecords: SwapRecord[],
+): UnifiedActivityItem[] {
+  return transferRecords.map((record) => legacyTransferToUnifiedItem(record, walletAddress));
+}
+
+/**
+ * Build unified wallet activity from in-memory sources (no network).
+ */
+export function buildUnifiedWalletActivity(params: {
+  walletAddress: string;
+  journalRecords: TransactionJournalRecord[];
+  transferRecords: SwapRecord[];
+  explorerTxs?: Transaction[];
+  explorerStatus?: UnifiedActivityResult['sources']['explorer']['status'];
+  explorerMessage?: string;
+}): UnifiedActivityResult {
+  const {
+    walletAddress,
+    journalRecords,
+    transferRecords,
+    explorerTxs = [],
+    explorerStatus = explorerTxs.length > 0 ? 'ok' : 'skipped',
+    explorerMessage,
+  } = params;
+
+  const journalItems = journalItemsForWallet(walletAddress, journalRecords);
+  const transferItems = transferItemsForWallet(walletAddress, transferRecords);
+  const explorerItems = explorerTxs.map((tx) =>
+    explorerTransactionToUnifiedItem(tx, walletAddress),
+  );
+
+  const items = dedupeUnifiedActivityItems([
+    ...journalItems,
+    ...explorerItems,
+    ...transferItems,
+  ]);
+
+  const groups = groupUnifiedActivityItems(items);
+  const attentionItems = items.filter((item) => item.needsAttention);
+
+  return {
+    items,
+    groups,
+    attentionItems,
+    sources: {
+      journal: { status: 'ok', count: journalItems.length },
+      explorer: {
+        status: explorerStatus,
+        message: explorerMessage,
+        count: explorerItems.length,
+      },
+      transfers: { status: 'ok', count: transferItems.length },
+    },
+  };
+}
+
+/**
+ * Fetch explorer activity and merge with journal + legacy transfers.
+ */
+export async function fetchUnifiedWalletActivity(
+  walletAddress: string,
+  journalRecords: TransactionJournalRecord[],
+  transferRecords: SwapRecord[],
+  chainIds: number[] = ACTIVITY_CHAIN_IDS,
+  limitPerChain: number = 10,
+): Promise<UnifiedActivityResult> {
+  try {
+    const explorerTxs = await getMultiChainTransactions(walletAddress, chainIds, limitPerChain);
+    return buildUnifiedWalletActivity({
+      walletAddress,
+      journalRecords,
+      transferRecords,
+      explorerTxs,
+      explorerStatus: 'ok',
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Explorer unavailable';
+    return buildUnifiedWalletActivity({
+      walletAddress,
+      journalRecords,
+      transferRecords,
+      explorerTxs: [],
+      explorerStatus: 'error',
+      explorerMessage: message,
+    });
+  }
+}
+
+/** Compact recent journal flows for swap-page strip (excludes active recovery flow). */
+export function getCompactJournalActivity(
+  walletAddress: string,
+  chainId: number,
+  journalRecords: TransactionJournalRecord[],
+  maxItems: number,
+  excludeFlowId?: string | null,
+): UnifiedActivityItem[] {
+  const wallet = walletAddress.toLowerCase();
+  const items = journalRecords
+    .filter(
+      (r) =>
+        r.walletAddress === wallet &&
+        r.chainId === chainId &&
+        r.flowId !== excludeFlowId,
+    )
+    .map((r) => journalRecordToUnifiedItem(r))
+    .filter((item): item is UnifiedActivityItem => item !== null);
+
+  const attention = items.filter((item) => item.needsAttention);
+  const resolved = items.filter((item) => !item.needsAttention);
+  attention.sort((a, b) => b.ts - a.ts);
+  resolved.sort((a, b) => b.ts - a.ts);
+
+  const seenFlow = new Set<string>();
+  const compact: UnifiedActivityItem[] = [];
+
+  const pushUnique = (item: UnifiedActivityItem) => {
+    const key = item.flowId ? `flow:${item.flowId}` : item.id;
+    if (seenFlow.has(key)) return;
+    seenFlow.add(key);
+    compact.push(item);
+  };
+
+  for (const item of attention) {
+    if (compact.length >= maxItems) break;
+    pushUnique(item);
+  }
+  for (const item of resolved) {
+    if (compact.length >= maxItems) break;
+    pushUnique(item);
+  }
+
+  return compact;
+}
+
+export function unifiedActivityItemToLegacy(item: UnifiedActivityItem): ActivityItem {
+  const legacyStatus: ActivityStatus =
+    item.status === 'confirmed'
+      ? 'success'
+      : item.status === 'reverted'
+        ? 'failed'
+        : item.status === 'unknown' || item.status === 'stale'
+          ? 'uncertain'
+          : 'pending';
+
+  return {
+    id: item.id,
+    chainId: item.chainId,
+    type:
+      item.kind === 'approval'
+        ? 'approval'
+        : item.kind === 'transfer'
+          ? 'transfer'
+          : 'swap',
+    status: legacyStatus,
+    ts: item.ts,
+    txHash: item.transactionHash,
+    title: item.title,
+    detail: item.subtitle ?? item.title,
+    tokenIn: item.fromAsset
+      ? { symbol: item.fromAsset.symbol, amount: item.fromAsset.amount ?? '' }
+      : undefined,
+    tokenOut: item.toAsset
+      ? { symbol: item.toAsset.symbol, amount: item.toAsset.amount ?? '' }
+      : undefined,
+    provider: item.provider,
+    explorerUrl: item.explorerUrl,
+    canRepeat: item.canRepeat ?? false,
+    localRecord: item.localRecord,
+  };
+}
+
+export { filterUnifiedActivityGroups, groupUnifiedActivityItems };
+
 // ─── Export ────────────────────────────────────────────────────────
 
 /** Export activity as CSV string */
-export function exportActivityCsv(items: ActivityItem[]): string {
+export function exportActivityCsv(items: ActivityItem[] | UnifiedActivityItem[]): string {
+  const rows = items.map((item) =>
+    'source' in item ? unifiedActivityItemToLegacy(item) : item,
+  );
+  return exportLegacyActivityCsv(rows);
+}
+
+function exportLegacyActivityCsv(items: ActivityItem[]): string {
   const header = 'Time,Type,Status,Chain,Title,Detail,TxHash,Explorer URL';
-  const rows = items.map((item) => {
+  const csvRows = items.map((item) => {
     const time = new Date(item.ts).toISOString();
     const chain = CHAIN_LABELS[item.chainId] || String(item.chainId);
-    // Escape commas in fields
     const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
     return [
       time,
@@ -209,15 +426,18 @@ export function exportActivityCsv(items: ActivityItem[]): string {
       item.explorerUrl || '',
     ].join(',');
   });
-  return [header, ...rows].join('\n');
+  return [header, ...csvRows].join('\n');
 }
 
 /** Export activity as JSON string */
-export function exportActivityJson(items: ActivityItem[]): string {
+export function exportActivityJson(items: ActivityItem[] | UnifiedActivityItem[]): string {
+  const rows = items.map((item) =>
+    'source' in item ? unifiedActivityItemToLegacy(item) : item,
+  );
   return JSON.stringify(
-    items.map(({ localRecord, ...rest }) => rest),
+    rows.map(({ localRecord, ...rest }) => rest),
     null,
-    2
+    2,
   );
 }
 
