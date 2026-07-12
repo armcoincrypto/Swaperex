@@ -1,0 +1,164 @@
+{
+  "timestamp": "2026-07-12T23:35:02.648Z",
+  "baseUrl": "https://dex.kobbex.com",
+  "routeCount": 14,
+  "routes": [
+    {
+      "route": "/",
+      "url": "https://dex.kobbex.com/",
+      "status": 200,
+      "ok": true,
+      "hasRoot": true,
+      "hasSwaperex": true,
+      "isSpaShell": true,
+      "failureKind": null,
+      "pass": true
+    },
+    {
+      "route": "/swap",
+      "url": "https://dex.kobbex.com/swap",
+      "status": 200,
+      "ok": true,
+      "hasRoot": true,
+      "hasSwaperex": true,
+      "isSpaShell": true,
+      "failureKind": null,
+      "pass": true
+    },
+    {
+      "route": "/send",
+      "url": "https://dex.kobbex.com/send",
+      "status": 200,
+      "ok": true,
+      "hasRoot": true,
+      "hasSwaperex": true,
+      "isSpaShell": true,
+      "failureKind": null,
+      "pass": true
+    },
+    {
+      "route": "/portfolio",
+      "url": "https://dex.kobbex.com/portfolio",
+      "status": 200,
+      "ok": true,
+      "hasRoot": true,
+      "hasSwaperex": true,
+      "isSpaShell": true,
+      "failureKind": null,
+      "pass": true
+    },
+    {
+      "route": "/radar",
+      "url": "https://dex.kobbex.com/radar",
+      "status": 200,
+      "ok": true,
+      "hasRoot": true,
+      "hasSwaperex": true,
+      "isSpaShell": true,
+      "failureKind": null,
+      "pass": true
+    },
+    {
+      "route": "/screener",
+      "url": "https://dex.kobbex.com/screener",
+      "status": 200,
+      "ok": true,
+      "hasRoot": true,
+      "hasSwaperex": true,
+      "isSpaShell": true,
+      "failureKind": null,
+      "pass": true
+    },
+    {
+      "route": "/trust",
+      "url": "https://dex.kobbex.com/trust",
+      "status": 200,
+      "ok": true,
+      "hasRoot": true,
+      "hasSwaperex": true,
+      "isSpaShell": true,
+      "failureKind": null,
+      "pass": true
+    },
+    {
+      "route": "/about",
+      "url": "https://dex.kobbex.com/about",
+      "status": 200,
+      "ok": true,
+      "hasRoot": true,
+      "hasSwaperex": true,
+      "isSpaShell": true,
+      "failureKind": null,
+      "pass": true
+    },
+    {
+      "route": "/terms",
+      "url": "https://dex.kobbex.com/terms",
+      "status": 200,
+      "ok": true,
+      "hasRoot": true,
+      "hasSwaperex": true,
+      "isSpaShell": true,
+      "failureKind": null,
+      "pass": true
+    },
+    {
+      "route": "/privacy",
+      "url": "https://dex.kobbex.com/privacy",
+      "status": 200,
+      "ok": true,
+      "hasRoot": true,
+      "hasSwaperex": true,
+      "isSpaShell": true,
+      "failureKind": null,
+      "pass": true
+    },
+    {
+      "route": "/disclaimer",
+      "url": "https://dex.kobbex.com/disclaimer",
+      "status": 200,
+      "ok": true,
+      "hasRoot": true,
+      "hasSwaperex": true,
+      "isSpaShell": true,
+      "failureKind": null,
+      "pass": true
+    },
+    {
+      "route": "/swap?chain=1&from=WETH&to=USDT",
+      "url": "https://dex.kobbex.com/swap?chain=1&from=WETH&to=USDT",
+      "status": 200,
+      "ok": true,
+      "hasRoot": true,
+      "hasSwaperex": true,
+      "isSpaShell": true,
+      "failureKind": null,
+      "pass": true
+    },
+    {
+      "route": "/swap?chain=56&from=WBNB&to=USDC&slippage=0.5",
+      "url": "https://dex.kobbex.com/swap?chain=56&from=WBNB&to=USDC&slippage=0.5",
+      "status": 200,
+      "ok": true,
+      "hasRoot": true,
+      "hasSwaperex": true,
+      "isSpaShell": true,
+      "failureKind": null,
+      "pass": true
+    },
+    {
+      "route": "/portfolio#holdings",
+      "url": "https://dex.kobbex.com/portfolio#holdings",
+      "status": 200,
+      "ok": true,
+      "hasRoot": true,
+      "hasSwaperex": true,
+      "isSpaShell": true,
+      "failureKind": null,
+      "pass": true
+    }
+  ],
+  "verdict": "P16_ROUTE_SMOKE_PASS",
+  "failCount": 0,
+  "connectionFailureCount": 0
+}

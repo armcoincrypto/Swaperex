@@ -1,0 +1,5 @@
+c565e21 test(status): cover freshness semantics and bounded public copy
+779b695 fix(status): align public health display with evidence-backed freshness
+95340ea docs(audit): certify P17.7 operator observability consolidation
+96aa0df test(operator): cover correlation wire format and diagnostic fields
+d013162 feat(operator): clarify reconciliation labels and diagnostic fields

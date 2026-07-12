@@ -1,0 +1,5 @@
+environment=production
+commit=d4484f051941084a7987cdf42c5f2de8f48b4b30
+short=d4484f0
+branch=main
+deployed=2026-07-12T23:51:51Z

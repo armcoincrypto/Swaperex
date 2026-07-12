@@ -1,0 +1,86 @@
+{
+  "timestamp": "2026-07-12T23:56:22.846Z",
+  "baseUrl": "https://dex.kobbex.com",
+  "mode": "connectivity_certification",
+  "noTransactions": true,
+  "viewports": [
+    {
+      "viewport": "360x800",
+      "routes": {
+        "/swap": {
+          "connectVisible": true
+        },
+        "/send": {
+          "connectVisible": true
+        },
+        "/portfolio": {
+          "connectVisible": true
+        }
+      },
+      "issues": []
+    },
+    {
+      "viewport": "390x844",
+      "routes": {
+        "/swap": {
+          "connectVisible": true
+        },
+        "/send": {
+          "connectVisible": true
+        },
+        "/portfolio": {
+          "connectVisible": true
+        }
+      },
+      "issues": []
+    },
+    {
+      "viewport": "430x932",
+      "routes": {
+        "/swap": {
+          "connectVisible": true
+        },
+        "/send": {
+          "connectVisible": true
+        },
+        "/portfolio": {
+          "connectVisible": true
+        }
+      },
+      "issues": []
+    },
+    {
+      "viewport": "768x1024",
+      "routes": {
+        "/swap": {
+          "connectVisible": true
+        },
+        "/send": {
+          "connectVisible": true
+        },
+        "/portfolio": {
+          "connectVisible": true
+        }
+      },
+      "issues": []
+    }
+  ],
+  "walletChecks": {
+    "walletConnectQrOpens": true,
+    "walletConnectDeepLinkPresent": true,
+    "connectWalletCtaVisible": true,
+    "disconnectUiReachable": false,
+    "networkSelectorVisible": true
+  },
+  "humanHandsetRequired": [
+    "MetaMask Mobile pairing",
+    "Trust Wallet pairing",
+    "Chain switch on handset",
+    "Session restore after background",
+    "Session expiry handling"
+  ],
+  "automatedVerdict": "AUTOMATED_BROWSER_PASS",
+  "physicalHandsetVerdict": "PHYSICAL_HANDSET_DEFERRED",
+  "verdict": "P16_MOBILE_WC_CONNECTIVITY_ASSIST_PASS",
+  "notes": []
+}

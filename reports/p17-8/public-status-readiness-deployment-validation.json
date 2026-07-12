@@ -1,0 +1,70 @@
+{
+  "program": "P17.8",
+  "startingHead": "95340ea7022c244a04ec2ea2b79f5bbc7c248131",
+  "finalHead": "d4484f051941084a7987cdf42c5f2de8f48b4b30",
+  "startingProductionArtifact": "b6024e3",
+  "finalProductionArtifact": "d4484f0",
+  "publicStatusReadiness": "READY_WITH_BOUNDED_FIXES",
+  "statusOwners": {
+    "applicationAvailability": "systemStatusStore",
+    "transactionSubmission": "transactionJournalStore",
+    "onChainReceipt": "transactionReconciliation",
+    "errorMeaning": "swaperexErrorClassification",
+    "operatorCorrelation": "flowId",
+    "supportHandoff": "supportDiagnosticService",
+    "sessionTelemetry": "productionMonitoring+swapLifecycleTelemetry",
+    "adminLifecycle": "adminApi"
+  },
+  "freshnessModel": {
+    "staleThresholdMs": 300000,
+    "noEvidence": "unknown",
+    "staleEvidence": "stale",
+    "freshHealthy": "stable",
+    "freshDegraded": "degraded",
+    "freshFailure": "unavailable"
+  },
+  "contradictionsFound": [
+    "Footer showed stable/Operational before health check"
+  ],
+  "fixes": [
+    "systemStatusStore unknown/stale semantics",
+    "SystemStatusIndicator bounded public copy",
+    "VITE_GIT_COMMIT in deploy build",
+    "transactionReconciliationCoordinator stable reconciling snapshot"
+  ],
+  "tests": {
+    "files": 59,
+    "passed": 637,
+    "failed": 0,
+    "build": "PASS"
+  },
+  "releaseCertification": {
+    "combined": "P16_RELEASE_CERTIFICATION_FAIL",
+    "independentBrowserAssistRuns": 3,
+    "independentBrowserAssistPass": 3,
+    "postDeployAssist": "P16_MOBILE_WC_CONNECTIVITY_ASSIST_PASS",
+    "decision": "PASS_WITH_WARNING"
+  },
+  "deployment": {
+    "performed": true,
+    "artifact": "d4484f0",
+    "checksums": {
+      "versionTxt": "ad5f56bc665035a98492dde9dd93def8e68ebebea5eab8a3a99cde8cf8b70c90",
+      "indexHtml": "192c960250bbc5bb87161722a379ce93da16a67b387a1a1faf455414ab674077"
+    },
+    "rollbackArtifact": "/var/www/swaperex-backup-20260712T235151Z",
+    "rollbackPerformed": true,
+    "rollbackReason": "React useSyncExternalStore infinite loop on first deploy c565e21"
+  },
+  "productionValidation": {
+    "routeSmoke": "P16_ROUTE_SMOKE_PASS",
+    "swapPageLoad": true,
+    "walletConnectAssist": "P16_MOBILE_WC_CONNECTIVITY_ASSIST_PASS",
+    "versionTxt": "d4484f0"
+  },
+  "cleanup": {
+    "phaseOwnedArtifactsOnly": true
+  },
+  "remotePush": false,
+  "verdict": "P17_8_PUBLIC_STATUS_READINESS_DEPLOYMENT_VALIDATION_AND_CLEANUP_PASS_WITH_WARNING"
+}
