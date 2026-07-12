@@ -9,6 +9,7 @@ import type {
   TransactionJournalRecord,
 } from '@/types/transactionJournal';
 import { getExplorerTxUrl } from '@/config';
+import { getJournalStatusPresentation } from '@/utils/swaperexErrorPresentation';
 
 export type RecoveredRecoveryPhase =
   | 'recovering'
@@ -239,22 +240,11 @@ export function getRecoveryStatusCopy(phase: RecoveredRecoveryPhase): { title: s
         description: 'The transaction was confirmed on-chain.',
       };
     case 'swap_reverted':
-      return {
-        title: 'Transaction reverted',
-        description: 'The network confirmed the transaction did not complete successfully.',
-      };
+      return getJournalStatusPresentation('reverted', { stage: 'swap-confirm' });
     case 'status_unavailable':
-      return {
-        title: 'Status temporarily unavailable',
-        description:
-          'Swaperex could not verify the latest on-chain status. Check again or view the transaction in the explorer.',
-      };
+      return getJournalStatusPresentation('unknown');
     case 'stale':
-      return {
-        title: 'Transaction status unresolved',
-        description:
-          'Swaperex has not found a final receipt for this transaction. This does not necessarily mean it failed.',
-      };
+      return getJournalStatusPresentation('stale');
     case 'recovering':
     default:
       return {

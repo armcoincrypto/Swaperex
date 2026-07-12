@@ -5,6 +5,7 @@
  */
 
 import { Button } from './Button';
+import { normalizeSwaperexError } from '@/utils/swaperexErrorClassification';
 
 export type TransactionErrorType =
   | 'user_rejected'
@@ -69,8 +70,8 @@ const errorConfig: Record<
     canRetry: true,
   },
   unknown: {
-    title: 'Transaction Failed',
-    message: 'An unexpected error occurred. Please try again.',
+    title: 'Request could not be completed',
+    message: 'An unexpected error occurred. Check your wallet and try again when ready.',
     canRetry: true,
   },
 };
@@ -114,63 +115,37 @@ export function TransactionError({
 }
 
 /**
- * Parse error from wallet/network into user-friendly type
+ * Parse error from wallet/network into legacy UI type (delegates to P17.6 classifier).
  */
 export function parseTransactionError(error: unknown): TransactionErrorType {
-  if (!error) return 'unknown';
+  const normalized = normalizeSwaperexError(error, { stage: 'swap-submit' });
 
-  const errorString = String(error).toLowerCase();
-  const errorCode = (error as { code?: number | string })?.code;
-
-  // User rejected in wallet
-  if (
-    errorCode === 4001 ||
-    errorCode === 'ACTION_REJECTED' ||
-    errorString.includes('user rejected') ||
-    errorString.includes('user denied')
-  ) {
-    return 'user_rejected';
+  switch (normalized.category) {
+    case 'user_rejected':
+      return 'user_rejected';
+    case 'insufficient_native_gas':
+      return 'gas_too_low';
+    case 'insufficient_token_balance':
+    case 'allowance_insufficient':
+      return 'insufficient_balance';
+    case 'quote_expired':
+      return 'quote_expired';
+    case 'slippage_exceeded':
+      return 'slippage_too_low';
+    case 'wrong_network':
+    case 'unsupported_chain':
+      return 'chain_mismatch';
+    case 'approval_reverted':
+    case 'swap_reverted':
+    case 'contract_revert':
+      return 'contract_error';
+    case 'rpc_timeout':
+    case 'rpc_unavailable':
+    case 'wallet_unavailable':
+      return 'network_error';
+    default:
+      return 'unknown';
   }
-
-  // Insufficient balance
-  if (
-    errorString.includes('insufficient') ||
-    errorString.includes('exceeds balance')
-  ) {
-    return 'insufficient_balance';
-  }
-
-  // Network issues
-  if (
-    errorString.includes('network') ||
-    errorString.includes('timeout') ||
-    errorString.includes('failed to fetch')
-  ) {
-    return 'network_error';
-  }
-
-  // Slippage
-  if (errorString.includes('slippage')) {
-    return 'slippage_too_low';
-  }
-
-  // Gas issues
-  if (
-    errorString.includes('gas') ||
-    errorString.includes('underpriced')
-  ) {
-    return 'gas_too_low';
-  }
-
-  // Contract revert
-  if (
-    errorString.includes('revert') ||
-    errorString.includes('execution reverted')
-  ) {
-    return 'contract_error';
-  }
-
-  return 'unknown';
 }
 
 // Icons

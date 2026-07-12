@@ -41,6 +41,11 @@ import { getChainById, getExplorerTxUrl } from '@/config/chains';
 import type { SwapQuote, SwapReceiptSettlement } from '@/hooks/useSwap';
 import type { RecoveredSwapTrace } from '@/utils/recoveredSwapTrace';
 import { getRecoveryStatusCopy } from '@/utils/recoveredSwapTrace';
+import {
+  getErrorPresentation,
+  normalizeSwaperexErrorFromMessage,
+  type SwaperexErrorCategory,
+} from '@/utils/errors';
 import type { ApprovalMode } from '@/stores/swapStore';
 import { classifyCommissionRoute } from '@/utils/commission';
 import { isDebugMode } from '@/utils/chainHealth';
@@ -1345,128 +1350,52 @@ function SuccessContent({
   );
 }
 
-// Error categorization helper
+// Error presentation helper (canonical P17.6 classifier)
 interface ErrorInfo {
   type: 'rejection' | 'slippage' | 'gas' | 'balance' | 'network' | 'unknown';
   title: string;
   message: string;
   suggestion?: string;
-  canRetry: boolean;
+  canRetryQuote: boolean;
+  canResubmit: boolean;
 }
 
-function categorizeError(error: string | null): ErrorInfo {
-  const errorLower = error?.toLowerCase() || '';
-
-  if (error === 'QUOTE_EXPIRED' || errorLower.includes('quote expired')) {
-    return {
-      type: 'unknown',
-      title: SWAP_SURFACE_COPY.quoteExpiredTitle,
-      message: SWAP_SURFACE_COPY.quoteExpiredDetail,
-      suggestion: SWAP_SURFACE_COPY.quoteExpiredSuggestion,
-      canRetry: true,
-    };
+function iconTypeForCategory(category: SwaperexErrorCategory): ErrorInfo['type'] {
+  switch (category) {
+    case 'user_rejected':
+      return 'rejection';
+    case 'slippage_exceeded':
+      return 'slippage';
+    case 'insufficient_native_gas':
+      return 'gas';
+    case 'insufficient_token_balance':
+      return 'balance';
+    case 'rpc_timeout':
+    case 'rpc_unavailable':
+    case 'wrong_network':
+    case 'wallet_unavailable':
+      return 'network';
+    default:
+      return 'unknown';
   }
+}
 
-  // 1inch swap build / API (keep full message — do not collapse to generic "network")
-  if (errorLower.includes('1inch:')) {
-    return {
-      type: 'unknown',
-      title: '1inch could not build this swap',
-      message: error || 'The 1inch swap service returned an error when building the transaction.',
-      suggestion: 'Refresh the quote and try again. If it keeps happening, the 1inch API or your connection may be the cause — not always your wallet.',
-      canRetry: true,
-    };
-  }
+function resolveErrorInfo(error: string | null, txHash?: string | null): ErrorInfo {
+  const context = {
+    transactionHash: txHash ?? undefined,
+    broadcastKnown: Boolean(txHash),
+    stage: 'swap-submit' as const,
+  };
+  const normalized = normalizeSwaperexErrorFromMessage(error, context);
+  const presentation = getErrorPresentation(normalized);
 
-  // User rejected transaction
-  if (errorLower.includes('rejected') || errorLower.includes('denied') || errorLower.includes('cancelled') || errorLower.includes('user refused')) {
-    return {
-      type: 'rejection',
-      title: 'Transaction cancelled',
-      message: 'Transaction cancelled in your wallet. No funds were moved.',
-      suggestion: 'You can try again when you are ready.',
-      canRetry: false,
-    };
-  }
-
-  // Slippage issues
-  if (errorLower.includes('slippage') || errorLower.includes('price moved') || errorLower.includes('insufficient output')) {
-    return {
-      type: 'slippage',
-      title: 'Price moved too much',
-      message: 'Swap failed: price moved beyond your slippage tolerance.',
-      suggestion: 'Increase slippage in settings or try a smaller amount.',
-      canRetry: true,
-    };
-  }
-
-  // Gas/fee issues
-  if (errorLower.includes('gas') || errorLower.includes('fee') || errorLower.includes('underpriced')) {
-    return {
-      type: 'gas',
-      title: 'Gas or fee issue',
-      message: 'Insufficient funds for transaction fees or gas estimation failed.',
-      suggestion: 'Wait and try again, or adjust gas in your wallet.',
-      canRetry: true,
-    };
-  }
-
-  // Insufficient balance
-  if (errorLower.includes('insufficient') || errorLower.includes('balance') || errorLower.includes('not enough')) {
-    return {
-      type: 'balance',
-      title: 'Insufficient balance',
-      message: 'Insufficient balance to complete this swap. Check your wallet balance and try a smaller amount.',
-      suggestion: 'Include enough for the swap amount plus network fees.',
-      canRetry: false,
-    };
-  }
-
-  // Network / RPC / provider (show the real parsed message; title stays generic for grouping)
-  if (
-    errorLower.includes('network') ||
-    errorLower.includes('timeout') ||
-    errorLower.includes('connection') ||
-    errorLower.includes('failed to fetch') ||
-    errorLower.includes('json-rpc') ||
-    errorLower.includes('rpc error') ||
-    errorLower.includes('cannot connect to network') ||
-    errorLower.includes('wallet provider')
-  ) {
-    return {
-      type: 'network',
-      title: 'Network or wallet RPC',
-      message:
-        (error && error.trim().length > 0
-          ? error
-          : 'Network connection lost or the wallet provider could not be reached.'),
-      suggestion:
-        'If you use WalletConnect, keep the session open. Try again or switch RPC in your wallet if the problem continues.',
-      canRetry: true,
-    };
-  }
-
-  if (
-    errorLower.includes('revert') ||
-    errorLower.includes('transaction was not successful') ||
-    errorLower.includes('blockchain rejected')
-  ) {
-    return {
-      type: 'unknown',
-      title: 'Transaction failed on-chain',
-      message: 'The transaction was included, but the swap did not succeed.',
-      suggestion: 'Open the explorer for details. You may need different slippage, a smaller amount, or to retry later.',
-      canRetry: true,
-    };
-  }
-
-  // Unknown error
   return {
-    type: 'unknown',
-    title: 'Something went wrong',
-    message: error || 'We could not classify this error. Your funds may be unchanged.',
-    suggestion: 'If you have a transaction hash, check the explorer. Otherwise try again.',
-    canRetry: true,
+    type: iconTypeForCategory(normalized.category),
+    title: presentation.title,
+    message: presentation.message,
+    suggestion: presentation.suggestion,
+    canRetryQuote: presentation.canRetryQuote,
+    canResubmit: presentation.canResubmit,
   };
 }
 
@@ -1484,7 +1413,7 @@ function ErrorContent({
   onTryAgain: () => void;
   onCancel: () => void;
 }) {
-  const errorInfo = categorizeError(error);
+  const errorInfo = resolveErrorInfo(error, txHash);
   const explorerLink = explorerUrl ?? null;
 
   const getErrorIcon = () => {
@@ -1524,11 +1453,11 @@ function ErrorContent({
         {getErrorIcon()}
       </div>
 
-      <h3 className="text-xl font-bold mb-2">
+      <h3 className="text-xl font-bold mb-2" id="swap-error-title">
         {errorInfo.title}
       </h3>
 
-      <p className="text-dark-300 mb-2">
+      <p className="text-dark-300 mb-2" aria-labelledby="swap-error-title">
         {errorInfo.message}
       </p>
 
@@ -1582,9 +1511,14 @@ function ErrorContent({
         <Button variant="secondary" onClick={onCancel} fullWidth>
           Close
         </Button>
-        {errorInfo.canRetry && (
+        {errorInfo.canRetryQuote && (
           <Button onClick={onTryAgain} fullWidth>
-            Try Again
+            Refresh quote
+          </Button>
+        )}
+        {!errorInfo.canRetryQuote && errorInfo.canResubmit && (
+          <Button onClick={onTryAgain} fullWidth>
+            Return to swap
           </Button>
         )}
       </div>

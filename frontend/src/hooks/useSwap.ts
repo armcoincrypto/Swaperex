@@ -1950,7 +1950,7 @@ export function useSwap() {
       toast.success('Token approved!');
       return true;
     } catch (err) {
-      const parsed = parseTransactionError(err);
+      const parsed = parseTransactionError(err, { stage: 'approval-submit', broadcastKnown: false });
 
       if (isUserRejection(err)) {
         logProductionEvent('wallet_rejected', {
@@ -2872,7 +2872,12 @@ export function useSwap() {
       }
 
       // Distinguish 1inch /swap build, wallet/RPC, and broadcast without mislabeling
-      const parsed = parseSwapExecutionError(err);
+      const parseCtx = {
+        stage: 'swap-confirm' as const,
+        transactionHash: broadcastTx?.hash,
+        broadcastKnown: Boolean(broadcastTx),
+      };
+      const parsed = parseSwapExecutionError(err, parseCtx);
 
       if (isUserRejection(err)) {
         logProductionEvent('wallet_rejected', {

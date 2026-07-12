@@ -31,6 +31,7 @@ import {
 } from '@/utils/activityPresentation';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 import { swapAggregatorProviderLabel } from '@/utils/format';
+import { getJournalStatusPresentation } from '@/utils/swaperexErrorPresentation';
 import { isCommissionRequiredMode } from '@/config';
 import { isCommissionWrapperExecutionProvider } from '@/services/quoteAggregator';
 import { useTransactionDetailsDialog } from '@/hooks/useTransactionDetailsDialog';
@@ -526,14 +527,16 @@ function buildSettlementLine(item: UnifiedActivityItem): { text: string; tooltip
 
 function statusHint(item: UnifiedActivityItem): string | null {
   if (item.kind !== 'swap') return null;
-  if (item.status === 'pending' || item.status === 'submitted') {
-    return 'Pending — verify on the explorer before retrying.';
-  }
-  if (item.status === 'unknown' || item.status === 'stale') {
-    return 'Outcome unclear — verify on the explorer before retrying.';
-  }
-  if (item.status === 'reverted' && item.transactionHash) {
-    return 'Failed on-chain — verify on the explorer before retrying.';
+  if (
+    item.status === 'pending' ||
+    item.status === 'submitted' ||
+    item.status === 'unknown' ||
+    item.status === 'stale' ||
+    item.status === 'reverted'
+  ) {
+    return getJournalStatusPresentation(item.status, {
+      transactionHash: item.transactionHash,
+    }).description;
   }
   return null;
 }

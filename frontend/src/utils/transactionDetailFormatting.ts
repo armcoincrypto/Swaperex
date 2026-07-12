@@ -3,26 +3,16 @@
  */
 
 import type { UnifiedActivityStatus } from '@/types/unifiedActivity';
+import type { JournalTransactionStatus } from '@/types/transactionJournal';
 import { getChainById } from '@/config/chains';
 import { shortenAddress, formatTxHash } from '@/utils/format';
+import { getJournalStatusPresentation } from '@/utils/swaperexErrorPresentation';
 
 export function presentStatusExplanation(status: UnifiedActivityStatus): string {
-  switch (status) {
-    case 'submitted':
-      return 'The transaction hash was received, but no final receipt has been found yet.';
-    case 'pending':
-      return 'The transaction is still awaiting a final on-chain receipt.';
-    case 'confirmed':
-      return 'A successful on-chain receipt was found.';
-    case 'reverted':
-      return 'The chain returned an unsuccessful transaction receipt.';
-    case 'unknown':
-      return 'Swaperex could not verify the latest status because receipt lookup was inconclusive or the provider was unavailable.';
-    case 'stale':
-      return 'No final receipt has been found after the resolution window. This does not prove that the transaction failed.';
-    default:
-      return 'Status information is limited for this record.';
+  if (status === 'confirmed') {
+    return 'A successful on-chain receipt was found.';
   }
+  return getJournalStatusPresentation(status as JournalTransactionStatus).description;
 }
 
 export function maskWalletAddress(address: string): string {

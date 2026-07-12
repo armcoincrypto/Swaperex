@@ -36,6 +36,8 @@ import {
   presentStatusExplanation,
   resolveChainName,
 } from '@/utils/transactionDetailFormatting';
+import { getErrorPresentation, normalizeSwaperexErrorFromMessage } from '@/utils/errors';
+import type { SwaperexErrorStage } from '@/types/swaperexErrors';
 
 function field(
   label: string,
@@ -119,17 +121,26 @@ function buildReconciliationSection(
 function buildErrorSection(record: TransactionJournalRecord): ErrorDetailSection | undefined {
   const err = record.error;
   if (!err) return undefined;
+
+  const normalized = normalizeSwaperexErrorFromMessage(err.technicalSummary ?? err.userMessage, {
+    journalStatus: record.status,
+    transactionHash: record.transactionHash,
+    broadcastKnown: err.broadcastKnown,
+    stage: err.stage as SwaperexErrorStage,
+  });
+  const presentation = getErrorPresentation(normalized);
+
   return {
     category: err.category,
     stage: err.stage,
-    userMessage: err.userMessage,
+    userMessage: err.userMessage ?? presentation.message,
     technicalSummary: boundString(err.technicalSummary, 300),
     broadcastKnown: err.broadcastKnown,
     retryable: err.retryable,
     fields: collectFields(
       field('Category', err.category, 'derived'),
       field('Stage', err.stage, 'derived'),
-      field('User message', err.userMessage, 'local-context'),
+      field('User message', err.userMessage ?? presentation.message, 'local-context'),
       field('Technical summary', boundString(err.technicalSummary, 300), 'derived'),
       field('Broadcast known', String(err.broadcastKnown), 'derived'),
       field('Retryable', String(err.retryable), 'derived'),
