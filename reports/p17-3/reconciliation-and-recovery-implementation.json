@@ -1,0 +1,54 @@
+{
+  "program": "P17.3",
+  "verdict": "P17_3_RECEIPT_RECONCILIATION_AND_PENDING_RECOVERY_UX_PASS_WITH_WARNING",
+  "startingHead": "0607116",
+  "reconciliationService": "frontend/src/services/transactionReconciliation.ts",
+  "coordinator": "frontend/src/services/transactionReconciliationCoordinator.ts",
+  "providerHierarchy": ["same-origin /rpc read provider", "configured public RPC fallbacks"],
+  "eligibleStatuses": ["submitted", "pending", "unknown", "stale"],
+  "retryPolicy": {
+    "activeWindowMinutes": 2,
+    "activeIntervalMs": 6000,
+    "backoffWindowMinutes": 15,
+    "backoffIntervalMs": 30000,
+    "staleAfterHours": 48
+  },
+  "unknownPolicy": {
+    "providerErrorThreshold": 2,
+    "notFoundUnknownAfterMinutes": 30
+  },
+  "stalePolicy": {
+    "afterHours": 48,
+    "requiresReconciliationAttempt": true
+  },
+  "deduplication": {
+    "inFlightByRecordId": true,
+    "activeWaitSkip": true,
+    "maxConcurrency": 3
+  },
+  "multiTab": {
+    "strategy": "idempotent-updates-only",
+    "broadcastChannel": false
+  },
+  "recoveryUx": {
+    "traceSelector": "frontend/src/utils/recoveredSwapTrace.ts",
+    "hook": "frontend/src/hooks/useTransactionReconciliation.ts",
+    "card": "frontend/src/components/swap/RecoveredTransactionCard.tsx",
+    "modalWiring": "SwapInterface + SwapPreviewModal"
+  },
+  "tests": {
+    "frontendFiles": 50,
+    "frontendTests": 559,
+    "frontendTestsPass": 559,
+    "build": "PASS",
+    "p16ReleaseCertification": "P16_RELEASE_CERTIFICATION_FAIL",
+    "releaseCertification": "RELEASE_CERTIFICATION_PASS",
+    "productionRouteSmoke": "P16_ROUTE_SMOKE_PASS"
+  },
+  "productionMutation": false,
+  "deferred": [
+    "BroadcastChannel multi-tab coordination",
+    "replacement/drop detection",
+    "full history consolidation"
+  ]
+}
