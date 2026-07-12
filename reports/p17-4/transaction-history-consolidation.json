@@ -1,0 +1,62 @@
+{
+  "program": "P17.4",
+  "verdict": "P17_4_TRANSACTION_HISTORY_UX_CONSOLIDATION_PASS_WITH_WARNING",
+  "primarySurface": "frontend/src/components/portfolio/ActivityPanel.tsx",
+  "contextualSurfaces": [
+    "frontend/src/components/swap/RecoveredTransactionCard.tsx",
+    "frontend/src/components/history/SwapHistory.tsx#DeviceSwapActivityStrip"
+  ],
+  "presentationModel": "frontend/src/types/unifiedActivity.ts#UnifiedActivityItem",
+  "aggregationOwner": "frontend/src/services/activityService.ts",
+  "sources": {
+    "journal": {
+      "store": "frontend/src/stores/transactionJournalStore.ts",
+      "adapter": "frontend/src/utils/unifiedActivityAdapters.ts#journalRecordToUnifiedItem",
+      "kinds": ["approval", "swap"],
+      "confidence": "journal-context"
+    },
+    "explorer": {
+      "service": "frontend/src/services/transactionHistory.ts",
+      "adapter": "frontend/src/utils/unifiedActivityAdapters.ts#explorerTransactionToUnifiedItem",
+      "confidence": "chain-observed"
+    },
+    "legacyTransfers": {
+      "store": "frontend/src/stores/swapHistoryStore.ts#transferRecords",
+      "adapter": "frontend/src/utils/unifiedActivityAdapters.ts#legacyTransferToUnifiedItem",
+      "confidence": "legacy-local"
+    }
+  },
+  "precedence": ["journal", "explorer", "legacy-transfer"],
+  "deduplication": {
+    "identity": "chainId:kind:transactionHash(lowercase)",
+    "module": "frontend/src/utils/unifiedActivityDedupe.ts",
+    "terminalJournalOverridesExplorer": true
+  },
+  "walletIsolation": {
+    "journalFilteredByWallet": true,
+    "walletSwitchClearsState": true,
+    "legacyTransfersDeviceScoped": true
+  },
+  "filters": ["all", "swap", "approval", "transfer", "pending"],
+  "disclaimer": "Swaperex activity is stored on this device and may not include every transaction made by this wallet. Explorer activity is shown when available.",
+  "tests": {
+    "files": 52,
+    "passed": 584,
+    "newNormalizationTests": "frontend/src/utils/__tests__/unifiedActivity.test.ts",
+    "newUiTests": "frontend/src/components/portfolio/__tests__/ActivityPanel.test.tsx"
+  },
+  "build": "PASS",
+  "releaseCertification": {
+    "verdict": "P16_RELEASE_CERTIFICATION_FAIL",
+    "failure": "P16_MOBILE_WC_CONNECTIVITY_ASSIST_FAIL in certify pipeline only",
+    "independentBrowserAssistReruns": [
+      "P16_MOBILE_WC_CONNECTIVITY_ASSIST_PASS",
+      "P16_MOBILE_WC_CONNECTIVITY_ASSIST_PASS"
+    ]
+  },
+  "productionRouteSmoke": "P16_ROUTE_SMOKE_PASS",
+  "productionMutation": false,
+  "startingHead": "9b68807",
+  "productionUrl": "https://dex.kobbex.com",
+  "productionArtifact": "b6024e3"
+}
