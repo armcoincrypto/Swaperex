@@ -14,6 +14,7 @@ import { useSwapUrlSync } from '@/hooks/useSwapUrlSync';
 import { useSwap } from '@/hooks/useSwap';
 import { useTransactionReconciliation } from '@/hooks/useTransactionReconciliation';
 import { RecoveredTransactionCard } from '@/components/swap/RecoveredTransactionCard';
+import { DeviceSwapActivityStrip } from '@/components/history/SwapHistory';
 import type { RecoveredSwapTrace } from '@/utils/recoveredSwapTrace';
 import { getRecoveryStatusCopy } from '@/utils/recoveredSwapTrace';
 import { useSwapStore, type ApprovalMode } from '@/stores/swapStore';
@@ -2162,6 +2163,11 @@ export function SwapInterface() {
             />
           </div>
         )}
+
+        <DeviceSwapActivityStrip
+          chainId={currentChainId}
+          excludeFlowId={showRecoveryCard ? recoveredTrace?.flowId : undefined}
+        />
 
         {/* Quote Details (when quote available) */}
         {swapQuote && (status === 'previewing' || isQuotePipelineLoading) && !showPreview && (

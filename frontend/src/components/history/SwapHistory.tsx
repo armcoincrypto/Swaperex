@@ -8,42 +8,106 @@
  * PRODUCTION: Simple list with Quick Repeat, no analytics, no charts.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useWalletStore } from '@/stores/walletStore';
 import { useSwapHistoryStore, type SwapRecord } from '@/stores/swapHistoryStore';
+import { useTransactionJournalStore } from '@/stores/transactionJournalStore';
 import { NoHistoryEmptyState } from '@/components/common/EmptyState';
 import {
   getRecentSwaps,
   formatTimeAgo,
   type Transaction,
 } from '@/services/transactionHistory';
+import { getCompactJournalActivity, formatActivityTime } from '@/services/activityService';
+import {
+  presentActivityKind,
+  presentActivityStatus,
+  statusPresentationClass,
+} from '@/utils/activityPresentation';
+import { CHAIN_ACTIVITY_LABELS, type UnifiedActivityItem } from '@/types/unifiedActivity';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 import { formatBalance, swapAggregatorProviderLabel } from '@/utils/format';
 
-/** Compact recent list for the Swap page (same store as Quick Repeat / Portfolio). */
+/** Compact recent Swaperex journal activity for the swap page. */
 export function DeviceSwapActivityStrip({
   chainId,
   maxItems = 3,
   onRepeatSwap,
+  excludeFlowId,
 }: {
   chainId: number;
   maxItems?: number;
   onRepeatSwap?: (record: SwapRecord) => void;
+  /** Hide active recovery flow to avoid duplicating RecoveredTransactionCard. */
+  excludeFlowId?: string | null;
 }) {
-  const { getRecentRecords } = useSwapHistoryStore();
-  const rows = getRecentRecords(20).filter((r) => r.chainId === chainId).slice(0, maxItems);
-  if (rows.length === 0) return null;
+  const address = useWalletStore((s) => s.address);
+  const isConnected = useWalletStore((s) => s.isConnected);
+  const journalRecords = useTransactionJournalStore((s) => s.records);
+
+  const rows = useMemo(() => {
+    if (!address || !isConnected) return [];
+    return getCompactJournalActivity(address, chainId, journalRecords, maxItems, excludeFlowId);
+  }, [address, isConnected, chainId, journalRecords, maxItems, excludeFlowId]);
+
+  if (!isConnected || rows.length === 0) return null;
 
   return (
-    <div className="relative z-10 mt-4 pt-4 border-t border-white/[0.06]">
-      <h3 className="text-sm font-semibold text-dark-300 mb-2">Recent swaps (this device)</h3>
+    <div className="relative z-10 mt-4 pt-4 border-t border-white/[0.06]" data-testid="device-swap-activity-strip">
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <h3 className="text-sm font-semibold text-dark-300">Recent Swaperex activity</h3>
+        <Link to="/portfolio" className="text-[10px] text-accent/90 hover:text-accent">
+          View all activity
+        </Link>
+      </div>
       <p className="text-[11px] text-dark-500 mb-2 leading-snug">
-        Saved locally from this browser. Verify any in-flight swap on the explorer before repeating.
+        Saved on this device from Swaperex. Verify any in-flight transaction on the explorer before repeating.
       </p>
-      <div className="space-y-2">
-        {rows.map((record) => (
-          <LocalSwapRow key={record.id} record={record} onRepeat={onRepeatSwap} compact />
+      <ul className="space-y-2 list-none p-0 m-0" aria-label="Recent Swaperex activity">
+        {rows.map((item) => (
+          <li key={item.id}>
+            <CompactJournalRow item={item} onRepeat={onRepeatSwap} />
+          </li>
         ))}
+      </ul>
+    </div>
+  );
+}
+
+function CompactJournalRow({
+  item,
+  onRepeat,
+}: {
+  item: UnifiedActivityItem;
+  onRepeat?: (record: SwapRecord) => void;
+}) {
+  const statusLabel = presentActivityStatus(item.status);
+  return (
+    <div className="flex items-center justify-between gap-2 p-2 bg-dark-800/80 border border-white/[0.05] rounded-lg text-sm">
+      <div className="min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="truncate text-dark-100">{item.title}</span>
+          <span className="shrink-0 text-[9px] text-dark-500">
+            {CHAIN_ACTIVITY_LABELS[item.chainId] || 'Chain'}
+          </span>
+        </div>
+        <p className="text-[10px] text-dark-500 truncate">{presentActivityKind(item.kind)} · {statusLabel}</p>
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        <span className={`px-1.5 py-0.5 rounded text-[9px] ${statusPresentationClass(item.status)}`}>
+          {statusLabel}
+        </span>
+        <span className="text-[10px] text-dark-500">{formatActivityTime(item.ts)}</span>
+        {item.canRepeat && item.localRecord && onRepeat && (
+          <button
+            type="button"
+            onClick={() => onRepeat(item.localRecord!)}
+            className="text-[10px] text-primary-400 hover:text-primary-300 px-1"
+          >
+            Repeat
+          </button>
+        )}
       </div>
     </div>
   );

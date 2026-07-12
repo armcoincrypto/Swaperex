@@ -1,23 +1,34 @@
 /**
- * Activity Panel
- *
- * Merged activity feed: local swap history + blockchain explorer.
- * Tabs: All / Swaps / Transfers
- * Features: dedup by txHash, Quick Repeat, export CSV/JSON, explorer links.
+ * Activity Panel — consolidated wallet-scoped transaction history (P17.4).
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useWalletStore } from '@/stores/walletStore';
 import { useSwapHistoryStore, type SwapRecord } from '@/stores/swapHistoryStore';
+import { useTransactionJournalStore } from '@/stores/transactionJournalStore';
 import {
-  fetchMergedActivity,
-  mergeLocalAndExplorer,
+  ACTIVITY_CHAIN_IDS,
+  buildUnifiedWalletActivity,
   exportActivityCsv,
   exportActivityJson,
+  fetchUnifiedWalletActivity,
+  filterUnifiedActivityGroups,
   formatActivityTime,
-  type ActivityItem,
-  type ActivityType,
 } from '@/services/activityService';
+import { transactionReconciliationCoordinator } from '@/services/transactionReconciliationCoordinator';
+import {
+  ACTIVITY_HISTORY_DISCLAIMER,
+  CHAIN_ACTIVITY_LABELS,
+  type UnifiedActivityGroup,
+  type UnifiedActivityItem,
+  type UnifiedActivityResult,
+} from '@/types/unifiedActivity';
+import {
+  presentActivityKind,
+  presentActivitySource,
+  presentActivityStatus,
+  statusPresentationClass,
+} from '@/utils/activityPresentation';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 import { swapAggregatorProviderLabel } from '@/utils/format';
 import { isCommissionRequiredMode } from '@/config';
@@ -27,68 +38,113 @@ import {
   ShellLoadingRows,
 } from '@/components/ui/ShellPrimitives';
 
-/** Explorer-supported chain IDs (FIX-6: added Polygon 137) */
-const ACTIVITY_CHAIN_IDS = [1, 56, 137];
-
 interface ActivityPanelProps {
   onRepeatSwap?: (record: SwapRecord) => void;
   className?: string;
 }
 
-type TabFilter = 'all' | 'swap' | 'transfer' | 'approval';
+type TabFilter = 'all' | 'swap' | 'transfer' | 'approval' | 'pending';
 
 export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelProps) {
-  // Individual selectors — only re-render on address/connection change, not chainId
   const address = useWalletStore((s) => s.address);
   const isConnected = useWalletStore((s) => s.isConnected);
-  const [items, setItems] = useState<ActivityItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<TabFilter>('all');
+  const journalRecords = useTransactionJournalStore((s) => s.records);
+  const transferRecords = useSwapHistoryStore((s) => s.transferRecords);
 
-  // FIX-2: Read localRecords inside callback to avoid stale closure
-  const fetchActivity = useCallback(async () => {
+  const [result, setResult] = useState<UnifiedActivityResult | null>(null);
+  const [explorerLoading, setExplorerLoading] = useState(false);
+  const [tab, setTab] = useState<TabFilter>('all');
+  const fetchGeneration = useRef(0);
+
+  const localResult = useMemo(() => {
+    if (!address || !isConnected) return null;
+    return buildUnifiedWalletActivity({
+      walletAddress: address,
+      journalRecords,
+      transferRecords,
+      explorerTxs: [],
+      explorerStatus: 'skipped',
+    });
+  }, [address, isConnected, journalRecords, transferRecords]);
+
+  const refreshActivity = useCallback(async () => {
     if (!address || !isConnected) return;
 
-    setLoading(true);
-    setError(null);
+    const generation = ++fetchGeneration.current;
+    setExplorerLoading(true);
 
-    // Read fresh records directly from store (not from stale closure)
-    const localRecords = useSwapHistoryStore.getState().records.slice(0, 100);
+    void transactionReconciliationCoordinator.reconcileWallet(address, 'manual');
 
     try {
-      console.log('[ActivityPanel] Fetching activity for', address, 'chains:', ACTIVITY_CHAIN_IDS);
-      const merged = await fetchMergedActivity(address, ACTIVITY_CHAIN_IDS, localRecords, 10);
-      console.log('[ActivityPanel] Got', merged.length, 'items:', merged.slice(0, 2));
-      setItems(merged);
-    } catch (err) {
-      console.error('[ActivityPanel] Fetch failed:', err);
-      setError('Failed to load activity');
-      // Fall back to local-only
-      if (localRecords.length > 0) {
-        setItems(mergeLocalAndExplorer(localRecords, []));
-      }
+      const merged = await fetchUnifiedWalletActivity(
+        address,
+        journalRecords,
+        transferRecords,
+        ACTIVITY_CHAIN_IDS,
+        10,
+      );
+      if (generation !== fetchGeneration.current) return;
+      setResult(merged);
     } finally {
-      setLoading(false);
+      if (generation === fetchGeneration.current) {
+        setExplorerLoading(false);
+      }
     }
-  }, [address, isConnected]);
+  }, [address, isConnected, journalRecords, transferRecords]);
 
   useEffect(() => {
-    fetchActivity();
-  }, [fetchActivity]);
+    setResult(null);
+    fetchGeneration.current += 1;
+  }, [address]);
 
-  // Filter by tab
-  const filteredItems = useMemo(() => {
-    if (tab === 'all') return items;
-    return items.filter((item) => item.type === tab);
-  }, [items, tab]);
+  useEffect(() => {
+    if (!address || !isConnected) {
+      setResult(null);
+      return;
+    }
+    void refreshActivity();
+  }, [address, isConnected, refreshActivity]);
 
-  // Not connected
-  if (!isConnected) return null;
+  const displayResult = result ?? localResult;
+  const items = displayResult?.items ?? [];
+  const filteredGroups = useMemo(() => {
+    const groups = displayResult?.groups ?? [];
+    const filtered = filterUnifiedActivityGroups(groups, tab);
+    if (tab !== 'all' || (displayResult?.attentionItems.length ?? 0) === 0) {
+      return filtered;
+    }
+    const attentionIds = new Set(displayResult!.attentionItems.map((item) => item.id));
+    return filtered
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => !attentionIds.has(item.id)),
+        isFlow: group.isFlow && group.items.filter((item) => !attentionIds.has(item.id)).length > 1,
+      }))
+      .filter((group) => group.items.length > 0);
+  }, [displayResult?.groups, displayResult?.attentionItems, tab]);
 
-  // Export handlers
+  const flatFilteredItems = useMemo(
+    () => filteredGroups.flatMap((group) => group.items),
+    [filteredGroups],
+  );
+
+  const explorerError = displayResult?.sources.explorer.status === 'error'
+    ? displayResult.sources.explorer.message ?? 'Explorer activity is temporarily unavailable.'
+    : null;
+
+  if (!isConnected) {
+    return (
+      <div className={className} role="region" aria-label="Wallet activity">
+        <ShellEmptyState
+          title="Connect a wallet to view activity for that wallet."
+          description="Swaperex activity is stored on this device."
+        />
+      </div>
+    );
+  }
+
   const handleExportCsv = () => {
-    const csv = exportActivityCsv(filteredItems);
+    const csv = exportActivityCsv(flatFilteredItems);
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -99,32 +155,47 @@ export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelPro
   };
 
   const handleCopyJson = () => {
-    const json = exportActivityJson(filteredItems);
-    navigator.clipboard.writeText(json);
+    const json = exportActivityJson(flatFilteredItems);
+    void navigator.clipboard.writeText(json);
   };
+
+  const hasJournalOnly = items.length > 0 && displayResult?.sources.explorer.status !== 'ok';
 
   return (
     <div className={className} role="region" aria-label="Swaps, transfers, and approvals">
-      {/* Toolbar — section title comes from portfolio tabs */}
+      <p className="text-[11px] text-dark-500 leading-snug mb-3" data-testid="activity-disclaimer">
+        {ACTIVITY_HISTORY_DISCLAIMER}
+      </p>
+
       <div className="flex items-center justify-end mb-3 flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          {/* Tabs */}
-          <div className="shell-tab-track">
-            {(['all', 'swap', 'transfer', 'approval'] as TabFilter[]).map((t) => (
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <div className="shell-tab-track" role="tablist" aria-label="Activity filters">
+            {(['all', 'swap', 'approval', 'transfer', 'pending'] as TabFilter[]).map((t) => (
               <button
                 key={t}
+                type="button"
+                role="tab"
+                aria-selected={tab === t}
                 onClick={() => setTab(t)}
                 className={`shell-tab ${tab === t ? 'shell-tab-active' : ''}`}
               >
-                {t === 'all' ? 'All' : t === 'swap' ? 'Swaps' : t === 'transfer' ? 'Transfers' : 'Approvals'}
+                {t === 'all'
+                  ? 'All'
+                  : t === 'swap'
+                    ? 'Swaps'
+                    : t === 'transfer'
+                      ? 'Transfers'
+                      : t === 'approval'
+                        ? 'Approvals'
+                        : 'Pending'}
               </button>
             ))}
           </div>
 
-          {/* Export */}
-          {filteredItems.length > 0 && (
+          {flatFilteredItems.length > 0 && (
             <div className="flex gap-1">
               <button
+                type="button"
                 onClick={handleCopyJson}
                 className="px-2 py-1 text-[10px] text-dark-400 hover:text-dark-200 bg-electro-panel/50 border border-white/[0.06] rounded transition-colors"
                 title="Copy as JSON"
@@ -132,6 +203,7 @@ export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelPro
                 JSON
               </button>
               <button
+                type="button"
                 onClick={handleExportCsv}
                 className="px-2 py-1 text-[10px] text-dark-400 hover:text-dark-200 bg-electro-panel/50 border border-white/[0.06] rounded transition-colors"
                 title="Download CSV"
@@ -141,160 +213,158 @@ export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelPro
             </div>
           )}
 
-          {/* Refresh */}
           <button
-            onClick={fetchActivity}
-            disabled={loading}
+            type="button"
+            onClick={() => void refreshActivity()}
+            disabled={explorerLoading}
             className="text-xs text-accent/90 hover:text-accent disabled:opacity-50"
+            aria-busy={explorerLoading}
           >
-            {loading ? 'Loading...' : 'Refresh'}
+            {explorerLoading ? 'Refreshing…' : 'Refresh activity'}
           </button>
         </div>
       </div>
 
-      {/* Loading */}
-      {loading && items.length === 0 && (
+      {explorerLoading && items.length === 0 && (
         <ShellLoadingRows count={3} rowClassName="h-11 rounded-lg" />
       )}
 
-      {/* Error */}
-      {error && items.length === 0 && (
-        <ShellEmptyState
-          title={error}
-          action={
-            <button
-              onClick={fetchActivity}
-              className="text-accent hover:brightness-110 text-xs font-medium"
-            >
-              Try again
-            </button>
-          }
-        />
+      {explorerError && (
+        <p
+          className="text-[11px] text-amber-200/85 mb-2"
+          role="status"
+          data-testid="explorer-error"
+        >
+          Explorer activity is temporarily unavailable. Your saved Swaperex activity is still shown.
+        </p>
       )}
 
-      {/* Empty state */}
-      {!loading && items.length === 0 && !error && (
+      {explorerLoading && items.length > 0 && (
+        <p className="text-[10px] text-dark-500 mb-2" aria-live="polite">
+          Loading explorer activity…
+        </p>
+      )}
+
+      {!explorerLoading && items.length === 0 && !explorerError && (
         <ShellEmptyState
           icon={
-            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
           }
-          title="No activity yet"
-          description="Completed swaps and transfers appear here."
+          title="No Swaperex transactions have been saved on this device yet."
+          description={hasJournalOnly ? undefined : 'Explorer activity will appear when available.'}
         />
       )}
 
-      {/* Activity rows */}
-      {filteredItems.length > 0 && (
-        <div className="space-y-1 animate-fadeIn">
-          {filteredItems.map((item) => (
-            <ActivityRow
-              key={item.id}
-              item={item}
-              onRepeat={onRepeatSwap}
-            />
+      {filteredGroups.length === 0 && items.length > 0 && (
+        <ShellEmptyState title="No activity matches this filter." />
+      )}
+
+      {(displayResult?.attentionItems.length ?? 0) > 0 && tab === 'all' && (
+        <section className="mb-3" aria-label="Needs attention">
+          <h3 className="text-xs font-medium text-amber-200/90 mb-1.5">Needs attention</h3>
+          <ul className="space-y-1 list-none p-0 m-0">
+            {displayResult!.attentionItems.slice(0, 5).map((item) => (
+              <li key={`attention-${item.id}`}>
+                <ActivityRow item={item} onRepeat={onRepeatSwap} compact />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {filteredGroups.length > 0 && (
+        <ul className="space-y-1 animate-fadeIn list-none p-0 m-0" aria-label="Activity history">
+          {filteredGroups.map((group) => (
+            <li key={group.key}>
+              {group.isFlow ? (
+                <FlowGroupCard group={group} onRepeat={onRepeatSwap} />
+              ) : (
+                <ActivityRow item={group.items[0]} onRepeat={onRepeatSwap} />
+              )}
+            </li>
           ))}
-          <div className="text-center text-[11px] text-dark-500 mt-3">
-            Showing {filteredItems.length} activit{filteredItems.length !== 1 ? 'ies' : 'y'}
-          </div>
+        </ul>
+      )}
+
+      {flatFilteredItems.length > 0 && (
+        <div className="text-center text-[11px] text-dark-500 mt-3">
+          Showing {flatFilteredItems.length} activit{flatFilteredItems.length !== 1 ? 'ies' : 'y'}
         </div>
       )}
     </div>
   );
 }
 
-const CHAIN_LABELS: Record<number, string> = {
-  1: 'ETH',
-  56: 'BSC',
-  137: 'Polygon',
-  42161: 'Arbitrum',
-};
-
-function stripDetailMinSuffix(detail: string): string {
-  return detail.replace(/\s*·\s*min\s+[\d.]+(?:e[+-]?\d+)?\s*$/i, '').trim();
+function FlowGroupCard({
+  group,
+  onRepeat,
+}: {
+  group: UnifiedActivityGroup;
+  onRepeat?: (record: SwapRecord) => void;
+}) {
+  return (
+    <div className="rounded-lg border border-white/[0.06] bg-dark-800/60 p-2 space-y-1">
+      <div className="text-[10px] font-medium text-dark-400 px-1">Swap flow</div>
+      {group.items.map((item) => (
+        <ActivityRow key={item.id} item={item} onRepeat={onRepeat} nested />
+      ))}
+    </div>
+  );
 }
-
-function formatAmountLine(item: ActivityItem): string {
-  if (item.tokenIn && item.tokenOut) {
-    const outRaw = item.tokenOut.amount;
-    const outDisplay = outRaw.startsWith('~') ? outRaw : `~${outRaw}`;
-    return `${item.tokenIn.amount} ${item.tokenIn.symbol} → ${outDisplay} ${item.tokenOut.symbol}`;
-  }
-  return stripDetailMinSuffix(item.detail);
-}
-
-type RoutePill = { label: string; tone: 'commission' | 'historical' | 'neutral' };
-
-function buildRoutePill(item: ActivityItem): RoutePill | null {
-  if (item.type !== 'swap' || !item.provider || item.provider === 'transfer') return null;
-  const providerLabel = swapAggregatorProviderLabel(item.provider);
-  if (isCommissionWrapperExecutionProvider(item.provider)) {
-    return { label: `Commission · ${providerLabel}`, tone: 'commission' };
-  }
-  if (isCommissionRequiredMode()) {
-    return { label: `Historical · ${providerLabel}`, tone: 'historical' };
-  }
-  return { label: providerLabel, tone: 'neutral' };
-}
-
-function routePillClass(tone: RoutePill['tone']): string {
-  switch (tone) {
-    case 'commission':
-      return 'border-primary-500/25 bg-primary-950/40 text-primary-300/90';
-    case 'historical':
-      return 'border-amber-700/30 bg-amber-950/25 text-amber-200/80';
-    default:
-      return 'border-white/[0.08] bg-white/[0.04] text-dark-300';
-  }
-}
-
-function buildSettlementLine(item: ActivityItem): { text: string; tooltip: string } | null {
-  if (item.type !== 'swap' || item.status !== 'success') return null;
-  const min = item.localRecord?.minimumToAmount;
-  if (!min) return null;
-  const sym = item.tokenOut?.symbol ?? item.localRecord?.toAsset.symbol ?? '';
-  return {
-    text: `Min received: ${min} ${sym}`.trim(),
-    tooltip: `Minimum received at send: ${min} ${sym}. ${SWAP_SURFACE_COPY.minimumReceivedExactFooter}`,
-  };
-}
-
-function statusHint(item: ActivityItem): string | null {
-  if (item.type !== 'swap') return null;
-  if (item.status === 'pending') return 'Pending — verify on the explorer before retrying.';
-  if (item.status === 'uncertain') return 'Outcome unclear — verify on the explorer before retrying.';
-  if (item.status === 'failed' && item.txHash) {
-    return 'Failed on-chain — verify on the explorer before retrying.';
-  }
-  return null;
-}
-
-// ─── Activity Row ──────────────────────────────────────────────────
 
 function ActivityRow({
   item,
   onRepeat,
+  compact = false,
+  nested = false,
 }: {
-  item: ActivityItem;
+  item: UnifiedActivityItem;
   onRepeat?: (record: SwapRecord) => void;
+  compact?: boolean;
+  nested?: boolean;
 }) {
-  const amountLine = formatAmountLine(item);
   const routePill = buildRoutePill(item);
   const settlement = buildSettlementLine(item);
   const hint = statusHint(item);
+  const kindLabel = presentActivityKind(item.kind);
+  const statusLabel = presentActivityStatus(item.status);
+  const sourceLabel = presentActivitySource(item.source);
+
+  const amountLine =
+    item.fromAsset && item.toAsset
+      ? `${item.fromAsset.amount ?? item.amountIn ?? '—'} ${item.fromAsset.symbol} → ${item.toAsset.amount ?? item.amountOut ?? '—'} ${item.toAsset.symbol}`
+      : item.subtitle ?? item.title;
 
   return (
-    <div className="flex items-start justify-between gap-2 p-2.5 bg-dark-800/90 border border-white/[0.05] rounded-lg hover:bg-dark-700/45 transition-colors group">
+    <div
+      className={`flex items-start justify-between gap-2 ${
+        nested ? 'p-2' : 'p-2.5'
+      } bg-dark-800/90 border border-white/[0.05] rounded-lg hover:bg-dark-700/45 transition-colors group`}
+      data-testid="activity-row"
+      data-kind={item.kind}
+      data-source={item.source}
+      data-status={item.status}
+    >
       <div className="flex items-start gap-2.5 min-w-0 flex-1">
-        <StatusIcon status={item.status} type={item.type} />
+        <StatusBadge status={item.status} kind={item.kind} label={statusLabel} />
 
         <div className="min-w-0 flex-1 space-y-0.5">
-          <div className="flex items-center gap-1.5 min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
             <span className="font-medium text-sm text-dark-100 truncate">{item.title}</span>
             <span className="shrink-0 px-1 py-0.5 bg-dark-700/80 text-dark-400 text-[9px] font-medium rounded">
-              {CHAIN_LABELS[item.chainId] || 'Chain'}
+              {CHAIN_ACTIVITY_LABELS[item.chainId] || 'Chain'}
             </span>
+            <span
+              className="shrink-0 px-1 py-0.5 bg-dark-700/50 text-dark-500 text-[9px] rounded"
+              title={sourceLabel}
+            >
+              {sourceLabel}
+            </span>
+            {!compact && (
+              <span className="shrink-0 text-[9px] text-dark-500">{kindLabel}</span>
+            )}
           </div>
 
           <p className="text-[11px] text-dark-300 tabular-nums truncate leading-snug">{amountLine}</p>
@@ -310,10 +380,7 @@ function ActivityRow({
                 </span>
               )}
               {settlement && (
-                <span
-                  className="text-[10px] text-dark-500 truncate leading-none"
-                  title={settlement.tooltip}
-                >
+                <span className="text-[10px] text-dark-500 truncate leading-none" title={settlement.tooltip}>
                   {settlement.text}
                 </span>
               )}
@@ -346,6 +413,7 @@ function ActivityRow({
               rel="noopener noreferrer"
               className="inline-flex min-h-[32px] min-w-[32px] items-center justify-center p-1.5 text-dark-500 hover:text-dark-200 transition-colors"
               title="View on explorer"
+              aria-label={`View ${kindLabel} on explorer`}
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                 <path
@@ -363,44 +431,76 @@ function ActivityRow({
   );
 }
 
-function StatusIcon({ status, type }: { status: string; type: ActivityType }) {
-  const bgColor =
-    status === 'success'
-      ? 'bg-green-900/30 text-green-400'
-      : status === 'pending'
-      ? 'bg-yellow-900/30 text-yellow-400'
-      : status === 'uncertain'
-      ? 'bg-amber-900/30 text-amber-400'
-      : 'bg-red-900/30 text-red-400';
-
-  // Type-based icons
-  const icon = () => {
-    if (status === 'failed') {
-      return <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />;
-    }
-    if (status === 'pending') {
-      return <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />;
-    }
-    if (status === 'uncertain') {
-      return <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />;
-    }
-    switch (type) {
-      case 'swap':
-        return <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />;
-      case 'approval':
-        return <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />;
-      default:
-        return <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />;
-    }
-  };
-
+function StatusBadge({
+  status,
+  kind,
+  label,
+}: {
+  status: UnifiedActivityItem['status'];
+  kind: UnifiedActivityItem['kind'];
+  label: string;
+}) {
   return (
-    <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${bgColor}`}>
-      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        {icon()}
-      </svg>
+    <div
+      className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${statusPresentationClass(status)}`}
+      title={label}
+      aria-label={`${presentActivityKind(kind)}: ${label}`}
+    >
+      <span className="text-[9px] font-semibold leading-none" aria-hidden>
+        {label.slice(0, 1)}
+      </span>
     </div>
   );
+}
+
+type RoutePill = { label: string; tone: 'commission' | 'historical' | 'neutral' };
+
+function buildRoutePill(item: UnifiedActivityItem): RoutePill | null {
+  if (item.kind !== 'swap' || !item.provider || item.provider === 'transfer') return null;
+  const providerLabel = swapAggregatorProviderLabel(item.provider);
+  if (isCommissionWrapperExecutionProvider(item.provider)) {
+    return { label: `Commission · ${providerLabel}`, tone: 'commission' };
+  }
+  if (isCommissionRequiredMode()) {
+    return { label: `Historical · ${providerLabel}`, tone: 'historical' };
+  }
+  return { label: providerLabel, tone: 'neutral' };
+}
+
+function routePillClass(tone: RoutePill['tone']): string {
+  switch (tone) {
+    case 'commission':
+      return 'border-primary-500/25 bg-primary-950/40 text-primary-300/90';
+    case 'historical':
+      return 'border-amber-700/30 bg-amber-950/25 text-amber-200/80';
+    default:
+      return 'border-white/[0.08] bg-white/[0.04] text-dark-300';
+  }
+}
+
+function buildSettlementLine(item: UnifiedActivityItem): { text: string; tooltip: string } | null {
+  if (item.kind !== 'swap' || item.status !== 'confirmed') return null;
+  const min = item.localRecord?.minimumToAmount;
+  if (!min) return null;
+  const sym = item.toAsset?.symbol ?? item.localRecord?.toAsset.symbol ?? '';
+  return {
+    text: `Min received: ${min} ${sym}`.trim(),
+    tooltip: `Minimum received at send: ${min} ${sym}. ${SWAP_SURFACE_COPY.minimumReceivedExactFooter}`,
+  };
+}
+
+function statusHint(item: UnifiedActivityItem): string | null {
+  if (item.kind !== 'swap') return null;
+  if (item.status === 'pending' || item.status === 'submitted') {
+    return 'Pending — verify on the explorer before retrying.';
+  }
+  if (item.status === 'unknown' || item.status === 'stale') {
+    return 'Outcome unclear — verify on the explorer before retrying.';
+  }
+  if (item.status === 'reverted' && item.transactionHash) {
+    return 'Failed on-chain — verify on the explorer before retrying.';
+  }
+  return null;
 }
 
 export default ActivityPanel;
