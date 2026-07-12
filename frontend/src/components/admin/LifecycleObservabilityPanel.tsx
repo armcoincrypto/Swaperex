@@ -5,6 +5,7 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { Button } from '@/components/common/Button';
+import { TRANSACTION_CORRELATION_FIELD, TELEMETRY_CORRELATION_ALIAS_FIELD } from '@/utils/transactionCorrelation';
 import {
   fetchAdminLifecycle,
   resolveAdminApiToken,
@@ -106,8 +107,9 @@ export function LifecycleObservabilityPanel({ adminToken: controlledToken, onAdm
           <div>
             <div className="text-sm font-semibold text-white">Admin · Lifecycle</div>
             <div className="text-[11px] text-dark-500 mt-0.5">
-              Read-only · correlates <code className="text-dark-400">swapFlowId</code> from{' '}
-              <code className="text-dark-400">swap_lifecycle</code> batches
+              Read-only · correlates <code className="text-dark-400">{TRANSACTION_CORRELATION_FIELD}</code> /{' '}
+              <code className="text-dark-400">{TELEMETRY_CORRELATION_ALIAS_FIELD}</code> from{' '}
+              <code className="text-dark-400">swap_lifecycle</code> batches (same value as support diagnostics)
             </div>
           </div>
           <Button type="button" variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>

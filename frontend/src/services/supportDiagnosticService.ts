@@ -43,15 +43,22 @@ export function buildSupportDiagnosticBundle(
           ? model.transfer.token
           : undefined;
 
+  const reconciliationState =
+    model.reconciliation?.lastResult ??
+    model.reconciliation?.providerErrorCategory ??
+    (model.reconciliation?.attempts !== undefined ? `attempts:${model.reconciliation.attempts}` : undefined);
+
   const bundle: SupportDiagnosticBundle = {
     schemaVersion: SUPPORT_DIAGNOSTIC_SCHEMA_VERSION,
     generatedAt: new Date().toISOString(),
     appVersion: options?.appVersion ?? getEmbeddedAppVersion(),
     recordId: model.journalRecordId,
     flowId: model.flowId,
+    correlationId: model.flowId,
     source: model.source,
     kind: model.kind,
     status: model.status,
+    journalStatus: model.source === 'journal' ? model.status : undefined,
     walletAddressMasked: model.walletAddressMasked,
     chainId: model.chainId,
     chainName: model.chainName,
@@ -76,6 +83,9 @@ export function buildSupportDiagnosticBundle(
     errorStage: model.error?.stage,
     broadcastKnown: model.error?.broadcastKnown,
     retryable: model.error?.retryable,
+    reconciliationAttempts: model.reconciliation?.attempts,
+    reconciliationLastResult: boundString(model.reconciliation?.lastResult, 120),
+    reconciliationState: boundString(reconciliationState, 120),
     browser: getBoundedClientMetadata().browser,
     walletProvider: options?.walletProvider,
     explorerUrl: model.explorerUrl,
@@ -95,7 +105,11 @@ export function renderSupportDiagnosticText(bundle: SupportDiagnosticBundle): st
     `Transaction: ${bundle.transactionHash}`,
   ];
 
-  if (bundle.walletAddressMasked) lines.push(`Wallet: ${bundle.walletAddressMasked}`);
+  if (bundle.correlationId) lines.push(`Correlation: ${bundle.correlationId}`);
+  if (bundle.flowId && bundle.flowId !== bundle.correlationId) {
+    lines.push(`Flow: ${bundle.flowId}`);
+  }
+  if (bundle.journalStatus) lines.push(`Journal status: ${presentActivityStatus(bundle.journalStatus as TransactionDetailModel['status'])}`);
   if (bundle.submittedAt) lines.push(`Submitted: ${bundle.submittedAt}`);
   if (bundle.lastCheckedAt) lines.push(`Last checked: ${bundle.lastCheckedAt}`);
   if (bundle.tokenPair) lines.push(`Pair: ${bundle.tokenPair}`);
@@ -109,6 +123,8 @@ export function renderSupportDiagnosticText(bundle: SupportDiagnosticBundle): st
     lines.push(`Swap hash: ${bundle.swapHash}`);
   }
   if (bundle.errorCategory) lines.push(`Error category: ${bundle.errorCategory}`);
+  if (bundle.errorStage) lines.push(`Error stage: ${bundle.errorStage}`);
+  if (bundle.reconciliationState) lines.push(`Reconciliation: ${bundle.reconciliationState}`);
   if (bundle.explorerUrl) lines.push(`Explorer: ${bundle.explorerUrl}`);
   if (bundle.browser) lines.push(`Browser: ${bundle.browser}`);
   if (bundle.walletProvider) lines.push(`Wallet: ${bundle.walletProvider}`);
@@ -147,6 +163,8 @@ export function assertDiagnosticAllowlist(bundle: SupportDiagnosticBundle): Supp
     'appVersion',
     'recordId',
     'flowId',
+    'correlationId',
+    'journalStatus',
     'walletAddressMasked',
     'approvalHash',
     'swapHash',
@@ -163,6 +181,9 @@ export function assertDiagnosticAllowlist(bundle: SupportDiagnosticBundle): Supp
     'errorStage',
     'broadcastKnown',
     'retryable',
+    'reconciliationAttempts',
+    'reconciliationLastResult',
+    'reconciliationState',
     'browser',
     'walletProvider',
     'explorerUrl',

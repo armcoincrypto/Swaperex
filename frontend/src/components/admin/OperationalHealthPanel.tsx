@@ -3,6 +3,7 @@
  */
 
 import { useCallback, useMemo, useState } from 'react';
+import { adminHealthDomainLabel } from '@/utils/operatorObservabilityMapping';
 import { Button } from '@/components/common/Button';
 import {
   fetchAdminHealth,
@@ -217,7 +218,7 @@ export function OperationalHealthPanel({ adminToken: controlledToken, onAdminTok
                       className="rounded-lg border border-white/[0.06] bg-dark-950/50 p-3 space-y-2"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-mono text-cyan-200/90">{key}</span>
+                        <span className="text-xs font-mono text-cyan-200/90">{adminHealthDomainLabel(key)}</span>
                         <DomainStatusBadge status={String(d.status ?? 'unknown')} />
                       </div>
                       <div className="text-[11px] text-dark-400 leading-snug">{d.summary}</div>

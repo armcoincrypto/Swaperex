@@ -127,9 +127,13 @@ export interface SupportDiagnosticBundle {
 
   recordId?: string;
   flowId?: string;
+  /** Canonical correlation id — same value as journal flowId and telemetry swap_lifecycle. */
+  correlationId?: string;
   source: string;
   kind: string;
   status: string;
+  /** Journal transaction status when source is journal-backed. */
+  journalStatus?: string;
 
   walletAddressMasked?: string;
   chainId: number;
@@ -153,6 +157,10 @@ export interface SupportDiagnosticBundle {
   errorStage?: string;
   broadcastKnown?: boolean;
   retryable?: boolean;
+
+  reconciliationAttempts?: number;
+  reconciliationLastResult?: string;
+  reconciliationState?: string;
 
   browser?: string;
   walletProvider?: string;
