@@ -51,6 +51,10 @@ import {
   buildSwapJournalContext,
   warnJournalWriteFailure,
 } from '@/utils/swapJournalIntegration';
+import {
+  registerJournalReconciliationActiveWait,
+  unregisterJournalReconciliationActiveWait,
+} from '@/services/transactionReconciliationCoordinator';
 import { useUsageStore } from '@/stores/usageStore';
 import { useCommissionMonitorStore } from '@/stores/commissionMonitorStore';
 import {
@@ -1920,18 +1924,25 @@ export function useSwap() {
       } else {
         lastApprovalRecordIdRef.current = journalResult.record.id;
         journalStore.markTransactionPending(journalResult.record.id);
+        registerJournalReconciliationActiveWait(journalResult.record.id);
       }
 
       toast.info('Approval sent — waiting for on-chain confirmation…');
-      const receipt = await tx.wait();
+      try {
+        const receipt = await tx.wait();
 
-      if (receipt) {
-        applyJournalReceiptUpdate({
-          chainId,
-          kind: 'approval',
-          transactionHash: tx.hash,
-          receipt,
-        });
+        if (receipt) {
+          applyJournalReceiptUpdate({
+            chainId,
+            kind: 'approval',
+            transactionHash: tx.hash,
+            receipt,
+          });
+        }
+      } finally {
+        if (lastApprovalRecordIdRef.current) {
+          unregisterJournalReconciliationActiveWait(lastApprovalRecordIdRef.current);
+        }
       }
 
       swapTrace('[Swap Lifecycle] Approval confirmed:', tx.hash, '| Provider:', swapQuote.provider);
@@ -2507,10 +2518,13 @@ export function useSwap() {
         explorerUrl,
       });
 
+      let swapJournalRecordId: string | null = null;
       if (!journalResult.ok) {
         warnJournalWriteFailure(journalResult.reason, tx.hash);
       } else {
+        swapJournalRecordId = journalResult.record.id;
         journalStore.markTransactionPending(journalResult.record.id);
+        registerJournalReconciliationActiveWait(journalResult.record.id);
         if (lastApprovalRecordIdRef.current) {
           journalStore.linkApprovalAndSwap(lastApprovalRecordIdRef.current, journalResult.record.id);
         }
@@ -2519,7 +2533,14 @@ export function useSwap() {
       toast.info('Swap submitted — waiting for on-chain confirmation…');
 
       // Wait for confirmation
-      const receipt = await tx.wait();
+      let receipt;
+      try {
+        receipt = await tx.wait();
+      } finally {
+        if (swapJournalRecordId) {
+          unregisterJournalReconciliationActiveWait(swapJournalRecordId);
+        }
+      }
 
       if (receipt?.status === 1) {
         clearPendingSwap();
@@ -3220,182 +3241,6 @@ export function useSwap() {
     setSwapQuote(null);
     clearQuote();
   }, [chainId, address, clearQuote, updateRecordStatus]);
-
-  /** After refresh: reconcile stored pending tx with chain; resume confirming if still pending. */
-  useEffect(() => {
-    if (!provider || !chainId || !address) return;
-
-    const pending = getPendingSwapForAccount(chainId, address);
-    if (!pending) return;
-
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const receipt = await provider.getTransactionReceipt(pending.txHash);
-        if (cancelled) return;
-
-        if (receipt !== null) {
-          clearPendingSwap();
-          applyJournalReceiptUpdate({
-            chainId,
-            kind: 'swap',
-            transactionHash: pending.txHash,
-            receipt,
-          });
-          updateRecordStatus(pending.txHash, receipt.status === 1 ? 'success' : 'failed');
-          swapObsLog('pending_reconciled', {
-            hash: pending.txHash,
-            chainId,
-            status: receipt.status === 1 ? 1 : 0,
-          });
-          const chainNetwork = CHAIN_ID_TO_NETWORK[chainId] || 'ethereum';
-          if (receipt.status === 1) {
-            toast.success(
-              'An earlier swap completed on-chain. Verify balances in your wallet; refresh the quote if needed.'
-            );
-            await fetchBalances(address, [chainNetwork]);
-          } else {
-            toast.warning('An earlier swap transaction reverted on-chain.');
-          }
-          setState((s) => {
-            if (s.txHash === pending.txHash && (s.status === 'confirming' || s.status === 'error')) {
-              return {
-                ...s,
-                status: 'idle',
-                quote: null,
-                txHash: null,
-                explorerUrl: null,
-                error: null,
-                quoteErrorParsed: null,
-                receiptSettlement: null,
-              };
-            }
-            return s;
-          });
-          return;
-        }
-
-        setState((s) => {
-          if (s.txHash === pending.txHash && s.status === 'confirming') return s;
-          return {
-            ...s,
-            status: 'confirming',
-            txHash: pending.txHash,
-            explorerUrl: pending.explorerUrl,
-            error: null,
-            quoteErrorParsed: null,
-          };
-        });
-      } catch {
-        if (cancelled) return;
-        setState((s) => {
-          if (s.txHash === pending.txHash && s.status === 'confirming') return s;
-          return {
-            ...s,
-            status: 'confirming',
-            txHash: pending.txHash,
-            explorerUrl: pending.explorerUrl,
-            error: null,
-            quoteErrorParsed: null,
-          };
-        });
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [provider, chainId, address, fetchBalances, updateRecordStatus]);
-
-  /**
-   * Refresh recovery: no in-memory quote but swap tx was already broadcast — wait for receipt here
-   * (executeSwap already awaits when swapQuote is still present).
-   */
-  useEffect(() => {
-    const hash = state.txHash;
-    if (state.status !== 'confirming' || !hash || !provider || !chainId || !address) return;
-    if (swapQuote) return;
-
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const receipt = await provider.waitForTransaction(hash);
-        if (cancelled) return;
-
-        clearPendingSwap();
-        const chainNetwork = CHAIN_ID_TO_NETWORK[chainId] || 'ethereum';
-        const explorerUrlResolved = getExplorerTxUrl(chainId, hash);
-
-        if (receipt?.status === 1) {
-          applyJournalReceiptUpdate({
-            chainId,
-            kind: 'swap',
-            transactionHash: hash,
-            receipt,
-          });
-          updateRecordStatus(hash, 'success');
-          swapObsLog('recovery_tx_confirmed', { hash, chainId, status: 1 });
-          toast.success('Swap confirmed on-chain. Balances may take a moment to update.');
-          await fetchBalances(address, [chainNetwork]);
-          setState((s) => ({
-            ...s,
-            status: 'idle',
-            quote: null,
-            txHash: null,
-            explorerUrl: null,
-            error: null,
-            quoteErrorParsed: null,
-          }));
-          setSwapQuote(null);
-          clearQuote();
-          return;
-        }
-
-        toast.warning('This swap reverted on-chain.');
-        applyJournalReceiptUpdate({
-          chainId,
-          kind: 'swap',
-          transactionHash: hash,
-          receipt: receipt ?? { status: 0, blockNumber: 0 },
-        });
-        updateRecordStatus(hash, 'failed');
-        swapObsLog('recovery_tx_failed', { hash, chainId, status: 0 });
-        setState((s) => ({
-          ...s,
-          status: 'error',
-          error: 'Transaction reverted on-chain. Check the explorer for details.',
-          quoteErrorParsed: null,
-          txHash: hash,
-          explorerUrl: explorerUrlResolved,
-        }));
-      } catch {
-        if (cancelled) return;
-        const recordId = getJournalRecordId(chainId, 'swap', hash);
-        if (recordId) {
-          useTransactionJournalStore.getState().markTransactionUnknown(recordId);
-        }
-        updateRecordStatus(hash, 'uncertain');
-        swapObsLog('recovery_tx_uncertain', { hash, chainId });
-        const explorerUrlResolved = getExplorerTxUrl(chainId, hash);
-        setState((s) => ({
-          ...s,
-          status: 'error',
-          error:
-            'Could not confirm this transaction from this session. Check the explorer — it may still be pending or may have succeeded.',
-          quoteErrorParsed: null,
-          txHash: hash,
-          explorerUrl: explorerUrlResolved,
-        }));
-        toast.warning('Connection dropped while waiting. Verify the explorer before retrying a new swap.');
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [state.status, state.txHash, swapQuote, provider, chainId, address, fetchBalances, clearQuote, updateRecordStatus]);
 
   // Cancel preview
   const cancelPreview = useCallback(() => {

@@ -39,6 +39,8 @@ import {
 } from '@/config';
 import { getChainById, getExplorerTxUrl } from '@/config/chains';
 import type { SwapQuote, SwapReceiptSettlement } from '@/hooks/useSwap';
+import type { RecoveredSwapTrace } from '@/utils/recoveredSwapTrace';
+import { getRecoveryStatusCopy } from '@/utils/recoveredSwapTrace';
 import type { ApprovalMode } from '@/stores/swapStore';
 import { classifyCommissionRoute } from '@/utils/commission';
 import { isDebugMode } from '@/utils/chainHealth';
@@ -49,14 +51,7 @@ import { NetworkFeeEstimateRow } from '@/components/swap/NetworkFeeEstimateRow';
 export type { SwapStep } from './swapPreviewTypes';
 import type { SwapStep } from './swapPreviewTypes';
 
-/** Session recovery when quote is no longer in memory but a swap tx was already sent */
-export type RecoveredSwapTrace = {
-  fromSymbol: string;
-  toSymbol: string;
-  fromAmount: string;
-  toAmount: string;
-  outcomeUncertain?: boolean;
-};
+export type { RecoveredSwapTrace } from '@/utils/recoveredSwapTrace';
 
 interface SwapPreviewModalProps {
   isOpen: boolean;
@@ -72,6 +67,10 @@ interface SwapPreviewModalProps {
   recoveredTrace?: RecoveredSwapTrace | null;
   /** Clears persisted pending swap after user verifies on explorer (conservative retry) */
   onClearPendingSwap?: () => void;
+  /** Manual bounded status recheck — no transaction resubmission */
+  onManualRecheck?: () => void;
+  manualRecheckDisabled?: boolean;
+  isReconciling?: boolean;
   fromLogoUrl?: string | null;
   toLogoUrl?: string | null;
   onConfirm: () => void;
@@ -102,6 +101,9 @@ export function SwapPreviewModal({
   approvalMode = 'exact',
   recoveredTrace = null,
   onClearPendingSwap,
+  onManualRecheck,
+  manualRecheckDisabled = false,
+  isReconciling = false,
   onConfirm,
   onCancel,
   onRefreshQuote,
@@ -166,16 +168,11 @@ export function SwapPreviewModal({
   const recoveredOnly =
     !quote &&
     recoveredTrace &&
-    isOpen &&
-    (step === 'broadcasting' || step === 'error');
+    isOpen;
 
   if (recoveredOnly && recoveredTrace) {
-    const title =
-      step === 'error' && recoveredTrace.outcomeUncertain
-        ? 'Outcome unclear'
-        : step === 'error'
-          ? 'Swap failed'
-          : 'Confirming swap';
+    const copy = getRecoveryStatusCopy(recoveredTrace.phase);
+    const title = copy.title;
     return (
       <Modal
         isOpen={isOpen}
@@ -187,10 +184,13 @@ export function SwapPreviewModal({
           trace={recoveredTrace}
           step={step}
           error={error}
-          txHash={txHash}
-          explorerUrl={explorerUrl}
+          txHash={txHash ?? recoveredTrace.transactionHash}
+          explorerUrl={explorerUrl ?? recoveredTrace.explorerUrl}
           onClose={onCancel}
           onClearPendingSwap={onClearPendingSwap}
+          onManualRecheck={onManualRecheck}
+          manualRecheckDisabled={manualRecheckDisabled}
+          isReconciling={isReconciling}
         />
       </Modal>
     );
@@ -674,6 +674,9 @@ function RecoveredSwapTraceBody({
   explorerUrl,
   onClose,
   onClearPendingSwap,
+  onManualRecheck,
+  manualRecheckDisabled = false,
+  isReconciling = false,
 }: {
   trace: RecoveredSwapTrace;
   step: SwapStep;
@@ -682,32 +685,45 @@ function RecoveredSwapTraceBody({
   explorerUrl?: string | null;
   onClose: () => void;
   onClearPendingSwap?: () => void;
+  onManualRecheck?: () => void;
+  manualRecheckDisabled?: boolean;
+  isReconciling?: boolean;
 }) {
-  const isBroadcasting = step === 'broadcasting';
+  const copy = getRecoveryStatusCopy(trace.phase);
+  const kindLabel = trace.kind === 'approval' ? 'Approval' : 'Swap';
 
   return (
     <div className="text-left">
       <div className="bg-dark-800 rounded-xl p-4 mb-4">
-        <p className="text-sm text-dark-400 mb-2">Swap in progress (recovered from this browser)</p>
+        <p className="text-sm text-dark-400 mb-2">
+          {kindLabel} recovery (from this browser)
+        </p>
         <p className="text-center text-lg font-semibold text-white">
-          {formatBalance(trace.fromAmount)} {trace.fromSymbol}
-          <span className="text-dark-500 mx-2">→</span>
-          <span className="text-primary-400">{formatBalance(trace.toAmount)} {trace.toSymbol}</span>
+          {trace.kind === 'swap' ? (
+            <>
+              {formatBalance(trace.fromAmount)} {trace.fromSymbol}
+              <span className="text-dark-500 mx-2">→</span>
+              <span className="text-primary-400">{formatBalance(trace.toAmount)} {trace.toSymbol}</span>
+            </>
+          ) : (
+            <>
+              {formatBalance(trace.fromAmount)} {trace.fromSymbol}
+              <span className="text-dark-500 ml-2">(approval)</span>
+            </>
+          )}
         </p>
-        <p className="text-xs text-dark-500 mt-2 text-center">
-          Amounts are from when you confirmed; final balances depend on on-chain execution.
-        </p>
+        <p className="text-xs text-dark-500 mt-2 text-center">{copy.description}</p>
       </div>
 
-      {trace.outcomeUncertain && (
+      {(trace.outcomeUncertain || trace.phase === 'status_unavailable' || trace.phase === 'stale') && (
         <div className="bg-amber-900/15 border border-amber-800/40 rounded-lg p-3 mb-4 text-sm text-dark-300 leading-snug">
-          This device could not finish waiting for confirmation. The explorer is the source of truth — do not assume failure from this screen alone.
+          {copy.description}
         </div>
       )}
 
-      {isBroadcasting && (
+      {step === 'broadcasting' && trace.phase !== 'status_unavailable' && trace.phase !== 'stale' && (
         <div className="text-blue-300 bg-blue-900/20 border border-blue-800/40 rounded-lg p-3 mb-4 text-sm leading-snug">
-          Waiting for block confirmations. If this takes unusually long, check gas and network status on the explorer.
+          Waiting for block confirmations. If this takes unusually long, check the explorer.
         </div>
       )}
 
@@ -736,8 +752,18 @@ function RecoveredSwapTraceBody({
       )}
 
       <div className="flex flex-col gap-3">
-        <div className="flex gap-3">
-          <Button variant="secondary" onClick={onClose} fullWidth>
+        <div className="flex gap-3 flex-wrap">
+          {onManualRecheck && (
+            <Button
+              variant="secondary"
+              onClick={onManualRecheck}
+              disabled={manualRecheckDisabled || isReconciling}
+              aria-busy={isReconciling}
+            >
+              {isReconciling ? 'Checking status…' : 'Check status again'}
+            </Button>
+          )}
+          <Button variant="secondary" onClick={onClose} fullWidth={!onManualRecheck}>
             Close
           </Button>
         </div>
