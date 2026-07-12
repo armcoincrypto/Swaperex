@@ -17,7 +17,7 @@
 - URL: https://dex.kobbex.com
 - Artifact: `b6024e3` (unchanged)
 - Starting HEAD: `9b68807`
-- Final HEAD: _(see evidence git-state-final.txt)_
+- Final HEAD: `e75bb55`
 
 ## Scope
 

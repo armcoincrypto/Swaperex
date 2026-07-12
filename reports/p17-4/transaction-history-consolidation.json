@@ -57,6 +57,7 @@
   "productionRouteSmoke": "P16_ROUTE_SMOKE_PASS",
   "productionMutation": false,
   "startingHead": "9b68807",
+  "finalHead": "e75bb55",
   "productionUrl": "https://dex.kobbex.com",
   "productionArtifact": "b6024e3"
 }
