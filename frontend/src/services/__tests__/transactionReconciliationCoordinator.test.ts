@@ -55,6 +55,12 @@ describe('transactionReconciliationCoordinator deduplication', () => {
     expect(reconcileSpy).toHaveBeenCalledTimes(1);
   });
 
+  it('returns a stable reconciling snapshot for useSyncExternalStore', () => {
+    const first = transactionReconciliationCoordinator.getReconcilingRecordIds();
+    const second = transactionReconciliationCoordinator.getReconcilingRecordIds();
+    expect(first).toBe(second);
+  });
+
   it('skips reconciliation while active wait is registered', async () => {
     useTransactionJournalStore.getState().journalSwapSubmitted({
       flowId: 'flow-2',

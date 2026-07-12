@@ -23,6 +23,8 @@ export type ReconciliationTrigger =
 
 type Listener = () => void;
 
+const EMPTY_RECONCILING_IDS: ReadonlySet<string> = new Set();
+
 class TransactionReconciliationCoordinator {
   private inFlight = new Map<string, Promise<void>>();
   private activeWaits = new Set<string>();
@@ -31,6 +33,8 @@ class TransactionReconciliationCoordinator {
   private walletAddress: string | null = null;
   private listeners = new Set<Listener>();
   private started = false;
+  private reconcilingIdsSnapshot: ReadonlySet<string> = EMPTY_RECONCILING_IDS;
+  private reconcilingIdsSnapshotKey = '';
 
   subscribe(listener: Listener): () => void {
     this.listeners.add(listener);
@@ -38,13 +42,21 @@ class TransactionReconciliationCoordinator {
   }
 
   private emit(): void {
+    this.refreshReconcilingIdsSnapshot();
     for (const listener of this.listeners) {
       listener();
     }
   }
 
+  private refreshReconcilingIdsSnapshot(): void {
+    const key = [...this.inFlight.keys()].sort().join('\0');
+    if (key === this.reconcilingIdsSnapshotKey) return;
+    this.reconcilingIdsSnapshotKey = key;
+    this.reconcilingIdsSnapshot = key ? new Set(key.split('\0')) : EMPTY_RECONCILING_IDS;
+  }
+
   getReconcilingRecordIds(): ReadonlySet<string> {
-    return new Set(this.inFlight.keys());
+    return this.reconcilingIdsSnapshot;
   }
 
   registerActiveWait(recordId: string): void {
