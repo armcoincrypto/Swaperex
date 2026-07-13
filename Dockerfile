@@ -42,9 +42,8 @@ RUN useradd -m -s /bin/bash swaperex && \
 
 USER swaperex
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import httpx; httpx.get('http://localhost:8000/health').raise_for_status()" || exit 1
+# Health checks are defined per-service in docker-compose.yml (api only).
+# Do not add a global HEALTHCHECK here — bot/scanner containers do not listen on :8000.
 
 # Default command (can be overridden)
 CMD ["python", "-m", "swaperex.main"]
