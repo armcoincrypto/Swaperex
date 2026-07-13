@@ -1,0 +1,17 @@
+ Dockerfile                                         |   5 +-
+ docker-compose.yml                                 |   8 +
+ ..._READINESS_DEPLOYMENT_VALIDATION_AND_CLEANUP.md | 170 +++++++++++++++++++++
+ reports/p17-8/20260712T233501Z/git-log.txt         |   5 +
+ reports/p17-8/20260712T233501Z/git-status-pre.txt  |  12 ++
+ .../p17-8/20260712T233501Z/post-route-smoke.json   | 164 ++++++++++++++++++++
+ reports/p17-8/20260712T233501Z/post-version.txt    |   5 +
+ reports/p17-8/20260712T233501Z/pre-health.json     |   1 +
+ .../p17-8/20260712T233501Z/pre-route-smoke.json    | 164 ++++++++++++++++++++
+ reports/p17-8/20260712T233501Z/pre-version.txt     |   5 +
+ reports/p17-8/20260712T235622Z/final-head.txt      |   1 +
+ reports/p17-8/20260712T235622Z/git-log.txt         |   8 +
+ .../p17-8/20260712T235622Z/post-route-smoke.json   | 164 ++++++++++++++++++++
+ reports/p17-8/20260712T235622Z/post-version.txt    |   5 +
+ reports/p17-8/20260712T235622Z/post-wc-cert.json   |  86 +++++++++++
+ ...lic-status-readiness-deployment-validation.json |  70 +++++++++
+ 16 files changed, 870 insertions(+), 3 deletions(-)

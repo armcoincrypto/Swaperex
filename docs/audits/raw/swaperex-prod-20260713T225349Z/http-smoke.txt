@@ -1,0 +1,16 @@
+=== HTTP SMOKE ===
+/ 200
+/trust 200
+/version.txt 200
+/api/health 200
+/api/v1/health 200
+/api/v1/admin/operator-intelligence 401
+/admin/intelligence 200
+/favicon.svg 200
+index_js=/assets/index-_wcMtx8d.js
+/assets/index-_wcMtx8d.js 200
+=== admin body (should be auth fail) ===
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/AdminApp-CUkYsXEx.js","assets/vendor-react-w8jZXnmi.js","assets/TradeShell-D646g-hK.js","assets/chains-CLdBn7xY.js","assets/rpc-BrrsqaRk.js","assets/commissionChains-BSPMpWve.js","assets/vendor-ethers-CS9BpkGU.js","assets/StaticPages-o
+=== trust title ===
+<title>Swaperex</title>
+status:200

@@ -1,0 +1,134 @@
+[
+  {
+    "label": "desktop",
+    "path": "/",
+    "status": 200,
+    "overflow": false,
+    "title": "Swaperex",
+    "hasRoot": true
+  },
+  {
+    "label": "desktop",
+    "path": "/trust",
+    "status": 200,
+    "overflow": false,
+    "title": "Trust Center — Swaperex by Kobbex",
+    "hasRoot": true
+  },
+  {
+    "label": "desktop",
+    "path": "/swap",
+    "status": 200,
+    "overflow": false,
+    "title": "Swaperex",
+    "hasRoot": true
+  },
+  {
+    "label": "desktop",
+    "path": "/status",
+    "status": 200,
+    "overflow": false,
+    "title": "Swaperex",
+    "hasRoot": true
+  },
+  {
+    "label": "desktop",
+    "path": "/admin/intelligence",
+    "status": 200,
+    "overflow": false,
+    "title": "Swaperex",
+    "hasRoot": true
+  },
+  {
+    "label": "desktop",
+    "consoleErrors": []
+  },
+  {
+    "label": "390x844",
+    "path": "/",
+    "status": 200,
+    "overflow": false,
+    "title": "Swaperex",
+    "hasRoot": true
+  },
+  {
+    "label": "390x844",
+    "path": "/trust",
+    "status": 200,
+    "overflow": false,
+    "title": "Trust Center — Swaperex by Kobbex",
+    "hasRoot": true
+  },
+  {
+    "label": "390x844",
+    "path": "/swap",
+    "status": 200,
+    "overflow": false,
+    "title": "Swaperex",
+    "hasRoot": true
+  },
+  {
+    "label": "390x844",
+    "path": "/status",
+    "status": 200,
+    "overflow": false,
+    "title": "Swaperex",
+    "hasRoot": true
+  },
+  {
+    "label": "390x844",
+    "path": "/admin/intelligence",
+    "status": 200,
+    "overflow": false,
+    "title": "Swaperex",
+    "hasRoot": true
+  },
+  {
+    "label": "390x844",
+    "consoleErrors": []
+  },
+  {
+    "label": "360x800",
+    "path": "/",
+    "status": 200,
+    "overflow": false,
+    "title": "Swaperex",
+    "hasRoot": true
+  },
+  {
+    "label": "360x800",
+    "path": "/trust",
+    "status": 200,
+    "overflow": false,
+    "title": "Trust Center — Swaperex by Kobbex",
+    "hasRoot": true
+  },
+  {
+    "label": "360x800",
+    "path": "/swap",
+    "status": 200,
+    "overflow": false,
+    "title": "Swaperex",
+    "hasRoot": true
+  },
+  {
+    "label": "360x800",
+    "path": "/status",
+    "status": 200,
+    "overflow": false,
+    "title": "Swaperex",
+    "hasRoot": true
+  },
+  {
+    "label": "360x800",
+    "path": "/admin/intelligence",
+    "status": 200,
+    "overflow": false,
+    "title": "Swaperex",
+    "hasRoot": true
+  },
+  {
+    "label": "360x800",
+    "consoleErrors": []
+  }
+]

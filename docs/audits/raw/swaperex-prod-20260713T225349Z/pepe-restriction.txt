@@ -1,0 +1,17 @@
+/root/Swaperex/frontend/src/tokens/index.ts:310:  'PEPE',
+/root/Swaperex/frontend/src/tokens/index.ts:330:  'PEPE',
+/root/Swaperex/frontend/src/tokens/bsc.json:153:      "symbol": "PEPE",
+/root/Swaperex/frontend/src/tokens/ethereum.json:97:      "symbol": "PEPE",
+/root/Swaperex/frontend/src/config/tokens.ts:46:    PEPE: '0x6982508145454Ce325dDbE47a25d4ec3d2311933',
+/root/Swaperex/frontend/src/services/priceService.ts:64:  PEPE: 'pepe',
+/root/Swaperex/frontend/src/utils/routeSupport.ts:16:  'PEPE',
+/root/Swaperex/frontend/src/utils/routeSupport.ts:33:const BSC_LIMITED = new Set(['ADA', 'DOT', 'LTC', 'TRX', 'PEPE', 'FLOKI', 'TWT', 'XVS']);
+/root/Swaperex/frontend/src/services/screener/__tests__/filterSort.test.ts:25:    makeToken({ id: 'pepe', symbol: 'PEPE', name: 'Pepe', currentPrice: 0.00001, volume24h: 500_000, priceChange24h: -30, riskLevel: 'risk' }),
+/root/Swaperex/frontend/src/services/screener/__tests__/filterSort.test.ts:39:    expect(result.map(t => t.symbol)).not.toContain('PEPE');
+/root/Swaperex/frontend/src/services/screener/__tests__/filterSort.test.ts:57:    expect(result.map(t => t.symbol)).not.toContain('PEPE');
+/root/Swaperex/frontend/src/services/screener/__tests__/filterSort.test.ts:65:    expect(result.map(t => t.symbol)).not.toContain('PEPE'); // -30
+/root/Swaperex/frontend/src/services/screener/__tests__/filterSort.test.ts:73:    expect(result.map(t => t.symbol)).not.toContain('PEPE');  // too low
+/root/Swaperex/frontend/src/services/screener/__tests__/filterSort.test.ts:90:    expect(result.map(t => t.symbol)).not.toContain('PEPE');
+/root/Swaperex/frontend/src/services/screener/coingeckoService.ts:36:  cardano: 'ADA', polkadot: 'DOT', 'shiba-inu': 'SHIB', pepe: 'PEPE',
+/root/Swaperex/frontend/src/constants/commissionCoverage.ts:57:  '1|WETH|PEPE',
+/root/Swaperex/frontend/src/constants/commissionCoverage.ts:58:  '1|PEPE|WETH',

@@ -1,0 +1,2 @@
+7d86a3be7c8457d4f74acfca449443dd56e9cb89a66a05f650468d9d5b50b0f8  /var/www/swaperex-backup-20260713T2259Z-pre-cert-rehearsal/version.txt
+7d86a3be7c8457d4f74acfca449443dd56e9cb89a66a05f650468d9d5b50b0f8  /var/www/swaperex/version.txt

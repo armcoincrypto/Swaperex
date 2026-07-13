@@ -1,0 +1,6 @@
+ts=2026-07-13T23:45:59Z
+label=t0
+home:200 time:0.080105
+health:200
+{"status":"ok","signalsEngine":"running","version":"1.0.0","uptime":42148,"timestamp":1783986360575,"services":{"dexscreener":"up","goplus":"up"}}
+signals online restarts 0 mem 70172672

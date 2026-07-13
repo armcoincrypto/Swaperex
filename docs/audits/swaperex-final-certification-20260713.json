@@ -1,0 +1,14 @@
+{
+  "verdict": "SWAPEREX_PRODUCTION_IMPROVEMENTS_DEPLOYMENT_AND_VALIDATION_PASS_WITH_WARNINGS",
+  "production_url": "https://dex.kobbex.com",
+  "live_commit": "d4484f051941084a7987cdf42c5f2de8f48b4b30",
+  "repo_head": "b17f53fb20b21d70e287f187e4c7fcdfd720e1e0",
+  "release_tag": "swaperex-prod-20260713T225349Z-b17f53f",
+  "frontend_redeployed": false,
+  "funded_swap": false,
+  "commission_audit": "126/126 PASS",
+  "unit_tests": "637 passed",
+  "kobbopay_touched": false,
+  "p7_touched": false,
+  "evidence": "/root/Swaperex/docs/audits/raw/swaperex-prod-20260713T225349Z"
+}

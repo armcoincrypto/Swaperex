@@ -1,0 +1,4 @@
+/var/www/swaperex/assets/AdminApp-CUkYsXEx.js
+/var/www/swaperex/assets/TradeShell-D646g-hK.js
+/var/www/swaperex/assets/index-_wcMtx8d.js
+/var/www/swaperex/assets/solanaBalanceService-BQ-Oy5uL.js

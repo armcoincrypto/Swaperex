@@ -1,0 +1,7 @@
+prod_commit=d4484f051941084a7987cdf42c5f2de8f48b4b30
+repo_head=b17f53fb20b21d70e287f187e4c7fcdfd720e1e0
+static_root=/var/www/swaperex
+signals=pm2:backend-signals:4001
+admin=uvicorn:8001
+nginx=/etc/nginx/sites-enabled/dex.kobbex.com.conf
+P17.5 in production commit

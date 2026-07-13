@@ -1,0 +1,8 @@
+To github.com:armcoincrypto/Swaperex.git
+ * [new tag]         swaperex-prod-20260713T225349Z-b17f53f -> swaperex-prod-20260713T225349Z-b17f53f
+remote: 
+remote: Create a pull request for 'release/swaperex-prod-certified' on GitHub by visiting:        
+remote:      https://github.com/armcoincrypto/Swaperex/pull/new/release/swaperex-prod-certified        
+remote: 
+To github.com:armcoincrypto/Swaperex.git
+ * [new branch]      release/swaperex-prod-certified -> release/swaperex-prod-certified
