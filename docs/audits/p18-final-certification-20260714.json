@@ -1,0 +1,24 @@
+{
+  "verdict": "SWAPEREX_P18_TRANSACTION_SAFETY_AND_COPY_CLARITY_PASS_WITH_WARNINGS",
+  "date": "20260714",
+  "productionUrl": "https://dex.kobbex.com",
+  "startingArtifact": "d4484f051941084a7987cdf42c5f2de8f48b4b30",
+  "finalArtifact": "883d8b58b1db224511b0a235532c687136823c2c",
+  "startingRepoHead": "480e51a961b59219bb64e895999c1fbff416b236",
+  "finalRepoHead": "883d8b58b1db224511b0a235532c687136823c2c",
+  "featureBranch": "feature/p18-transaction-safety-copy-clarity",
+  "releaseTag": "swaperex-p18-prod-20260714T160641Z-883d8b5",
+  "unitTests": { "files": 65, "passed": 658 },
+  "commissionAudit": { "pass": 126, "fail": 0 },
+  "build": "PASS",
+  "browser": "PASS",
+  "rollback": "PASS",
+  "fundedSwap": false,
+  "walletNoBroadcast": "NOT_EXECUTED",
+  "kobbopayChanged": false,
+  "p7Changed": false,
+  "warnings": [
+    "Wallet-connected no-broadcast validation requires operator wallet follow-up",
+    "Short measured observation window after final hotfix"
+  ]
+}

@@ -1,0 +1,6 @@
+- Insufficient gas and balance warnings use role="alert"
+- Gas-unavailable uses role="status"
+- CTA aria-describedby explains disabled reasons via ctaSpec.reason/nextStep
+- Color not sole error signal (text messages present)
+- Trust Center FAQ uses native details/summary for keyboard
+- Final browser cert: no console errors across viewports

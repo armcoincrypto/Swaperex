@@ -1,0 +1,16 @@
+T0=2026-07-14T15:59:43Z
+/ 200
+/trust 200
+/version.txt 200
+/admin 200
+/assets/ 404
+environment=production
+commit=093f54fd2ca819077146ebfb172d21cc933829e5
+short=093f54f
+branch=feature/p18-transaction-safety-copy-clarity
+deployed=2026-07-14T11:54:43Z
+
+admin_api_http=404
+{"detail":"Not Found"}
+signals_health=200
+[('backend-signals', 'online', 0), ('frontend', 'stopped', 63)]

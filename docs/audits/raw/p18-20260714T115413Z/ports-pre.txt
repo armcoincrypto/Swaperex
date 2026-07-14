@@ -1,0 +1,2 @@
+LISTEN 0      2048       127.0.0.1:8001       0.0.0.0:*    users:(("python",pid=1114,fd=14))                                                                                                                                                            
+LISTEN 0      511          0.0.0.0:4001       0.0.0.0:*    users:(("node /root/Swap",pid=1490,fd=23))                                                                                                                                                   

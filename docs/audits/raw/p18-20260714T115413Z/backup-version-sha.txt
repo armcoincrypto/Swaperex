@@ -1,0 +1,2 @@
+80c8fa63837ce99c123a72725856a2a7be4102f0  /var/www/swaperex-backup-p18-20260714T115442Z-pre/version.txt
+80c8fa63837ce99c123a72725856a2a7be4102f0  /var/www/swaperex/version.txt

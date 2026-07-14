@@ -1,0 +1,34 @@
+## feature/p18-transaction-safety-copy-clarity
+ M .cursor/dex.kobbex.com/rules/02-production-engineer.mdc
+ M .cursor/dex.kobbex.com/rules/03-cost-control.mdc
+ M .cursor/dex.kobbex.com/rules/04-commit-contract.mdc
+ M .cursor/dex.kobbex.com/rules/05-continuous-improvement.mdc
+ M .cursor/dex.kobbex.com/rules/06-production-deploy-gate.mdc
+ M docs/audits/raw/swaperex-prod-20260713T225349Z/obs-t1m.txt
+ M reports/p16-mobile-walletconnect-cert.json
+ M reports/p16-route-navigation-smoke.json
+?? .cursor/permissions.json
+?? docs/audits/p18-audit-terminology-20260714.md
+?? docs/audits/p18-browser-certification-20260714.md
+?? docs/audits/p18-final-certification-20260714.json
+?? docs/audits/p18-final-certification-20260714.md
+?? docs/audits/p18-native-gas-reserve-20260714.md
+?? docs/audits/p18-production-deployment-20260714.md
+?? docs/audits/p18-production-observation-20260714.md
+?? docs/audits/p18-production-truth-20260714.md
+?? docs/audits/p18-protocol-statistics-20260714.md
+?? docs/audits/p18-quote-readiness-20260714.md
+?? docs/audits/p18-route-copy-clarity-20260714.md
+?? docs/audits/p18-token-safety-accuracy-20260714.md
+?? docs/audits/p18-wallet-no-broadcast-canary-20260714.md
+?? docs/audits/raw/p14/
+?? docs/audits/raw/p18-20260714T114209Z/
+?? docs/audits/raw/p18-20260714T115413Z/
+?? docs/audits/raw/post-p14/
+?? docs/audits/raw/swaperex-prod-20260713T225340Z/
+?? docs/audits/raw/swaperex-prod-20260713T225349Z/browser-360x800-final.png
+?? docs/audits/raw/swaperex-prod-20260713T225349Z/browser-390x844-final.png
+?? docs/audits/raw/swaperex-prod-20260713T225349Z/browser-desktop-final.png
+?? docs/audits/raw/swaperex-prod-20260713T225349Z/final-prod-version.txt
+?? reports/p16/
+release_tag=TAG=swaperex-p18-prod-20260714T160641Z-883d8b5

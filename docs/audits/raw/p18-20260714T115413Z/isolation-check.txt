@@ -1,0 +1,10 @@
+=== isolation ===
+drwx------ 15 kobbopay kobbopay 4096 Jul 14 17:58 /opt/kobowallet/p2p-microservice
+/opt/kobowallet/p2p-microservice/.env
+/opt/kobowallet/p2p-microservice/package.json
+['backend-signals', 'frontend']
+## feature/p18-transaction-safety-copy-clarity
+ M .cursor/dex.kobbex.com/rules/02-production-engineer.mdc
+ M .cursor/dex.kobbex.com/rules/03-cost-control.mdc
+ M .cursor/dex.kobbex.com/rules/04-commit-contract.mdc
+ M .cursor/dex.kobbex.com/rules/05-continuous-improvement.mdc
