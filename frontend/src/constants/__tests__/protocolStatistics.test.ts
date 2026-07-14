@@ -18,4 +18,16 @@ describe('protocolStatistics', () => {
     expect(routesStat?.value).toBe(String(COMMISSION_AUDIT_SUPPORTED_PAIR_KEYS.size));
     expect(routesStat?.label).toMatch(/Certified directional routes/i);
   });
+
+  it('fails if homepage / intel labels drift from single registry total (P18.2 invariant)', () => {
+    const stats = getProtocolStatistics();
+    const networksStat = HOMEPAGE_PROTOCOL_STATS.find((s) => s.id === 'networks');
+    expect(networksStat?.value).toBe(String(stats.swapEnabledNetworks));
+    // No hardcoded alternate totals in homepage strip
+    for (const row of HOMEPAGE_PROTOCOL_STATS) {
+      if (row.id === 'routes') {
+        expect(Number(row.value)).toBe(COMMISSION_AUDIT_SUPPORTED_PAIR_KEYS.size);
+      }
+    }
+  });
 });

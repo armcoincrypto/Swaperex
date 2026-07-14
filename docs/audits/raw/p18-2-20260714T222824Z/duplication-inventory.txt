@@ -1,0 +1,97 @@
+=== public canary/pilot/wrap V2 / audited ===
+frontend/src/hooks/useSwap.ts:1007:                // Allowlisted + V3 on: never downgrade to legacy `uniswap-v3-wrapper` (would hide V3 canary).
+frontend/src/config/pancakeWrapperV2.ts:5: * Defaults **OFF** — omit env flags or set falsy so production routing stays unchanged until canary.
+frontend/src/config/pancakeWrapperV2.ts:46:  /** When false, V2 native entrypoints must not be used from the tx builder (canary gate). */
+frontend/src/config/pancakeWrapperV2.ts:50:  /** Future flag: separate canary % for native-leg participation (default 0). */
+frontend/src/config/uniswapWrapperV2.ts:50:  /** Reserved for future canary % on native legs (default 0). */
+frontend/src/config/uniswapWrapperV2.ts:52:  /** Phase 3 canary: show “Experimental ETH routing” in UI when native execution is on. */
+frontend/src/config/uniswapWrapperV2.ts:53:  experimentalNativeUi: boolean;
+frontend/src/config/uniswapWrapperV2.ts:73:  const experimentalNativeUi = parseEnvBoolean(import.meta.env.VITE_UNISWAP_WRAPPER_V2_NATIVE_EXPERIMENTAL_UI);
+frontend/src/config/uniswapWrapperV2.ts:83:      experimentalNativeUi: false,
+frontend/src/config/uniswapWrapperV2.ts:98:      experimentalNativeUi: false,
+frontend/src/config/uniswapWrapperV2.ts:110:      experimentalNativeUi,
+frontend/src/config/uniswapWrapperV2.ts:120:      experimentalNativeUi: false,
+frontend/src/config/uniswapWrapperV3.ts:54: * Ordered symbol list for `tokenIn`→`tokenOut` through a canary row (for packed V3 path encoding).
+frontend/src/config/uniswapWrapperV3.ts:77:/** True if `tokenIn`→`tokenOut` is covered by the canary list (including 2-token reverse). */
+frontend/src/utils/routePresentation.ts:2: * P18.4 / P18.5 — Canonical public route presentation (no canary / pilot language).
+frontend/src/utils/routePresentation.ts:89:/** Why-this-route tooltip copy — public, no canary wording. */
+frontend/src/utils/format.ts:127: * Delegates to canonical route presentation (P18) — no canary wording.
+frontend/src/vite-env.d.ts:53:  /** When truthy with native execution on, UI shows an experimental-routing banner (Phase 3 canary). */
+frontend/src/vite-env.d.ts:85:  /** Future: native-leg canary pct for best-route participation (0..1). Default 0. */
+frontend/src/vite-env.d.ts:88:  /** Existing: canary pct for ERC20↔ERC20 wrapper-v2 participation in “best” route (0..1). Default 0. */
+frontend/src/services/quoteAggregator.ts:97:  // If wallet is unavailable, fall back to current safe behavior (random canary).
+frontend/src/services/quoteAggregator.ts:897:  // Controlled canary: optionally allow Pancake Wrapper V2 participation as an additional candidate.
+frontend/src/services/quoteAggregator.ts:965:    // Never break existing routing on canary path errors.
+frontend/src/services/quoteAggregator.ts:966:    console.warn('[Aggregator] Pancake wrapper V2 canary evaluation failed; ignoring.', err);
+frontend/src/components/swap/SwapInterface.tsx:1888:          getUniswapWrapperV2Config().experimentalNativeUi &&
+frontend/src/constants/popularCommissionRoutes.ts:65:/** Audited routes only — filtered against live commission audit allowlist. */
+=== route label sources ===
+frontend/src/vite-env.d.ts:78:  /** Wrapper V2 output fee in bps for UI copy only; should match on-chain `feeBps` (default 50). */
+frontend/src/components/portfolio/ActivityPanel.tsx:33:import { swapAggregatorProviderLabel } from '@/utils/format';
+frontend/src/components/portfolio/ActivityPanel.tsx:496:  const providerLabel = swapAggregatorProviderLabel(item.provider);
+frontend/src/components/history/SwapHistory.tsx:30:import { formatBalance, swapAggregatorProviderLabel } from '@/utils/format';
+frontend/src/components/history/SwapHistory.tsx:364:  const providerLabel = swapAggregatorProviderLabel(record.provider);
+frontend/src/components/swap/SwapPreviewModal.tsx:24:  swapAggregatorProviderLabel,
+frontend/src/components/swap/SwapPreviewModal.tsx:512:                  value={swapAggregatorProviderLabel(quote.provider)}
+frontend/src/components/swap/SwapPreviewModal.tsx:561:                    label={`Runner-up (not selected) · ${swapAggregatorProviderLabel(quote.runnerUpAggregatedQuote.provider)}`}
+frontend/src/components/swap/SwapPreviewModal.tsx:841:          <dd className="text-right text-dark-100">{swapAggregatorProviderLabel(quote.provider)}</dd>
+frontend/src/components/swap/SwapPreviewModal.tsx:1020:            label={`Runner-up (not selected) · ${swapAggregatorProviderLabel(quote.runnerUpAggregatedQuote.provider)}`}
+frontend/src/components/swap/SwapPreviewModal.tsx:1313:            <span className="text-primary-400">{swapAggregatorProviderLabel(quote.provider)}</span>
+frontend/src/components/swap/SwapInterface.tsx:52:  swapAggregatorProviderLabel,
+frontend/src/components/swap/SwapInterface.tsx:66:  getRouteDisplayName,
+frontend/src/components/swap/SwapInterface.tsx:901:          swapAggregatorProviderLabel(swapQuote.provider)
+frontend/src/components/swap/SwapInterface.tsx:1871:            swapQuote?.provider ? swapAggregatorProviderLabel(swapQuote.provider) : null
+frontend/src/components/swap/SwapInterface.tsx:2386:              providerLabel={swapAggregatorProviderLabel(swapQuote.provider)}
+frontend/src/components/swap/SwapInterface.tsx:2396:                  ? swapAggregatorProviderLabel(swapQuote.runnerUpAggregatedQuote.provider)
+frontend/src/components/swap/SwapInterface.tsx:2553:                              {SWAP_SURFACE_COPY.routeViaLabel} · {swapAggregatorProviderLabel(swapQuote.provider)}
+frontend/src/components/swap/SwapInterface.tsx:2561:                              Runner-up · {swapAggregatorProviderLabel(swapQuote.runnerUpAggregatedQuote.provider)}
+frontend/src/components/swap/SwapInterface.tsx:2571:                            {SWAP_SURFACE_COPY.routeViaLabel} · {swapAggregatorProviderLabel(swapQuote.provider)}
+frontend/src/components/swap/SwapInterface.tsx:2670:                        <span className="text-dark-400 shrink-0">Wrapper V2 protocol fee</span>
+frontend/src/components/swap/SwapInterface.tsx:2722:                        <span className="text-dark-400 shrink-0">Wrapper V2 protocol fee</span>
+frontend/src/components/swap/SwapInterface.tsx:3919:        return { bg: 'bg-pink-900/30', text: 'text-pink-200', label: getRouteDisplayName(provider) };
+frontend/src/components/swap/SwapInterface.tsx:3924:        return { bg: 'bg-yellow-900/30', text: 'text-yellow-200', label: getRouteDisplayName(provider) };
+frontend/src/components/swap/SwapInterface.tsx:3926:        return { bg: 'bg-primary-900/30', text: 'text-primary-400', label: getRouteDisplayName(provider) };
+frontend/src/services/transactionDetailService.ts:29:import { swapAggregatorProviderLabel } from '@/utils/format';
+frontend/src/services/transactionDetailService.ts:182:    provider: ctx.provider ? swapAggregatorProviderLabel(ctx.provider) : undefined,
+frontend/src/services/transactionDetailService.ts:197:      field('Provider', ctx.provider ? swapAggregatorProviderLabel(ctx.provider) : undefined, 'local-context'),
+frontend/src/services/quoteAggregator.ts:309:const ROUTE_PROVIDER_LABEL: Record<QuoteProvider, string> = {
+frontend/src/services/quoteAggregator.ts:313:  'uniswap-v3-wrapper-v2': 'Uniswap V3 via Swaperex Wrapper V2',
+frontend/src/services/quoteAggregator.ts:317:  'pancakeswap-v3-wrapper-v2': 'PancakeSwap V3 via Swaperex Wrapper V2',
+frontend/src/services/quoteAggregator.ts:323:  return ROUTE_PROVIDER_LABEL[mode] ?? mode;
+frontend/src/services/quoteAggregator.ts:413:  const selectionReason = `${ROUTE_PROVIDER_LABEL[provider]} (fixed route — selected in settings)`;
+frontend/src/services/quoteAggregator.ts:897:  // Controlled canary: optionally allow Pancake Wrapper V2 participation as an additional candidate.
+frontend/src/services/quoteAggregator.ts:944:                ? `${comparison.selectionReason} · Swaperex Wrapper V2 participated and won on net output.`
+frontend/src/services/quoteAggregator.ts:945:                : `${comparison.selectionReason} · Swaperex Wrapper V2 participated but did not win.`;
+frontend/src/utils/__tests__/routePresentation.test.ts:3:  getRouteDisplayName,
+frontend/src/utils/__tests__/routePresentation.test.ts:8:import { swapAggregatorProviderLabel } from '@/utils/format';
+frontend/src/utils/__tests__/routePresentation.test.ts:11:  it('uses canonical Wrapper V2 naming without canary', () => {
+frontend/src/utils/__tests__/routePresentation.test.ts:12:    expect(getRouteDisplayName('pancakeswap-v3-wrapper-v2')).toBe(
+=== stats sources ===
+frontend/src/constants/protocolStatistics.ts:7:  COMMISSION_AUDIT_SUPPORTED_PAIR_KEYS,
+frontend/src/constants/protocolStatistics.ts:13:  /** Distinct directional keys in COMMISSION_AUDIT_SUPPORTED_PAIR_KEYS */
+frontend/src/constants/protocolStatistics.ts:19:  /** Certified directional routes on a given chain */
+frontend/src/constants/protocolStatistics.ts:27:  for (const key of COMMISSION_AUDIT_SUPPORTED_PAIR_KEYS) {
+frontend/src/constants/protocolStatistics.ts:37: * - chain-specific route: directional routes filtered by chainId
+frontend/src/constants/protocolStatistics.ts:44:    certifiedDirectionalRoutes: COMMISSION_AUDIT_SUPPORTED_PAIR_KEYS.size,
+frontend/src/constants/__tests__/protocolStatistics.test.ts:3:import { COMMISSION_AUDIT_SUPPORTED_PAIR_KEYS } from '@/constants/commissionCoverage';
+frontend/src/constants/__tests__/protocolStatistics.test.ts:7:  it('derives directional routes from commission registry', () => {
+frontend/src/constants/__tests__/protocolStatistics.test.ts:9:    expect(stats.certifiedDirectionalRoutes).toBe(COMMISSION_AUDIT_SUPPORTED_PAIR_KEYS.size);
+frontend/src/constants/__tests__/protocolStatistics.test.ts:18:    expect(routesStat?.value).toBe(String(COMMISSION_AUDIT_SUPPORTED_PAIR_KEYS.size));
+frontend/src/constants/__tests__/protocolStatistics.test.ts:19:    expect(routesStat?.label).toMatch(/Certified directional routes/i);
+frontend/src/constants/commissionCoverage.ts:10:export const COMMISSION_AUDIT_SUPPORTED_PAIR_KEYS = new Set<string>([
+frontend/src/constants/commissionCoverage.ts:70:  return COMMISSION_AUDIT_SUPPORTED_PAIR_KEYS.has(commissionPairKey(chainId, fromSymbol, toSymbol));
+frontend/src/constants/homepageProductCopy.ts:8:const protocolStats = getProtocolStatistics();
+frontend/src/constants/homepageProductCopy.ts:16:    value: String(protocolStats.certifiedDirectionalRoutes),
+frontend/src/constants/homepageProductCopy.ts:17:    label: 'Certified directional routes',
+frontend/src/constants/homepageProductCopy.ts:21:    value: String(protocolStats.swapEnabledNetworks),
+frontend/src/components/swap/intelligence/swapIntelCenterModel.ts:123:      label: 'Certified directional routes',
+=== live TradeShell canary ===
+/var/www/swaperex/assets/TradeShell-BGHC_Luh.js
+o<v;if(st("pancake_wrapper_v2_canary_decision",{wallet:i,bucket:h,
+canaryPct:v,selected:I}),I){const Q=
+ring(g.nativeEnabled),reason:"canary_not_selected",routeKey:f})}}}
+ggregator] Pancake wrapper V2 canary evaluation failed; ignoring."
+RAPPER_V2_NATIVE_ENABLED when canarying)");const v=Ae(p,56);if(w&&
+/var/www/swaperex/assets/TradeShell-BGHC_Luh.js:PancakeSwap V3 via Swaperex Wrapper V2
+/var/www/swaperex/assets/TradeShell-BGHC_Luh.js:PancakeSwap V3 via Swaperex Wrapper V2
+/var/www/swaperex/assets/TradeShell-BGHC_Luh.js:PancakeSwap V3 via Swaperex Wrapper V2

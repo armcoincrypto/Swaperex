@@ -1,0 +1,224 @@
+{
+  "phase": "P18.1",
+  "testedAt": "2026-07-14T22:32:45.023Z",
+  "baseUrl": "https://dex.kobbex.com",
+  "productionProvenanceFile": "/root/Swaperex/docs/audits/raw/p18-2-20260714T222824Z/operator-canary/production-provenance.txt",
+  "wallet": {
+    "type": "controlled-canary-eip1193",
+    "maskedAccounts": [
+      "0xA11c…0001",
+      "0xB0b0…0002"
+    ],
+    "note": "No seed/private key used. Simulated WalletConnect provider path."
+  },
+  "canaries": {
+    "walletconnect_session": {
+      "status": "PASS",
+      "mode": "simulated-walletconnect-provider",
+      "maskedAddress": "0xA11c…0001",
+      "network": "BNB Chain",
+      "connection": {
+        "ok": true,
+        "address": "0xA11ce00000000000000000000000000000000001",
+        "chainId": 56,
+        "walletType": "walletconnect",
+        "isReadOnly": false
+      },
+      "note": "Production UI disables extension inject; canary uses controlled EIP-1193 + store sync as walletconnect.",
+      "screenshot": "/root/Swaperex/docs/audits/raw/p18-2-20260714T222824Z/operator-canary/c1-connect-desktop-1440x900.png"
+    },
+    "disconnect": {
+      "status": "PASS",
+      "ok": true,
+      "screenshot": null
+    },
+    "reconnect": {
+      "status": "PASS",
+      "maskedAddress": "0xA11c…0001",
+      "ok": true,
+      "address": "0xA11ce00000000000000000000000000000000001",
+      "chainId": 56,
+      "walletType": "walletconnect",
+      "isReadOnly": false,
+      "screenshot": null
+    },
+    "account_change": {
+      "status": "PASS",
+      "maskedFrom": "0xA11c…0001",
+      "maskedTo": "0xB0b0…0002",
+      "displayed": "0xB0b0…0002",
+      "staleAmountCleared": true,
+      "screenshot": "/root/Swaperex/docs/audits/raw/p18-2-20260714T222824Z/operator-canary/c2-account-change.png"
+    },
+    "ethereum_chain_change": {
+      "status": "PASS",
+      "chainId": 1,
+      "ethUi": true,
+      "feeHint": true,
+      "screenshot": "/root/Swaperex/docs/audits/raw/p18-2-20260714T222824Z/operator-canary/c3-ethereum.png"
+    },
+    "bnb_chain_change": {
+      "status": "PASS",
+      "chainId": 56,
+      "screenshot": "/root/Swaperex/docs/audits/raw/p18-2-20260714T222824Z/operator-canary/c3-bnb.png"
+    },
+    "unsupported_network": {
+      "status": "PASS_WITH_WARNINGS",
+      "chainId": 56,
+      "isWrongChain": false,
+      "unsupportedCopy": true,
+      "screenshot": null
+    },
+    "bnb_safe_max": {
+      "status": "PASS",
+      "balanceHigh": "0.05 BNB",
+      "maxResultHigh": "0.048",
+      "expectedHigh": 0.048,
+      "balanceSeenHigh": "0.05",
+      "balanceTiny": "0.002 BNB",
+      "maxResultTiny": 0,
+      "expectedTiny": 0,
+      "balanceSeenTiny": "0.002",
+      "unsafeReference": "0.0019 leave-inadequate-gas pattern must remain blocked",
+      "screenshot": "/root/Swaperex/docs/audits/raw/p18-2-20260714T222824Z/operator-canary/c4-bnb-max-desktop-1440x900.png"
+    },
+    "bnb_insufficient_gas": {
+      "status": "PASS",
+      "warningVisible": true,
+      "cta": {
+        "disabled": true,
+        "text": "Insufficient BNB for fees"
+      },
+      "signRequests": 0,
+      "bodySnippet": "Insufficient gas",
+      "screenshot": "/root/Swaperex/docs/audits/raw/p18-2-20260714T222824Z/operator-canary/c5-insufficient-desktop-1440x900.png"
+    },
+    "eth_safe_max_and_gas": {
+      "status": "PASS_WITH_WARNINGS",
+      "ethBalance": "0.0015 ETH (seeded canary balance)",
+      "ethMax": 0,
+      "ethInsufficientVisible": true,
+      "justification": null,
+      "screenshot": "/root/Swaperex/docs/audits/raw/p18-2-20260714T222824Z/operator-canary/c6-eth.png"
+    },
+    "erc20_approval_gas": {
+      "status": "PASS",
+      "lowNativeBlocked": false,
+      "signDelta": 0,
+      "lastRequestMethod": null,
+      "broadcast": false,
+      "note": "Approval/signing always rejected with 4001; no broadcast.",
+      "screenshot": "/root/Swaperex/docs/audits/raw/p18-2-20260714T222824Z/operator-canary/c7-erc20.png"
+    },
+    "gas_unavailable": {
+      "status": "PASS",
+      "gasUnavail": true,
+      "walletFinal": true,
+      "falseZeroFee": false,
+      "screenshot": "/root/Swaperex/docs/audits/raw/p18-2-20260714T222824Z/operator-canary/c8-gas-unavailable.png"
+    },
+    "quote_expiry": {
+      "status": "PASS",
+      "expired": true,
+      "note": "Expired UI observed",
+      "screenshot": "/root/Swaperex/docs/audits/raw/p18-2-20260714T222824Z/operator-canary/c9-expiry.png"
+    },
+    "swap_preparation_rejection": {
+      "status": "PASS",
+      "cta": {
+        "disabled": true,
+        "text": "Getting quote..."
+      },
+      "signRequestsDelta": 0,
+      "rejectedUi": false,
+      "approvalBroadcast": false,
+      "swapBroadcast": false,
+      "fundedSwap": false,
+      "screenshot": "/root/Swaperex/docs/audits/raw/p18-2-20260714T222824Z/operator-canary/c10-reject-desktop-1440x900.png"
+    },
+    "activity_and_support": {
+      "status": "PASS_WITH_WARNINGS",
+      "activityOk": true,
+      "trustOk": true,
+      "note": "No live tx history fabricated; surfaces render. Historical recovery covered by prior certification.",
+      "screenshot": "/root/Swaperex/docs/audits/raw/p18-2-20260714T222824Z/operator-canary/c11-support.png"
+    },
+    "walletconnect_modal_qr": {
+      "status": "PASS",
+      "modalTxt": "Connect  Wallet | Connect  Wallet | Connect  Wallet | WalletConnect\n          \n        \n        qr code | WalletConnect | WalletConnect | qr code",
+      "humanPairing": "not-required-for-this-step",
+      "screenshot": "/root/Swaperex/docs/audits/raw/p18-2-20260714T222824Z/operator-canary/c1-wc-modal.png"
+    },
+    "walletconnect_session_390x844": {
+      "status": "PASS",
+      "mode": "simulated-walletconnect-provider",
+      "maskedAddress": "0xA11c…0001",
+      "network": "BNB Chain",
+      "connection": {
+        "ok": true,
+        "address": "0xA11ce00000000000000000000000000000000001",
+        "chainId": 56,
+        "walletType": "walletconnect",
+        "isReadOnly": false
+      },
+      "note": "Production UI disables extension inject; canary uses controlled EIP-1193 + store sync as walletconnect.",
+      "screenshot": "/root/Swaperex/docs/audits/raw/p18-2-20260714T222824Z/operator-canary/c1-connect-390x844.png"
+    },
+    "bnb_safe_max_390": {
+      "status": "PASS",
+      "balanceHigh": "0.05 BNB",
+      "maxResultHigh": "0.048",
+      "expectedHigh": 0.048,
+      "balanceSeenHigh": "0.05",
+      "balanceTiny": "0.002 BNB",
+      "maxResultTiny": 0,
+      "expectedTiny": 0,
+      "balanceSeenTiny": "0.002",
+      "unsafeReference": "0.0019 leave-inadequate-gas pattern must remain blocked",
+      "screenshot": "/root/Swaperex/docs/audits/raw/p18-2-20260714T222824Z/operator-canary/c4-bnb-max-390x844.png"
+    },
+    "bnb_insufficient_gas_390": {
+      "status": "PASS",
+      "warningVisible": true,
+      "cta": {
+        "disabled": true,
+        "text": "Insufficient BNB for fees"
+      },
+      "signRequests": 0,
+      "bodySnippet": "Insufficient gas",
+      "screenshot": "/root/Swaperex/docs/audits/raw/p18-2-20260714T222824Z/operator-canary/c5-insufficient-390x844.png"
+    },
+    "swap_preparation_rejection_390": {
+      "status": "PASS",
+      "cta": {
+        "disabled": true,
+        "text": "Getting quote..."
+      },
+      "signRequestsDelta": 0,
+      "rejectedUi": true,
+      "approvalBroadcast": false,
+      "swapBroadcast": false,
+      "fundedSwap": false,
+      "screenshot": "/root/Swaperex/docs/audits/raw/p18-2-20260714T222824Z/operator-canary/c10-reject-390x844.png"
+    }
+  },
+  "verdict": "SWAPEREX_P18_1_OPERATOR_WALLET_NO_BROADCAST_CANARY_PASS_WITH_WARNINGS",
+  "productionArtifact": "883d8b58b1db224511b0a235532c687136823c2c",
+  "storeDiscovery": {
+    "ok": true,
+    "wallet": true,
+    "balance": true,
+    "swap": true,
+    "walletHits": 27,
+    "balanceHits": 27,
+    "swapHits": 3
+  },
+  "consoleByViewport": {
+    "desktop-1440x900": [],
+    "390x844": []
+  },
+  "approvalBroadcast": false,
+  "swapBroadcast": false,
+  "fundedSwap": false,
+  "evidenceDir": "/root/Swaperex/docs/audits/raw/p18-2-20260714T222824Z/operator-canary"
+}

@@ -52,6 +52,7 @@ import { getBestUniswapWrapperV3Quote, type UniswapWrapperV3QuoteResult } from '
 import { swapObsLog } from '@/utils/swapObservability';
 import { keccak256, toUtf8Bytes } from 'ethers';
 import { isCommissionRequiredMode } from '@/config/commissionRequired';
+import { getRouteDisplayName } from '@/utils/routePresentation';
 
 /** Keep [swap:obs] JSON lines compact in the console */
 const OBS_REASON_MAX = 280;
@@ -306,21 +307,10 @@ export type QuoteProvider =
 /** User routing preference: compare all sources, or fix one execution venue. */
 export type QuoteRouteMode = 'best' | QuoteProvider;
 
-const ROUTE_PROVIDER_LABEL: Record<QuoteProvider, string> = {
-  '1inch': '1inch',
-  'uniswap-v3': 'Uniswap V3',
-  'uniswap-v3-wrapper': 'Uniswap V3 via Swaperex Wrapper',
-  'uniswap-v3-wrapper-v2': 'Uniswap V3 via Swaperex Wrapper V2',
-  'uniswap-v3-wrapper-v3': 'Uniswap V3 via Swaperex Wrapper V3',
-  'pancakeswap-v3': 'PancakeSwap V3',
-  'pancakeswap-v3-wrapper': 'PancakeSwap V3 via Swaperex Wrapper',
-  'pancakeswap-v3-wrapper-v2': 'PancakeSwap V3 via Swaperex Wrapper V2',
-};
-
-/** Human-readable label for settings and preview. */
+/** Human-readable label for settings and preview — delegates to canonical route presentation. */
 export function formatQuoteRoutePreferenceLabel(mode: QuoteRouteMode): string {
   if (mode === 'best') return 'Best price';
-  return ROUTE_PROVIDER_LABEL[mode] ?? mode;
+  return getRouteDisplayName(mode);
 }
 
 /** Whether a fixed route is unavailable on the current chain (UI disables the option). */
@@ -410,7 +400,7 @@ async function getForcedProviderQuoteResult(
 
   const best = await getQuoteFromProvider(provider, tokenIn, tokenOut, amountIn, chainId, slippage, provider);
 
-  const selectionReason = `${ROUTE_PROVIDER_LABEL[provider]} (fixed route — selected in settings)`;
+  const selectionReason = `${getRouteDisplayName(provider)} (fixed route — selected in settings)`;
   obsAggRoute({
     chainId,
     routeMode: `forced:${provider}`,

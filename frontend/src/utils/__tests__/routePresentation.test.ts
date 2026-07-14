@@ -27,4 +27,15 @@ describe('routePresentation', () => {
     );
     expect(swapAggregatorProviderLabel('pancakeswap-v3-wrapper-v2')).not.toMatch(/canary/i);
   });
+
+  it('aligns quoteAggregator preference labels with canonical presentation (P18.2)', async () => {
+    const { formatQuoteRoutePreferenceLabel } = await import('@/services/quoteAggregator');
+    expect(formatQuoteRoutePreferenceLabel('pancakeswap-v3-wrapper-v2')).toBe(
+      getRouteDisplayName('pancakeswap-v3-wrapper-v2'),
+    );
+    expect(formatQuoteRoutePreferenceLabel('uniswap-v3-wrapper-v2')).toBe(
+      getRouteDisplayName('uniswap-v3-wrapper-v2'),
+    );
+    expect(formatQuoteRoutePreferenceLabel('best')).toBe('Best price');
+  });
 });

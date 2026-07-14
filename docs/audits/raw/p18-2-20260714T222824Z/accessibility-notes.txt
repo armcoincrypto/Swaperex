@@ -1,0 +1,11 @@
+=== a11y notes P18.2 ===
+frontend/src/components/swap/SwapInterface.tsx:206:    <p className="shell-context-strip" role="status" aria-live="polite">
+frontend/src/components/swap/SwapInterface.tsx:1270:          'Insufficient native balance for network fees.',
+frontend/src/components/swap/SwapInterface.tsx:1342:          'Insufficient native balance for network fees.',
+frontend/src/components/swap/SwapInterface.tsx:1483:      return `Insufficient ${gasAffordability.nativeSymbol} for fees`;
+frontend/src/components/swap/SwapInterface.tsx:1594:        label: `Insufficient ${gasAffordability.nativeSymbol} for fees`,
+frontend/src/components/swap/SwapInterface.tsx:2202:              aria-live="polite"
+frontend/src/components/swap/SwapInterface.tsx:2233:            aria-live="polite"
+frontend/src/components/swap/SwapInterface.tsx:2884:            role="alert"
+frontend/src/components/swap/SwapInterface.tsx:2894:            role="alert"
+frontend/src/components/swap/SwapInterface.tsx:2957:          <p className="sr-only" aria-live="polite">

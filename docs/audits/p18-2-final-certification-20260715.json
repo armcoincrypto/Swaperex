@@ -1,0 +1,20 @@
+{
+  "phase": "P18.2",
+  "verdict": "SWAPEREX_P18_2_FULL_HARDENING_AND_FINAL_CLOSURE_PASS_WITH_WARNINGS",
+  "productionUrl": "https://dex.kobbex.com",
+  "startingArtifact": "883d8b58b1db224511b0a235532c687136823c2c",
+  "finalArtifact": "883d8b58b1db224511b0a235532c687136823c2c",
+  "productionMutation": false,
+  "deployment": "NONE",
+  "tests": {
+    "files": 65,
+    "tests": 672
+  },
+  "commissionAudit": "126/126",
+  "physicalHandset": "SKIP_WITH_JUSTIFICATION",
+  "ethRealWalletMax": "SKIP_WITH_JUSTIFICATION",
+  "eslint": "OPTION_C_RETAIN_WARNING",
+  "evidence": "/root/Swaperex/docs/audits/raw/p18-2-20260714T222824Z",
+  "kobbopayChanged": false,
+  "p7Changed": false
+}

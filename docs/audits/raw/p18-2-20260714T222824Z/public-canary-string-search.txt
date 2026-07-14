@@ -1,0 +1,9 @@
+=== live assets public body-visible canary (TradeShell + index chunks) ===
+-- TradeShell-BGHC_Luh.js
+PancakeSwap V3 via Swaperex Wrapper V2
+Quote ready — network fee unavailable
+Uniswap V3 via Swaperex Wrapper V2
+-- index-C6VDglZB.js
+-- index-D7LAmAOU.js
+-- TrustCenterPage-DrALZSN2.js
+third-party smart-contract audit

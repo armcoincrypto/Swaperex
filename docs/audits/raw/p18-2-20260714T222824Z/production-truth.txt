@@ -1,0 +1,65 @@
+=== UTC 20260714T222824Z ===
+--- version.txt ---
+environment=production
+commit=883d8b58b1db224511b0a235532c687136823c2c
+short=883d8b5
+branch=feature/p18-transaction-safety-copy-clarity
+deployed=2026-07-14T16:01:22Z
+
+environment=production
+commit=883d8b58b1db224511b0a235532c687136823c2c
+short=883d8b5
+branch=feature/p18-transaction-safety-copy-clarity
+deployed=2026-07-14T16:01:22Z
+
+--- git ---
+421581ebe7c4effcb350cfb5559b8a6ea7505884
+421581e docs(audit): record P18.1 one-hour production observation checkpoints
+ebff0b9 docs(audit): certify Swaperex P18.1 operator wallet no-broadcast canary
+df5a1d0 docs(audit): certify Swaperex P18 transaction safety and copy clarity
+feature/p18-transaction-safety-copy-clarity
+swaperex-p18-prod-20260714T160641Z-883d8b5
+## feature/p18-transaction-safety-copy-clarity
+ M .cursor/dex.kobbex.com/rules/02-production-engineer.mdc
+ M .cursor/dex.kobbex.com/rules/03-cost-control.mdc
+ M .cursor/dex.kobbex.com/rules/04-commit-contract.mdc
+ M .cursor/dex.kobbex.com/rules/05-continuous-improvement.mdc
+ M .cursor/dex.kobbex.com/rules/06-production-deploy-gate.mdc
+ M docs/audits/raw/swaperex-prod-20260713T225349Z/obs-t1m.txt
+ M reports/p16-mobile-walletconnect-cert.json
+ M reports/p16-route-navigation-smoke.json
+?? .cursor/permissions.json
+?? docs/audits/raw/p14/
+?? docs/audits/raw/p18-1-20260714T170308Z-rerun/
+?? docs/audits/raw/p18-1-20260714T170308Z/
+?? docs/audits/raw/p18-1-20260714T171510Z-final/
+?? docs/audits/raw/p18-1-20260714T175440Z-final2/
+?? docs/audits/raw/p18-1-20260714T181102Z-final2/
+?? docs/audits/raw/p18-1-20260714T181957Z-final2/
+?? docs/audits/raw/p18-1-obs-20260714T175404Z/
+?? docs/audits/raw/p18-1-obs-20260714T204251Z/canary-evidence/
+?? docs/audits/raw/p18-1-obs-20260714T204251Z/obs-complete.flag
+?? docs/audits/raw/p18-2-20260714T222824Z/
+?? docs/audits/raw/p18-20260714T114209Z/
+?? docs/audits/raw/post-p14/
+?? docs/audits/raw/swaperex-prod-20260713T225340Z/
+?? docs/audits/raw/swaperex-prod-20260713T225349Z/browser-360x800-final.png
+?? docs/audits/raw/swaperex-prod-20260713T225349Z/browser-390x844-final.png
+?? docs/audits/raw/swaperex-prod-20260713T225349Z/browser-desktop-final.png
+?? docs/audits/raw/swaperex-prod-20260713T225349Z/final-prod-version.txt
+?? reports/p16/
+--- artifact ---
+environment=production
+commit=883d8b58b1db224511b0a235532c687136823c2c
+short=883d8b5
+branch=feature/p18-transaction-safety-copy-clarity
+deployed=2026-07-14T16:01:22Z
+6cd0e750ed3509ce5d1747a883fcb8df44c1c9c4  -
+4764026c01f06d1fc9c6ad224a16236d82a2983b34555e370c88a21b72fab013  /etc/nginx/sites-enabled/dex.kobbex.com.conf
+[('backend-signals', 'online', 0), ('frontend', 'stopped', 63)]
+LISTEN 0      2048       127.0.0.1:8001       0.0.0.0:*    users:(("python",pid=1114,fd=14))                                                                                                                                                            
+LISTEN 0      511          0.0.0.0:4001       0.0.0.0:*    users:(("node /root/Swap",pid=1490,fd=23))                                                                                                                                                   
+--- classify commits after 883d8b5 ---
+421581e docs(audit): record P18.1 one-hour production observation checkpoints
+ebff0b9 docs(audit): certify Swaperex P18.1 operator wallet no-broadcast canary
+df5a1d0 docs(audit): certify Swaperex P18 transaction safety and copy clarity

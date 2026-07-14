@@ -1,0 +1,6 @@
+starting_HEAD=421581ebe7c4effcb350cfb5559b8a6ea7505884
+prod_artifact=883d8b58b1db224511b0a235532c687136823c2c
+branch=feature/p18-transaction-safety-copy-clarity
+evid=/root/Swaperex/docs/audits/raw/p18-2-20260714T222824Z
+tests=65 files / 672 tests
+commission=126/126

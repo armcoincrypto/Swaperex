@@ -1,0 +1,10 @@
+{
+  "testedAt": "2026-07-14T22:32:57.066Z",
+  "physicalHandsetPairing": "SKIP_WITH_JUSTIFICATION",
+  "justification": "No controlled operator handset available in this automated session. Production connects WalletConnect via AppKit QR; modal opened successfully in headless assist. Prior P18.1 canary proved WC-path session via controlled EIP-1193 with walletType=walletconnect.",
+  "modalOpened": true,
+  "publicCanary": false,
+  "consoleErrors": [],
+  "approvalBroadcast": false,
+  "swapBroadcast": false
+}

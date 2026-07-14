@@ -1,0 +1,3 @@
+frontend/src/services/tokenSecurity.ts:66:  is_mintable?: string;
+frontend/src/services/tokenSecurity.ts:367:      label: 'Token scanner liquidity data',
+frontend/src/services/tokenSecurity.ts:369:      value: 'Unavailable',

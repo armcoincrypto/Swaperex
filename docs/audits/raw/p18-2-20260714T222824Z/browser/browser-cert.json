@@ -1,0 +1,43 @@
+{
+  "baseUrl": "https://dex.kobbex.com",
+  "startedAt": "2026-07-14T22:32:10.245Z",
+  "viewports": [
+    {
+      "viewport": "desktop-1440x900",
+      "status": 200,
+      "overflowX": false,
+      "hasCanaryPublic": false,
+      "hasAuditedRoutesPill": false,
+      "hasCertifiedLanguage": true,
+      "consoleErrors": [],
+      "screenshot": "/root/Swaperex/docs/audits/raw/p18-2-20260714T222824Z/browser/browser-desktop-1440x900.png"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "status": 200,
+      "overflowX": false,
+      "hasCanaryPublic": false,
+      "hasAuditedRoutesPill": false,
+      "hasCertifiedLanguage": true,
+      "consoleErrors": [],
+      "screenshot": "/root/Swaperex/docs/audits/raw/p18-2-20260714T222824Z/browser/browser-mobile-390x844.png"
+    },
+    {
+      "viewport": "mobile-360x800",
+      "status": 200,
+      "overflowX": false,
+      "hasCanaryPublic": false,
+      "hasAuditedRoutesPill": false,
+      "hasCertifiedLanguage": true,
+      "consoleErrors": [],
+      "screenshot": "/root/Swaperex/docs/audits/raw/p18-2-20260714T222824Z/browser/browser-mobile-360x800.png"
+    }
+  ],
+  "trustCenter": {
+    "status": 200,
+    "hasCertificationClarification": true,
+    "hasProductionCertified": true
+  },
+  "finishedAt": "2026-07-14T22:32:26.848Z",
+  "pass": true
+}

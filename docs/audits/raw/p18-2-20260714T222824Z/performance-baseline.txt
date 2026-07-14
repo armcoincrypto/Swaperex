@@ -1,0 +1,19 @@
+=== sizes ===
+-rwxr-xr-x 1 www-data www-data 1506 Jul 14 18:04 /var/www/swaperex/index.html
+-rwxr-xr-x 1 www-data www-data 2598385 Jul 14 18:04 /var/www/swaperex/assets/vendor-reown-walletconnect-C5lCJnV-.js
+-rwxr-xr-x 1 www-data www-data  520778 Jul 14 18:04 /var/www/swaperex/assets/TradeShell-BGHC_Luh.js
+-rwxr-xr-x 1 www-data www-data  394536 Jul 14 18:04 /var/www/swaperex/assets/vendor-ethers-CS9BpkGU.js
+-rwxr-xr-x 1 www-data www-data  330221 Jul 14 18:04 /var/www/swaperex/assets/index-D7LAmAOU.js
+-rwxr-xr-x 1 www-data www-data  182427 Jul 14 18:04 /var/www/swaperex/assets/solanaBalanceService-BQ-Oy5uL.js
+-rwxr-xr-x 1 www-data www-data  145988 Jul 14 18:04 /var/www/swaperex/assets/vendor-react-w8jZXnmi.js
+-rwxr-xr-x 1 www-data www-data  141658 Jul 14 18:04 /var/www/swaperex/assets/RadarPanel-Bq8dQQ5P.js
+-rwxr-xr-x 1 www-data www-data  104294 Jul 14 18:04 /var/www/swaperex/assets/PortfolioPage-CGFuZwJH.js
+-rwxr-xr-x 1 www-data www-data  102174 Jul 14 18:04 /var/www/swaperex/assets/AdminApp-DEat7PwY.js
+-rwxr-xr-x 1 www-data www-data   98866 Jul 14 18:04 /var/www/swaperex/assets/index-C6VDglZB.js
+-rwxr-xr-x 1 www-data www-data   94772 Jul 14 18:04 /var/www/swaperex/assets/vendor-crypto-shared-CWXGYmRZ.js
+-rwxr-xr-x 1 www-data www-data   36999 Jul 14 18:04 /var/www/swaperex/assets/SwapPreviewModal-ChSd1bSu.js
+-rwxr-xr-x 1 www-data www-data   32530 Jul 14 18:04 /var/www/swaperex/assets/TokenScreener-HRGNzUXb.js
+-rwxr-xr-x 1 www-data www-data   30378 Jul 14 18:04 /var/www/swaperex/assets/SendPage-DnZt18pD.js
+-rwxr-xr-x 1 www-data www-data   17916 Jul 14 18:04 /var/www/swaperex/assets/property-C9JG5tag.js
+homepage_ttfb=0.063602 total=0.063674 size=1506
+trust_ttfb=0.060819 total=0.060891
