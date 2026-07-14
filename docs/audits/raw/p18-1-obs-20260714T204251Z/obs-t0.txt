@@ -1,0 +1,11 @@
+checkpoint=T+0
+at=2026-07-14T20:42:51Z
+environment=production commit=883d8b58b1db224511b0a235532c687136823c2c short=883d8b5 branch=feature/p18-transaction-safety-copy-clarity deployed=2026-07-14T16:01:22Z 
+/ 200
+/trust 200
+/version.txt 200
+signals=200
+admin_health=200
+admin_unauth=401
+pm2 [('backend-signals', 'online', 0), ('frontend', 'stopped', 63)]
+-- No entries --

@@ -1,11 +1,20 @@
 # P18.1 Production Observation — 20260714
 
-## Policy
-No service restart expected. Artifact remains `883d8b5`.
+## Artifact
+`883d8b5` unchanged throughout. No restarts.
 
 ## Checkpoints
-Scheduled after canary completion under `/root/Swaperex/docs/audits/raw/p18-1-obs-20260714T204251Z`:
-- T+0 (recorded)
-- T+15m / T+30m / T+1h (scheduler writing `obs-t15m.txt`, `obs-t30m.txt`, `obs-t1h.txt`)
+| Checkpoint | UTC | Home | Signals | Admin unauth | PM2 restarts |
+|------------|-----|------|---------|--------------|--------------|
+| T+0 | 2026-07-14T20:42:51Z | 200 | 200 | 401 | 0 |
+| T+15m | 2026-07-14T20:57:53Z | 200 | 200 | 401 | 0 |
+| T+30m | 2026-07-14T21:12:53Z | 200 | 200 | 401 | 0 |
+| T+1h | 2026-07-14T21:42:54Z | 200 | 200 | 401 | 0 |
 
-Update this doc when `obs-complete.flag` appears. Honest duration only.
+## Duration
+Measured **1 hour** after canary completion (T+0 → T+1h).
+
+## Result
+PASS — no health regression; nginx error journal quiet; signals restart_time=0.
+
+Evidence: `/root/Swaperex/docs/audits/raw/p18-1-obs-20260714T204251Z`
