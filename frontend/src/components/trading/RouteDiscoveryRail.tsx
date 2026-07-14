@@ -26,7 +26,7 @@ import {
 const ROUTE_TABS: { id: RouteIntelBadge; label: string }[] = [
   { id: 'most-used', label: 'Featured' },
   { id: 'trending', label: 'High-liquidity' },
-  { id: 'audited', label: 'Audited' },
+  { id: 'audited', label: 'Certified' },
 ];
 
 const CHAIN_BADGE_CLASS: Record<number, string> = {
@@ -153,7 +153,7 @@ export function RouteDiscoveryRail({
         </span>
       </div>
       <p className="text-[10px] text-dark-500 mb-3 leading-snug">
-        Audited catalog only · tap to pre-fill · not live trades
+        Certified catalog only · tap to pre-fill · not live trades
       </p>
 
       <div className="shell-segment-track mb-2.5" role="tablist" aria-label="Route categories">

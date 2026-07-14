@@ -78,8 +78,8 @@ export const SWAP_SURFACE_COPY = {
 
   /** P1 recovery — proactive panel + compact chips for blocked/unsupported commission pairs. */
   commissionRouteRecoveryHelper:
-    'Pick an audited commission route below to pre-fill pay and receive tokens.',
-  commissionRouteRecoveryChipsLabel: 'Audited commission routes',
+    'Pick a production-certified commission route below to pre-fill pay and receive tokens.',
+  commissionRouteRecoveryChipsLabel: 'Certified commission routes',
 
   /** P3.3 — soft precheck when audit shows pair is not commission-ready yet. */
   commissionRoutingNotReadyYet:
@@ -87,14 +87,14 @@ export const SWAP_SURFACE_COPY = {
 
   /** P3.1 — popular audited commission route shortcuts */
   popularCommissionRoutesTitle: 'Popular commission routes',
-  auditedCommissionRouteBadge: 'Audited commission route',
+  auditedCommissionRouteBadge: 'Certified commission route',
   popularCommissionRoutesHint:
     'These pairs passed a live wrapper quote audit. Pick one to pre-fill pay and receive tokens.',
 
   /** P4A — always-visible featured pairs on swap card */
   featuredCommissionRoutesTitle: 'Featured pairs',
-  featuredCommissionRoutesLabel: 'Featured audited commission routes',
-  featuredCommissionRoutesHint: 'High-liquidity · Audited',
+  featuredCommissionRoutesLabel: 'Featured certified commission routes',
+  featuredCommissionRoutesHint: 'High-liquidity · Production-certified',
   featuredRoutesSwitchNetworkHint:
     'Swaps run on Ethereum and BNB Chain. Switch network to use routes on {network}.',
 

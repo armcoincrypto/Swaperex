@@ -124,7 +124,7 @@ export function routeIntelBadgeLabel(badge: RouteIntelBadge): string {
     case 'trending':
       return 'High-liquidity';
     case 'audited':
-      return 'Audited';
+      return 'Certified';
   }
 }
 

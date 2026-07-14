@@ -11,9 +11,13 @@ export type NetworkFeeEstimateResult = {
   nativeSymbol: string;
   /** Approximate native-token fee; null when unavailable */
   nativeFeeFormatted: string | null;
+  /** Numeric native fee for affordability / safe MAX; null when unavailable */
+  feeNativeApprox: number | null;
   unavailableReason: string | null;
   /** True when estimate used live gas price from provider */
   isLiveEstimate: boolean;
+  /** True after the estimate attempt completed (success or failure). */
+  settled: boolean;
 };
 
 function parseGasUnits(gasEstimate: string | null | undefined): bigint | null {
@@ -51,10 +55,12 @@ export async function estimateNetworkFeeForDisplay(params: {
       gasUnits: null,
       nativeSymbol,
       nativeFeeFormatted: null,
+      feeNativeApprox: null,
       unavailableReason: params.walletConnected
         ? 'Gas estimate unavailable for this quote.'
         : 'Connect wallet to estimate the exact network fee.',
       isLiveEstimate: false,
+      settled: true,
     };
   }
 
@@ -65,8 +71,10 @@ export async function estimateNetworkFeeForDisplay(params: {
       gasUnits: gasUnitsStr,
       nativeSymbol,
       nativeFeeFormatted: null,
+      feeNativeApprox: null,
       unavailableReason: 'Connect wallet to estimate the exact network fee.',
       isLiveEstimate: false,
+      settled: true,
     };
   }
 
@@ -79,25 +87,32 @@ export async function estimateNetworkFeeForDisplay(params: {
         gasUnits: gasUnitsStr,
         nativeSymbol,
         nativeFeeFormatted: null,
+        feeNativeApprox: null,
         unavailableReason: 'Network gas price unavailable — your wallet shows the fee before signing.',
         isLiveEstimate: false,
+        settled: true,
       };
     }
     const feeWei = gasUnits * gasPrice;
+    const feeNativeApprox = Number(feeWei) / 1e18;
     return {
       gasUnits: gasUnitsStr,
       nativeSymbol,
       nativeFeeFormatted: formatNativeFee(feeWei, nativeSymbol),
+      feeNativeApprox: Number.isFinite(feeNativeApprox) && feeNativeApprox > 0 ? feeNativeApprox : null,
       unavailableReason: null,
       isLiveEstimate: true,
+      settled: true,
     };
   } catch {
     return {
       gasUnits: gasUnitsStr,
       nativeSymbol,
       nativeFeeFormatted: null,
+      feeNativeApprox: null,
       unavailableReason: 'Could not read gas price — your wallet shows the fee before signing.',
       isLiveEstimate: false,
+      settled: true,
     };
   }
 }

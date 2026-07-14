@@ -4,7 +4,7 @@
 
 import type { AssetInfo } from '@/types/api';
 import { isCommissionRequiredMode } from '@/config';
-import { getVerifiedPopularCommissionRoutes } from '@/constants/popularCommissionRoutes';
+import { getProtocolStatistics } from '@/constants/protocolStatistics';
 import { getChainName } from '@/utils/format';
 import { isStaticToken } from '@/tokens';
 
@@ -100,34 +100,39 @@ export function buildTradePreparationItems(params: {
 }
 
 export function buildMarketContext(activeChainId: number): MarketContextRow[] {
-  const routes = getVerifiedPopularCommissionRoutes();
-  const ethCount = routes.filter((r) => r.chainId === 1).length;
-  const bscCount = routes.filter((r) => r.chainId === 56).length;
-  const onChainCount = routes.filter((r) => r.chainId === activeChainId).length;
+  const stats = getProtocolStatistics();
+  const ethCount = stats.catalogPairsOnNetwork(1);
+  const bscCount = stats.catalogPairsOnNetwork(56);
+  const onChainCount = stats.catalogPairsOnNetwork(activeChainId);
+  const directionalOnChain = stats.routesOnNetwork(activeChainId);
 
   const rows: MarketContextRow[] = [
     {
       label: 'Commission routing',
-      value: isCommissionRequiredMode() ? 'Audited wrapper routes' : 'Standard routing',
+      value: isCommissionRequiredMode() ? 'Production-certified wrapper routes' : 'Standard routing',
     },
     {
       label: 'Supported networks',
       value: COMMISSION_CHAINS.map((c) => c.label).join(' · '),
     },
     {
-      label: 'Audited routes (ETH / BSC)',
+      label: 'Supported pair entries (ETH / BSC)',
       value: `${ethCount} / ${bscCount} catalog pairs`,
+    },
+    {
+      label: 'Certified directional routes',
+      value: String(stats.certifiedDirectionalRoutes),
     },
     {
       label: 'Routes on this network',
       value:
         activeChainId === 1 || activeChainId === 56
-          ? `${onChainCount} pre-audited pairs`
+          ? `${directionalOnChain} certified · ${onChainCount} catalog pairs`
           : 'Switch to Ethereum or BNB Chain',
     },
     {
       label: 'Route categories',
-      value: 'Featured · High-liquidity · Audited',
+      value: 'Featured · High-liquidity · Certified',
     },
   ];
 

@@ -6,7 +6,7 @@ import { HOMEPAGE_TRUST_STRIP } from '@/constants/homepageProductCopy';
 
 const TRUST_PILLS = [
   'Self-Custody',
-  'Audited Routes',
+  'Certified Routes',
   'Live Quotes',
   'No Registration',
   'Ethereum & BNB Chain',

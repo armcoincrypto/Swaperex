@@ -3,18 +3,24 @@
  * Values must match Trust Center / commission audit facts — no invented metrics.
  */
 
-import { COMMISSION_AUDIT_SUPPORTED_PAIR_KEYS } from '@/constants/commissionCoverage';
+import { getProtocolStatistics } from '@/constants/protocolStatistics';
+
+const protocolStats = getProtocolStatistics();
 
 export const HOMEPAGE_TRUST_STRIP =
-  'Self-custody swaps · Audited routes · Live quotes · No registration · Ethereum & BNB Chain';
+  'Self-custody swaps · Production-certified routes · Live quotes · No registration · Ethereum & BNB Chain';
 
 export const HOMEPAGE_PROTOCOL_STATS = [
   {
     id: 'routes',
-    value: String(COMMISSION_AUDIT_SUPPORTED_PAIR_KEYS.size),
-    label: 'Audited directional routes',
+    value: String(protocolStats.certifiedDirectionalRoutes),
+    label: 'Certified directional routes',
   },
-  { id: 'networks', value: '2', label: 'Swap networks' },
+  {
+    id: 'networks',
+    value: String(protocolStats.swapEnabledNetworks),
+    label: 'Swap-enabled networks',
+  },
   { id: 'custody', value: '100%', label: 'Self-custody' },
   { id: 'keys', value: '0', label: 'Seed phrase access' },
 ] as const;
@@ -30,7 +36,7 @@ export const HOMEPAGE_WHY_CARDS = [
     body: 'Your wallet. Your keys. Every swap is reviewed and signed by you.',
   },
   {
-    title: 'Audited Routes',
+    title: 'Production-Certified Routes',
     body: 'Swaperex enables only production-certified wrapper routes on supported networks.',
   },
   {

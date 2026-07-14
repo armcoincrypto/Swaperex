@@ -364,10 +364,11 @@ function parseTax(taxStr: string | undefined, type: 'Buy' | 'Sell'): SecuritySig
 function parseLiquidity(data: GoPlusTokenData): SecuritySignal {
   if (!data.dex || data.dex.length === 0) {
     return {
-      label: 'Liquidity',
-      level: 'risk',
-      value: 'None found',
-      tooltip: 'No liquidity pools found. This token may not be tradeable.',
+      label: 'Token scanner liquidity data',
+      level: 'unknown',
+      value: 'Unavailable',
+      tooltip:
+        'No scanner liquidity result returned. This is not the same as zero liquidity on the selected swap route.',
     };
   }
 
@@ -409,6 +410,19 @@ function parseLiquidity(data: GoPlusTokenData): SecuritySignal {
     value: formatLiquidity(totalLiquidity),
     tooltip: 'Very low liquidity. High slippage risk.',
   };
+}
+
+/** P18 test helper — scanner liquidity unavailable vs live pool liquidity. */
+export function scannerLiquiditySignalFromDex(
+  dex: Array<{ liquidity?: string }> | undefined,
+): SecuritySignal {
+  return parseLiquidity({
+    dex: dex?.map((d) => ({
+      name: 'test',
+      liquidity: d.liquidity ?? '',
+      pair: 'test',
+    })),
+  });
 }
 
 /**

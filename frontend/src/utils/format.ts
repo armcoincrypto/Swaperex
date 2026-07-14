@@ -3,6 +3,7 @@
  */
 
 import { getExplorerTxUrl, getChainById } from '@/config/chains';
+import { getRouteDisplayName } from '@/utils/routePresentation';
 
 /**
  * Shorten an Ethereum address
@@ -122,35 +123,12 @@ export function parsePriceImpactPercentOrNaN(priceImpact: string | undefined | n
 }
 
 /**
- * Short label for aggregator execution providers (swap card / preview).
- * Normalizes common slug variants; unknown strings pass through.
+ * Public label for aggregator execution providers (swap card / preview).
+ * Delegates to canonical route presentation (P18) — no canary wording.
  */
 export function swapAggregatorProviderLabel(provider: string): string {
   if (!provider) return '—';
-  const key = provider.toLowerCase().replace(/-/g, '_');
-  switch (key) {
-    case '1inch':
-    case 'oneinch':
-      return '1inch';
-    case 'uniswap_v3':
-    case 'uniswap':
-      return 'Uniswap';
-    case 'uniswap_v3_wrapper':
-      return 'Uniswap V3 (Swaperex wrapper)';
-    case 'pancakeswap_v3':
-    case 'pancakeswap':
-      return 'PancakeSwap';
-    case 'pancakeswap_v3_wrapper':
-      return 'PancakeSwap V3 (Swaperex wrapper)';
-    case 'pancakeswap_v3_wrapper_v2':
-      return 'PancakeSwap V3 (Swaperex wrapper V2)';
-    case 'uniswap_v3_wrapper_v2':
-      return 'Uniswap V3 (Swaperex wrapper V2)';
-    case 'uniswap_v3_wrapper_v3':
-      return 'Uniswap V3 (Swaperex wrapper V3)';
-    default:
-      return provider;
-  }
+  return getRouteDisplayName(provider);
 }
 
 export function getPriceImpactUi(priceImpact: string | undefined | null): {

@@ -140,20 +140,26 @@ export function TrustCenterPage({ onBack }: TrustCenterPageProps) {
           </p>
         </TrustCard>
 
-        <TrustCard title="Audited production routes">
+        <TrustCard title="Production-certified routes">
           <p>
             Before pairs are enabled for commission routing, Swaperex runs an{' '}
-            <span className="text-dark-200">internal production certification</span>: live wrapper
-            quote tests across configured pairs and sizes. This is our own operational checklist — not
-            a third-party smart contract audit.
+            <span className="text-dark-200">internal production-readiness process</span>: live
+            wrapper quote, commission, and transaction-preparation tests across configured pairs
+            and sizes.
           </p>
           <p>
-            Current coverage: <span className="text-dark-200">21 undirected pairs</span> on Ethereum
-            and BNB Chain (42 directional routes), verified by automated quote audits before release.
+            Route certification is an internal production-readiness process. It is not automatically
+            equivalent to an independent third-party smart-contract audit.
+          </p>
+          <p>
+            Current coverage: <span className="text-dark-200">production-certified directional
+            routes</span> on Ethereum and BNB Chain, verified by automated quote audits before
+            release. Pair and route totals are derived from the live commission route registry.
           </p>
           <p className="text-xs text-dark-500">
             Unsupported pairs show a clear message in the swap UI. Do not assume every token pair on a
-            network is routable.
+            network is routable. Reserve “external security audit” language only where third-party
+            evidence exists.
           </p>
         </TrustCard>
 

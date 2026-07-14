@@ -38,7 +38,7 @@ import type { SwapStep } from './swapPreviewTypes';
 import { SwapExecutionRail } from './SwapExecutionRail';
 import { RouteTransparencyCard } from './RouteTransparencyCard';
 import { NetworkFeeEstimateRow } from './NetworkFeeEstimateRow';
-import { isSwapEnabledNetwork } from '@/config/networkCapabilities';
+import { getNetworkCapability, isSwapEnabledNetwork } from '@/config/networkCapabilities';
 import { TermsGateModal } from '@/components/common/TermsGateModal';
 import { useTermsStore } from '@/stores/termsStore';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
@@ -51,6 +51,23 @@ import {
   shortenAddress,
   swapAggregatorProviderLabel,
 } from '@/utils/format';
+import {
+  estimateNetworkFeeForDisplay,
+  type NetworkFeeEstimateResult,
+} from '@/utils/networkFeeEstimate';
+import {
+  checkNativeGasAffordability,
+  formatSafeNativeMaxAmount,
+  parseGasUnitsBigInt,
+  scaleFeeByGasUnits,
+} from '@/utils/safeNativeMax';
+import { resolveQuoteReadiness } from '@/utils/quoteReadiness';
+import {
+  getRouteDisplayName,
+  getRouteExplanation,
+  getRouteShortName,
+  getRouteSupportIdentifier,
+} from '@/utils/routePresentation';
 import {
   getPopularTokens,
   getWrappedNativeAddress,
@@ -156,6 +173,7 @@ function SwapSessionContextStrip({
   isQuoteFetchUiLoading,
   quoteSecondsRemaining,
   isQuoteExpired,
+  quoteStatusLabel,
 }: {
   chainId: number;
   isConnected: boolean;
@@ -166,6 +184,8 @@ function SwapSessionContextStrip({
   isQuoteFetchUiLoading: boolean;
   quoteSecondsRemaining: number | null;
   isQuoteExpired: boolean;
+  /** P18 — readiness-aware status (overrides generic "Quote ready" when set). */
+  quoteStatusLabel?: string | null;
 }) {
   const chainLabel = getChainName(chainId);
   const quoteExpired =
@@ -176,7 +196,9 @@ function SwapSessionContextStrip({
     if (isQuoteFetchUiLoading && !hasUsableQuote) {
       quoteLabel = 'Getting quote…';
     } else if (hasUsableQuote) {
-      quoteLabel = quoteExpired ? 'Quote expired' : 'Quote ready';
+      quoteLabel = quoteExpired
+        ? 'Quote expired'
+        : quoteStatusLabel?.trim() || 'Quote ready';
     }
   }
 
@@ -244,21 +266,6 @@ function formatIntelligenceAnalysisPriceImpact(impact: SwapIntelligence['priceIm
   if (impact.level === 'unknown') return 'Not estimated';
   return `${impact.percentage.toFixed(2)}%`;
 }
-
-// Gas buffer for native tokens (to leave enough for transaction fees)
-// Use smaller of: fixed buffer OR 5% of balance
-const GAS_BUFFER_FIXED: Record<number, number> = {
-  1: 0.005,      // ETH - leave max 0.005 ETH for gas
-  56: 0.002,     // BNB - leave max 0.002 BNB for gas
-  137: 0.5,      // MATIC - leave max 0.5 MATIC for gas
-  42161: 0.0005, // Arbitrum ETH - L2 cheap gas
-  10: 0.0005,    // Optimism ETH - L2 cheap gas
-  43114: 0.05,   // AVAX - leave max 0.05 AVAX for gas
-  100: 0.1,      // xDAI - leave max 0.1 xDAI for gas
-  250: 0.5,      // FTM - leave max 0.5 FTM for gas
-  8453: 0.0005,  // Base ETH - L2 cheap gas
-};
-const GAS_BUFFER_PERCENT = 0.05; // 5% of balance as minimum buffer
 
 // Debounce delay for quote fetching (ms)
 const QUOTE_DEBOUNCE_MS = 650;
@@ -940,29 +947,135 @@ export function SwapInterface() {
     !showPreview &&
     !isEthNativeV2QuoteOnlyNoExec;
 
-  // Calculate MAX amount (subtract gas buffer for native tokens)
+  // P18 — native balance + network fee estimate for safe MAX / affordability
+  const nativeSymbol = getNetworkCapability(currentChainId)?.nativeToken ?? 'ETH';
+  const nativeBalanceRaw = useMemo(() => {
+    if (!address) return '—';
+    if (currentChainUnsupported) return '—';
+    const ck = fromAsset?.chain ?? (CHAIN_NAMES[currentChainId] || 'ethereum');
+    const st = chainStatus[ck];
+    if (st === 'loading' || (st === 'idle' && !balanceRows[ck])) return '…';
+    if (st === 'error') return 'unavailable';
+    const tokenBalance = getTokenBalance(ck, nativeSymbol);
+    if (tokenBalance === null) return 'unavailable';
+    return tokenBalance.balance;
+  }, [
+    address,
+    currentChainUnsupported,
+    fromAsset?.chain,
+    currentChainId,
+    chainStatus,
+    balanceRows,
+    getTokenBalance,
+    nativeSymbol,
+  ]);
+  const nativeBalanceNum =
+    nativeBalanceRaw === '…' || nativeBalanceRaw === 'unavailable' || nativeBalanceRaw === '—'
+      ? NaN
+      : parseFloat(nativeBalanceRaw);
+
+  const [networkFeeEstimate, setNetworkFeeEstimate] = useState<NetworkFeeEstimateResult | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!swapQuote?.gasEstimate || !isConnected) {
+      setNetworkFeeEstimate(null);
+      return;
+    }
+    void estimateNetworkFeeForDisplay({
+      chainId: currentChainId,
+      gasEstimate: swapQuote.gasEstimate,
+      provider,
+      walletConnected: isConnected,
+    }).then((r) => {
+      if (!cancelled) setNetworkFeeEstimate(r);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [swapQuote?.gasEstimate, currentChainId, provider, isConnected, swapQuote?.provider]);
+
+  const gasAffordability = useMemo(() => {
+    if (!isConnected || !Number.isFinite(nativeBalanceNum)) {
+      return null;
+    }
+    const nativeInput = fromAsset?.is_native
+      ? parseFloat(fromAmount || '0') || 0
+      : 0;
+    const swapFee = networkFeeEstimate?.feeNativeApprox ?? null;
+    const approvalFee = swapQuote?.needsApproval
+      ? scaleFeeByGasUnits(swapFee, parseGasUnitsBigInt(swapQuote.gasEstimate))
+      : null;
+    return checkNativeGasAffordability({
+      chainId: currentChainId,
+      nativeBalance: nativeBalanceNum,
+      nativeInputAmount: nativeInput,
+      estimatedSwapFeeNative: swapFee,
+      gasPriceAvailable: Boolean(networkFeeEstimate?.isLiveEstimate),
+      needsApproval: Boolean(swapQuote?.needsApproval),
+      estimatedApprovalFeeNative: approvalFee,
+    });
+  }, [
+    isConnected,
+    nativeBalanceNum,
+    fromAsset?.is_native,
+    fromAmount,
+    networkFeeEstimate,
+    swapQuote?.needsApproval,
+    swapQuote?.gasEstimate,
+    currentChainId,
+  ]);
+
+  const insufficientGas =
+    Boolean(gasAffordability && !gasAffordability.sufficient) &&
+    Boolean(fromAmount && parseFloat(fromAmount) > 0) &&
+    !insufficientBalance;
+
+  const quoteReadiness = useMemo(
+    () =>
+      resolveQuoteReadiness({
+        hasQuote: Boolean(hasUsableQuote && swapQuote),
+        isQuoteLoading: isQuoteFetchUiLoading,
+        isQuoteExpired,
+        routeUnavailable: Boolean(
+          quoteErrorParsed?.reasonCode === 'unsupported_commission_route',
+        ),
+        gasPriceAvailable: Boolean(networkFeeEstimate?.isLiveEstimate),
+        feeEstimateSettled: Boolean(networkFeeEstimate?.settled) || (!isConnected && Boolean(swapQuote)),
+        insufficientGas,
+        needsApproval: Boolean(swapQuote?.needsApproval),
+        previewConfirmed: showPreview,
+      }),
+    [
+      hasUsableQuote,
+      swapQuote,
+      isQuoteFetchUiLoading,
+      isQuoteExpired,
+      quoteErrorParsed?.reasonCode,
+      networkFeeEstimate,
+      isConnected,
+      insufficientGas,
+      showPreview,
+    ],
+  );
+
+  // Calculate MAX amount (subtract gas reserve for native tokens — P18 safe MAX)
   const getMaxAmount = useCallback((): string => {
     if (fromBalance === '…' || fromBalance === '—' || fromBalance === 'unavailable') return '0';
     const balance = parseFloat(fromBalance);
     if (!Number.isFinite(balance) || balance <= 0) return '0';
 
-    // If sending native token, subtract gas buffer
     if (fromAsset?.is_native) {
-      // Use smaller of: fixed buffer OR 5% of balance
-      const fixedBuffer = GAS_BUFFER_FIXED[currentChainId] || 0.005;
-      const percentBuffer = balance * GAS_BUFFER_PERCENT;
-      const gasBuffer = Math.min(fixedBuffer, percentBuffer);
-
-      // Ensure we leave at least something for gas, but use 90% if balance is tiny
-      const maxAmount = balance > gasBuffer ? balance - gasBuffer : balance * 0.9;
-
-      // Format to reasonable precision (avoid scientific notation)
-      return maxAmount > 0 ? maxAmount.toFixed(8).replace(/\.?0+$/, '') : '0';
+      return formatSafeNativeMaxAmount({
+        walletNativeBalance: balance,
+        estimatedNetworkFeeNative: networkFeeEstimate?.feeNativeApprox ?? null,
+        chainId: currentChainId,
+        gasPriceAvailable: Boolean(networkFeeEstimate?.isLiveEstimate),
+      });
     }
 
-    // For ERC20 tokens, use full balance
     return fromBalance;
-  }, [fromBalance, fromAsset, currentChainId]);
+  }, [fromBalance, fromAsset, currentChainId, networkFeeEstimate]);
 
   // Debounced quote fetching when amount changes
   // RULE 2: ZERO INPUT = ZERO EVERYTHING
@@ -1151,6 +1264,14 @@ export function SwapInterface() {
   const handlePreviewSwap = async () => {
     if (isReadOnly) return;
 
+    if (insufficientGas) {
+      toast.error(
+        gasAffordability?.blockingMessage ??
+          'Insufficient native balance for network fees.',
+      );
+      return;
+    }
+
     // Guard: Must have valid input
     const amount = parseFloat(fromAmount || '0');
     if (!fromAmount || isNaN(amount) || amount <= 0) {
@@ -1215,6 +1336,13 @@ export function SwapInterface() {
 
   // Confirm swap from preview modal
   const handleConfirmSwap = async () => {
+    if (insufficientGas) {
+      toast.error(
+        gasAffordability?.blockingMessage ??
+          'Insufficient native balance for network fees.',
+      );
+      return;
+    }
     try {
       await confirmSwap();
     } catch (err) {
@@ -1351,6 +1479,9 @@ export function SwapInterface() {
     if (status === 'confirming') return 'Confirming on-chain…';
     if (status === 'success') return 'Swap completed';
     if (insufficientBalance) return `Insufficient ${fromAsset?.symbol || ''} Balance`;
+    if (insufficientGas && gasAffordability?.blockingMessage) {
+      return `Insufficient ${gasAffordability.nativeSymbol} for fees`;
+    }
     if (isQuoteFetchUiLoading) return SWAP_SURFACE_COPY.gettingQuote;
     if (status === 'error' && error) {
       if (!swapQuote && quoteErrorParsed?.reasonCode === 'unsupported_commission_route') {
@@ -1385,6 +1516,7 @@ export function SwapInterface() {
       return true;
     }
     if (insufficientBalance) return true;
+    if (insufficientGas) return true;
     if (isQuoteFetchUiLoading) return true;
     if (status === 'error' && error) {
       if (!swapQuote && quoteErrorParsed?.reasonCode === 'unsupported_commission_route') {
@@ -1421,7 +1553,8 @@ export function SwapInterface() {
     swapQuote &&
     status === 'previewing' &&
     !isQuoteExpired &&
-    !swapQuote.allowanceCheckUncertain;
+    !swapQuote.allowanceCheckUncertain &&
+    quoteReadiness.fullyReady;
 
   const isMainCtaDisabled = isButtonDisabled();
 
@@ -1454,9 +1587,18 @@ export function SwapInterface() {
 
   const mainCtaLabel = getButtonText();
 
-  const ctaSpec = useMemo(
-    () =>
-      resolveSwapCtaState({
+  const ctaSpec = useMemo(() => {
+    if (insufficientGas && gasAffordability) {
+      return {
+        id: 'insufficient_gas' as const,
+        label: `Insufficient ${gasAffordability.nativeSymbol} for fees`,
+        enabled: false,
+        reason: gasAffordability.blockingMessage ?? 'Not enough native token for network fees',
+        nextStep: `Reduce the swap amount or add more ${gasAffordability.nativeSymbol}`,
+      };
+    }
+    if (quoteReadiness.state === 'QUOTE_READY_GAS_UNAVAILABLE') {
+      const base = resolveSwapCtaState({
         isConnected,
         isWrongChain,
         commissionSwapUnavailable,
@@ -1474,25 +1616,53 @@ export function SwapInterface() {
             !swapQuote &&
             quoteErrorParsed?.reasonCode === 'unsupported_commission_route',
         ),
-      }),
-    [
+      });
+      return {
+        ...base,
+        reason: 'Quote ready — network fee unavailable',
+        nextStep:
+          'Your wallet will show the final network fee before signing. Preview is available; affordability is not fully confirmed.',
+      };
+    }
+    return resolveSwapCtaState({
       isConnected,
       isWrongChain,
       commissionSwapUnavailable,
-      fromAmount,
-      insufficientBalance,
-      isQuoteFetchUiLoading,
-      hasUsableQuote,
+      hasAmount: Boolean(fromAmount && parseFloat(fromAmount) > 0),
+      insufficientBalance: Boolean(insufficientBalance),
+      isQuoteLoading: isQuoteFetchUiLoading,
+      hasQuote: Boolean(hasUsableQuote),
       isQuoteExpired,
-      swapQuote?.needsApproval,
+      needsApproval: Boolean(swapQuote?.needsApproval),
       status,
       isReadOnly,
-      guardEvaluation?.blocked,
-      guardsDismissed,
-      swapQuote,
-      quoteErrorParsed?.reasonCode,
-    ],
-  );
+      guardsBlocked: Boolean(guardEvaluation?.blocked && !guardsDismissed),
+      unsupportedRoute: Boolean(
+        status === 'error' &&
+          !swapQuote &&
+          quoteErrorParsed?.reasonCode === 'unsupported_commission_route',
+      ),
+    });
+  }, [
+    insufficientGas,
+    gasAffordability,
+    quoteReadiness.state,
+    isConnected,
+    isWrongChain,
+    commissionSwapUnavailable,
+    fromAmount,
+    insufficientBalance,
+    isQuoteFetchUiLoading,
+    hasUsableQuote,
+    isQuoteExpired,
+    swapQuote?.needsApproval,
+    status,
+    isReadOnly,
+    guardEvaluation?.blocked,
+    guardsDismissed,
+    swapQuote,
+    quoteErrorParsed?.reasonCode,
+  ]);
 
   const lifecycleState = useMemo(
     () =>
@@ -1674,6 +1844,11 @@ export function SwapInterface() {
             isQuoteFetchUiLoading={isQuoteFetchUiLoading}
             quoteSecondsRemaining={quoteSecondsRemaining}
             isQuoteExpired={isQuoteExpired}
+            quoteStatusLabel={
+              hasUsableQuote && !isQuoteExpired
+                ? quoteReadiness.publicLabel
+                : null
+            }
           />
         </div>
 
@@ -2606,11 +2781,14 @@ export function SwapInterface() {
                         </span>
                       </div>
                       <div className="flex justify-between gap-2">
-                        <span className="text-dark-400 shrink-0">Est. pool liquidity (USD)</span>
+                        <span className="text-dark-400 shrink-0">Selected pool estimated liquidity</span>
                         <span className="text-right text-dark-200">
                           {formatIntelligenceLiquidityUsdLabel(swapIntelligence.liquidity.totalUSD)}
                         </span>
                       </div>
+                      <p className="text-[10px] text-dark-500 leading-snug">
+                        Token scanner data and selected-pool liquidity come from different sources.
+                      </p>
                       {swapIntelligence.routes.length > 1 && (
                         <div className="flex justify-between gap-2 items-start">
                           <span className="text-dark-400 shrink-0">Route heuristic (best)</span>
@@ -2701,11 +2879,36 @@ export function SwapInterface() {
 
         {/* Insufficient Balance Warning */}
         {insufficientBalanceForUi && (
-          <div className="mt-4 p-3 bg-red-900/20 border border-red-800 rounded-xl text-sm text-red-400 flex items-center gap-2">
+          <div
+            className="mt-4 p-3 bg-red-900/20 border border-red-800 rounded-xl text-sm text-red-400 flex items-center gap-2"
+            role="alert"
+          >
             <WarningIcon />
             <span>Insufficient {fromAsset?.symbol} balance</span>
           </div>
         )}
+
+        {insufficientGas && gasAffordability?.blockingMessage && !showPreview && (
+          <div
+            className="mt-4 p-3 bg-amber-950/40 border border-amber-700/50 rounded-xl text-sm text-amber-200/95 flex items-start gap-2"
+            role="alert"
+          >
+            <WarningIcon />
+            <span>{gasAffordability.blockingMessage}</span>
+          </div>
+        )}
+
+        {quoteReadiness.state === 'QUOTE_READY_GAS_UNAVAILABLE' &&
+          hasUsableQuote &&
+          !insufficientGas &&
+          !showPreview && (
+            <div
+              className="mt-3 px-3 py-2 rounded-lg border border-white/[0.06] bg-black/20 text-[11px] text-dark-400 leading-snug"
+              role="status"
+            >
+              {quoteReadiness.publicLabel}. {quoteReadiness.helperText}
+            </div>
+          )}
 
         {/* Swap Button */}
         <FeaturedCommissionRoutes
@@ -2727,7 +2930,13 @@ export function SwapInterface() {
             onClick={() => void handleMainSwapAction()}
             disabled={isButtonDisabled()}
             className={mainCtaClassName}
-            title={mainCtaLabel}
+            title={
+              insufficientGas
+                ? gasAffordability?.blockingMessage ?? mainCtaLabel
+                : quoteReadiness.state === 'QUOTE_READY_GAS_UNAVAILABLE'
+                  ? quoteReadiness.helperText ?? mainCtaLabel
+                  : mainCtaLabel
+            }
             aria-describedby="swap-main-cta-desc"
           >
             {ctaVisualState === 'loading' &&
@@ -3666,29 +3875,6 @@ function ShieldIcon() {
 function RouteTooltip({ provider }: { provider: string }) {
   const [showTooltip, setShowTooltip] = useState(false);
 
-  const getProviderInfo = () => {
-    switch (provider) {
-      case '1inch':
-        return 'The aggregator compares multiple DEX routes and picks the best output for this size (may split across pools).';
-      case 'uniswap-v3':
-        return 'Direct swap through Uniswap V3 concentrated liquidity on this chain.';
-      case 'uniswap-v3-wrapper':
-        return 'Uniswap V3 execution via the Swaperex fee wrapper on Ethereum (ERC20→ERC20). Quoted output is net of the wrapper protocol fee.';
-      case 'uniswap-v3-wrapper-v2':
-        return 'Uniswap V3 via Swaperex fee wrapper V2 on Ethereum. Quoted output is net of the wrapper protocol fee.';
-      case 'uniswap-v3-wrapper-v3':
-        return 'Uniswap V3 via Swaperex fee wrapper V3 on Ethereum (multi-hop exactInput). Quoted output is net of the wrapper protocol fee.';
-      case 'pancakeswap-v3':
-        return 'Direct swap through PancakeSwap V3 on BNB Chain.';
-      case 'pancakeswap-v3-wrapper':
-        return 'PancakeSwap V3 execution via the Swaperex fee wrapper on BNB Chain (ERC20→ERC20). Quoted output is net of the wrapper protocol fee.';
-      case 'pancakeswap-v3-wrapper-v2':
-        return 'PancakeSwap V3 via Swaperex fee wrapper V2 (canary). ERC20↔ERC20 quoting in this build; quoted output is net of the wrapper protocol fee.';
-      default:
-        return 'Route selected for best output among sources we query for this pair.';
-    }
-  };
-
   return (
     <div className="relative">
       <button
@@ -3705,10 +3891,11 @@ function RouteTooltip({ provider }: { provider: string }) {
       {showTooltip && (
         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-dark-700 rounded-lg text-xs text-white w-64 shadow-lg z-50">
           <div className="font-medium mb-1">Why this route?</div>
-          <div className="text-dark-300 leading-relaxed">{getProviderInfo()}</div>
+          <div className="text-dark-300 leading-relaxed">{getRouteExplanation(provider)}</div>
           <div className="text-dark-400 mt-2 pt-2 border-t border-dark-600 leading-relaxed space-y-1.5">
             <p>Quotes are short-lived (30s). If the timer expires, refresh quote before you confirm in your wallet.</p>
             <p>Gas limits and network fees in the quote panel are estimates — your wallet finalizes them when you sign.</p>
+            <p className="text-dark-500">Advanced route ID: {getRouteSupportIdentifier(provider)}</p>
           </div>
           <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-dark-700" />
         </div>
@@ -3720,25 +3907,23 @@ function RouteTooltip({ provider }: { provider: string }) {
 // Provider Badge - Visual indicator for DEX provider
 function ProviderBadge({ provider }: { provider: string }) {
   const getProviderStyle = () => {
+    const short = getRouteShortName(provider);
     switch (provider) {
       case '1inch':
-        return { bg: 'bg-red-900/30', text: 'text-red-400', label: '1inch' };
+        return { bg: 'bg-red-900/30', text: 'text-red-400', label: short };
       case 'uniswap-v3':
-        return { bg: 'bg-pink-900/30', text: 'text-pink-400', label: 'Uniswap V3' };
+        return { bg: 'bg-pink-900/30', text: 'text-pink-400', label: short };
       case 'uniswap-v3-wrapper':
-        return { bg: 'bg-pink-900/30', text: 'text-pink-300', label: 'Uniswap V3 · wrapper' };
       case 'uniswap-v3-wrapper-v2':
-        return { bg: 'bg-pink-900/30', text: 'text-pink-200', label: 'Uniswap V3 · wrap V2' };
       case 'uniswap-v3-wrapper-v3':
-        return { bg: 'bg-pink-900/30', text: 'text-pink-100', label: 'Uniswap V3 · wrap V3' };
+        return { bg: 'bg-pink-900/30', text: 'text-pink-200', label: getRouteDisplayName(provider) };
       case 'pancakeswap-v3':
-        return { bg: 'bg-yellow-900/30', text: 'text-yellow-400', label: 'PancakeSwap' };
+        return { bg: 'bg-yellow-900/30', text: 'text-yellow-400', label: short };
       case 'pancakeswap-v3-wrapper':
-        return { bg: 'bg-yellow-900/30', text: 'text-yellow-300', label: 'PancakeSwap V3 · wrapper' };
       case 'pancakeswap-v3-wrapper-v2':
-        return { bg: 'bg-yellow-900/30', text: 'text-yellow-200', label: 'Pancake V3 · wrap V2' };
+        return { bg: 'bg-yellow-900/30', text: 'text-yellow-200', label: getRouteDisplayName(provider) };
       default:
-        return { bg: 'bg-primary-900/30', text: 'text-primary-400', label: provider };
+        return { bg: 'bg-primary-900/30', text: 'text-primary-400', label: getRouteDisplayName(provider) };
     }
   };
 

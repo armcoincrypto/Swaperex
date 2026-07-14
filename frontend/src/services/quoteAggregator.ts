@@ -309,12 +309,12 @@ export type QuoteRouteMode = 'best' | QuoteProvider;
 const ROUTE_PROVIDER_LABEL: Record<QuoteProvider, string> = {
   '1inch': '1inch',
   'uniswap-v3': 'Uniswap V3',
-  'uniswap-v3-wrapper': 'Uniswap V3 (Swaperex wrapper)',
-  'uniswap-v3-wrapper-v2': 'Uniswap V3 (Swaperex wrapper V2)',
-  'uniswap-v3-wrapper-v3': 'Uniswap V3 (Swaperex wrapper V3 · canary)',
+  'uniswap-v3-wrapper': 'Uniswap V3 via Swaperex Wrapper',
+  'uniswap-v3-wrapper-v2': 'Uniswap V3 via Swaperex Wrapper V2',
+  'uniswap-v3-wrapper-v3': 'Uniswap V3 via Swaperex Wrapper V3',
   'pancakeswap-v3': 'PancakeSwap V3',
-  'pancakeswap-v3-wrapper': 'PancakeSwap V3 (Swaperex wrapper)',
-  'pancakeswap-v3-wrapper-v2': 'PancakeSwap V3 (Swaperex wrapper V2 · canary)',
+  'pancakeswap-v3-wrapper': 'PancakeSwap V3 via Swaperex Wrapper',
+  'pancakeswap-v3-wrapper-v2': 'PancakeSwap V3 via Swaperex Wrapper V2',
 };
 
 /** Human-readable label for settings and preview. */
@@ -941,8 +941,8 @@ async function getBscQuote(
             const runnerUp = candidates[1] ?? null;
             const selectionReason =
               best.provider === 'pancakeswap-v3-wrapper-v2'
-                ? `${comparison.selectionReason} · Canary: Wrapper V2 participated (pct=${canaryPct}) and won on net output.`
-                : `${comparison.selectionReason} · Canary: Wrapper V2 participated (pct=${canaryPct}) but did not win.`;
+                ? `${comparison.selectionReason} · Swaperex Wrapper V2 participated and won on net output.`
+                : `${comparison.selectionReason} · Swaperex Wrapper V2 participated but did not win.`;
 
             comparison = {
               best,

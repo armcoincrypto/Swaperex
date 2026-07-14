@@ -53,7 +53,7 @@ function parseOwnership(data: GoPlusRaw): SwapTokenSafetySignal {
   if (data.can_take_back_ownership === '1') {
     return {
       id: 'ownership',
-      label: 'Ownership',
+      label: 'Ownership risk signal',
       status: 'risk',
       detail: 'Ownership can be reclaimed by deployer',
     };
@@ -61,7 +61,7 @@ function parseOwnership(data: GoPlusRaw): SwapTokenSafetySignal {
   if (data.hidden_owner === '1') {
     return {
       id: 'ownership',
-      label: 'Ownership',
+      label: 'Ownership risk signal',
       status: 'warn',
       detail: 'Hidden owner detected',
     };
@@ -70,7 +70,7 @@ function parseOwnership(data: GoPlusRaw): SwapTokenSafetySignal {
   if (ownerPct != null && ownerPct >= 50) {
     return {
       id: 'ownership',
-      label: 'Ownership',
+      label: 'Ownership risk signal',
       status: 'warn',
       detail: `Top owner holds ~${ownerPct.toFixed(0)}%`,
     };
@@ -78,16 +78,16 @@ function parseOwnership(data: GoPlusRaw): SwapTokenSafetySignal {
   if (data.owner_address && data.owner_address !== '0x0000000000000000000000000000000000000000') {
     return {
       id: 'ownership',
-      label: 'Ownership',
+      label: 'Ownership risk signal',
       status: 'ok',
-      detail: 'Ownership renounced or distributed',
+      detail: 'No high-risk ownership flag detected',
     };
   }
   return {
     id: 'ownership',
-    label: 'Ownership',
+    label: 'Ownership risk signal',
     status: 'unknown',
-    detail: 'Ownership status unclear',
+    detail: 'Ownership data unavailable',
   };
 }
 
@@ -95,24 +95,24 @@ function parseMintability(data: GoPlusRaw): SwapTokenSafetySignal {
   if (data.is_mintable === '1') {
     return {
       id: 'mintability',
-      label: 'Mintability',
+      label: 'Supply controls',
       status: 'warn',
-      detail: 'Additional supply can be minted',
+      detail: 'Issuer or contract may retain supply-management capabilities',
     };
   }
   if (data.is_mintable === '0') {
     return {
       id: 'mintability',
-      label: 'Mintability',
+      label: 'Supply controls',
       status: 'ok',
-      detail: 'No mint function detected',
+      detail: 'No mintability flag detected by scanner',
     };
   }
   return {
     id: 'mintability',
-    label: 'Mintability',
+    label: 'Supply controls',
     status: 'unknown',
-    detail: 'Mint status unavailable',
+    detail: 'Supply-control data unavailable',
   };
 }
 
@@ -227,7 +227,7 @@ export async function fetchSwapTokenSafetySignals(params: {
   if (security) {
     signals.push({
       id: 'liquidity',
-      label: 'Liquidity',
+      label: 'Token scanner liquidity data',
       status: riskToStatus(security.liquidity.level),
       detail: security.liquidity.value,
     });
@@ -246,14 +246,35 @@ export async function fetchSwapTokenSafetySignals(params: {
     signals.push(parseHolderConcentration(raw));
   } else if (security) {
     signals.push(
-      { id: 'ownership', label: 'Ownership', status: 'unknown', detail: 'Ownership data unavailable' },
-      { id: 'mintability', label: 'Mintability', status: 'unknown', detail: 'Mint status unavailable' },
+      {
+        id: 'ownership',
+        label: 'Ownership risk signal',
+        status: 'unknown',
+        detail: 'Ownership data unavailable',
+      },
+      {
+        id: 'mintability',
+        label: 'Supply controls',
+        status: 'unknown',
+        detail: 'Supply-control data unavailable',
+      },
       { id: 'proxy', label: 'Proxy', status: 'unknown', detail: 'Proxy status unavailable' },
       { id: 'holders', label: 'Holder concentration', status: 'unknown', detail: 'Holder data unavailable' },
     );
   }
 
   return signals.length > 0 ? signals : null;
+}
+
+/** Test/helper: ownership + supply-control wording from raw GoPlus fields. */
+export function ownershipAndSupplySignalsFromRaw(data: {
+  can_take_back_ownership?: string;
+  hidden_owner?: string;
+  owner_address?: string;
+  owner_percent?: string;
+  is_mintable?: string;
+}): SwapTokenSafetySignal[] {
+  return [parseOwnership(data), parseMintability(data)];
 }
 
 export function statusColorClasses(status: SafetySignalStatus): string {

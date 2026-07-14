@@ -102,7 +102,7 @@ export function featuredRouteBadgeLabel(badge: FeaturedRouteBadge): string {
     case 'high-liquidity':
       return 'High-liquidity';
     case 'audited':
-      return 'Audited';
+      return 'Certified';
   }
 }
 
