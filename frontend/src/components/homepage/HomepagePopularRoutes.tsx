@@ -1,5 +1,5 @@
 /**
- * P9.6 — Popular audited routes (catalog only; no fake activity feed).
+ * P9.6 — Popular certified routes (catalog only; no fake activity feed).
  */
 
 import {
@@ -26,7 +26,7 @@ export function HomepagePopularRoutes({ activeChainId = 1 }: HomepagePopularRout
         id="homepage-popular-routes-heading"
         className="text-sm font-semibold uppercase tracking-wider text-dark-300 mb-1"
       >
-        Popular audited routes
+        Popular certified routes
       </h2>
       <p className="text-xs text-dark-500 mb-4">
         Production-certified pairs from the internal commission audit — not live swap activity.
