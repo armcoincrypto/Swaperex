@@ -176,7 +176,7 @@ export function ShellAutoUpdateFooter({
 }) {
   return (
     <p className={clsx('text-center text-[11px] leading-snug text-dark-500/90', className)}>
-      Auto-updates quietly · every {intervalSeconds}s
+      Balances refresh every {intervalSeconds} seconds.
     </p>
   );
 }

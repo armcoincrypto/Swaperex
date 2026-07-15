@@ -57,10 +57,10 @@ function FeaturedRouteChip({
         disabled && disabledHint
           ? disabledHint
           : route.bidirectional
-            ? `${badgeLabel}: ${route.label}. Tap again to reverse.`
-            : `${badgeLabel}: ${route.label}`
+            ? `${route.label} · ${route.chainLabel}. Tap again to reverse.`
+            : `${route.label} · ${route.chainLabel}`
       }
-      className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
+      className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition-colors min-h-[44px] sm:min-h-0 ${
         disabled
           ? 'border-white/[0.06] bg-white/[0.02] text-dark-500 cursor-not-allowed'
           : active
@@ -68,8 +68,11 @@ function FeaturedRouteChip({
             : 'border-white/[0.08] bg-white/[0.04] text-dark-200 hover:border-emerald-600/40 hover:bg-emerald-950/30 hover:text-emerald-50'
       }`}
     >
-      <span className="text-[9px] uppercase tracking-wide text-dark-400">{badgeLabel}</span>
       <span>{route.label}</span>
+      <span className="text-[9px] uppercase tracking-wide text-dark-500">{route.chainLabel}</span>
+      {badge === 'high-liquidity' || badge === 'featured' ? (
+        <span className="sr-only">{badgeLabel}</span>
+      ) : null}
     </button>
   );
 }

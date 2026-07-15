@@ -1,18 +1,18 @@
 /**
- * P5.4 — Professional DEX site footer.
- * Presentation-only: real links, supported networks, live status — no fake metrics or badges.
+ * P5.4 / P20 — Professional DEX site footer (simplified columns).
  */
 
 import { Link } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { SystemStatusIndicator } from '@/components/common/SystemStatusIndicator';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
-import { BRAND } from '@/constants/brand';
 import { APP_ROUTE_PATHS } from '@/config/appRoutes';
 import {
   HOMEPAGE_INTEGRATIONS,
   HOMEPAGE_INTEGRATIONS_DISCLAIMER,
 } from '@/constants/homepageProductCopy';
+import { BrandLogo } from '@/components/brand/BrandLogo';
+import { BRAND } from '@/constants/brand';
 
 export type FooterPage =
   | 'swap'
@@ -27,7 +27,6 @@ export type FooterPage =
 
 export interface FooterNavTarget {
   page: FooterPage;
-  /** In-page section id for SPA tabs / scroll targets */
   section?: string;
 }
 
@@ -36,7 +35,6 @@ interface DexSiteFooterProps {
 }
 
 const SWAP_NETWORKS = ['Ethereum', 'BNB Chain'] as const;
-const BALANCE_VIEW_NETWORKS = ['Polygon', 'Arbitrum', 'Optimism', 'Avalanche'] as const;
 
 function FooterLink({
   children,
@@ -49,7 +47,7 @@ function FooterLink({
     <button
       type="button"
       onClick={onClick}
-      className="text-left text-dark-400 hover:text-white transition-colors text-sm"
+      className="text-left text-dark-400 hover:text-white transition-colors text-sm min-h-[44px] sm:min-h-0 py-1"
     >
       {children}
     </button>
@@ -60,7 +58,7 @@ function FooterColumn({ title, children }: { title: string; children: ReactNode 
   return (
     <div className="min-w-0">
       <p className="text-xs font-semibold uppercase tracking-wider text-dark-300 mb-3">{title}</p>
-      <div className="flex flex-col gap-2">{children}</div>
+      <div className="flex flex-col gap-1.5 sm:gap-2">{children}</div>
     </div>
   );
 }
@@ -69,124 +67,80 @@ export function DexSiteFooter({ onNavigate }: DexSiteFooterProps) {
   return (
     <footer className="border-t border-white/[0.06] mt-auto bg-electro-bg/60 backdrop-blur-sm">
       <div className="max-w-6xl mx-auto px-4 py-10 sm:py-12">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-8 lg:gap-6">
-          <div className="col-span-2 sm:col-span-3 lg:col-span-1 lg:pr-4">
-            <p className="text-lg font-bold text-accent">{BRAND.displayName}</p>
-            <p className="text-[10px] font-medium text-dark-500 tracking-wide">{BRAND.byline}</p>
-            <p className="mt-2 text-xs text-dark-500 leading-relaxed max-w-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-8 lg:gap-6">
+          <div className="col-span-2 sm:col-span-3 lg:col-span-1 lg:pr-2">
+            <BrandLogo
+              variant="full"
+              showParentBrand
+              onNavigateHome={() => onNavigate({ page: 'swap' })}
+            />
+            <p className="mt-3 text-xs text-dark-500 leading-relaxed max-w-xs">
               {SWAP_SURFACE_COPY.footerTrustCompact}
             </p>
           </div>
 
-          <FooterColumn title="Trade">
-            <FooterLink onClick={() => onNavigate({ page: 'swap' })}>Swap</FooterLink>
-            <FooterLink onClick={() => onNavigate({ page: 'send' })}>Send</FooterLink>
+          <FooterColumn title="Product">
+            <FooterLink onClick={() => onNavigate({ page: 'swap' })}>Trade</FooterLink>
+            <FooterLink onClick={() => onNavigate({ page: 'portfolio' })}>Portfolio</FooterLink>
+            <FooterLink onClick={() => onNavigate({ page: 'radar' })}>Security</FooterLink>
+            <FooterLink onClick={() => onNavigate({ page: 'screener' })}>Markets</FooterLink>
           </FooterColumn>
 
-          <FooterColumn title="Portfolio">
-            <FooterLink onClick={() => onNavigate({ page: 'portfolio', section: 'holdings' })}>
-              Holdings
-            </FooterLink>
-            <FooterLink onClick={() => onNavigate({ page: 'portfolio', section: 'allocation' })}>
-              Allocation
-            </FooterLink>
-            <FooterLink onClick={() => onNavigate({ page: 'portfolio', section: 'activity' })}>
-              Activity
-            </FooterLink>
-          </FooterColumn>
-
-          <FooterColumn title="Security">
-            <FooterLink onClick={() => onNavigate({ page: 'radar', section: 'watchlist' })}>
-              Watchlist
-            </FooterLink>
-            <FooterLink onClick={() => onNavigate({ page: 'radar', section: 'scanner' })}>
-              Token Scanner
-            </FooterLink>
-            <FooterLink onClick={() => onNavigate({ page: 'radar', section: 'alerts' })}>
-              Alerts
-            </FooterLink>
-          </FooterColumn>
-
-          <FooterColumn title="Markets">
-            <FooterLink onClick={() => onNavigate({ page: 'screener', section: 'screener' })}>
-              Token Screener
-            </FooterLink>
-            <FooterLink onClick={() => onNavigate({ page: 'screener', section: 'discovery' })}>
-              Market Discovery
-            </FooterLink>
-          </FooterColumn>
-
-          <FooterColumn title="Resources">
-            <Link
-              to={APP_ROUTE_PATHS.trust}
-              className="text-sm text-dark-400 hover:text-white transition-colors no-underline"
-            >
-              Trust Center
-            </Link>
+          <FooterColumn title="Company">
             <Link
               to="/about"
-              className="text-sm text-dark-400 hover:text-white transition-colors no-underline"
+              className="text-sm text-dark-400 hover:text-white transition-colors no-underline py-1"
             >
               About
             </Link>
             <Link
+              to={APP_ROUTE_PATHS.trust}
+              className="text-sm text-dark-400 hover:text-white transition-colors no-underline py-1"
+            >
+              Trust Center
+            </Link>
+            <div className="pt-1">
+              <SystemStatusIndicator variant="footer" />
+            </div>
+          </FooterColumn>
+
+          <FooterColumn title="Legal">
+            <Link
               to="/terms"
-              className="text-sm text-dark-400 hover:text-white transition-colors no-underline"
+              className="text-sm text-dark-400 hover:text-white transition-colors no-underline py-1"
             >
               Terms
             </Link>
             <Link
               to="/privacy"
-              className="text-sm text-dark-400 hover:text-white transition-colors no-underline"
+              className="text-sm text-dark-400 hover:text-white transition-colors no-underline py-1"
             >
               Privacy
             </Link>
             <Link
               to="/disclaimer"
-              className="text-sm text-dark-400 hover:text-white transition-colors no-underline"
+              className="text-sm text-dark-400 hover:text-white transition-colors no-underline py-1"
             >
               Disclaimer
             </Link>
           </FooterColumn>
+
+          <FooterColumn title="Networks">
+            {SWAP_NETWORKS.map((n) => (
+              <span key={n} className="text-sm text-dark-400 py-1">
+                {n}
+              </span>
+            ))}
+          </FooterColumn>
         </div>
 
         <div className="mt-10 pt-6 border-t border-white/[0.06]">
-          <p className="text-[10px] uppercase tracking-wider text-dark-500 mb-2">
-            Routing infrastructure
+          <p className="text-xs text-dark-400 leading-relaxed max-w-3xl">
+            {HOMEPAGE_INTEGRATIONS.join(' · ')}
           </p>
-          <p className="text-xs text-dark-400 leading-relaxed">
-            Integrates with{' '}
-            {HOMEPAGE_INTEGRATIONS.map((name) => (
-              <span key={name} className="text-dark-300">
-                {name}
-                {name !== HOMEPAGE_INTEGRATIONS[HOMEPAGE_INTEGRATIONS.length - 1] ? ' · ' : ''}
-              </span>
-            ))}
-          </p>
-          <p className="mt-1.5 text-[11px] text-dark-600 leading-relaxed max-w-2xl">
+          <p className="mt-1.5 text-[11px] text-dark-600 leading-relaxed max-w-3xl">
             {HOMEPAGE_INTEGRATIONS_DISCLAIMER}
           </p>
-        </div>
-
-        <div className="mt-6 pt-6 border-t border-white/[0.06] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-wider text-dark-500 mb-2">
-              Networks
-            </p>
-            <p className="text-xs text-dark-400 leading-relaxed">
-              <span className="text-dark-300">Swap networks:</span>{' '}
-              {SWAP_NETWORKS.join(' · ')}
-            </p>
-            <p className="text-xs text-dark-500 leading-relaxed mt-1">
-              <span className="text-dark-400">Balance view:</span>{' '}
-              {BALANCE_VIEW_NETWORKS.join(' · ')}
-            </p>
-          </div>
-
-          <div className="flex flex-col items-start sm:items-end gap-1 shrink-0">
-            <p className="text-[10px] uppercase tracking-wider text-dark-500">Status</p>
-            <SystemStatusIndicator variant="footer" />
-          </div>
         </div>
 
         <p className="mt-6 text-center text-[11px] text-dark-600">

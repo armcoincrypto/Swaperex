@@ -78,23 +78,23 @@ export const SWAP_SURFACE_COPY = {
 
   /** P1 recovery — proactive panel + compact chips for blocked/unsupported commission pairs. */
   commissionRouteRecoveryHelper:
-    'Pick a production-certified commission route below to pre-fill pay and receive tokens.',
-  commissionRouteRecoveryChipsLabel: 'Certified commission routes',
+    'Pick a production-certified route below to pre-fill pay and receive tokens.',
+  commissionRouteRecoveryChipsLabel: 'Production-certified routes',
 
   /** P3.3 — soft precheck when audit shows pair is not commission-ready yet. */
   commissionRoutingNotReadyYet:
-    'Not yet supported by Swaperex commission routing. Quote may fail until this pair is enabled on the wrapper.',
+    'This pair is not yet available on Swaperex production-certified routes. Quote may fail until it is enabled.',
 
-  /** P3.1 — popular audited commission route shortcuts */
-  popularCommissionRoutesTitle: 'Popular commission routes',
-  auditedCommissionRouteBadge: 'Certified commission route',
+  /** P3.1 / P20 — popular route shortcuts (public copy; no “commission” wording) */
+  popularCommissionRoutesTitle: 'Popular routes',
+  auditedCommissionRouteBadge: 'Production-certified route',
   popularCommissionRoutesHint:
-    'These pairs passed a live wrapper quote audit. Pick one to pre-fill pay and receive tokens.',
+    'Select a production-certified pair to pre-fill the swap form.',
 
-  /** P4A — always-visible featured pairs on swap card */
+  /** P4A / P20 — featured pairs on swap card */
   featuredCommissionRoutesTitle: 'Featured pairs',
-  featuredCommissionRoutesLabel: 'Featured certified commission routes',
-  featuredCommissionRoutesHint: 'High-liquidity · Production-certified',
+  featuredCommissionRoutesLabel: 'Featured production-certified pairs',
+  featuredCommissionRoutesHint: 'High liquidity',
   featuredRoutesSwitchNetworkHint:
     'Swaps run on Ethereum and BNB Chain. Switch network to use routes on {network}.',
 
@@ -160,7 +160,17 @@ export const SWAP_SURFACE_COPY = {
 
   /** Global footer — one short line; details live in Learn More / legal pages */
   footerTrustCompact:
-    'Non-custodial swap interface — you sign every transaction in your wallet.',
+    'Self-custody swaps with transparent routing and fees.',
+
+  /** P20 — concise empty / ready messaging (prefer over internal validation strings). */
+  emptyStateDisconnectedTitle: 'Connect your wallet to begin',
+  emptyStateDisconnectedBody:
+    'Enter an amount after connecting to request a live quote.',
+  emptyStateConnectedNoAmountTitle: 'Enter an amount',
+  emptyStateConnectedNoAmountBody: 'A live route and fee estimate will appear here.',
+  emptyStateNoRouteTitle: 'No route available',
+  emptyStateNoRouteBody: 'Try another amount, token pair, or network.',
+  emptyStateCtaEnterAmount: 'Enter an Amount',
 
   /** P5.1 — Markets screener error states */
   screenerDataUnavailable:
@@ -216,7 +226,7 @@ export const SWAP_SURFACE_COPY = {
    * Detail (wrapper output fees) stays in `quoteFeesFootnote` + preview rows where relevant.
    */
   swapCardTrustCompact:
-    'You sign every swap in your wallet; settlement is final on-chain. Non-custodial — Swaperex never has your keys.',
+    'You sign every swap in your wallet. Settlement is final on-chain.',
 
   /** Muted footnote under grouped rate & fee rows on the swap card */
   quoteFeesFootnote:
@@ -240,7 +250,7 @@ export const SWAP_SURFACE_COPY = {
   successFeeEstimatedFromOnChainNet: '(estimated from on-chain received amount)',
 
   /** Activity / history — route context (display-only; does not change stored records) */
-  activityCommissionRouteLabel: 'Commission route',
+  activityCommissionRouteLabel: 'Production-certified route',
   activityHistoricalRouteLabel: 'Historical route — before commission-required mode',
 
   /** Sidebar token list — RPC / balance fetch failed (wallet still connected) */

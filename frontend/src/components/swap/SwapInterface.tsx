@@ -1469,7 +1469,7 @@ export function SwapInterface() {
     if (!isConnected) return 'Connect Wallet';
     if (isWrongChain) return 'Wrong Network';
     if (commissionSwapUnavailable) return SWAP_SURFACE_COPY.commissionSwapSwitchNetworkCta;
-    if (!fromAmount || parseFloat(fromAmount) === 0) return 'Enter Amount';
+    if (!fromAmount || parseFloat(fromAmount) === 0) return SWAP_SURFACE_COPY.emptyStateCtaEnterAmount;
     // Phase 2 native quote-only: stable CTA must win over balance / approval / refresh / pipeline labels
     if (isEthNativeV2QuoteOnlyNoExec && hasUsableQuote) {
       return SWAP_SURFACE_COPY.quoteOnlyNoExecutionCta;

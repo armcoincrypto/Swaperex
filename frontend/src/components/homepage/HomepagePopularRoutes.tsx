@@ -1,11 +1,12 @@
 /**
- * P9.6 — Popular certified routes (catalog only; no fake activity feed).
+ * P9.6 / P20 — Popular production-certified routes (catalog only).
  */
 
 import {
   getVerifiedPopularCommissionRoutes,
   groupPopularCommissionRoutes,
 } from '@/constants/popularCommissionRoutes';
+import { MobileCollapsibleSection } from '@/components/homepage/MobileCollapsibleSection';
 
 interface HomepagePopularRoutesProps {
   activeChainId?: number;
@@ -18,19 +19,12 @@ export function HomepagePopularRoutes({ activeChainId = 1 }: HomepagePopularRout
   const groups = groupPopularCommissionRoutes(routes, activeChainId);
 
   return (
-    <section
-      className="homepage-popular-routes mt-8 sm:mt-10"
-      aria-labelledby="homepage-popular-routes-heading"
+    <MobileCollapsibleSection
+      title="Popular Routes"
+      summary="Select a production-certified pair to explore — not a live activity feed."
+      headingId="homepage-popular-routes-heading"
+      className="homepage-popular-routes"
     >
-      <h2
-        id="homepage-popular-routes-heading"
-        className="text-sm font-semibold uppercase tracking-wider text-dark-300 mb-1"
-      >
-        Popular certified routes
-      </h2>
-      <p className="text-xs text-dark-500 mb-4">
-        Production-certified pairs from the internal commission audit — not live swap activity.
-      </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {groups.map((group) => (
           <div key={group.chainId} className="homepage-popular-routes__group">
@@ -47,7 +41,7 @@ export function HomepagePopularRoutes({ activeChainId = 1 }: HomepagePopularRout
           </div>
         ))}
       </div>
-    </section>
+    </MobileCollapsibleSection>
   );
 }
 

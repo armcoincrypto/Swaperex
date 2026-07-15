@@ -1,21 +1,22 @@
 /**
- * P9.4 — Why Swaperex trust section (display-only).
+ * P9.4 / P20 — Why Swaperex (value props + custody principles).
  */
 
-import { HOMEPAGE_WHY_CARDS } from '@/constants/homepageProductCopy';
+import {
+  HOMEPAGE_TRUST_PRINCIPLES,
+  HOMEPAGE_WHY_CARDS,
+} from '@/constants/homepageProductCopy';
+import { MobileCollapsibleSection } from '@/components/homepage/MobileCollapsibleSection';
 
 export function HomepageWhySwaperex() {
   return (
-    <section
-      className="homepage-why-swaperex mt-8 sm:mt-10"
-      aria-labelledby="homepage-why-heading"
+    <MobileCollapsibleSection
+      title="Why Swaperex"
+      summary="Self-custody, certified routes, and transparent fees"
+      headingId="homepage-why-heading"
+      className="homepage-why-swaperex"
+      defaultOpen={false}
     >
-      <h2
-        id="homepage-why-heading"
-        className="text-sm font-semibold uppercase tracking-wider text-dark-300 mb-4"
-      >
-        Why Swaperex
-      </h2>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         {HOMEPAGE_WHY_CARDS.map((card) => (
           <article key={card.title} className="homepage-why-card">
@@ -24,7 +25,15 @@ export function HomepageWhySwaperex() {
           </article>
         ))}
       </div>
-    </section>
+      <ul className="mt-4 flex flex-wrap gap-3 text-[11px] text-dark-500">
+        {HOMEPAGE_TRUST_PRINCIPLES.map((p) => (
+          <li key={p.id} className="rounded-lg border border-white/[0.06] px-2.5 py-1.5">
+            <span className="text-dark-200 font-medium tabular-nums">{p.value}</span>{' '}
+            {p.label}
+          </li>
+        ))}
+      </ul>
+    </MobileCollapsibleSection>
   );
 }
 

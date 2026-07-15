@@ -98,9 +98,9 @@ export function getFeaturedRouteBadge(route: PopularCommissionRoute): FeaturedRo
 export function featuredRouteBadgeLabel(badge: FeaturedRouteBadge): string {
   switch (badge) {
     case 'featured':
-      return 'Featured';
+      return 'High liquidity';
     case 'high-liquidity':
-      return 'High-liquidity';
+      return 'High liquidity';
     case 'audited':
       return 'Certified';
   }

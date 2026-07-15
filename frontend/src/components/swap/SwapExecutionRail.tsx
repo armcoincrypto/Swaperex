@@ -109,7 +109,7 @@ function resolveSubtitle(props: SwapExecutionRailProps): string | null {
   } = props;
 
   if (!isConnected) {
-    return 'Connect wallet to prepare execution';
+    return 'Connect your wallet to begin';
   }
 
   if (status === 'error' && error?.trim()) {
@@ -117,7 +117,7 @@ function resolveSubtitle(props: SwapExecutionRailProps): string | null {
   }
 
   if (status === 'idle' && !hasQuote) {
-    return 'Enter an amount to request a quote';
+    return 'Enter an amount for a live quote';
   }
 
   if (
@@ -190,13 +190,19 @@ export function SwapExecutionRail({
                 <div
                   className={`flex h-6 w-6 items-center justify-center rounded-full border text-[10px] font-semibold tabular-nums ${stepCircleClass(visual)}`}
                   aria-current={visual === 'current' ? 'step' : undefined}
+                  title={visual === 'skipped' ? 'Approval not required' : undefined}
                 >
-                  {visual === 'done' ? '✓' : visual === 'skipped' ? '—' : index + 1}
+                  {visual === 'done' ? '✓' : index + 1}
                 </div>
                 <span
                   className={`text-[10px] leading-none whitespace-nowrap ${stepLabelClass(visual)}`}
                 >
                   {STEP_LABELS[stepId]}
+                  {visual === 'skipped' ? (
+                    <span className="block text-[9px] text-dark-600 mt-0.5 normal-case tracking-normal">
+                      Not required
+                    </span>
+                  ) : null}
                 </span>
               </div>
               {index < STEP_ORDER.length - 1 && (

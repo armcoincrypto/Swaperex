@@ -5,7 +5,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { DexSiteFooter, type FooterNavTarget } from '@/components/layout/DexSiteFooter';
-import { BRAND } from '@/constants/brand';
+import { BrandLogo } from '@/components/brand/BrandLogo';
 import { APP_ROUTE_PATHS, footerPageToPath, pageToPath } from '@/config/appRoutes';
 import { applyClientRouteSeo } from '@/utils/routeSeo';
 
@@ -25,13 +25,7 @@ export function PassiveShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-electro-bg bg-bg-mesh overflow-x-hidden flex flex-col pb-[env(safe-area-inset-bottom)]">
       <header className="border-b border-white/[0.06] backdrop-blur-sm bg-electro-bg/80 sticky top-0 z-40 pt-[env(safe-area-inset-top)]">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between gap-4">
-          <Link
-            to={pageToPath('swap')}
-            className="flex flex-col leading-tight no-underline hover:opacity-90"
-          >
-            <span className="text-xl font-bold text-accent">{BRAND.displayName}</span>
-            <span className="text-[10px] font-medium text-dark-500 tracking-wide">{BRAND.byline}</span>
-          </Link>
+          <BrandLogo variant="full" showParentBrand />
           <nav className="flex items-center gap-2 sm:gap-3">
             <Link
               to={APP_ROUTE_PATHS.trust}
@@ -41,9 +35,9 @@ export function PassiveShell({ children }: { children: ReactNode }) {
             </Link>
             <Link
               to={pageToPath('swap')}
-              className="h-10 px-4 inline-flex items-center rounded-lg border border-white/[0.08] bg-electro-panel/50 text-sm font-medium text-dark-300 hover:text-white hover:bg-electro-panel transition-colors no-underline"
+              className="h-11 min-h-[44px] px-4 inline-flex items-center rounded-lg border border-white/[0.08] bg-electro-panel/50 text-sm font-medium text-dark-300 hover:text-white hover:bg-electro-panel transition-colors no-underline"
             >
-              Open swap
+              Open Trade
             </Link>
           </nav>
         </div>
