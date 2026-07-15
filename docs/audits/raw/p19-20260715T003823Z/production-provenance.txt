@@ -1,0 +1,54 @@
+=== P19 PRODUCTION TRUTH 2026-07-15T00:38:23Z ===
+environment=production
+commit=883d8b58b1db224511b0a235532c687136823c2c
+short=883d8b5
+branch=feature/p18-transaction-safety-copy-clarity
+deployed=2026-07-14T16:01:22Z
+
+--- repo ---
+HEAD=4d1f2bb886e80b978c22dc007f5ab938088f1db1
+SHORT=4d1f2bb
+BRANCH=feature/p18-transaction-safety-copy-clarity
+swaperex-p18-prod-20260714T160641Z-883d8b5-4-g4d1f2bb
+## feature/p18-transaction-safety-copy-clarity
+ M .cursor/dex.kobbex.com/rules/02-production-engineer.mdc
+ M .cursor/dex.kobbex.com/rules/03-cost-control.mdc
+ M .cursor/dex.kobbex.com/rules/04-commit-contract.mdc
+ M .cursor/dex.kobbex.com/rules/05-continuous-improvement.mdc
+ M .cursor/dex.kobbex.com/rules/06-production-deploy-gate.mdc
+ M docs/audits/raw/swaperex-prod-20260713T225349Z/obs-t1m.txt
+ M reports/p16-mobile-walletconnect-cert.json
+ M reports/p16-route-navigation-smoke.json
+?? .cursor/permissions.json
+?? docs/audits/raw/p14/
+?? docs/audits/raw/p18-1-20260714T170308Z-rerun/
+?? docs/audits/raw/p18-1-20260714T170308Z/
+?? docs/audits/raw/p18-1-20260714T171510Z-final/
+?? docs/audits/raw/p18-1-20260714T175440Z-final2/
+?? docs/audits/raw/p18-1-20260714T181102Z-final2/
+?? docs/audits/raw/p18-1-20260714T181957Z-final2/
+?? docs/audits/raw/p18-1-obs-20260714T175404Z/
+?? docs/audits/raw/p18-1-obs-20260714T204251Z/canary-evidence/
+?? docs/audits/raw/p18-1-obs-20260714T204251Z/obs-complete.flag
+?? docs/audits/raw/p18-20260714T114209Z/
+?? docs/audits/raw/p19-20260715T003823Z/
+?? docs/audits/raw/post-p14/
+?? docs/audits/raw/swaperex-prod-20260713T225340Z/
+?? docs/audits/raw/swaperex-prod-20260713T225349Z/browser-360x800-final.png
+?? docs/audits/raw/swaperex-prod-20260713T225349Z/browser-390x844-final.png
+?? docs/audits/raw/swaperex-prod-20260713T225349Z/browser-desktop-final.png
+?? docs/audits/raw/swaperex-prod-20260713T225349Z/final-prod-version.txt
+?? reports/p16/
+--- www ---
+543fc3ee154f865f58f7bb5453f6c81e776a930e640fa07cae986569b77092f6  /var/www/swaperex/version.txt
+680eb2b971f7ff2c4b0669a1fc1dcc3f7a49f0e010d45acbe3f674e175dc1fe0  /var/www/swaperex/index.html
+--- nginx ---
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+48c6a4ec1e1fd28ccf968490f07e34a1d7f755793b2108a3ed8670b1ee2a0aa2  /etc/nginx/nginx.conf
+--- pm2 ---
+[('backend-signals', 'online'), ('frontend', 'stopped')]
+admin=401 signals=401
+{"status":"ok","version":"1.0.0","uptime":131692,"signalsEnabled":true,"timestamp":1784075904311}admin=200 signals=200
+signals_only=200
+PROVENANCE_OK

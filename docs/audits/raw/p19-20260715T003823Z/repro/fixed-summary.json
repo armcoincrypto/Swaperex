@@ -1,0 +1,66 @@
+[
+  {
+    "name": "320x568",
+    "width": 320,
+    "height": 568,
+    "visible": true,
+    "inViewport": true,
+    "covered": false,
+    "box": {
+      "x": 224.109375,
+      "y": 12,
+      "width": 83.890625,
+      "height": 44
+    },
+    "pickerOk": true,
+    "bottomNav": true
+  },
+  {
+    "name": "360x800",
+    "width": 360,
+    "height": 800,
+    "visible": true,
+    "inViewport": true,
+    "covered": false,
+    "box": {
+      "x": 264.109375,
+      "y": 12,
+      "width": 83.890625,
+      "height": 44
+    },
+    "pickerOk": true,
+    "bottomNav": true
+  },
+  {
+    "name": "390x844",
+    "width": 390,
+    "height": 844,
+    "visible": true,
+    "inViewport": true,
+    "covered": false,
+    "box": {
+      "x": 294.109375,
+      "y": 12,
+      "width": 83.890625,
+      "height": 44
+    },
+    "pickerOk": true,
+    "bottomNav": true
+  },
+  {
+    "name": "430x932",
+    "width": 430,
+    "height": 932,
+    "visible": true,
+    "inViewport": true,
+    "covered": false,
+    "box": {
+      "x": 334.109375,
+      "y": 12,
+      "width": 83.890625,
+      "height": 44
+    },
+    "pickerOk": true,
+    "bottomNav": true
+  }
+]

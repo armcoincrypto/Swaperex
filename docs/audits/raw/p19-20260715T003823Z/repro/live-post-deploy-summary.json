@@ -1,0 +1,109 @@
+{
+  "results": [
+    {
+      "label": "320x568",
+      "visible": true,
+      "inViewport": true,
+      "covered": false,
+      "picker": true,
+      "wc": true,
+      "modal": true,
+      "bottomNav": true,
+      "errors": []
+    },
+    {
+      "label": "360x800",
+      "visible": true,
+      "inViewport": true,
+      "covered": false,
+      "picker": true,
+      "wc": true,
+      "modal": true,
+      "bottomNav": true,
+      "errors": []
+    },
+    {
+      "label": "375x812",
+      "visible": true,
+      "inViewport": true,
+      "covered": false,
+      "picker": true,
+      "wc": true,
+      "modal": true,
+      "bottomNav": true,
+      "errors": []
+    },
+    {
+      "label": "390x844",
+      "visible": true,
+      "inViewport": true,
+      "covered": false,
+      "picker": true,
+      "wc": true,
+      "modal": true,
+      "bottomNav": true,
+      "errors": []
+    },
+    {
+      "label": "390x844-land",
+      "visible": true,
+      "inViewport": true,
+      "covered": false,
+      "picker": true,
+      "wc": true,
+      "modal": true,
+      "bottomNav": false,
+      "errors": []
+    },
+    {
+      "label": "393x852",
+      "visible": true,
+      "inViewport": true,
+      "covered": false,
+      "picker": true,
+      "wc": true,
+      "modal": true,
+      "bottomNav": true,
+      "errors": []
+    },
+    {
+      "label": "412x915",
+      "visible": true,
+      "inViewport": true,
+      "covered": false,
+      "picker": true,
+      "wc": true,
+      "modal": true,
+      "bottomNav": true,
+      "errors": []
+    },
+    {
+      "label": "412x915-land",
+      "visible": true,
+      "inViewport": true,
+      "covered": false,
+      "picker": true,
+      "wc": true,
+      "modal": true,
+      "bottomNav": false,
+      "errors": []
+    },
+    {
+      "label": "430x932",
+      "visible": true,
+      "inViewport": true,
+      "covered": false,
+      "picker": true,
+      "wc": true,
+      "modal": true,
+      "bottomNav": true,
+      "errors": []
+    },
+    {
+      "label": "desktop-1440x900",
+      "desktopOk": true,
+      "connectVisible": true
+    }
+  ],
+  "fail": []
+}

@@ -1,0 +1,202 @@
+=== ROLLBACK PROOF ===
+restoring pre-P19 from /var/www/swaperex-backup-p19-20260715T004837Z-pre-883d8b5
+environment=production
+commit=883d8b58b1db224511b0a235532c687136823c2c
+short=883d8b5
+branch=feature/p18-transaction-safety-copy-clarity
+deployed=2026-07-14T16:01:22Z
+
+{"rollbackVersionCheck":"expect 883d8b5","box":{"x":361.390625,"y":62,"width":118.6875,"height":66},"overflowHiddenAgain":true}
+=== RESTORE P19 ===
+Re-deploying bd7dd94 via deploy-frontend.sh
+[deploy] 2026-07-15 02:52:57 === Swaperex Frontend Deploy ===
+[deploy] 2026-07-15 02:52:57 Commit:  bd7dd94 (release/swaperex-p19-mobile)
+[deploy] 2026-07-15 02:52:57 Deploy:  /var/www/swaperex
+[deploy] 2026-07-15 02:52:57 Dry run: false
+[deploy] 2026-07-15 02:52:57 Phase 1: Installing dependencies...
+npm warn config production Use `--omit=dev` instead.
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+npm warn deprecated @humanwhocodes/config-array@0.13.0: Use @eslint/config-array instead
+npm warn deprecated rimraf@3.0.2: Rimraf versions prior to v4 are no longer supported
+npm warn deprecated glob@7.2.3: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+npm warn deprecated @humanwhocodes/object-schema@2.0.3: Use @eslint/object-schema instead
+npm warn deprecated @safe-global/safe-gateway-typescript-sdk@3.23.1: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
+npm warn deprecated uuid@8.3.2: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+npm warn deprecated eslint@8.57.1: This version is no longer supported. Please see https://eslint.org/version-support for other options.
+
+added 797 packages, and audited 798 packages in 36s
+
+157 packages are looking for funding
+  run `npm fund` for details
+
+20 vulnerabilities (1 low, 9 moderate, 10 high)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+[deploy] 2026-07-15 02:53:34 Phase 1: Building frontend...
+
+> swaperex-frontend@1.0.0 build
+> tsc && vite build
+
+vite v5.4.21 building for production...
+transforming...
+node_modules/@walletconnect/universal-provider/node_modules/ox/_esm/core/Base64.js (6:27): A comment
+
+"/*#__PURE__*/"
+
+in "node_modules/@walletconnect/universal-provider/node_modules/ox/_esm/core/Base64.js" contains an annotation that Rollup cannot interpret due to the position of the comment. The comment will be removed to avoid issues.
+node_modules/@walletconnect/utils/node_modules/ox/_esm/core/Base64.js (6:27): A comment
+
+"/*#__PURE__*/"
+
+in "node_modules/@walletconnect/utils/node_modules/ox/_esm/core/Base64.js" contains an annotation that Rollup cannot interpret due to the position of the comment. The comment will be removed to avoid issues.
+node_modules/@walletconnect/sign-client/node_modules/ox/_esm/core/Base64.js (6:27): A comment
+
+"/*#__PURE__*/"
+
+in "node_modules/@walletconnect/sign-client/node_modules/ox/_esm/core/Base64.js" contains an annotation that Rollup cannot interpret due to the position of the comment. The comment will be removed to avoid issues.
+node_modules/ox/_esm/core/Address.js (6:21): A comment
+
+"/*#__PURE__*/"
+
+in "node_modules/ox/_esm/core/Address.js" contains an annotation that Rollup cannot interpret due to the position of the comment. The comment will be removed to avoid issues.
+node_modules/ox/_esm/core/Base64.js (6:27): A comment
+
+"/*#__PURE__*/"
+
+in "node_modules/ox/_esm/core/Base64.js" contains an annotation that Rollup cannot interpret due to the position of the comment. The comment will be removed to avoid issues.
+node_modules/ox/_esm/core/internal/cursor.js (2:21): A comment
+
+"/*#__PURE__*/"
+
+in "node_modules/ox/_esm/core/internal/cursor.js" contains an annotation that Rollup cannot interpret due to the position of the comment. The comment will be removed to avoid issues.
+node_modules/@walletconnect/core/node_modules/ox/_esm/core/Base64.js (6:27): A comment
+
+"/*#__PURE__*/"
+
+in "node_modules/@walletconnect/core/node_modules/ox/_esm/core/Base64.js" contains an annotation that Rollup cannot interpret due to the position of the comment. The comment will be removed to avoid issues.
+✓ 3736 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                         1.51 kB │ gzip:   0.58 kB
+dist/assets/index-B-Fm-lg7.css                         91.55 kB │ gzip:  15.93 kB
+dist/assets/portfolio-shared-CdImVTJl.js                0.50 kB │ gzip:   0.34 kB
+dist/assets/watchlistStore-DTskAZo-.js                  1.05 kB │ gzip:   0.53 kB
+dist/assets/chains-z362yqPL.js                          1.19 kB │ gzip:   0.61 kB
+dist/assets/dexLiquidityService-Cs-ztx0U.js             1.68 kB │ gzip:   0.93 kB
+dist/assets/PhCaretLeft-_aiyH7n1.js                     1.88 kB │ gzip:   0.92 kB
+dist/assets/PhCaretDown-78IuKU3V.js                     1.94 kB │ gzip:   0.95 kB
+dist/assets/PhCaretRight-8zJQEuDX.js                    1.96 kB │ gzip:   0.94 kB
+dist/assets/PhCaretUp-CiCxKWwN.js                       2.02 kB │ gzip:   0.94 kB
+dist/assets/PhArrowUpRight-BpJjRRRh.js                  2.06 kB │ gzip:   1.02 kB
+dist/assets/PhArrowDown-C4hT9BVu.js                     2.10 kB │ gzip:   1.01 kB
+dist/assets/PhArrowRight-Cp5ZME0F.js                    2.11 kB │ gzip:   1.01 kB
+dist/assets/PhPlus-BMjcHjsT.js                          2.11 kB │ gzip:   0.97 kB
+dist/assets/PhCheck-CcADx8br.js                         2.11 kB │ gzip:   0.98 kB
+dist/assets/PhArrowLeft-Way4Cu-r.js                     2.12 kB │ gzip:   1.00 kB
+dist/assets/PhArrowUp-Dph6j8rm.js                       2.17 kB │ gzip:   1.01 kB
+dist/assets/PhMagnifyingGlass-Mygfryvz.js               2.21 kB │ gzip:   1.07 kB
+dist/assets/PhBrowser-dUu2TrC1.js                       2.22 kB │ gzip:   0.97 kB
+dist/assets/PhDotsThree-BMXCQl-0.js                     2.25 kB │ gzip:   0.94 kB
+dist/assets/PhFunnelSimple-Ba7BbWTp.js                  2.36 kB │ gzip:   1.00 kB
+dist/assets/PhCopy-C-PDgSlZ.js                          2.36 kB │ gzip:   1.01 kB
+dist/assets/PhClock-UItiXeJq.js                         2.37 kB │ gzip:   1.03 kB
+dist/assets/PhWarningCircle-BqjT745H.js                 2.43 kB │ gzip:   1.05 kB
+dist/assets/PopularCommissionRoutes-DiujaEIr.js         2.49 kB │ gzip:   1.18 kB
+dist/assets/PhX-s-SmVExa.js                             2.50 kB │ gzip:   1.06 kB
+dist/assets/PhDeviceMobile-BdsPaATg.js                  2.57 kB │ gzip:   1.07 kB
+dist/assets/PhArrowClockwise-CJPxQhr_.js                2.59 kB │ gzip:   1.19 kB
+dist/assets/PhUser-CAgZSpGe.js                          2.68 kB │ gzip:   1.26 kB
+dist/assets/PhEnvelope-yUsis6yU.js                      2.68 kB │ gzip:   1.18 kB
+dist/assets/PhCircleHalf-BYzSzd2h.js                    2.71 kB │ gzip:   1.21 kB
+dist/assets/PhSignOut-C5YOWlPT.js                       2.77 kB │ gzip:   1.16 kB
+dist/assets/PhInfo-Cr4DhVUE.js                          2.78 kB │ gzip:   1.21 kB
+dist/assets/PhPower-CGffGmdb.js                         2.78 kB │ gzip:   1.28 kB
+dist/assets/PhDesktop-BBIPrYLl.js                       2.79 kB │ gzip:   1.12 kB
+dist/assets/PhArrowsLeftRight-CuLpbKRk.js               2.80 kB │ gzip:   1.18 kB
+dist/assets/WalletBootstrap-CANErcKD.js                 2.81 kB │ gzip:   1.47 kB
+dist/assets/PhArrowCircleDown-B305t-Sh.js               2.81 kB │ gzip:   1.18 kB
+dist/assets/PhWallet-w25D16It.js                        2.83 kB │ gzip:   1.18 kB
+dist/assets/PhQuestionMark-BP9EMB6h.js                  2.84 kB │ gzip:   1.30 kB
+dist/assets/PhArrowSquareOut-NnrK69c5.js                2.93 kB │ gzip:   1.25 kB
+dist/assets/PhArrowsDownUp-BjBI4ckC.js                  2.93 kB │ gzip:   1.18 kB
+dist/assets/PhCreditCard-CWRaUT6F.js                    2.93 kB │ gzip:   1.16 kB
+dist/assets/PhBank-Dchr4XQJ.js                          2.94 kB │ gzip:   1.25 kB
+dist/assets/PhVault-l2PHF38a.js                         2.97 kB │ gzip:   1.20 kB
+dist/assets/PhCompass-CUy3uA7t.js                       2.98 kB │ gzip:   1.28 kB
+dist/assets/ShellPrimitives-DRp7CPrP.js                 3.06 kB │ gzip:   1.21 kB
+dist/assets/PhPaperPlaneRight-BeuCA660.js               3.10 kB │ gzip:   1.42 kB
+dist/assets/PhTrash-Biq6rmmL.js                         3.12 kB │ gzip:   1.19 kB
+dist/assets/DexLearnMoreSection-kVdYDufX.js             3.20 kB │ gzip:   1.23 kB
+dist/assets/PhCurrencyDollar-Cqla3AXT.js                3.24 kB │ gzip:   1.33 kB
+dist/assets/PhQuestion-M09j2U0T.js                      3.32 kB │ gzip:   1.45 kB
+dist/assets/PhImage-BAJ_erz6.js                         3.44 kB │ gzip:   1.45 kB
+dist/assets/PhArrowsClockwise-CFUT8X7R.js               3.87 kB │ gzip:   1.59 kB
+dist/assets/PhWarning-DPEydIPw.js                       3.91 kB │ gzip:   1.49 kB
+dist/assets/PhIdentificationCard-Czjmq9Z3.js            4.22 kB │ gzip:   1.65 kB
+dist/assets/PhSpinner-BXooDYzU.js                       4.45 kB │ gzip:   1.65 kB
+dist/assets/PhLightbulb-BX_7duTr.js                     4.92 kB │ gzip:   1.86 kB
+dist/assets/PhQrCode-DRwRzXCH.js                        4.92 kB │ gzip:   1.47 kB
+dist/assets/PhPuzzlePiece-wm_GpVSi.js                   5.37 kB │ gzip:   1.96 kB
+dist/assets/PhGlobe-DgLxBk5U.js                         5.72 kB │ gzip:   1.92 kB
+dist/assets/TokenList-Ci3Rq3Y6.js                       6.44 kB │ gzip:   2.22 kB
+dist/assets/TrustCenterPage-Ds-lTa6q.js                 9.40 kB │ gzip:   3.37 kB
+dist/assets/StaticPages-CdYGrEPV.js                    11.94 kB │ gzip:   3.19 kB
+dist/assets/PhSealCheck-BfG80yKn.js                    12.10 kB │ gzip:   4.02 kB
+dist/assets/WalletConnect-HuhusjOS.js                  12.26 kB │ gzip:   3.68 kB
+dist/assets/TradingIntelligencePanel-BOyIGW_t.js       17.54 kB │ gzip:   5.67 kB
+dist/assets/property-C9JG5tag.js                       17.92 kB │ gzip:   6.53 kB
+dist/assets/SendPage-C9SXmAI9.js                       30.37 kB │ gzip:   9.08 kB
+dist/assets/TokenScreener-BWqiduHj.js                  32.52 kB │ gzip:   9.70 kB
+dist/assets/SwapPreviewModal-D3Wnv-WN.js               36.96 kB │ gzip:   8.75 kB
+dist/assets/vendor-crypto-shared-CWXGYmRZ.js           94.77 kB │ gzip:  34.20 kB
+dist/assets/index-B0ry0YmK.js                          98.73 kB │ gzip:  32.75 kB
+dist/assets/AdminApp-dydCknbP.js                      101.97 kB │ gzip:  16.97 kB
+dist/assets/PortfolioPage-BH8ut7s1.js                 104.17 kB │ gzip:  28.05 kB
+dist/assets/RadarPanel-Bwzi7SYw.js                    141.41 kB │ gzip:  38.07 kB
+dist/assets/vendor-react-w8jZXnmi.js                  145.99 kB │ gzip:  47.07 kB
+dist/assets/solanaBalanceService-BQ-Oy5uL.js          182.43 kB │ gzip:  50.25 kB
+dist/assets/index-D7LAmAOU.js                         330.22 kB │ gzip: 119.01 kB
+dist/assets/vendor-ethers-CS9BpkGU.js                 394.53 kB │ gzip: 146.00 kB
+dist/assets/TradeShell-bE9bb2Sn.js                    520.59 kB │ gzip: 143.82 kB
+dist/assets/vendor-reown-walletconnect-C5lCJnV-.js  2,596.82 kB │ gzip: 685.38 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 33.10s
+[deploy] 2026-07-15 02:54:45 Phase 1: Build OK (85 files)
+[deploy] 2026-07-15 02:54:45 Phase 2: Backing up /var/www/swaperex → /var/www/swaperex-backup-20260715T005257Z ...
+[deploy] 2026-07-15 02:54:45 Phase 2: Backup OK
+[deploy] 2026-07-15 02:54:45 Phase 3: Deploying to /var/www/swaperex ...
+[deploy] 2026-07-15 02:54:45 Phase 3: Source maps removed (remaining: 0)
+[deploy] 2026-07-15 02:54:45 Phase 3: Deploy OK (86 files)
+[deploy] 2026-07-15 02:54:45 Phase 4: Testing nginx config...
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+[deploy] 2026-07-15 02:54:45 Phase 4: Reloading nginx...
+[deploy] 2026-07-15 02:54:46 Phase 4: Nginx reloaded OK
+[deploy] 2026-07-15 02:54:46 Phase 5: Running smoke tests...
+[deploy] 2026-07-15 02:54:46   Checking /version.txt (HTTPS, Host+SNI via --resolve) ...
+[deploy] 2026-07-15 02:54:46   /version.txt OK — contains bd7dd94
+[deploy] 2026-07-15 02:54:46   Checking / returns 200 (HTTPS) ...
+[deploy] 2026-07-15 02:54:46   / returned HTTP 200 OK
+[deploy] 2026-07-15 02:54:46   Checking /api/health (HTTPS) ...
+[deploy] 2026-07-15 02:54:46   /api/health returned HTTP 200 OK
+[deploy] 2026-07-15 02:54:46   Checking /.env is blocked (HTTPS) ...
+[deploy] 2026-07-15 02:54:46   /.env returned HTTP 404 OK (blocked)
+[deploy] 2026-07-15 02:54:46   Checking .map files not served (HTTPS) ...
+[deploy] 2026-07-15 02:54:46   .map files blocked (HTTP 404) OK
+[deploy] 2026-07-15 02:54:46 Phase 5: All critical smoke tests PASSED
+[deploy] 2026-07-15 02:54:46 === Deploy complete ===
+[deploy] 2026-07-15 02:54:46   Version:  bd7dd94
+[deploy] 2026-07-15 02:54:46   Branch:   release/swaperex-p19-mobile
+[deploy] 2026-07-15 02:54:46   Time:     2026-07-15T00:52:57Z
+[deploy] 2026-07-15 02:54:46   Backup:   /var/www/swaperex-backup-20260715T005257Z
+[deploy] 2026-07-15 02:54:46   Rollback: sudo rm -rf /var/www/swaperex && sudo mv /var/www/swaperex-backup-20260715T005257Z /var/www/swaperex && sudo systemctl reload nginx

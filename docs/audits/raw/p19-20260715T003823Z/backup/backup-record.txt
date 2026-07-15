@@ -1,0 +1,11 @@
+backup=/var/www/swaperex-backup-p19-20260715T004837Z-pre-883d8b5
+source_version:
+environment=production
+commit=883d8b58b1db224511b0a235532c687136823c2c
+short=883d8b5
+branch=feature/p18-transaction-safety-copy-clarity
+deployed=2026-07-14T16:01:22Z
+
+543fc3ee154f865f58f7bb5453f6c81e776a930e640fa07cae986569b77092f6  /var/www/swaperex/version.txt
+680eb2b971f7ff2c4b0669a1fc1dcc3f7a49f0e010d45acbe3f674e175dc1fe0  /var/www/swaperex/index.html
+tree_sha256=9d7bee54a70d35826a0e7adecdc7d68ae41c10a644218f5f0b9cc38452c81ad5

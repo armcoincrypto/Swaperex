@@ -1,0 +1,18 @@
+{
+  "phase": "P19",
+  "verdict": "SWAPEREX_P19_MOBILE_DEFECT_FIXED_DEPLOYED_AND_VALIDATED_PASS",
+  "startingArtifact": "883d8b58b1db224511b0a235532c687136823c2c",
+  "finalArtifact": "bd7dd943d46f1d4bced7dab36e95e452f82a59e2",
+  "releaseTag": "swaperex-p19-prod-20260715T004838Z-bd7dd94",
+  "rootCause": "Header mobile nav + View address pushed Connect Wallet off-screen on portrait widths",
+  "productionMutation": true,
+  "tests": {
+    "files": 67,
+    "tests": 677
+  },
+  "commissionAudit": "126/126",
+  "physicalDeepLink": "SKIP_WITH_JUSTIFICATION",
+  "evidence": "/root/Swaperex/docs/audits/raw/p19-20260715T003823Z",
+  "kobbopayChanged": false,
+  "p7Changed": false
+}
