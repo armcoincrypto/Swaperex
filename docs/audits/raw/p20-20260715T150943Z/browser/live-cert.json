@@ -1,0 +1,17 @@
+{
+  "320": {
+    "brandOk": true,
+    "connectOk": true,
+    "trustPills": 3
+  },
+  "390": {
+    "brandOk": true,
+    "connectOk": true,
+    "trustPills": 3
+  },
+  "desktop": {
+    "brandOk": true,
+    "connectOk": true,
+    "trustPills": 3
+  }
+}

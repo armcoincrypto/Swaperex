@@ -1,0 +1,37 @@
+=== P20 PRODUCTION TRUTH 2026-07-15T15:09:43Z ===
+environment=production
+commit=bd7dd943d46f1d4bced7dab36e95e452f82a59e2
+short=bd7dd94
+branch=release/swaperex-p19-mobile
+deployed=2026-07-15T00:52:57Z
+
+HEAD=04700c3727ed4a00907d92e8234490efe747abc7
+SHORT=04700c3
+BRANCH=release/swaperex-p19-mobile
+swaperex-p19-prod-20260715T004838Z-bd7dd94-3-g04700c3
+## release/swaperex-p19-mobile
+ M .cursor/dex.kobbex.com/rules/02-production-engineer.mdc
+ M .cursor/dex.kobbex.com/rules/03-cost-control.mdc
+ M .cursor/dex.kobbex.com/rules/04-commit-contract.mdc
+ M .cursor/dex.kobbex.com/rules/05-continuous-improvement.mdc
+ M .cursor/dex.kobbex.com/rules/06-production-deploy-gate.mdc
+ M docs/audits/raw/swaperex-prod-20260713T225349Z/obs-t1m.txt
+ M reports/p16-mobile-walletconnect-cert.json
+ M reports/p16-route-navigation-smoke.json
+?? .cursor/permissions.json
+?? docs/audits/raw/p14/
+?? docs/audits/raw/p18-1-20260714T170308Z-rerun/
+?? docs/audits/raw/p18-1-20260714T170308Z/
+?? docs/audits/raw/p18-1-20260714T171510Z-final/
+?? docs/audits/raw/p18-1-20260714T175440Z-final2/
+?? docs/audits/raw/p18-1-20260714T181102Z-final2/
+?? docs/audits/raw/p18-1-20260714T181957Z-final2/
+?? docs/audits/raw/p18-1-obs-20260714T175404Z/
+?? docs/audits/raw/p18-1-obs-20260714T204251Z/canary-evidence/
+?? docs/audits/raw/p18-1-obs-20260714T204251Z/obs-complete.flag
+?? docs/audits/raw/p18-20260714T114209Z/
+?? docs/audits/raw/p19-20260715T003823Z/live-string-check.txt
+?? docs/audits/raw/p19-20260715T003823Z/operator-canary/
+?? docs/audits/raw/p20-20260715T150943Z/
+?? docs/audits/raw/post-p14/
+PROVENANCE_CAPTURED

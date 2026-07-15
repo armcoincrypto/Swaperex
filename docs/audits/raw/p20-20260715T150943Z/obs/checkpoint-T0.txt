@@ -1,0 +1,5 @@
+=== OBS T0 2026-07-15T15:21:51Z ===
+homepage=200
+environment=production commit=2d2ad08297a77f07a36fccb813570a5c4da6b942 short=2d2ad08 branch=release/swaperex-p20-professional-ui deployed=2026-07-15T15:19:55Z 
+signals=200
+admin=401

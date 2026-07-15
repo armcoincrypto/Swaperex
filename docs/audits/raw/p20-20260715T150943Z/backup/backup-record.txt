@@ -1,0 +1,8 @@
+backup=/var/www/swaperex-backup-p20-20260715T151612Z-pre-bd7dd94
+environment=production
+commit=bd7dd943d46f1d4bced7dab36e95e452f82a59e2
+short=bd7dd94
+branch=release/swaperex-p19-mobile
+deployed=2026-07-15T00:52:57Z
+22729a5143ac841365c94087da1e697c3ad73353f76f0200713ea66c13ed225d  /var/www/swaperex/version.txt
+ccd4f37228461a4f17e63a2398788a56704b3c4d92bb9785bc2568b5297ed696  /var/www/swaperex/index.html
