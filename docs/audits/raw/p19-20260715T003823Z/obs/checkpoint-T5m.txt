@@ -1,0 +1,7 @@
+=== OBS T5m 2026-07-15T01:00:31Z ===
+homepage=200 ttfb=0.061539
+environment=production commit=bd7dd943d46f1d4bced7dab36e95e452f82a59e2 short=bd7dd94 branch=release/swaperex-p19-mobile deployed=2026-07-15T00:52:57Z 
+signals=200
+admin=401
+backend-signals online restarts 0
+frontend stopped restarts 63

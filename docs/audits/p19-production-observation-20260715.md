@@ -1,12 +1,15 @@
-# P19 Production Observation
+# P19 Production Observation — 20260715
 
 Evidence: `/root/Swaperex/docs/audits/raw/p19-20260715T003823Z`
-Production URL: https://dex.kobbex.com
-Starting artifact: `883d8b58b1db224511b0a235532c687136823c2c`
-Final artifact: `bd7dd943d46f1d4bced7dab36e95e452f82a59e2` (`bd7dd94`)
-Release tag: `swaperex-p19-prod-20260715T004838Z-bd7dd94`
-Branch: `release/swaperex-p19-mobile`
 
+## Result: PASS (1h)
 
-## Checkpoints
-T+0 started at deploy validation. T+5m / T+15m / T+30m / T+1h recorded under `/root/Swaperex/docs/audits/raw/p19-20260715T003823Z/obs/` when complete.
+| Checkpoint | Homepage | Artifact | Signals |
+|------------|----------|----------|---------|
+| T0 | 200 | bd7dd94 | 200 |
+| T5m | 200 | bd7dd94 | 200 |
+| T15m | 200 | bd7dd94 | 200 |
+| T30m | 200 | bd7dd94 | 200 |
+| T1h | 200 | bd7dd94 | 200 |
+
+All measured checkpoints remained healthy on `bd7dd94`. No unrelated service restarts.
