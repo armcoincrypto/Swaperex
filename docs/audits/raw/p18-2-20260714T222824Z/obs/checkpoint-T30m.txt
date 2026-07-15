@@ -1,0 +1,7 @@
+=== OBS T30m 2026-07-14T23:02:51Z ===
+homepage=200 ttfb=0.059324
+environment=production commit=883d8b58b1db224511b0a235532c687136823c2c short=883d8b5 branch=feature/p18-transaction-safety-copy-clarity deployed=2026-07-14T16:01:22Z 
+signals_health=200
+admin=401
+backend-signals online restarts 0 mem 81313792
+frontend stopped restarts 63 mem 0

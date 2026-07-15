@@ -18,5 +18,15 @@ Checkpoints: **T+0**, **T+15m**, **T+30m**, **T+1h** → `/root/Swaperex/docs/au
 - backend-signals online, restart_time 0
 - Static frontend via nginx (PM2 `frontend` stopped — expected)
 
+## Checkpoints
+| Checkpoint | Homepage | Artifact | Signals | Admin | Signals restarts |
+|------------|----------|----------|---------|-------|------------------|
+| T+0 | 200 | 883d8b5 | 200 | 401 | 0 |
+| T+15m | 200 | 883d8b5 | 200 | 401 | 0 |
+| T+30m | 200 | 883d8b5 | 200 | 401 | 0 |
+| T+1h | 200 | 883d8b5 | 200 | 401 | 0 |
+
+**Observation result: PASS** (1h complete).
+
 ## Note
-Full-hour completion flagged by `/root/Swaperex/docs/audits/raw/p18-2-20260714T222824Z/obs/obs-complete.flag` when finished. Final certification incorporates completed checkpoints when present.
+Completion flagged by `/root/Swaperex/docs/audits/raw/p18-2-20260714T222824Z/obs/obs-complete.flag` when finished. Final certification incorporates completed checkpoints when present.

@@ -16,5 +16,15 @@
   "eslint": "OPTION_C_RETAIN_WARNING",
   "evidence": "/root/Swaperex/docs/audits/raw/p18-2-20260714T222824Z",
   "kobbopayChanged": false,
-  "p7Changed": false
+  "p7Changed": false,
+  "observation": {
+    "duration": "1h",
+    "result": "PASS",
+    "checkpoints": [
+      "T0",
+      "T15m",
+      "T30m",
+      "T1h"
+    ]
+  }
 }

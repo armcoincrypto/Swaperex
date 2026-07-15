@@ -24,5 +24,8 @@ Safe MAX / gas gates / expiry / account+chain invalidation / route presentation 
 ## Repo changes retained
 - Label-source consolidation + regression tests + this audit suite (docs/evidence).
 
+## Observation
+**1h PASS** — all checkpoints healthy on artifact `883d8b5`; no redeploy.
+
 ## Recommended next phase
 Optional operator **physical handset** WalletConnect session when a controlled phone is available; otherwise P18 program may be treated as **closed with warnings**.
