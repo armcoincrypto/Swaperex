@@ -14,5 +14,18 @@
   "physicalDeepLink": "SKIP_WITH_JUSTIFICATION",
   "evidence": "/root/Swaperex/docs/audits/raw/p19-20260715T003823Z",
   "kobbopayChanged": false,
-  "p7Changed": false
+  "p7Changed": false,
+  "observation": {
+    "duration": "1h",
+    "result": "PASS",
+    "checkpoints": [
+      "T0",
+      "T5m",
+      "T15m",
+      "T30m",
+      "T1h"
+    ]
+  },
+  "finalRepositoryHead": "cd7c63f72b7db70cb3296b856d35e53e4e10f68d",
+  "productionArtifact": "bd7dd943d46f1d4bced7dab36e95e452f82a59e2"
 }
