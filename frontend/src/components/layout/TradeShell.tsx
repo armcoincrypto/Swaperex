@@ -496,24 +496,26 @@ export default function TradeShell() {
   );
 
   return (
-    <div className="min-h-screen bg-electro-bg bg-bg-mesh overflow-x-hidden flex flex-col pb-[env(safe-area-inset-bottom)]">
+    <div className="min-h-screen bg-electro-bg bg-bg-mesh overflow-x-hidden flex flex-col pb-[calc(4.5rem+env(safe-area-inset-bottom))] sm:pb-[env(safe-area-inset-bottom)]">
       {walletHostNeeded && (
         <Suspense fallback={null}>
           <LazyWalletBootstrap />
         </Suspense>
       )}
-      {/* Header */}
+      {/* Header — P19: wallet action always stays in-viewport; page nav moves to bottom on mobile */}
       <header className="border-b border-white/[0.06] backdrop-blur-sm bg-electro-bg/80 sticky top-0 z-40 pt-[env(safe-area-inset-top)]">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-8">
+        <div className="max-w-6xl mx-auto px-3 sm:px-4 py-3 sm:py-4 flex items-center justify-between gap-2 min-w-0">
+          <div className="flex items-center gap-3 sm:gap-8 min-w-0">
             {/* Logo — P16 brand hierarchy */}
-            <div className="flex flex-col leading-tight">
-              <h1 className="text-xl font-bold text-accent">{BRAND.displayName}</h1>
-              <span className="text-[10px] font-medium text-dark-500 tracking-wide">{BRAND.byline}</span>
+            <div className="flex flex-col leading-tight shrink-0">
+              <h1 className="text-lg sm:text-xl font-bold text-accent">{BRAND.displayName}</h1>
+              <span className="hidden sm:inline text-[10px] font-medium text-dark-500 tracking-wide">
+                {BRAND.byline}
+              </span>
             </div>
 
-            {/* Navigation — P4.2 Command Center */}
-            <nav className="hidden sm:flex gap-1">
+            {/* Navigation — desktop command center only (mobile uses bottom nav) */}
+            <nav className="hidden sm:flex gap-1" aria-label="Primary">
               <NavButton
                 active={currentPage === 'swap' || currentPage === 'send'}
                 onClick={() => goToPage('swap')}
@@ -532,49 +534,10 @@ export default function TradeShell() {
                   </NavButton>
                 ))}
             </nav>
-            {/* Mobile nav — compact command center */}
-            <nav className="flex sm:hidden gap-0.5 overflow-x-auto max-w-[52vw]">
-              {(
-                [
-                  {
-                    page: 'swap' as Page,
-                    label: 'Trade',
-                    active: currentPage === 'swap' || currentPage === 'send',
-                    badge: 0,
-                  },
-                  ...(SHOW_OPTIONAL_PRIMARY_NAV
-                    ? PRIMARY_NAV_ITEMS.filter((i) => i.page !== 'swap').map((i) => ({
-                        page: i.page as Page,
-                        label: i.label,
-                        active: (i.activeWhen as Page[]).includes(currentPage),
-                        badge: i.page === 'radar' ? radarUnreadCount : 0,
-                      }))
-                    : []),
-                ] as Array<{ page: Page; label: string; active: boolean; badge: number }>
-              ).map(({ page, label, active, badge }) => (
-                <button
-                  key={page}
-                  type="button"
-                  onClick={() => goToPage(page)}
-                  className={`relative shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    active
-                      ? 'bg-electro-panel text-white border border-white/[0.08]'
-                      : 'text-dark-400'
-                  }`}
-                >
-                  {label}
-                  {badge !== undefined && badge > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-0.5 bg-accent text-electro-bg text-[9px] font-bold rounded-full flex items-center justify-center">
-                      {badge > 9 ? '9+' : badge}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </nav>
           </div>
 
-          {/* Network Selector and Wallet Connection */}
-          <div className="flex items-center gap-3">
+          {/* Network + wallet — shrink-0 so Connect cannot be pushed off-screen (P19) */}
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             <NetworkSelector />
             {shouldLoadHeaderWalletChunk({
               currentPage,
@@ -589,9 +552,11 @@ export default function TradeShell() {
               <button
                 type="button"
                 onClick={() => goToPage('swap')}
-                className="h-10 px-4 rounded-lg border border-white/[0.08] bg-electro-panel/50 text-sm font-medium text-dark-300 hover:text-white hover:bg-electro-panel transition-colors"
+                className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] h-11 px-3 sm:px-4 rounded-lg border border-white/[0.08] bg-electro-panel/50 text-sm font-medium text-dark-300 hover:text-white hover:bg-electro-panel transition-colors"
+                aria-label="Open Trade to connect wallet"
               >
-                Wallet
+                <span className="sm:hidden">Wallet</span>
+                <span className="hidden sm:inline">Wallet</span>
               </button>
             )}
           </div>
@@ -740,6 +705,50 @@ export default function TradeShell() {
 
       {/* Footer — P5.4 professional DEX site footer */}
       <DexSiteFooter onNavigate={handleFooterNavigate} />
+
+      {/* P19 — Mobile bottom command nav (keeps header free for wallet connect) */}
+      <nav
+        className="sm:hidden fixed bottom-0 inset-x-0 z-40 border-t border-white/[0.08] bg-electro-bg/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)]"
+        aria-label="Primary mobile"
+      >
+        <div className="grid grid-cols-4 gap-0.5 px-1 pt-1">
+          {(
+            [
+              {
+                page: 'swap' as Page,
+                label: 'Trade',
+                active: currentPage === 'swap' || currentPage === 'send',
+                badge: 0,
+              },
+              ...(SHOW_OPTIONAL_PRIMARY_NAV
+                ? PRIMARY_NAV_ITEMS.filter((i) => i.page !== 'swap').map((i) => ({
+                    page: i.page as Page,
+                    label: i.label,
+                    active: (i.activeWhen as Page[]).includes(currentPage),
+                    badge: i.page === 'radar' ? radarUnreadCount : 0,
+                  }))
+                : []),
+            ] as Array<{ page: Page; label: string; active: boolean; badge: number }>
+          ).map(({ page, label, active, badge }) => (
+            <button
+              key={page}
+              type="button"
+              onClick={() => goToPage(page)}
+              aria-current={active ? 'page' : undefined}
+              className={`relative flex flex-col items-center justify-center min-h-[48px] rounded-lg text-[11px] font-medium transition-colors ${
+                active ? 'text-white bg-electro-panel border border-white/[0.08]' : 'text-dark-400'
+              }`}
+            >
+              {label}
+              {badge > 0 && (
+                <span className="absolute top-1 right-2 min-w-[14px] h-[14px] px-0.5 bg-accent text-electro-bg text-[9px] font-bold rounded-full flex items-center justify-center">
+                  {badge > 9 ? '9+' : badge}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      </nav>
 
       {/* Global Error Display */}
       <GlobalErrorDisplay />

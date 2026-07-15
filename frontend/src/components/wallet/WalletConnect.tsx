@@ -77,19 +77,21 @@ export function WalletConnect() {
     return `${num.toFixed(4)} ${chain.nativeSymbol}`;
   })();
 
-  // Close dropdowns on outside click
+  // Close dropdowns on outside click / touch (P19: mousedown alone misses many mobile taps)
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+    function handlePointerOutside(event: Event) {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (dropdownRef.current && !dropdownRef.current.contains(target)) {
         setShowWalletOptions(false);
       }
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+      if (menuRef.current && !menuRef.current.contains(target)) {
         setShowMenu(false);
       }
     }
     if (showWalletOptions || showMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      document.addEventListener('pointerdown', handlePointerOutside);
+      return () => document.removeEventListener('pointerdown', handlePointerOutside);
     }
   }, [showWalletOptions, showMenu]);
 
@@ -204,8 +206,12 @@ export function WalletConnect() {
     return (
       <div className="relative" ref={menuRef}>
         <button
+          type="button"
           onClick={() => setShowMenu(!showMenu)}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+          aria-haspopup="menu"
+          aria-expanded={showMenu}
+          aria-label={`Wallet ${shortenAddress(address)}`}
+          className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 rounded-lg transition-colors min-h-[44px] max-w-[11.5rem] sm:max-w-none ${
             isUnsupported
               ? 'bg-red-900/30 border border-red-600 hover:bg-red-900/50'
               : 'bg-dark-800 hover:bg-dark-700'
@@ -213,7 +219,7 @@ export function WalletConnect() {
         >
           {/* Status dot */}
           <div
-            className={`w-2 h-2 rounded-full ${
+            className={`w-2 h-2 rounded-full shrink-0 ${
               isReadOnly ? 'bg-yellow-500'
               : isUnsupported ? 'bg-red-500'
                 : 'bg-green-500'
@@ -221,23 +227,28 @@ export function WalletConnect() {
           />
 
           {/* Address */}
-          <span className="font-medium">{shortenAddress(address)}</span>
+          <span className="font-medium text-sm truncate">{shortenAddress(address)}</span>
 
-          {/* Badges */}
+          {/* Badges — keep compact on mobile */}
           {isReadOnly && (
-            <span className="px-1.5 py-0.5 text-xs rounded bg-yellow-900/50 text-yellow-400">
+            <span className="hidden sm:inline px-1.5 py-0.5 text-xs rounded bg-yellow-900/50 text-yellow-400 shrink-0">
               View Only
             </span>
           )}
           {!isReadOnly && (
-            <ChainBadge chainId={chainId} isUnsupported={isUnsupported} />
+            <span className="hidden sm:inline shrink-0">
+              <ChainBadge chainId={chainId} isUnsupported={isUnsupported} />
+            </span>
           )}
           {isUnsupported && !isReadOnly && <WarningIcon />}
         </button>
 
         {/* Connected dropdown */}
         {showMenu && (
-          <div className="absolute right-0 mt-2 w-72 bg-dark-800 rounded-lg shadow-lg border border-dark-700 py-1 z-50">
+          <div
+            role="menu"
+            className="absolute right-0 mt-2 w-[min(18rem,calc(100vw-1.5rem))] max-h-[min(70vh,28rem)] overflow-y-auto bg-dark-800 rounded-lg shadow-lg border border-dark-700 py-1 z-[60]"
+          >
             {/* Header: wallet label + chain */}
             <div className="px-4 py-3 border-b border-dark-700">
               <div className="flex items-center justify-between mb-1">
@@ -355,14 +366,14 @@ export function WalletConnect() {
   // ===== CONNECTING STATE =====
   if (isConnecting) {
     return (
-      <div className="flex flex-col gap-2 items-center">
-        <Button loading variant="primary" disabled>
+      <div className="flex flex-col gap-2 items-center max-w-[11rem] sm:max-w-none">
+        <Button loading variant="primary" disabled className="min-h-[44px]">
           Connecting...
         </Button>
-        <p className="text-xs text-dark-400 text-center">
-          Scan the QR code with your mobile wallet
+        <p className="text-xs text-dark-400 text-center leading-snug">
+          Approve in your wallet app, or scan the QR code on another device
         </p>
-        <button onClick={handleCancel} className="text-xs text-dark-400 hover:text-dark-200">
+        <button type="button" onClick={handleCancel} className="text-xs text-dark-400 hover:text-dark-200 min-h-[44px] px-2">
           Cancel
         </button>
       </div>
@@ -382,27 +393,40 @@ export function WalletConnect() {
 
   // ===== DISCONNECTED — WALLET PICKER =====
   return (
-    <div className="relative flex flex-wrap items-center justify-end gap-2" ref={dropdownRef}>
+    <div className="relative flex flex-nowrap items-center justify-end gap-1 sm:gap-2 shrink-0" ref={dropdownRef}>
       <TermsGateModal
         isOpen={pendingWalletOption !== null}
         onClose={handleTermsCancel}
         onAccept={handleTermsAccept}
         actionLabel="Accept & Connect"
       />
+      {/* View address stays in picker on narrow screens so Connect remains reachable (P19) */}
       <button
         type="button"
         onClick={openReadOnlyFromHeader}
         title={WALLET_ENTRY_LABELS.viewAddressHeaderTitle}
-        className="px-3 py-2 text-sm font-medium text-dark-300 hover:text-white transition-colors whitespace-nowrap rounded-lg hover:bg-dark-800/80 border border-transparent hover:border-white/[0.06]"
+        className="hidden sm:inline-flex px-3 py-2 text-sm font-medium text-dark-300 hover:text-white transition-colors whitespace-nowrap rounded-lg hover:bg-dark-800/80 border border-transparent hover:border-white/[0.06] min-h-[44px] items-center"
       >
         {WALLET_ENTRY_LABELS.viewAddressHeader}
       </button>
-      <Button onClick={() => setShowWalletOptions(!showWalletOptions)} variant="primary">
-        Connect Wallet
+      <Button
+        onClick={() => setShowWalletOptions(!showWalletOptions)}
+        variant="primary"
+        size="sm"
+        className="min-h-[44px] min-w-[44px] px-3 sm:px-4 text-sm sm:text-base whitespace-nowrap shrink-0"
+        aria-haspopup="menu"
+        aria-expanded={showWalletOptions}
+        aria-label="Connect Wallet"
+      >
+        <span className="sm:hidden">Connect</span>
+        <span className="hidden sm:inline">Connect Wallet</span>
       </Button>
 
       {showWalletOptions && (
-        <div className="absolute right-0 top-full mt-2 w-72 bg-dark-800 rounded-lg shadow-lg border border-dark-700 py-2 z-50">
+        <div
+          role="menu"
+          className="absolute right-0 top-full mt-2 w-[min(18rem,calc(100vw-1.5rem))] max-h-[min(70vh,28rem)] overflow-y-auto bg-dark-800 rounded-lg shadow-lg border border-dark-700 py-2 z-[60]"
+        >
           <div className="px-3 pb-2 mb-2 border-b border-dark-700">
             <span className="text-xs text-dark-400 uppercase tracking-wide">
               Connect or view
@@ -414,38 +438,44 @@ export function WalletConnect() {
 
           {/* WalletConnect */}
           <button
+            type="button"
+            role="menuitem"
             onClick={() => handleWalletSelect('walletconnect')}
-            className="w-full px-4 py-3 text-left hover:bg-dark-700 transition-colors flex items-center gap-3"
+            className="w-full px-4 py-3 text-left hover:bg-dark-700 transition-colors flex items-center gap-3 min-h-[48px]"
           >
             <WalletConnectIcon />
             <div>
               <div className="font-medium">WalletConnect</div>
               <div className="text-xs text-dark-400">
-                QR code for mobile wallets & Ledger
+                Open your wallet app or use QR on another device
               </div>
             </div>
           </button>
 
           {/* Coinbase Wallet (via WalletConnect) */}
           <button
+            type="button"
+            role="menuitem"
             onClick={() => handleWalletSelect('walletconnect')}
-            className="w-full px-4 py-3 text-left hover:bg-dark-700 transition-colors flex items-center gap-3"
+            className="w-full px-4 py-3 text-left hover:bg-dark-700 transition-colors flex items-center gap-3 min-h-[48px]"
           >
             <CoinbaseIcon />
             <div>
               <div className="font-medium">Coinbase Wallet</div>
               <div className="text-xs text-dark-400">
-                Via WalletConnect QR
+                Via WalletConnect
               </div>
             </div>
           </button>
 
           <div className="my-2 border-t border-dark-700" />
 
-          {/* View-only — placed above network chips so it stays visible without scrolling */}
+          {/* View-only — always available in picker (including mobile) */}
           <button
+            type="button"
+            role="menuitem"
             onClick={() => handleWalletSelect('readonly')}
-            className="w-full px-4 py-3 text-left hover:bg-dark-700 transition-colors flex items-center gap-3"
+            className="w-full px-4 py-3 text-left hover:bg-dark-700 transition-colors flex items-center gap-3 min-h-[48px]"
           >
             <EyeIcon />
             <div>
