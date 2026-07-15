@@ -11,5 +11,18 @@
   "commission": "126/126",
   "evidence": "/root/Swaperex/docs/audits/raw/p20-20260715T150943Z",
   "kobbopayChanged": false,
-  "p7Changed": false
+  "p7Changed": false,
+  "observation": {
+    "duration": "1h",
+    "result": "PASS",
+    "checkpoints": [
+      "T0",
+      "T5m",
+      "T15m",
+      "T30m",
+      "T1h"
+    ]
+  },
+  "finalArtifact": "2d2ad08297a77f07a36fccb813570a5c4da6b942",
+  "finalRepositoryHead": "e1d5f0f074b35382005e09ebf63dbb1e65a14a4e"
 }
