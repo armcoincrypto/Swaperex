@@ -169,9 +169,9 @@ describe('portfolioStore helpers', () => {
     it('returns per-chain totals', () => {
       const totals = getChainTotals(makePortfolio());
       expect(totals.ethereum.total).toBe(15100);
-      expect(totals.ethereum.label).toBe('ETH');
+      expect(totals.ethereum.label).toBe('Ethereum');
       expect(totals.bsc.total).toBe(600);
-      expect(totals.bsc.label).toBe('BSC');
+      expect(totals.bsc.label).toBe('BNB Chain');
     });
 
     it('skips null chains', () => {
@@ -217,11 +217,11 @@ describe('portfolioStore helpers', () => {
   });
 
   describe('getPortfolioChainLabel', () => {
-    it('returns ETH for ethereum', () => {
-      expect(getPortfolioChainLabel('ethereum')).toBe('ETH');
+    it('returns Ethereum for ethereum', () => {
+      expect(getPortfolioChainLabel('ethereum')).toBe('Ethereum');
     });
-    it('returns BSC for bsc', () => {
-      expect(getPortfolioChainLabel('bsc')).toBe('BSC');
+    it('returns BNB Chain for bsc', () => {
+      expect(getPortfolioChainLabel('bsc')).toBe('BNB Chain');
     });
     it('returns Polygon for polygon', () => {
       expect(getPortfolioChainLabel('polygon')).toBe('Polygon');

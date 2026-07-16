@@ -26,7 +26,9 @@ export function PortfolioHealthScore({ model, privacyMode }: Props) {
 
   return (
     <ShellPanel className="p-4 flex flex-col items-center text-center sm:items-start sm:text-left">
-      <p className="text-[10px] uppercase tracking-wider text-dark-500 mb-2">Wallet Health</p>
+      <p className="text-[10px] uppercase tracking-wider text-dark-500 mb-2">
+        Balance-distribution score
+      </p>
       <div
         className={`flex items-center justify-center w-16 h-16 rounded-full border-2 ${ringColor(walletHealthScore)} mb-2`}
       >
@@ -36,7 +38,7 @@ export function PortfolioHealthScore({ model, privacyMode }: Props) {
       </div>
       <p className="text-sm font-semibold text-white">{walletHealthLabel}</p>
       <p className="text-[10px] text-dark-500 mt-1 leading-snug">
-        Based on balance distribution only.
+        Based only on current asset allocation — not an audited risk or investment rating.
       </p>
       <p className="text-[11px] text-dark-400 mt-2">{riskLabel}</p>
       {!privacyMode && model.largestPosition && (

@@ -223,17 +223,17 @@ export function getRoutingDisplayDescription(
     case 'unsupported_commission':
       return SWAP_SURFACE_COPY.unsupportedCommissionRouteHelper;
     case 'loading_quote':
-      return 'Checking route with Swaperex commission wrapper…';
+      return 'Checking production-certified route availability…';
     case 'heuristic_likely':
-      return 'Certified wrapper route available. Final quote depends on live liquidity.';
+      return 'Production-certified route available. Final quote depends on live liquidity.';
     case 'heuristic_limited':
-      return 'Route depends on live liquidity. This pair may not quote through Swaperex commission routing.';
+      return 'A route is not currently guaranteed for this pair. Availability depends on current liquidity.';
     case 'heuristic_no_recent':
-      return 'No recent successful wrapper route seen for this pair.';
+      return 'No recent successful production-certified route seen for this pair.';
     case 'heuristic_checking':
       return 'Checking route confidence…';
     case 'success_route':
-      return 'Certified wrapper route available. Final quote depends on live liquidity.';
+      return 'Production-certified route available. Final quote depends on live liquidity.';
     default:
       return 'Route support unknown. Quote may fail.';
   }

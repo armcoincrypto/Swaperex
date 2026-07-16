@@ -48,8 +48,8 @@ export const SWAP_CTA_STATES: Record<SwapCtaStateId, SwapCtaStateSpec> = {
     id: 'enter_amount',
     label: 'Enter Amount',
     enabled: false,
-    reason: 'Swap amount is empty or zero',
-    nextStep: 'Enter how much you want to swap',
+    reason: 'Enter an amount',
+    nextStep: 'A live quote and fee estimate will appear here',
   },
   insufficient_balance: {
     id: 'insufficient_balance',
@@ -118,8 +118,8 @@ export const SWAP_CTA_STATES: Record<SwapCtaStateId, SwapCtaStateSpec> = {
     id: 'choose_token',
     label: 'Choose another token',
     enabled: true,
-    reason: 'This pair is not supported by commission routing',
-    nextStep: 'Select a supported major pair',
+    reason: 'A route is not currently guaranteed for this pair',
+    nextStep: 'Select a production-certified pair or try another amount',
   },
 };
 

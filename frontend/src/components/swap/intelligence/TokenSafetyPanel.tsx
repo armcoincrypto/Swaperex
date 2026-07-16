@@ -74,12 +74,22 @@ export function TokenSafetyPanel({ token, chainId }: Props) {
       chainId,
       contractAddress: token.contract_address,
       isNative: token.is_native,
-    }).then((result) => {
-      if (!cancelled) {
-        setSignals(result);
-        setLoading(false);
-      }
-    });
+    })
+      .then((result) => {
+        if (!cancelled) {
+          setSignals(result);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSignals(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
 
     return () => {
       cancelled = true;

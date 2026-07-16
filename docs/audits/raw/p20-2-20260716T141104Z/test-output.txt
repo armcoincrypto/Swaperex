@@ -1,0 +1,16 @@
+
+> swaperex-frontend@1.0.0 test
+> vitest run
+
+4:18:20 PM [vite] warning: `esbuild` option was specified by "vite:react-babel" plugin. This option is deprecated, please use `oxc` instead.
+4:18:20 PM [vite] warning: `optimizeDeps.esbuildOptions` option was specified by "vite:react-babel" plugin. This option is deprecated, please use `optimizeDeps.rolldownOptions` instead.
+Both esbuild and oxc options were set. oxc options will be used and esbuild options will be ignored. The following esbuild options were set: `{ jsx: 'automatic', jsxImportSource: undefined }`
+
+ RUN  v4.1.6 /root/Swaperex/frontend
+
+
+ Test Files  74 passed (74)
+      Tests  704 passed (704)
+   Start at  16:18:20
+   Duration  52.99s (transform 9.55s, setup 14.66s, import 30.62s, tests 22.24s, environment 155.09s)
+

@@ -29,15 +29,26 @@ export interface TransactionLifecycleSpec {
   telemetryEvent: string;
 }
 
+const IDLE_CONNECTED: TransactionLifecycleSpec = {
+  id: 'idle',
+  title: 'Enter an amount',
+  description: 'A live quote and fee estimate will appear here.',
+  userAction: 'Enter amount',
+  explorerLink: 'hidden',
+  telemetryEvent: 'swap_lifecycle_idle',
+};
+
+const IDLE_DISCONNECTED: TransactionLifecycleSpec = {
+  id: 'idle',
+  title: 'Connect your wallet to begin',
+  description: 'Enter an amount after connecting to request a live quote.',
+  userAction: 'Connect wallet',
+  explorerLink: 'hidden',
+  telemetryEvent: 'swap_lifecycle_idle',
+};
+
 export const TRANSACTION_LIFECYCLE: Record<TransactionLifecycleId, TransactionLifecycleSpec> = {
-  idle: {
-    id: 'idle',
-    title: 'Ready to swap',
-    description: 'Connect your wallet and enter an amount to request a quote.',
-    userAction: 'Connect wallet or enter amount',
-    explorerLink: 'hidden',
-    telemetryEvent: 'swap_lifecycle_idle',
-  },
+  idle: IDLE_CONNECTED,
   quote_loading: {
     id: 'quote_loading',
     title: 'Fetching quote',
@@ -134,8 +145,9 @@ export function resolveSwapLifecycle(params: {
   isQuoteExpired: boolean;
   needsApproval?: boolean;
   userRejected?: boolean;
+  isConnected?: boolean;
 }): TransactionLifecycleSpec {
-  const { status, hasQuote, isQuoteExpired, needsApproval, userRejected } = params;
+  const { status, hasQuote, isQuoteExpired, needsApproval, userRejected, isConnected } = params;
 
   if (status === 'success') return TRANSACTION_LIFECYCLE.swap_confirmed;
   if (status === 'error') {
@@ -151,7 +163,9 @@ export function resolveSwapLifecycle(params: {
   if (isQuoteExpired && hasQuote) return TRANSACTION_LIFECYCLE.quote_expired;
   if (hasQuote && needsApproval) return TRANSACTION_LIFECYCLE.approval_required;
   if (hasQuote && status === 'previewing') return TRANSACTION_LIFECYCLE.quote_ready;
-  if (status === 'idle') return TRANSACTION_LIFECYCLE.idle;
+  if (status === 'idle') {
+    return isConnected === false ? IDLE_DISCONNECTED : IDLE_CONNECTED;
+  }
   return TRANSACTION_LIFECYCLE.unknown;
 }
 
@@ -162,6 +176,7 @@ export function mapSwapStatusToLifecycle(params: {
   isQuoteExpired: boolean;
   needsApproval?: boolean;
   error?: unknown;
+  isConnected?: boolean;
 }): TransactionLifecycleId {
   const userRejected =
     params.error != null &&
@@ -175,9 +190,16 @@ export function mapSwapStatusToLifecycle(params: {
     isQuoteExpired: params.isQuoteExpired,
     needsApproval: params.needsApproval,
     userRejected,
+    isConnected: params.isConnected,
   }).id;
 }
 
-export function getTransactionLifecycleSpec(id: TransactionLifecycleId): TransactionLifecycleSpec {
+export function getTransactionLifecycleSpec(
+  id: TransactionLifecycleId,
+  options?: { isConnected?: boolean },
+): TransactionLifecycleSpec {
+  if (id === 'idle') {
+    return options?.isConnected === false ? IDLE_DISCONNECTED : IDLE_CONNECTED;
+  }
   return TRANSACTION_LIFECYCLE[id];
 }

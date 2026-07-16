@@ -74,7 +74,7 @@
     },
     {
       "symbol": "AAVE.e",
-      "name": "Aave Token (Bridged)",
+      "name": "Aave (Bridged)",
       "address": "0x63a72806098Bd3D9520cC43356dD78afe5D386D9",
       "decimals": 18,
       "logoURI": "https://tokens.1inch.io/0x63a72806098bd3d9520cc43356dd78afe5d386d9.png"

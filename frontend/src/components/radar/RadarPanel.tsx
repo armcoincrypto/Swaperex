@@ -28,6 +28,7 @@ import { AlertToast } from '@/components/signals/AlertToast';
 import { useSignalAlerts } from '@/hooks/useSignalAlerts';
 import { fetchSignalsWithHistory, type SignalDebugData, type SignalHistoryCapture } from '@/services/signalsHealth';
 import { isMonitorRunning, startWatchlistMonitor } from '@/services/watchlistMonitor';
+import { useWatchlistStore } from '@/stores/watchlistStore';
 import { ShellPanel } from '@/components/ui/ShellPrimitives';
 
 interface RadarPanelProps {
@@ -48,6 +49,7 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
   const { trackEvent } = useUsageStore();
   const debugEnabled = useDebugMode();
   const toggleDebug = useDebugStore((s) => s.toggle);
+  const watchlistCount = useWatchlistStore((s) => s.tokens.length);
   const addHistoryEntry = useSignalHistoryStore((s) => s.addEntry);
   const historyEntries = useSignalHistoryStore((s) => s.entries);
   const signalFilters = useSignalFilterStore();
@@ -233,6 +235,7 @@ export function RadarPanel({ onSignalClick }: RadarPanelProps) {
               {filteredLiveSignals.length === 0 ? (
                 <LiveEmptyState
                   monitoringEnabled={monitoringEnabled}
+                  watchlistCount={watchlistCount}
                   hasHistory={historyEntries.length > 0}
                   onShowTimeline={() => {
                     signalFilters.setViewScope('timeline');
@@ -360,10 +363,12 @@ function SignalGroup({
 
 function LiveEmptyState({
   monitoringEnabled,
+  watchlistCount,
   hasHistory,
   onShowTimeline,
 }: {
   monitoringEnabled: boolean;
+  watchlistCount: number;
   hasHistory: boolean;
   onShowTimeline: () => void;
 }) {
@@ -381,18 +386,28 @@ function LiveEmptyState({
     );
   }
 
+  if (watchlistCount === 0) {
+    return (
+      <div className="text-center py-8">
+        <h3 className="text-lg font-semibold mb-2 text-dark-300">No tokens monitored</h3>
+        <p className="text-dark-500 text-sm max-w-sm mx-auto">
+          Add tokens to your watchlist to begin local monitoring.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="text-center py-8">
-      <div className="text-3xl mb-3">&#x2705;</div>
       <h3 className="text-lg font-semibold mb-2 text-dark-300">
         No new alerts
       </h3>
       <p className="text-dark-500 text-sm max-w-sm mx-auto">
-        Your monitored tokens are stable.
+        No alerts detected for your watchlist since the last scan.
         {hasHistory && (
           <>
             {' '}Check{' '}
-            <button onClick={onShowTimeline} className="text-primary-400 hover:underline">
+            <button type="button" onClick={onShowTimeline} className="text-primary-400 hover:underline">
               Activity Timeline
             </button>{' '}
             for past signals.

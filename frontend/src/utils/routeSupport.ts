@@ -111,7 +111,7 @@ export function getRouteSupportDescription(status: RouteSupportStatus): string {
     case 'likely_supported':
       return 'Usually available; quote depends on liquidity.';
     case 'limited':
-      return 'May not quote through Swaperex commission routing.';
+      return 'May not quote through current production-certified routes.';
     default:
       return 'Route support unknown.';
   }

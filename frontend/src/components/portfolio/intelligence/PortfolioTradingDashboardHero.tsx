@@ -57,9 +57,9 @@ export function PortfolioTradingDashboardHero({
       sub: 'of portfolio',
     },
     {
-      label: 'Wallet Health',
+      label: 'Allocation score',
       value: privacyMode ? '••' : String(model.walletHealthScore),
-      sub: model.walletHealthLabel,
+      sub: `${model.walletHealthLabel} · balance mix only`,
       badge: model.walletHealthLabel,
     },
   ];

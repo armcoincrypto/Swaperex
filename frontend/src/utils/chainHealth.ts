@@ -52,10 +52,10 @@ export const DOWN_THRESHOLD = 3;
 /** Supported chains for portfolio */
 export const PORTFOLIO_CHAINS: PortfolioChain[] = ['ethereum', 'bsc', 'polygon'];
 
-/** Chain labels map (short) */
+/** Chain labels map (public canonical names) */
 export const CHAIN_LABELS: Record<string, string> = {
-  ethereum: 'ETH',
-  bsc: 'BSC',
+  ethereum: 'Ethereum',
+  bsc: 'BNB Chain',
   polygon: 'Polygon',
   arbitrum: 'Arbitrum',
   solana: 'Solana',

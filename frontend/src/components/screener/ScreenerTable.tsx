@@ -4,8 +4,10 @@
  * Sortable table header + token rows.
  * 6 columns: token, price, 24h%, volume, mcap, actions.
  * Advanced mode shows extra action buttons + expandable details.
+ * P20.2 — bounded initial render with accessible Show more.
  */
 
+import { useEffect, useMemo, useState } from 'react';
 import type { ScreenerToken, SortField, SortDir } from '@/services/screener/types';
 import { TokenRow } from './TokenRow';
 
@@ -37,6 +39,8 @@ const COLUMNS: ColumnDef[] = [
   { label: 'Trade', align: 'right' },
 ];
 
+const PAGE_SIZE = 40;
+
 export function ScreenerTable({
   tokens,
   isAdvanced,
@@ -50,6 +54,20 @@ export function ScreenerTable({
   isLoading,
 }: Props) {
   const cols = COLUMNS;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [tokens.length, sortField, sortDir, tokens[0]?.id]);
+
+  const displayTokens = useMemo(
+    () => tokens.slice(0, visibleCount),
+    [tokens, visibleCount],
+  );
+
+  const hasMore = tokens.length > displayTokens.length;
+  const rangeEnd = displayTokens.length;
+  const rangeStart = tokens.length === 0 ? 0 : 1;
 
   return (
     <div className="overflow-hidden">
@@ -85,7 +103,7 @@ export function ScreenerTable({
       )}
 
       {/* Rows */}
-      {tokens.map((token) => (
+      {displayTokens.map((token) => (
         <TokenRow
           key={token.id}
           token={token}
@@ -97,11 +115,27 @@ export function ScreenerTable({
         />
       ))}
 
+      {tokens.length > 0 && (
+        <div className="px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-2 border-t border-white/[0.06]">
+          <p className="text-xs text-dark-500" aria-live="polite">
+            Showing {rangeStart}–{rangeEnd} of {tokens.length}
+          </p>
+          {hasMore ? (
+            <button
+              type="button"
+              className="min-h-[44px] px-4 text-xs font-medium text-primary-300 hover:text-primary-200 border border-white/[0.08] rounded-lg bg-black/20"
+              onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
+              aria-label={`Show ${Math.min(PAGE_SIZE, tokens.length - rangeEnd)} more tokens`}
+            >
+              Show more
+            </button>
+          ) : null}
+        </div>
+      )}
+
       {/* Loading overlay for refreshes (don't hide existing rows) */}
       {isLoading && tokens.length > 0 && (
-        <div className="px-4 py-2 text-center text-xs text-dark-500 border-t border-dark-800">
-          Refreshing...
-        </div>
+        <div className="px-4 py-2 text-center text-dark-500 text-xs">Updating…</div>
       )}
     </div>
   );
@@ -109,21 +143,15 @@ export function ScreenerTable({
 
 function SortIcon({ dir }: { dir: SortDir }) {
   return (
-    <svg
-      className={`w-4 h-4 transition-transform ${dir === 'asc' ? 'rotate-180' : ''}`}
-      fill="none" stroke="currentColor" viewBox="0 0 24 24"
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-    </svg>
+    <span className="text-primary-400" aria-hidden>
+      {dir === 'asc' ? '↑' : '↓'}
+    </span>
   );
 }
 
 function LoadingSpinner() {
   return (
-    <svg className="animate-spin w-6 h-6 mx-auto text-dark-400" fill="none" viewBox="0 0 24 24">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-    </svg>
+    <div className="inline-block w-5 h-5 border-2 border-dark-500 border-t-primary-400 rounded-full animate-spin" />
   );
 }
 

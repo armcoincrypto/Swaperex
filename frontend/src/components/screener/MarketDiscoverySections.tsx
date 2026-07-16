@@ -47,14 +47,14 @@ const SECTIONS: SectionDef[] = [
   },
   {
     id: 'liquidity',
-    title: 'Liquidity Leaders',
-    caption: 'Ranked by market cap (depth proxy)',
+    title: 'Largest by Market Cap',
+    caption: 'Ranked by reported market capitalization',
     pick: (tokens) => [...tokens].sort((a, b) => b.marketCap - a.marketCap).slice(0, 5),
   },
   {
     id: 'movers',
-    title: 'New Listings',
-    caption: 'Top 24h gainers — listing dates unavailable',
+    title: 'Top Gainers',
+    caption: 'Highest 24h price change',
     pick: (tokens) =>
       [...tokens]
         .filter((t) => t.priceChange24h > 0)

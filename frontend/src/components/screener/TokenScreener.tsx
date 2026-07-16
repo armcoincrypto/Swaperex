@@ -18,6 +18,7 @@ import { ScreenerTable } from './ScreenerTable';
 import { MarketDiscoverySections } from './MarketDiscoverySections';
 import { ShellPanel, ShellBanner, ShellEmptyState } from '@/components/ui/ShellPrimitives';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
+import { isSwapEnabledNetwork } from '@/config/networkCapabilities';
 import {
   SCREENER_CHAINS,
   CHAIN_LABELS,
@@ -78,6 +79,7 @@ export function TokenScreener({ onSwapSelect }: TokenScreenerProps) {
 
   const handleSwap = useCallback(
     (token: ScreenerToken) => {
+      if (!isSwapEnabledNetwork(token.chainId)) return;
       const stablecoin = 'USDT';
       onSwapSelect?.(token.symbol, stablecoin, token.chainId);
       trackEvent('screener_used');

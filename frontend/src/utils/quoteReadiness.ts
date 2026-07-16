@@ -58,7 +58,7 @@ export function resolveQuoteReadiness(input: QuoteReadinessInput): QuoteReadines
     return {
       state: 'ROUTE_UNAVAILABLE',
       publicLabel: 'Route unavailable',
-      helperText: 'This pair is not enabled for commission routing on this network.',
+      helperText: 'A route is not currently guaranteed for this pair. Availability depends on current liquidity.',
       canProceedToPreview: false,
       fullyReady: false,
     };

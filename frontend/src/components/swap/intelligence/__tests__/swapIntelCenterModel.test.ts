@@ -76,4 +76,21 @@ describe('trade preparation compact summary', () => {
     const summary = getTradePreparationSummary(items, false);
     expect(summary.label).toBe('Connect wallet to continue');
   });
+
+  it('uses enter-amount wording without refresh when no quote exists', () => {
+    const items = buildTradePreparationItems({
+      isConnected: true,
+      isWrongChain: false,
+      walletChainId: 1,
+      activeChainId: 1,
+      fromAsset: ethNative,
+      toAsset: usdc,
+      slippage: 0.5,
+      hasActiveQuote: false,
+      isQuoting: false,
+    });
+    const quote = items.find((item) => item.id === 'quote');
+    expect(quote?.detail).toBe('Enter an amount to request a quote');
+    expect(quote?.detail.toLowerCase()).not.toContain('refresh');
+  });
 });

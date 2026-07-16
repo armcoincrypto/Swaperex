@@ -1,0 +1,19 @@
+=== 'Swap amount is empty or zero' ===
+  (none)
+=== 'Ready to swap: Connect your wallet' ===
+  (none)
+=== 'commission routing' ===
+  utils/errors.ts
+  constants/__tests__/p20-2-public-copy.test.ts
+  components/pages/TrustCenterPage.tsx
+=== 'New Listings' ===
+  (none)
+=== 'Liquidity Leaders' ===
+  (none)
+=== 'Your monitored tokens are stable' ===
+  (none)
+=== 'Aave Token' ===
+  tokens/fantom.json
+  tokens/polygon.json
+  tokens/avalanche.json
+  tokens/optimism.json

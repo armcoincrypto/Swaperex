@@ -12,6 +12,7 @@ import { useWatchlistStore } from '@/stores/watchlistStore';
 import { NATIVE_TOKEN_ADDRESS } from '@/tokens';
 import { SwapTokenAvatar } from '@/components/common/SwapTokenAvatar';
 import { TokenDetailsPanel } from './TokenDetailsPanel';
+import { isSwapEnabledNetwork, getSwapUnavailableReason } from '@/config/networkCapabilities';
 
 const CHAIN_PILL: Record<ScreenerChainId, string> = {
   1: 'bg-blue-500/15 text-blue-300 border-blue-500/25',
@@ -38,6 +39,8 @@ const EXPLORER_URLS: Record<ScreenerChainId, string> = {
 
 export function TokenRow({ token, isAdvanced, isExpanded, onToggleExpand, onSwap, onRunTokenCheck }: Props) {
   const { addToken, removeToken, hasToken } = useWatchlistStore();
+  const swapEnabled = isSwapEnabledNetwork(token.chainId);
+  const swapUnavailableReason = swapEnabled ? '' : getSwapUnavailableReason(token.chainId);
   const addr = token.contractAddress || NATIVE_TOKEN_ADDRESS;
   const isWatched = hasToken(token.chainId, addr);
 
@@ -155,22 +158,42 @@ export function TokenRow({ token, isAdvanced, isExpanded, onToggleExpand, onSwap
               </svg>
             </button>
 
-            {/* Swap */}
-            <button
-              onClick={() => onSwap(token)}
-              className="px-3 py-1.5 bg-primary-600 hover:bg-primary-500 text-white text-xs font-medium rounded-lg transition-colors"
-            >
-              Swap
-            </button>
+            {/* Swap / view-only */}
+            {swapEnabled ? (
+              <button
+                type="button"
+                onClick={() => onSwap(token)}
+                className="px-3 py-1.5 bg-primary-600 hover:bg-primary-500 text-white text-xs font-medium rounded-lg transition-colors"
+              >
+                Swap
+              </button>
+            ) : (
+              <span
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-white/[0.08] text-dark-400 bg-black/20"
+                title={swapUnavailableReason}
+              >
+                View only
+              </span>
+            )}
           </div>
         ) : (
           <div className="flex items-center justify-end">
-            <button
-              onClick={() => onSwap(token)}
-              className="px-3 py-1.5 bg-primary-600 hover:bg-primary-500 text-white text-xs font-medium rounded-lg transition-colors"
-            >
-              Trade
-            </button>
+            {swapEnabled ? (
+              <button
+                type="button"
+                onClick={() => onSwap(token)}
+                className="px-3 py-1.5 bg-primary-600 hover:bg-primary-500 text-white text-xs font-medium rounded-lg transition-colors"
+              >
+                Trade
+              </button>
+            ) : (
+              <span
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-white/[0.08] text-dark-400 bg-black/20"
+                title={swapUnavailableReason}
+              >
+                View only
+              </span>
+            )}
           </div>
         )}
       </div>

@@ -1,0 +1,10 @@
+200 /
+200 /portfolio
+200 /markets
+200 /security
+200 /trust
+200 /about
+200 /terms
+200 /privacy
+200 /disclaimer
+200 /no-such-route-xyz

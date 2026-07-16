@@ -91,7 +91,7 @@ export function DexLearnMoreSection() {
 
           <LearnMoreBlock title="Routing & networks">
             <p className="text-[11px]">
-              Swaps with Swaperex commission routing: Ethereum and BNB Chain. Balance and network
+              Swaps are available on Ethereum and BNB Chain. Balance and network
               view also supports{' '}
               {CHAINS.filter((c) => c.id !== 1 && c.id !== 56)
                 .map((c) => c.name)

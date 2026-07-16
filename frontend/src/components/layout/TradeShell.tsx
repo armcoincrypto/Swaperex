@@ -372,14 +372,22 @@ export default function TradeShell() {
     // Get token info and prefill form
     const fromToken = getTokenBySymbol(fromSymbol, targetChainId);
     const toToken = getTokenBySymbol(toSymbol, targetChainId);
+    const chainKey =
+      targetChainId === 56
+        ? 'bsc'
+        : targetChainId === 137
+          ? 'polygon'
+          : targetChainId === 42161
+            ? 'arbitrum'
+            : 'ethereum';
 
     if (fromToken) {
       setFromAsset({
         symbol: fromToken.symbol,
         name: fromToken.name,
-        chain: targetChainId === 56 ? 'bsc' : 'ethereum',
+        chain: chainKey,
         decimals: fromToken.decimals,
-        is_native: fromSymbol === 'ETH' || fromSymbol === 'BNB',
+        is_native: fromSymbol === 'ETH' || fromSymbol === 'BNB' || fromSymbol === 'MATIC',
         contract_address: fromToken.address,
         logo_url: fromToken.logoURI,
       });
@@ -389,9 +397,9 @@ export default function TradeShell() {
       setToAsset({
         symbol: toToken.symbol,
         name: toToken.name,
-        chain: targetChainId === 56 ? 'bsc' : 'ethereum',
+        chain: chainKey,
         decimals: toToken.decimals,
-        is_native: toSymbol === 'ETH' || toSymbol === 'BNB',
+        is_native: toSymbol === 'ETH' || toSymbol === 'BNB' || toSymbol === 'MATIC',
         contract_address: toToken.address,
         logo_url: toToken.logoURI,
       });

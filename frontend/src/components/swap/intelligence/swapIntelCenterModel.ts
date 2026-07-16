@@ -60,7 +60,7 @@ export function buildTradePreparationItems(params: {
     quoteDetail = 'Active quote loaded — confirm before it expires';
   } else if (params.fromAsset && params.toAsset) {
     quoteStatus = 'pending';
-    quoteDetail = 'No quote yet — enter amount or refresh';
+    quoteDetail = 'Enter an amount to request a quote';
   }
 
   const items: TradePrepItem[] = [

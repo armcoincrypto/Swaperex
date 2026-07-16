@@ -65,9 +65,12 @@ export function BalanceCard({ balance, onClick, onSwap, showSwapButton = false }
 
       <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
         <div className="text-right min-w-[5.5rem]">
-          <div className="font-semibold tabular-nums text-[15px] leading-tight whitespace-nowrap">
+          <div
+            className="font-semibold tabular-nums text-[15px] leading-tight whitespace-nowrap flex items-baseline justify-end gap-1.5"
+            aria-label={`${formatBalance(balance.balance)} ${balance.symbol}`}
+          >
             <span>{formatBalance(balance.balance)}</span>
-            <span className="text-dark-400 font-normal text-xs ml-1">{balance.symbol}</span>
+            <span className="text-dark-400 font-normal text-xs">{balance.symbol}</span>
           </div>
           {balance.usd_value ? (
             <div className="text-xs text-dark-400 tabular-nums mt-0.5">{formatUsd(balance.usd_value)}</div>

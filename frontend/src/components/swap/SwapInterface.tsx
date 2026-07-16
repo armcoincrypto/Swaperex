@@ -1672,8 +1672,9 @@ export function SwapInterface() {
         isQuoteExpired,
         needsApproval: swapQuote?.needsApproval,
         error,
+        isConnected,
       }),
-    [status, hasUsableQuote, isQuoteExpired, swapQuote?.needsApproval, error],
+    [status, hasUsableQuote, isQuoteExpired, swapQuote?.needsApproval, error, isConnected],
   );
 
   const showCommissionRouteIssue =
@@ -2952,11 +2953,11 @@ export function SwapInterface() {
             )}
           </button>
           <span id="swap-main-cta-desc" className="sr-only">
-            {ctaSpec.reason} {ctaSpec.nextStep}
+            {ctaSpec.reason}. {ctaSpec.nextStep}.
           </span>
           <p className="sr-only" aria-live="polite">
-            {getTransactionLifecycleSpec(lifecycleState).title}:{' '}
-            {getTransactionLifecycleSpec(lifecycleState).description}
+            {getTransactionLifecycleSpec(lifecycleState, { isConnected }).title}:{' '}
+            {getTransactionLifecycleSpec(lifecycleState, { isConnected }).description}
           </p>
         </div>
 

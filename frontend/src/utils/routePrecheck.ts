@@ -184,7 +184,7 @@ export function getRoutePrecheckDescription(status: RoutePrecheckStatus): string
     case 'likely_routable':
       return 'Certified wrapper route available. Final quote depends on live liquidity.';
     case 'limited':
-      return 'Route depends on live liquidity. This pair may not quote through Swaperex commission routing.';
+      return 'A route is not currently guaranteed for this pair. Availability depends on current liquidity.';
     case 'no_recent_success':
       return 'No recent successful wrapper route seen for this pair.';
     case 'checking':

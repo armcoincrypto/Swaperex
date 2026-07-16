@@ -52,9 +52,9 @@ export const SWAP_SURFACE_COPY = {
 
   /** Commission-required mode: pair cannot be quoted via Swaperex wrapper routing (P4.1-A). */
   unsupportedCommissionRouteTitle:
-    'This pair is not supported by Swaperex commission routing yet.',
+    'A route is not currently guaranteed for this pair. Availability depends on current liquidity.',
   unsupportedCommissionRouteHelper:
-    'Swaperex only enables pairs that can route through its commission wrapper. Try WETH ⇄ USDC, WETH ⇄ USDT, ETH ⇄ USDC, or ETH ⇄ USDT.',
+    'Swaperex enables pairs that can quote through its production-certified routes. Try WETH ⇄ USDC, WETH ⇄ USDT, ETH ⇄ USDC, or ETH ⇄ USDT.',
   /** P9.2 — audited catalog pair when a live wrapper quote could not be fetched (display-only). */
   auditedCommissionQuoteFailedTitle:
     'Live wrapper quote unavailable for this pair.',
@@ -101,7 +101,7 @@ export const SWAP_SURFACE_COPY = {
   /** P4A — commission swap unavailable on balance-view networks */
   commissionSwapUnavailableTitle: 'Swaps not available on this network',
   commissionSwapUnavailableBody:
-    'Swaps with Swaperex commission are available on Ethereum and BNB Chain only. {network} is available for balance viewing, not swaps.',
+    'Swaps are available on Ethereum and BNB Chain only. {network} is available for balance viewing, not swaps.',
 
   /** Primary CTA when the last on-chain swap attempt failed (quote may still be present) */
   swapFailedCta: 'Swap failed — try again',

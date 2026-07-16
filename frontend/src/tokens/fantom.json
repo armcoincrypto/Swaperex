@@ -74,7 +74,7 @@
     },
     {
       "symbol": "AAVE",
-      "name": "Aave Token",
+      "name": "Aave",
       "address": "0x6a07A792ab2965C72a5B8088d3a069A7aC3a993B",
       "decimals": 18,
       "logoURI": "https://tokens.1inch.io/0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9.png"

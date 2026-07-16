@@ -61,7 +61,7 @@ function buildCapability(chain: ChainConfig): NetworkCapability {
   } else if (walletSupported) {
     capabilityStatus = 'read_only';
     statusReason =
-      'Swaps with Swaperex commission are available on Ethereum and BNB Chain only. This network supports balance viewing, portfolio, and send.';
+      'Swaps are available on Ethereum and BNB Chain only. This network supports balance viewing, portfolio, and send.';
   } else {
     capabilityStatus = 'unavailable';
     statusReason = 'This network is not supported in the Swaperex wallet interface.';

@@ -8,7 +8,7 @@ export type ScreenerChainId = (typeof SCREENER_CHAINS)[number];
 
 export const CHAIN_LABELS: Record<ScreenerChainId, string> = {
   1: 'Ethereum',
-  56: 'BSC',
+  56: 'BNB Chain',
   137: 'Polygon',
   42161: 'Arbitrum',
 };
