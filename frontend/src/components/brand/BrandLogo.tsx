@@ -1,5 +1,5 @@
 /**
- * P20 — Canonical Swaperex brand mark + lockup.
+ * Canonical Kobbex brand mark + lockup.
  * One component for header, footer, and passive chrome.
  */
 
@@ -20,8 +20,8 @@ export interface BrandLogoProps {
   className?: string;
 }
 
-/** Minimal geometric S-mark — financial, not playful. */
-export function SwaperexMark({ className }: { className?: string }) {
+/** Minimal geometric mark — financial, not playful. */
+export function BrandMark({ className }: { className?: string }) {
   return (
     <svg
       className={clsx('shrink-0', className)}
@@ -62,9 +62,11 @@ export function BrandLogo({
   const compact = variant === 'compact';
   const to = href ?? pageToPath('swap');
 
+  const showByline = showParentBrand && BRAND.byline.length > 0;
+
   const content = (
     <>
-      <SwaperexMark className={clsx('text-accent', compact ? 'w-7 h-7' : 'w-8 h-8')} />
+      <BrandMark className={clsx('text-accent', compact ? 'w-7 h-7' : 'w-8 h-8')} />
       <span className="flex flex-col leading-tight min-w-0 text-left">
         <span
           className={clsx(
@@ -74,10 +76,10 @@ export function BrandLogo({
         >
           {BRAND.displayName}
         </span>
-        {showParentBrand && !compact && (
+        {showByline && !compact && (
           <span className="text-[10px] font-medium text-dark-500 tracking-wide">{BRAND.byline}</span>
         )}
-        {showParentBrand && compact && (
+        {showByline && compact && (
           <span className="hidden sm:inline text-[10px] font-medium text-dark-500 tracking-wide">
             {BRAND.byline}
           </span>
@@ -97,7 +99,7 @@ export function BrandLogo({
         type="button"
         onClick={onNavigateHome}
         className={sharedClass}
-        aria-label="Swaperex home"
+        aria-label="Kobbex home"
       >
         {content}
       </button>
@@ -105,7 +107,7 @@ export function BrandLogo({
   }
 
   return (
-    <Link to={to} className={sharedClass} aria-label="Swaperex home">
+    <Link to={to} className={sharedClass} aria-label="Kobbex home">
       {content}
     </Link>
   );

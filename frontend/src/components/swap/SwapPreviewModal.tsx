@@ -5,7 +5,7 @@
  * Implements quote expiry, refresh, and multi-step flow.
  *
  * SECURITY: All signing happens client-side via wallet.
- * Swaperex only prepares unsigned transactions.
+ * Kobbex only prepares unsigned transactions.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -1238,7 +1238,7 @@ function SuccessContent({
         <p className="text-[11px] text-dark-400 mt-1.5 leading-snug">{receivedSubline}</p>
         {showProtocolFeeAmount ? (
           <p className="text-sm text-dark-300 mt-3 pt-3 border-t border-green-900/40">
-            Swaperex fee:{' '}
+            Kobbex fee:{' '}
             <span className="font-medium tabular-nums text-dark-100">
               {receiptSettlement!.feeHuman} {receiptSettlement!.feeSymbol}
             </span>

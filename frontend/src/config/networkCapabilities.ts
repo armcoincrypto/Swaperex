@@ -64,7 +64,7 @@ function buildCapability(chain: ChainConfig): NetworkCapability {
       'Swaps are available on Ethereum and BNB Chain only. This network supports balance viewing, portfolio, and send.';
   } else {
     capabilityStatus = 'unavailable';
-    statusReason = 'This network is not supported in the Swaperex wallet interface.';
+    statusReason = 'This network is not supported in the Kobbex wallet interface.';
   }
 
   return {

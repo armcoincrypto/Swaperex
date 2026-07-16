@@ -47,7 +47,7 @@ export function presentActivityKind(kind: UnifiedActivityKind): string {
 export function presentActivitySource(source: UnifiedActivitySource): string {
   switch (source) {
     case 'journal':
-      return 'Swaperex';
+      return 'Kobbex';
     case 'explorer':
       return 'Explorer';
     case 'legacy-transfer':

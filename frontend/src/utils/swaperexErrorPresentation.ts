@@ -31,7 +31,7 @@ function suggestionFor(error: NormalizedSwaperexError): string | undefined {
     case 'retry_quote':
       return 'Refresh the quote and review the new rate before continuing.';
     case 'switch_network':
-      return 'Switch your wallet to the network shown in Swaperex.';
+      return 'Switch your wallet to the network shown in Kobbex.';
     case 'add_native_gas':
       return 'Add native network token (ETH or BNB) to cover fees.';
     case 'reduce_amount':

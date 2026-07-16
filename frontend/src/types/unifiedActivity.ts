@@ -82,7 +82,7 @@ export interface UnifiedActivityResult {
 }
 
 export const ACTIVITY_HISTORY_DISCLAIMER =
-  'Swaperex activity is stored on this device and may not include every transaction made by this wallet. Explorer activity is shown when available.';
+  'Kobbex activity is stored on this device and may not include every transaction made by this wallet. Explorer activity is shown when available.';
 
 export const CHAIN_ACTIVITY_LABELS: Record<number, string> = {
   1: 'ETH',

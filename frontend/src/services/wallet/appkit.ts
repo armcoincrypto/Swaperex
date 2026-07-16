@@ -52,8 +52,8 @@ export function initAppKit() {
   }
 
   const metadata = {
-    name: 'Swaperex',
-    description: 'Swaperex - Web3 Token Swap Platform',
+    name: 'Kobbex',
+    description: 'Kobbex - Web3 Token Swap Platform',
     url: import.meta.env.VITE_APP_URL || 'https://dex.kobbex.com',
     icons: ['https://dex.kobbex.com/favicon.ico'],
   };

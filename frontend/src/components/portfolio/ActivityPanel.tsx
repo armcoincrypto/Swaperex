@@ -140,7 +140,7 @@ export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelPro
       <div className={className} role="region" aria-label="Wallet activity">
         <ShellEmptyState
           title="Connect a wallet to view activity for that wallet."
-          description="Swaperex activity is stored on this device."
+          description="Kobbex activity is stored on this device."
         />
       </div>
     );
@@ -239,7 +239,7 @@ export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelPro
           role="status"
           data-testid="explorer-error"
         >
-          Explorer activity is temporarily unavailable. Your saved Swaperex activity is still shown.
+          Explorer activity is temporarily unavailable. Your saved Kobbex activity is still shown.
         </p>
       )}
 
@@ -256,7 +256,7 @@ export function ActivityPanel({ onRepeatSwap, className = '' }: ActivityPanelPro
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
           }
-          title="No Swaperex transactions have been saved on this device yet."
+          title="No Kobbex transactions have been saved on this device yet."
           description={hasJournalOnly ? undefined : 'Explorer activity will appear when available.'}
         />
       )}

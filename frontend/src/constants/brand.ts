@@ -1,25 +1,25 @@
 /**
- * P16.8 — Canonical brand hierarchy for Swaperex.
+ * Canonical brand hierarchy for the Kobbex DEX product.
  *
- * Product: Swaperex (primary)
- * Parent: Kobbex (byline)
+ * Product: Kobbex (primary, public-facing)
  * Domain: dex.kobbex.com
  */
 
 export const BRAND = {
-  productName: 'Swaperex',
+  productName: 'Kobbex',
   /** Primary display name (header, homepage title). */
-  displayName: 'Swaperex',
-  byline: 'by Kobbex',
+  displayName: 'Kobbex',
+  /** Secondary byline — intentionally empty for the unified Kobbex brand. */
+  byline: '',
   /** Combined lockup for compact UI (header, wallet metadata). */
-  lockupShort: 'Swaperex by Kobbex',
+  lockupShort: 'Kobbex',
   /** SEO / legal alternate name (structured data only). */
   alternateName: 'Kobbex DEX',
   domain: 'dex.kobbex.com',
   origin: 'https://dex.kobbex.com',
 } as const;
 
-/** Page title: "{Section} — Swaperex by Kobbex" */
+/** Page title: "{Section} — Kobbex" */
 export function brandPageTitle(section: string): string {
   return `${section} — ${BRAND.lockupShort}`;
 }

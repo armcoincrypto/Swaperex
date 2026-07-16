@@ -86,7 +86,7 @@ export function TrustCenterPage({ onBack }: TrustCenterPageProps) {
         </p>
         <h1 className="text-2xl sm:text-3xl font-bold text-white">Trust Center</h1>
         <p className="mt-3 text-sm text-dark-400 leading-relaxed max-w-2xl">
-          How Swaperex (Kobbex DEX) handles custody, fees, networks, and swaps — without hype.
+          How Kobbex handles custody, fees, networks, and swaps — without hype.
           This page is public. Operator dashboards are separate and not shown here.
         </p>
       </header>
@@ -94,7 +94,7 @@ export function TrustCenterPage({ onBack }: TrustCenterPageProps) {
       <div className="space-y-4">
         <TrustCard title="Non-custodial by design">
           <p>
-            Swaperex is a swap interface, not a custodian. You connect your own wallet, review
+            Kobbex is a swap interface, not a custodian. You connect your own wallet, review
             quotes, and sign transactions yourself. We do not hold your seed phrase, private keys,
             or token balances.
           </p>
@@ -107,7 +107,7 @@ export function TrustCenterPage({ onBack }: TrustCenterPageProps) {
         <TrustCard title="Supported networks">
           <p>
             <span className="text-dark-200 font-medium">Commission swaps</span> (wrapper routing with
-            Swaperex fee) are available on:
+            Kobbex fee) are available on:
           </p>
           <ul className="list-disc list-inside text-dark-300 space-y-1">
             {COMMISSION_SWAP_CHAIN_IDS.map((id) => (
@@ -119,12 +119,12 @@ export function TrustCenterPage({ onBack }: TrustCenterPageProps) {
           <p className="text-dark-400 text-xs">
             Additional EVM networks ({BALANCE_VIEW_NETWORKS.join(', ')}) may appear for{' '}
             <span className="text-dark-300">balance viewing</span> when your wallet is connected.
-            Swaps with Swaperex commission are not enabled on those networks.
+            Swaps with Kobbex commission are not enabled on those networks.
           </p>
         </TrustCard>
 
         <TrustCard title="Commission transparency">
-          <p>Swaperex applies a platform fee via on-chain wrapper contracts. Current configured rates:</p>
+          <p>Kobbex applies a platform fee via on-chain wrapper contracts. Current configured rates:</p>
           <ul className="list-disc list-inside space-y-1">
             <li>
               <span className="text-dark-200">Ethereum:</span> 20 basis points (0.20%)
@@ -135,14 +135,14 @@ export function TrustCenterPage({ onBack }: TrustCenterPageProps) {
           </ul>
           <p className="text-xs text-dark-500">
             Fees are deducted on-chain from swap output and sent to the configured treasury address.
-            The quoted receive amount shown in the app is net of the Swaperex fee when wrapper routing
+            The quoted receive amount shown in the app is net of the Kobbex fee when wrapper routing
             applies. Pool and route costs from the underlying DEX path are separate.
           </p>
         </TrustCard>
 
         <TrustCard title="Production-certified routes">
           <p>
-            Before pairs are enabled for commission routing, Swaperex runs an{' '}
+            Before pairs are enabled for commission routing, Kobbex runs an{' '}
             <span className="text-dark-200">internal production-readiness process</span>: live
             wrapper quote, commission, and transaction-preparation tests across configured pairs
             and sizes.
@@ -194,13 +194,13 @@ export function TrustCenterPage({ onBack }: TrustCenterPageProps) {
             <li>Review token symbols, amounts, and spender addresses in your wallet</li>
             <li>Approvals grant a contract permission to move tokens — verify limits</li>
             <li>Quotes expire; refresh if the market moved before signing</li>
-            <li>Swaperex uses WalletConnect — we never ask for your seed phrase</li>
+            <li>Kobbex uses WalletConnect — we never ask for your seed phrase</li>
           </ul>
         </TrustCard>
 
         <TrustCard title="Unsupported chains & why they appear">
           <p>
-            The network selector may list chains where you can view balances but cannot run Swaperex
+            The network selector may list chains where you can view balances but cannot run Kobbex
             commission swaps. This is intentional: swap routing is limited to audited wrapper
             deployments on Ethereum and BNB Chain.
           </p>
@@ -212,7 +212,7 @@ export function TrustCenterPage({ onBack }: TrustCenterPageProps) {
 
         <TrustCard title="Operational monitoring (high level)">
           <p>
-            Swaperex collects anonymized product telemetry (quote events, swap outcomes, funnel steps)
+            Kobbex collects anonymized product telemetry (quote events, swap outcomes, funnel steps)
             to monitor reliability and improve the interface. This data feeds internal operator tools
             only — not public dashboards.
           </p>
@@ -225,7 +225,7 @@ export function TrustCenterPage({ onBack }: TrustCenterPageProps) {
         <TrustCard title="FAQ">
           <div className="space-y-2">
             <FaqItem
-              q="Does Swaperex hold my crypto?"
+              q="Does Kobbex hold my crypto?"
               a="No. Assets stay in your wallet until you sign a transaction that moves them on-chain."
             />
             <FaqItem
@@ -234,7 +234,7 @@ export function TrustCenterPage({ onBack }: TrustCenterPageProps) {
             />
             <FaqItem
               q="What fees do I pay?"
-              a="Network gas, underlying DEX pool/route costs where applicable, and the Swaperex wrapper fee (20 bps on Ethereum, 50 bps on BNB Chain) when commission routing is used."
+              a="Network gas, underlying DEX pool/route costs where applicable, and the Kobbex wrapper fee (20 bps on Ethereum, 50 bps on BNB Chain) when commission routing is used."
             />
             <FaqItem
               q="Can I reverse a swap?"
@@ -242,7 +242,7 @@ export function TrustCenterPage({ onBack }: TrustCenterPageProps) {
             />
             <FaqItem
               q="Is this audited by an external firm?"
-              a="Swaperex uses internal production certification (wrapper quote audits, deploy checks). We do not claim third-party smart contract audits unless published separately."
+              a="Kobbex uses internal production certification (wrapper quote audits, deploy checks). We do not claim third-party smart contract audits unless published separately."
             />
           </div>
         </TrustCard>

@@ -268,7 +268,7 @@ export function parseQuoteError(
 
   const commissionActions: Partial<Record<string, string>> = {
     unsupported_commission_route:
-      'Swaperex only enables pairs that can route through its commission wrapper. Try ETH ⇄ USDC, ETH ⇄ USDT, WETH ⇄ USDC, or WETH ⇄ USDT.',
+      'Kobbex only enables pairs that can route through its commission wrapper. Try ETH ⇄ USDC, ETH ⇄ USDT, WETH ⇄ USDC, or WETH ⇄ USDT.',
     commission_eth_native_v2_required:
       'Use WETH instead of ETH, or ask the operator to enable wrapper V2 native quote settings.',
     commission_bsc_native_disabled:

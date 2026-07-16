@@ -10,7 +10,7 @@ import { swapAggregatorProviderLabel } from '@/utils/format';
 describe('routePresentation', () => {
   it('uses canonical Wrapper V2 naming without canary', () => {
     expect(getRouteDisplayName('pancakeswap-v3-wrapper-v2')).toBe(
-      'PancakeSwap V3 via Swaperex Wrapper V2',
+      'PancakeSwap V3 via Kobbex Wrapper V2',
     );
     expect(getRouteShortName('pancakeswap-v3-wrapper-v2')).toBe('PancakeSwap V3');
     expect(getRouteSupportIdentifier('pancakeswap-v3-wrapper-v2')).toBe(
@@ -23,7 +23,7 @@ describe('routePresentation', () => {
 
   it('keeps aggregator label aligned with presentation', () => {
     expect(swapAggregatorProviderLabel('uniswap-v3-wrapper-v2')).toBe(
-      'Uniswap V3 via Swaperex Wrapper V2',
+      'Uniswap V3 via Kobbex Wrapper V2',
     );
     expect(swapAggregatorProviderLabel('pancakeswap-v3-wrapper-v2')).not.toMatch(/canary/i);
   });

@@ -233,7 +233,7 @@ function relatedSummaries(
 function baseLimitations(source: TransactionDetailModel['source']): string[] {
   const limitations = ['Stored on this device'];
   if (source === 'explorer') {
-    limitations.push('Explorer-observed only — Swaperex execution context may be unavailable');
+    limitations.push('Explorer-observed only — Kobbex execution context may be unavailable');
   }
   if (source === 'legacy-transfer') {
     limitations.push('Legacy transfer record — wallet ownership not proven in the stored record');

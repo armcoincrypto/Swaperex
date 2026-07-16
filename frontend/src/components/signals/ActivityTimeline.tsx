@@ -156,7 +156,7 @@ export function ActivityTimeline({ maxGroups = 20, className = '' }: ActivityTim
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `swaperex-activity-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `kobbex-activity-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }, [entries]);

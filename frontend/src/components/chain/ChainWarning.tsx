@@ -175,7 +175,7 @@ export function ChainWarningBanner({
         <div className="flex items-center gap-2 min-w-0">
           <WarningIcon />
           <span className="text-sm">
-            <strong>{chainName || `Chain ${chainId}`}</strong> is not supported in Swaperex.
+            <strong>{chainName || `Chain ${chainId}`}</strong> is not supported in Kobbex.
             Connect to Ethereum, BNB Chain, or another listed network to continue.
           </span>
         </div>

@@ -2419,7 +2419,7 @@ export function SwapInterface() {
                   <span className="text-dark-400 shrink-0 text-xs">Routing</span>
                   <span
                     className="shrink-0 text-[10px] font-medium uppercase tracking-wide px-2 py-0.5 rounded border border-amber-600/40 bg-amber-950/30 text-amber-200/90"
-                    title="A Swaperex Uniswap wrapper V3 path is defined for this pair; enable VITE_UNISWAP_WRAPPER_V3_* to use it in commission mode."
+                    title="A Kobbex Uniswap wrapper V3 path is defined for this pair; enable VITE_UNISWAP_WRAPPER_V3_* to use it in commission mode."
                   >
                     V3 route available
                   </span>
@@ -2510,7 +2510,7 @@ export function SwapInterface() {
                     <span className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.swaperexFeeLabel}</span>
                     <span
                       className="min-w-0 text-right text-dark-200 tabular-nums break-words"
-                      title="No separate Swaperex fee on this route"
+                      title="No separate Kobbex fee on this route"
                     >
                       None
                     </span>
@@ -3355,7 +3355,7 @@ function TokenSelectorDropdown({
 
               {/* Disclaimer + risk acknowledgement */}
               <div className="text-[10px] text-dark-500 mb-2 leading-relaxed">
-                Security data is informational only, not financial advice. Custom tokens are not verified by Swaperex.
+                Security data is informational only, not financial advice. Custom tokens are not verified by Kobbex.
               </div>
               <label className="flex items-start gap-2 mb-3 cursor-pointer">
                 <input
@@ -3527,7 +3527,7 @@ function TokenSelectorDropdown({
                       isStaticToken(asset.contract_address, chainId) && (
                         <span
                           className="text-[10px] px-1 py-0.5 rounded flex-shrink-0 bg-emerald-900/30 text-emerald-400/95"
-                          title="Swaperex curated list — verify contracts on an explorer before large trades."
+                          title="Kobbex curated list — verify contracts on an explorer before large trades."
                         >
                           Listed
                         </span>

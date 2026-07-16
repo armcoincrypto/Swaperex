@@ -83,7 +83,7 @@ describe('ActivityPanel', () => {
     await waitFor(() => {
       expect(screen.getAllByTestId('activity-row').length).toBeGreaterThan(0);
     });
-    expect(screen.getByText('Swaperex')).toBeInTheDocument();
+    expect(screen.getByText('Kobbex')).toBeInTheDocument();
     expect(screen.getByText(/ETH → USDC/)).toBeInTheDocument();
   });
 
@@ -91,7 +91,7 @@ describe('ActivityPanel', () => {
     render(<ActivityPanel />);
     await waitFor(() => {
       expect(
-        screen.getByText(/No Swaperex transactions have been saved on this device yet/i),
+        screen.getByText(/No Kobbex transactions have been saved on this device yet/i),
       ).toBeInTheDocument();
     });
   });

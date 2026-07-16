@@ -75,7 +75,7 @@ export function normalizeJournalUncertainty(
       recommendedAction: 'check_status',
       userTitle: 'Status temporarily unavailable',
       userMessage:
-        'Swaperex could not verify the latest on-chain status. Check again or view the transaction in the explorer.',
+        'Kobbex could not verify the latest on-chain status. Check again or view the transaction in the explorer.',
     });
   }
 
@@ -205,7 +205,7 @@ export function normalizeSwaperexError(
       retryability: 'safe_after_user_action',
       recommendedAction: 'switch_network',
       userTitle: 'Wrong network',
-      userMessage: 'Switch your wallet to the network shown in Swaperex and try again.',
+      userMessage: 'Switch your wallet to the network shown in Kobbex and try again.',
     });
   }
 
@@ -358,7 +358,7 @@ export function normalizeSwaperexError(
       recommendedAction: broadcastKnown ? 'check_status' : 'retry_quote',
       userTitle: 'Network request timed out',
       userMessage: broadcastKnown
-        ? 'The transaction was submitted, but Swaperex could not determine its latest status. Check the explorer before attempting another transaction.'
+        ? 'The transaction was submitted, but Kobbex could not determine its latest status. Check the explorer before attempting another transaction.'
         : 'The request timed out before a transaction hash was received.',
       technicalSummary: raw,
     });
@@ -380,8 +380,8 @@ export function normalizeSwaperexError(
       recommendedAction: broadcastKnown ? 'view_explorer' : 'retry_quote',
       userTitle: 'Network temporarily unavailable',
       userMessage: broadcastKnown
-        ? 'Swaperex could not reach the network to verify status. Your saved transaction record is still shown.'
-        : 'Swaperex could not complete the request. Wait a moment and try again.',
+        ? 'Kobbex could not reach the network to verify status. Your saved transaction record is still shown.'
+        : 'Kobbex could not complete the request. Wait a moment and try again.',
       technicalSummary: raw,
     });
   }
@@ -410,7 +410,7 @@ export function normalizeSwaperexError(
       retryability: 'not_recommended',
       recommendedAction: 'return_to_swap',
       userTitle: 'Network not supported',
-      userMessage: 'Swaperex does not support activity on this network.',
+      userMessage: 'Kobbex does not support activity on this network.',
     });
   }
 
@@ -424,8 +424,8 @@ export function normalizeSwaperexError(
       recommendedAction: broadcastKnown ? 'view_explorer' : 'contact_support',
       userTitle: 'Could not save on this device',
       userMessage: broadcastKnown
-        ? 'Transaction submitted, but Swaperex could not save the local recovery record. Keep the transaction hash and check the explorer.'
-        : 'Swaperex could not save local data on this device.',
+        ? 'Transaction submitted, but Kobbex could not save the local recovery record. Keep the transaction hash and check the explorer.'
+        : 'Kobbex could not save local data on this device.',
       technicalSummary: raw,
     });
   }
@@ -440,7 +440,7 @@ export function normalizeSwaperexError(
     recommendedAction: broadcastKnown ? 'view_explorer' : 'return_to_swap',
     userTitle: broadcastKnown ? 'Status not yet verified' : 'Request could not be completed',
     userMessage: broadcastKnown
-      ? 'The transaction was submitted, but Swaperex could not determine its latest status. Check the explorer before attempting another transaction.'
+      ? 'The transaction was submitted, but Kobbex could not determine its latest status. Check the explorer before attempting another transaction.'
       : 'No transaction hash was received.',
     technicalSummary: raw,
   });

@@ -43,7 +43,7 @@ function specForPublicPath(p: string): SeoSpec {
     case '/radar':
       return {
         title: brandPageTitle('Security'),
-        description: 'Token watchlist, scanner, and security alerts on Swaperex.',
+        description: 'Token watchlist, scanner, and security alerts on Kobbex.',
         canonicalPath: '/radar',
       };
     case '/screener':
@@ -55,7 +55,7 @@ function specForPublicPath(p: string): SeoSpec {
     case '/about':
       return {
         title: brandPageTitle('About'),
-        description: `Learn how ${BRAND.productName} works as a non-custodial crypto swap interface ${BRAND.byline}.`,
+        description: `Learn how ${BRAND.productName} works as a non-custodial crypto swap interface.`,
         canonicalPath: '/about',
       };
     case '/terms':

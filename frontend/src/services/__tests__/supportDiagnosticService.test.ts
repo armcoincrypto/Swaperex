@@ -107,7 +107,7 @@ describe('supportDiagnosticService', () => {
   it('renders readable support text without nullish artifacts', () => {
     const detail = buildDetailFromJournalRecord(swapRecord(), [swapRecord()], WALLET)!;
     const text = renderSupportDiagnosticText(buildSupportDiagnosticBundle(detail));
-    expect(text).toContain('Swaperex transaction diagnostic');
+    expect(text).toContain('Kobbex transaction diagnostic');
     expect(text).not.toMatch(/undefined|null|\[object Object\]/i);
     expect(text).toContain(HASH);
   });

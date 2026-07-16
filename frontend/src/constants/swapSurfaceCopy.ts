@@ -13,12 +13,12 @@ export const SWAP_SURFACE_COPY = {
   trustLineQuoteEstimate:
     'Amounts reflect this quote (estimate). Final tokens received are confirmed on-chain.',
 
-  /** P4A — user-facing Swaperex wrapper fee label (not pool / route cost). */
-  swaperexFeeLabel: 'Swaperex fee',
+  /** P4A — user-facing Kobbex wrapper fee label (not pool / route cost). */
+  swaperexFeeLabel: 'Kobbex fee',
   swaperexFeeTooltip:
-    'This fee is applied by the Swaperex wrapper and supports platform operations. The quoted receive amount is already net of this fee.',
+    'This fee is applied by the Kobbex wrapper and supports platform operations. The quoted receive amount is already net of this fee.',
 
-  /** Swap card / preview: 1inch path — aggregator route cost (not Swaperex fee unless separately shown). */
+  /** Swap card / preview: 1inch path — aggregator route cost (not Kobbex fee unless separately shown). */
   feeRouteCostLabel: 'Route cost',
 
   /** Swap card / preview: direct DEX pool fee tier (Uniswap / Pancake path). */
@@ -50,18 +50,18 @@ export const SWAP_SURFACE_COPY = {
   /** Primary CTA when the last quote request failed (no executable quote) */
   quoteFailedCta: 'Quote failed — try again',
 
-  /** Commission-required mode: pair cannot be quoted via Swaperex wrapper routing (P4.1-A). */
+  /** Commission-required mode: pair cannot be quoted via Kobbex wrapper routing (P4.1-A). */
   unsupportedCommissionRouteTitle:
     'A route is not currently guaranteed for this pair. Availability depends on current liquidity.',
   unsupportedCommissionRouteHelper:
-    'Swaperex enables pairs that can quote through its production-certified routes. Try WETH ⇄ USDC, WETH ⇄ USDT, ETH ⇄ USDC, or ETH ⇄ USDT.',
+    'Kobbex enables pairs that can quote through its production-certified routes. Try WETH ⇄ USDC, WETH ⇄ USDT, ETH ⇄ USDC, or ETH ⇄ USDT.',
   /** P9.2 — audited catalog pair when a live wrapper quote could not be fetched (display-only). */
   auditedCommissionQuoteFailedTitle:
     'Live wrapper quote unavailable for this pair.',
   auditedCommissionQuoteFailedHelper:
-    'This direction is in the Swaperex audit catalog. Final quotes depend on live liquidity and network conditions — refresh or try again shortly.',
+    'This direction is in the Kobbex audit catalog. Final quotes depend on live liquidity and network conditions — refresh or try again shortly.',
   auditedCommissionQuoteFailedNativeEthHelper:
-    'This direction is in the Swaperex audit catalog. Native ETH routes through WETH inside the wrapper — refresh or try WETH if the quote keeps failing.',
+    'This direction is in the Kobbex audit catalog. Native ETH routes through WETH inside the wrapper — refresh or try WETH if the quote keeps failing.',
   /** One-line majors hint under the unsupported commission panel (P4.1-B). */
   unsupportedCommissionRouteQuickTokensEthereum:
     'Quick picks on Ethereum: WETH ⇄ USDC, WETH ⇄ USDT, ETH ⇄ USDC, ETH ⇄ USDT — then search for anything else.',
@@ -83,7 +83,7 @@ export const SWAP_SURFACE_COPY = {
 
   /** P3.3 — soft precheck when audit shows pair is not commission-ready yet. */
   commissionRoutingNotReadyYet:
-    'This pair is not yet available on Swaperex production-certified routes. Quote may fail until it is enabled.',
+    'This pair is not yet available on Kobbex production-certified routes. Quote may fail until it is enabled.',
 
   /** P3.1 / P20 — popular route shortcuts (public copy; no “commission” wording) */
   popularCommissionRoutesTitle: 'Popular routes',
@@ -188,14 +188,14 @@ export const SWAP_SURFACE_COPY = {
   footerTrustNonCustodial:
     'Non-custodial: tokens stay in your wallet until you approve a transaction.',
   /** @deprecated Use footerTrustCompact */
-  footerTrustLocalSigning: 'Transactions are signed locally in your wallet — Swaperex never receives your keys.',
+  footerTrustLocalSigning: 'Transactions are signed locally in your wallet — Kobbex never receives your keys.',
   /** @deprecated Use footerTrustCompact */
   footerTrustWrapperFee:
     'Wrapper routes may include a small protocol fee taken from output on-chain; quoted receive amounts are already net where applicable.',
 
   /** Swap preview: one line under wrapper fee rows (replaces repeated “not gas” paragraphs) */
   previewWrapperNetFeeNote:
-    'Swaperex fee is not gas. Expected / minimum received are net of the wrapper fee where applicable.',
+    'Kobbex fee is not gas. Expected / minimum received are net of the wrapper fee where applicable.',
 
   /** Slightly shorter modal trust strip */
   trustLineQuoteEstimateShort:
@@ -230,14 +230,14 @@ export const SWAP_SURFACE_COPY = {
 
   /** Muted footnote under grouped rate & fee rows on the swap card */
   quoteFeesFootnote:
-    'Pool and route costs are in the DEX path. Swaperex fees (when shown) come from gross output on-chain — quoted receive is already net.',
+    'Pool and route costs are in the DEX path. Kobbex fees (when shown) come from gross output on-chain — quoted receive is already net.',
 
   /** Primary CTA when commission swaps are unavailable on the active chain */
   commissionSwapSwitchNetworkCta: 'Switch to swap network',
 
   /** P15 — custom token import */
   customTokenRiskAckLabel:
-    'I understand this is an unverified custom token. Swaperex does not guarantee its safety or liquidity.',
+    'I understand this is an unverified custom token. Kobbex does not guarantee its safety or liquidity.',
   customTokenImportBlockedNonSwapChain:
     'Custom tokens can only be added for swapping on Ethereum and BNB Chain. Switch network to import.',
   customTokenUnverifiedBadge: 'Custom · unverified',

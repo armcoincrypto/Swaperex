@@ -11,7 +11,7 @@ export function HomepageTrustStrip() {
   return (
     <section
       className="homepage-trust-strip mb-3 sm:mb-4"
-      aria-label="Swaperex product trust highlights"
+      aria-label="Kobbex product trust highlights"
     >
       <p className="text-xs sm:text-sm text-dark-400 text-center lg:text-left leading-snug mb-2.5">
         {HOMEPAGE_TRUST_STRIP}

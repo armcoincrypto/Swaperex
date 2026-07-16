@@ -33,7 +33,7 @@ const BSC_LIKELY = new Set(['LINK', 'XRP', 'DOGE']);
 const BSC_LIMITED = new Set(['ADA', 'DOT', 'LTC', 'TRX', 'PEPE', 'FLOKI', 'TWT', 'XVS']);
 
 const ROUTE_WRAP_TOOLTIP =
-  'Route support means Swaperex may be able to quote this token through its commission wrapper.';
+  'Route support means Kobbex may be able to quote this token through its commission wrapper.';
 
 const STATUS_RANK: Record<RouteSupportStatus, number> = {
   supported: 0,

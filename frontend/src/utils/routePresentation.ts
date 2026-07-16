@@ -24,17 +24,17 @@ const ROUTE_PRESENTATION: Record<string, RoutePresentation> = {
   },
   'uniswap-v3-wrapper': {
     shortName: 'Uniswap V3',
-    displayName: 'Uniswap V3 via Swaperex Wrapper',
+    displayName: 'Uniswap V3 via Kobbex Wrapper',
     supportIdentifier: 'uniswap-v3-wrapper',
   },
   'uniswap-v3-wrapper-v2': {
     shortName: 'Uniswap V3',
-    displayName: 'Uniswap V3 via Swaperex Wrapper V2',
+    displayName: 'Uniswap V3 via Kobbex Wrapper V2',
     supportIdentifier: 'uniswap-v3-wrapper-v2',
   },
   'uniswap-v3-wrapper-v3': {
     shortName: 'Uniswap V3',
-    displayName: 'Uniswap V3 via Swaperex Wrapper V3',
+    displayName: 'Uniswap V3 via Kobbex Wrapper V3',
     supportIdentifier: 'uniswap-v3-wrapper-v3',
   },
   'pancakeswap-v3': {
@@ -44,12 +44,12 @@ const ROUTE_PRESENTATION: Record<string, RoutePresentation> = {
   },
   'pancakeswap-v3-wrapper': {
     shortName: 'PancakeSwap V3',
-    displayName: 'PancakeSwap V3 via Swaperex Wrapper',
+    displayName: 'PancakeSwap V3 via Kobbex Wrapper',
     supportIdentifier: 'pancakeswap-v3-wrapper',
   },
   'pancakeswap-v3-wrapper-v2': {
     shortName: 'PancakeSwap V3',
-    displayName: 'PancakeSwap V3 via Swaperex Wrapper V2',
+    displayName: 'PancakeSwap V3 via Kobbex Wrapper V2',
     supportIdentifier: 'pancakeswap-v3-wrapper-v2',
   },
 };
@@ -95,17 +95,17 @@ export function getRouteExplanation(provider: string): string {
     case 'uniswap-v3':
       return 'Direct swap through Uniswap V3 concentrated liquidity on this chain.';
     case 'uniswap-v3-wrapper':
-      return 'Uniswap V3 execution via the Swaperex fee wrapper on Ethereum (ERC20→ERC20). Quoted output is net of the wrapper protocol fee.';
+      return 'Uniswap V3 execution via the Kobbex fee wrapper on Ethereum (ERC20→ERC20). Quoted output is net of the wrapper protocol fee.';
     case 'uniswap-v3-wrapper-v2':
-      return 'Uniswap V3 via Swaperex Wrapper V2 on Ethereum. Quoted output is net of the wrapper protocol fee.';
+      return 'Uniswap V3 via Kobbex Wrapper V2 on Ethereum. Quoted output is net of the wrapper protocol fee.';
     case 'uniswap-v3-wrapper-v3':
-      return 'Uniswap V3 via Swaperex Wrapper V3 on Ethereum (multi-hop exactInput). Quoted output is net of the wrapper protocol fee.';
+      return 'Uniswap V3 via Kobbex Wrapper V3 on Ethereum (multi-hop exactInput). Quoted output is net of the wrapper protocol fee.';
     case 'pancakeswap-v3':
       return 'Direct swap through PancakeSwap V3 on BNB Chain.';
     case 'pancakeswap-v3-wrapper':
-      return 'PancakeSwap V3 execution via the Swaperex fee wrapper on BNB Chain (ERC20→ERC20). Quoted output is net of the wrapper protocol fee.';
+      return 'PancakeSwap V3 execution via the Kobbex fee wrapper on BNB Chain (ERC20→ERC20). Quoted output is net of the wrapper protocol fee.';
     case 'pancakeswap-v3-wrapper-v2':
-      return 'PancakeSwap V3 via Swaperex Wrapper V2. Quoted output is net of the wrapper protocol fee.';
+      return 'PancakeSwap V3 via Kobbex Wrapper V2. Quoted output is net of the wrapper protocol fee.';
     default:
       return 'Route selected for best output among sources we query for this pair.';
   }

@@ -84,7 +84,7 @@ export function TermsGateModal({
     <Modal isOpen={isOpen} onClose={onClose} title={title} size="md" footer={footer}>
       <div className="space-y-4 text-sm leading-relaxed text-dark-200">
         <p className="text-[13px] text-dark-300">
-          Swaperex is a non-custodial DEX interface. You keep control of your wallet
+          Kobbex is a non-custodial DEX interface. You keep control of your wallet
           and sign transactions yourself. Crypto swaps are final on-chain and may
           involve price movement, slippage, network fees, and smart-contract risk.
         </p>

@@ -97,7 +97,7 @@ export function buildSupportDiagnosticBundle(
 
 export function renderSupportDiagnosticText(bundle: SupportDiagnosticBundle): string {
   const lines: string[] = [
-    'Swaperex transaction diagnostic',
+    'Kobbex transaction diagnostic',
     `Version: ${bundle.appVersion ?? 'unknown'}`,
     `Type: ${presentActivityKind(bundle.kind as TransactionDetailModel['kind'])}`,
     `Status: ${presentActivityStatus(bundle.status as TransactionDetailModel['status'])}`,

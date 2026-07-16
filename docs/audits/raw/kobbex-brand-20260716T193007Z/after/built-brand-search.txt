@@ -1,0 +1,22 @@
+index.html:
+0
+public-facing JS phrases (rendered): none expected
+      1 Swaperex
+      1 Swaperex Pancake wrapper (ERC20→ERC20
+      2 Swaperex Pancake wrapper V2 route only.
+      1 Swaperex Uniswap wrapper (ERC20→ERC20
+      2 Swaperex Uniswap wrapper V3 (multi-hop) when available.
+      1 Swaperex Uniswap wrapper V3 (multi-hop).
+      2 Swaperex Uniswap wrapper route only.
+      1 Swaperex Wrapper V2 participated and won on net output.
+      1 Swaperex Wrapper V2 participated but did not win.
+      1 Swaperex commission audit policy.
+      1 Swaperex wrapper V2) — fixed route preference.
+      2 Swaperex wrapper V2) — forced by route preference
+      2 Swaperex wrapper V2).
+      1 Swaperex wrapper execution is allowed.
+      1 Swaperex wrapper routes can be quoted.
+      1 Swaperex wrapper routes. Choose a wrapper route or switch network.
+      1 Swaperex wrapper).
+      1 SwaperexWrapper:!0
+      2 SwaperexWrapper:!1

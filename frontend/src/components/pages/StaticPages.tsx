@@ -16,11 +16,10 @@ export function AboutPage({ onBack }: StaticPageProps) {
   return (
     <StaticPageLayout title="About Kobbex DEX" onBack={onBack}>
       <section className="mb-8">
-        <h2 className="text-lg font-bold mb-3">What is Kobbex DEX?</h2>
+        <h2 className="text-lg font-bold mb-3">What is Kobbex?</h2>
         <p className="text-dark-300 mb-4">
-          Kobbex DEX is the public-facing name for this non-custodial swap experience inside
-          Swaperex. It is an interface: you choose tokens and amounts, request quotes, and sign
-          transactions in your own wallet. The app does not take custody of your funds.
+          Kobbex is a non-custodial swap interface: you choose tokens and amounts, request quotes,
+          and sign transactions in your own wallet. The app does not take custody of your funds.
         </p>
       </section>
 
@@ -127,14 +126,14 @@ export function TermsPage({ onBack }: StaticPageProps) {
       <section className="mb-8">
         <h2 className="text-lg font-bold mb-3">1. Acceptance of Terms</h2>
         <p className="text-dark-300 mb-4">
-          By using Swaperex, you agree to these terms. If you do not agree, do not use this service.
+          By using Kobbex, you agree to these terms. If you do not agree, do not use this service.
         </p>
       </section>
 
       <section className="mb-8">
         <h2 className="text-lg font-bold mb-3">2. Service Description</h2>
         <p className="text-dark-300 mb-4">
-          Swaperex provides a user interface for interacting with decentralized exchange protocols.
+          Kobbex provides a user interface for interacting with decentralized exchange protocols.
           We do not custody funds or execute trades on your behalf. You interact directly with
           blockchain smart contracts using your own wallet.
         </p>
@@ -143,7 +142,7 @@ export function TermsPage({ onBack }: StaticPageProps) {
       <section className="mb-8">
         <h2 className="text-lg font-bold mb-3">3. No Financial Advice</h2>
         <p className="text-dark-300 mb-4">
-          Swaperex does not provide financial, investment, or trading advice. All trading decisions
+          Kobbex does not provide financial, investment, or trading advice. All trading decisions
           are your own responsibility. Cryptocurrency trading involves significant risk.
         </p>
       </section>
@@ -164,7 +163,7 @@ export function TermsPage({ onBack }: StaticPageProps) {
       <section className="mb-8">
         <h2 className="text-lg font-bold mb-3">5. Limitation of Liability</h2>
         <p className="text-dark-300 mb-4">
-          Swaperex is provided "as is" without warranties. We are not liable for any losses
+          Kobbex is provided "as is" without warranties. We are not liable for any losses
           resulting from your use of this service, including but not limited to trading losses,
           failed transactions, or smart contract vulnerabilities.
         </p>
@@ -182,7 +181,7 @@ export function PrivacyPage({ onBack }: StaticPageProps) {
       <section className="mb-8">
         <h2 className="text-lg font-bold mb-3">What We Collect</h2>
         <p className="text-dark-300 mb-4">
-          Swaperex is a non-custodial application. We do not collect or store:
+          Kobbex is a non-custodial application. We do not collect or store:
         </p>
         <ul className="list-disc list-inside text-dark-300 space-y-1">
           <li>Private keys</li>
@@ -232,14 +231,14 @@ export function DisclaimerPage({ onBack }: StaticPageProps) {
     <StaticPageLayout title="Disclaimer" onBack={onBack}>
       <div className="bg-yellow-900/20 border border-yellow-800 rounded-xl p-4 mb-6">
         <p className="text-yellow-400 font-medium">
-          Please read this disclaimer carefully before using Swaperex.
+          Please read this disclaimer carefully before using Kobbex.
         </p>
       </div>
 
       <section className="mb-8">
         <h2 className="text-lg font-bold mb-3">Non-Custodial Service</h2>
         <p className="text-dark-300 mb-4">
-          Swaperex is a non-custodial interface. We never have control over your funds.
+          Kobbex is a non-custodial interface. We never have control over your funds.
           All transactions are executed directly by you through your own wallet.
           You are solely responsible for your wallet security and transaction decisions.
         </p>
@@ -261,7 +260,7 @@ export function DisclaimerPage({ onBack }: StaticPageProps) {
       <section className="mb-8">
         <h2 className="text-lg font-bold mb-3">Your Responsibility</h2>
         <p className="text-dark-300 mb-4">
-          By using Swaperex, you acknowledge that:
+          By using Kobbex, you acknowledge that:
         </p>
         <ul className="list-disc list-inside text-dark-300 space-y-1">
           <li>You understand how cryptocurrency wallets work</li>

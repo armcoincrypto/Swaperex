@@ -144,7 +144,7 @@ export function DexSiteFooter({ onNavigate }: DexSiteFooterProps) {
         </div>
 
         <p className="mt-6 text-center text-[11px] text-dark-600">
-          © {new Date().getFullYear()} {BRAND.displayName} {BRAND.byline} · {BRAND.domain}
+          © {new Date().getFullYear()} {BRAND.displayName} · {BRAND.domain}
         </p>
       </div>
     </footer>

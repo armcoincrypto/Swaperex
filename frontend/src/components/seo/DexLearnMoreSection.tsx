@@ -40,7 +40,7 @@ function LearnMoreBlock({
 
 export function DexLearnMoreSection() {
   return (
-    <section className="mt-6 pt-4 border-t border-white/[0.05]" aria-label="Learn more about Swaperex">
+    <section className="mt-6 pt-4 border-t border-white/[0.05]" aria-label="Learn more about Kobbex">
       <details className="group rounded-xl border border-white/[0.06] bg-electro-panel/15 overflow-hidden">
         <summary className="cursor-pointer list-none flex items-center justify-between gap-3 px-3 py-2.5 sm:px-4 [&::-webkit-details-marker]:hidden">
           <span className="text-xs font-medium text-dark-300">Learn More</span>
@@ -48,7 +48,7 @@ export function DexLearnMoreSection() {
         </summary>
 
         <div className="px-3 pb-3 sm:px-4 sm:pb-3.5 space-y-1.5 border-t border-white/[0.05] pt-2">
-          <LearnMoreBlock title="Why Swaperex">
+          <LearnMoreBlock title="Why Kobbex">
             <p className="mb-1.5">
               Non-custodial swap interface — you connect, review quotes, and sign in your wallet.
             </p>

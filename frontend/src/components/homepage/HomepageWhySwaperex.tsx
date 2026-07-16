@@ -11,7 +11,7 @@ import { MobileCollapsibleSection } from '@/components/homepage/MobileCollapsibl
 export function HomepageWhySwaperex() {
   return (
     <MobileCollapsibleSection
-      title="Why Swaperex"
+      title="Why Kobbex"
       summary="Self-custody, certified routes, and transparent fees"
       headingId="homepage-why-heading"
       className="homepage-why-swaperex"

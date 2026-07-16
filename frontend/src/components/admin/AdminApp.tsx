@@ -83,7 +83,7 @@ function AdminUnlock() {
   return (
     <div className="min-h-screen bg-dark-950 text-white flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-md rounded-2xl border border-dark-700 bg-dark-900/80 p-8 shadow-xl">
-        <h1 className="text-xl font-semibold text-accent mb-1">Swaperex Admin</h1>
+        <h1 className="text-xl font-semibold text-accent mb-1">Kobbex Admin</h1>
         <p className="text-sm text-dark-400 mb-6">Enter operator token to continue. Stored for this tab only.</p>
         <label className="block text-xs text-dark-500 mb-2 uppercase tracking-wide">X-Admin-Token</label>
         <input

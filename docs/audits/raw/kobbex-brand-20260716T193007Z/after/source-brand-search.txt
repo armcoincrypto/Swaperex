@@ -1,0 +1,282 @@
+frontend/src/hooks/useSwap.ts:746:          'Pair blocked by Swaperex commission audit policy.',
+frontend/src/hooks/useSwap.ts:906:              selectionReason: 'Commission required: forcing PancakeSwap V3 (Swaperex wrapper V2).',
+frontend/src/hooks/useSwap.ts:1055:                  ? 'Commission required: Swaperex Uniswap wrapper V3 (multi-hop).'
+frontend/src/hooks/useSwap.ts:1058:                      ? 'Commission required: forcing Uniswap V3 (Swaperex wrapper V2).'
+frontend/src/hooks/useSwap.ts:1059:                      : 'Commission required: Uniswap V3 (Swaperex wrapper V2) — fixed route preference.'
+frontend/src/hooks/useSwap.ts:1060:                    : 'Commission required: forcing Uniswap V3 (Swaperex wrapper).',
+frontend/src/hooks/useSwap.ts:1152:          selectionReason: 'PancakeSwap V3 (Swaperex wrapper V2) — forced by route preference',
+frontend/src/hooks/useSwap.ts:1172:          selectionReason: 'Uniswap V3 (Swaperex wrapper V2) — forced by route preference',
+frontend/src/hooks/useSwap.ts:1208:              selectionReason: `${aggregation.selectionReason} · Executing via Swaperex Uniswap wrapper (ERC20→ERC20, net output).`,
+frontend/src/hooks/useSwap.ts:1268:              selectionReason: `${aggregation.selectionReason} · Executing via Swaperex Pancake wrapper (ERC20→ERC20, net output).`,
+frontend/src/hooks/useSwap.ts:2322:          throw new Error('Commission-required mode: only Swaperex wrapper execution is allowed.');
+frontend/src/hooks/useSwap.ts:2483:        swapTrace('swaperex_commission_trace', commissionTraceForSwap);
+frontend/src/services/walletScan/scanStore.ts:529:      name: 'swaperex-wallet-scan',
+frontend/src/types/transactionJournal.ts:3: * Design authority: SWAPEREX_P17_1_TRANSACTION_JOURNAL_AND_RECONCILIATION_DESIGN.md
+frontend/src/types/transactionJournal.ts:8:export const JOURNAL_STORAGE_KEY = 'swaperex-transaction-journal-v2';
+frontend/src/types/transactionJournal.ts:26:export type JournalRecordSource = 'swaperex-client' | 'legacy-migrated';
+frontend/src/types/transactionJournal.ts:146:  legacySource: 'swaperex-swap-history' | 'swaperex-pending-swap-v1';
+frontend/src/types/swaperexErrors.ts:2: * P17.6 — Canonical Swaperex error and uncertainty model.
+frontend/src/types/swaperexErrors.ts:8:export type SwaperexErrorCategory =
+frontend/src/types/swaperexErrors.ts:40:export type SwaperexErrorStage =
+frontend/src/types/swaperexErrors.ts:84:  stage?: SwaperexErrorStage;
+frontend/src/types/swaperexErrors.ts:93:export interface NormalizedSwaperexError {
+frontend/src/types/swaperexErrors.ts:94:  category: SwaperexErrorCategory;
+frontend/src/types/swaperexErrors.ts:95:  stage: SwaperexErrorStage;
+frontend/src/types/swaperexErrors.ts:124:export function toLegacyErrorCategory(category: SwaperexErrorCategory): ErrorCategory {
+frontend/src/components/brand/__tests__/BrandLogo.test.tsx:23:  it('does not render Swaperex or the "by Kobbex" byline', () => {
+frontend/src/components/brand/__tests__/BrandLogo.test.tsx:29:    expect(screen.queryByText('Swaperex')).toBeNull();
+frontend/src/components/brand/__tests__/BrandLogo.test.tsx:30:    expect(screen.queryByText(/by Kobbex/i)).toBeNull();
+frontend/src/stores/usageStore.ts:191:      name: 'swaperex-usage',
+frontend/src/components/radar/RadarPanel.tsx:82:    window.addEventListener('swaperex:section', onSection as EventListener);
+frontend/src/components/radar/RadarPanel.tsx:83:    return () => window.removeEventListener('swaperex:section', onSection as EventListener);
+frontend/src/stores/favoriteTokensStore.ts:85:      name: 'swaperex-favorite-tokens',
+frontend/src/stores/screenerStore.ts:119:      name: 'swaperex-screener',
+frontend/src/stores/commissionMonitorStore.ts:66:      name: 'swaperex-commission-monitor',
+frontend/src/components/withdrawal/WithdrawalPreviewModal.tsx:8: * Swaperex only prepares unsigned transactions.
+frontend/src/components/screener/TokenScreener.tsx:76:    window.addEventListener('swaperex:section', onSection as EventListener);
+frontend/src/components/screener/TokenScreener.tsx:77:    return () => window.removeEventListener('swaperex:section', onSection as EventListener);
+frontend/src/stores/monitoringStore.ts:82:      name: 'swaperex-monitoring',
+frontend/src/stores/tokenMetaStore.ts:105:      name: 'swaperex-token-meta',
+frontend/src/wallet/connectors.ts:31:const CONNECTOR_KEY = 'swaperex_last_connector';
+frontend/src/wallet/connectors.ts:195:  console.info('[Swaperex][legacy WC autoReconnect]', phase);
+frontend/src/wallet/connectors.ts:205: * - `swaperex_last_connector` is written only as `injected` by `connectInjected()` in the current app.
+frontend/src/wallet/connectors.ts:265:          name: 'Swaperex',
+frontend/src/components/homepage/HomepageWhySwaperex.tsx:2: * P9.4 / P20 — Why Swaperex (value props + custody principles).
+frontend/src/components/homepage/HomepageWhySwaperex.tsx:11:export function HomepageWhySwaperex() {
+frontend/src/components/homepage/HomepageWhySwaperex.tsx:17:      className="homepage-why-swaperex"
+frontend/src/components/homepage/HomepageWhySwaperex.tsx:40:export default HomepageWhySwaperex;
+frontend/src/components/homepage/HomepageProtocolStats.tsx:2: * P9.3 / P20 — Network coverage metrics (registry-derived; principles live under Why Swaperex).
+frontend/src/stores/sendStore.ts:71:      name: 'swaperex-send',
+frontend/src/stores/transactionJournalStore.ts:150:    source: 'swaperex-client' as const,
+frontend/src/stores/watchlistStore.ts:122:      name: 'swaperex-watchlist',
+frontend/src/components/portfolio/PortfolioPage.tsx:127:    window.addEventListener('swaperex:section', onSection as EventListener);
+frontend/src/components/portfolio/PortfolioPage.tsx:128:    return () => window.removeEventListener('swaperex:section', onSection as EventListener);
+frontend/src/stores/signalFilterStore.ts:138:      name: 'swaperex-signal-filters',
+frontend/src/constants/commissionChains.ts:8:/** Chain IDs where Swaperex commission wrapper swaps are supported. */
+frontend/src/components/portfolio/ActivityPanel.tsx:34:import { getJournalStatusPresentation } from '@/utils/swaperexErrorPresentation';
+frontend/src/components/portfolio/ActivityPanel.tsx:155:    a.download = `swaperex-activity-${new Date().toISOString().slice(0, 10)}.csv`;
+frontend/src/stores/alertStore.ts:140:      name: 'swaperex-alerts',
+frontend/src/constants/protocolStatistics.ts:38: * - wrapper route: execution via Swaperex fee wrapper contracts
+frontend/src/components/portfolio/__tests__/ActivityPanel.test.tsx:30:    source: 'swaperex-client',
+frontend/src/services/pancakeWrapperQuoteV2.ts:98:/** Single-tier quote via Swaperex Pancake V3 fee wrapper V2 (net output after protocol fee). */
+frontend/src/constants/swapSurfaceCopy.ts:17:  swaperexFeeLabel: 'Kobbex fee',
+frontend/src/constants/swapSurfaceCopy.ts:18:  swaperexFeeTooltip:
+frontend/src/config/uniswapWrapper.ts:13:/** Public getter for `uint16 public immutable FEE_BPS` on SwaperexUniswapV3FeeWrapper. */
+frontend/src/constants/__tests__/kobbex-brand-unification.test.ts:3: * Ensures the product presents as "Kobbex" with no residual public "Swaperex"
+frontend/src/constants/__tests__/kobbex-brand-unification.test.ts:4: * branding or "by Kobbex" byline. Internal identifiers/storage keys are out of scope.
+frontend/src/constants/__tests__/kobbex-brand-unification.test.ts:24:  it('builds page titles without "by Kobbex"', () => {
+frontend/src/constants/__tests__/kobbex-brand-unification.test.ts:26:    expect(brandPageTitle('Portfolio')).not.toMatch(/by Kobbex/i);
+frontend/src/constants/__tests__/kobbex-brand-unification.test.ts:27:    expect(brandPageTitle('Portfolio')).not.toMatch(/Swaperex/i);
+frontend/src/constants/__tests__/kobbex-brand-unification.test.ts:31:describe('Public copy is unbranded of Swaperex', () => {
+frontend/src/constants/__tests__/kobbex-brand-unification.test.ts:32:  it('swap surface fee label + trust copy use Kobbex, not Swaperex', () => {
+frontend/src/constants/__tests__/kobbex-brand-unification.test.ts:33:    expect(SWAP_SURFACE_COPY.swaperexFeeLabel).toBe('Kobbex fee');
+frontend/src/constants/__tests__/kobbex-brand-unification.test.ts:34:    expect(SWAP_SURFACE_COPY.footerTrustLocalSigning).not.toMatch(/Swaperex/);
+frontend/src/constants/__tests__/kobbex-brand-unification.test.ts:35:    expect(SWAP_SURFACE_COPY.customTokenRiskAckLabel).not.toMatch(/Swaperex/);
+frontend/src/constants/__tests__/kobbex-brand-unification.test.ts:36:    expect(SWAP_SURFACE_COPY.previewWrapperNetFeeNote).not.toMatch(/Swaperex/);
+frontend/src/constants/__tests__/kobbex-brand-unification.test.ts:39:  it('activity history disclaimer is not branded Swaperex', () => {
+frontend/src/constants/__tests__/kobbex-brand-unification.test.ts:40:    expect(ACTIVITY_HISTORY_DISCLAIMER).not.toMatch(/Swaperex/);
+frontend/src/constants/__tests__/kobbex-brand-unification.test.ts:49:    expect(html).not.toMatch(/Swaperex/);
+frontend/src/constants/__tests__/kobbex-brand-unification.test.ts:50:    expect(html).not.toMatch(/by Kobbex/);
+frontend/src/constants/__tests__/kobbex-brand-unification.test.ts:60:    expect(sd).not.toMatch(/name: 'Swaperex'/);
+frontend/src/constants/__tests__/kobbex-brand-unification.test.ts:73:    expect(logo).not.toMatch(/aria-label="Swaperex home"/);
+frontend/src/services/transactionDetailService.ts:39:import { getErrorPresentation, normalizeSwaperexErrorFromMessage } from '@/utils/errors';
+frontend/src/services/transactionDetailService.ts:40:import type { SwaperexErrorStage } from '@/types/swaperexErrors';
+frontend/src/services/transactionDetailService.ts:125:  const normalized = normalizeSwaperexErrorFromMessage(err.technicalSummary ?? err.userMessage, {
+frontend/src/services/transactionDetailService.ts:129:    stage: err.stage as SwaperexErrorStage,
+frontend/src/components/layout/TradeShell.tsx:45:import { HomepageWhySwaperex } from '@/components/homepage/HomepageWhySwaperex';
+frontend/src/components/layout/TradeShell.tsx:172:          new CustomEvent('swaperex:section', { detail: { page: state.dexPage, section: state.section } }),
+frontend/src/components/layout/TradeShell.tsx:278:            new CustomEvent('swaperex:section', { detail: { page, section } }),
+frontend/src/components/layout/TradeShell.tsx:315:        new CustomEvent('swaperex:section', { detail: { page: currentPage, section: hash } }),
+frontend/src/components/layout/TradeShell.tsx:327:   * inside `WalletConnect` / `SwapInterface`) emit `swaperex:navigate` with
+frontend/src/components/layout/TradeShell.tsx:347:    window.addEventListener('swaperex:navigate', onNav as EventListener);
+frontend/src/components/layout/TradeShell.tsx:348:    return () => window.removeEventListener('swaperex:navigate', onNav as EventListener);
+frontend/src/components/layout/TradeShell.tsx:654:            <HomepageWhySwaperex />
+frontend/src/services/transactionJournalMigration.ts:24:export const LEGACY_SWAP_HISTORY_KEY = 'swaperex-swap-history';
+frontend/src/services/transactionJournalMigration.ts:25:const LEGACY_PENDING_SWAP_KEY = 'swaperex-pending-swap-v1';
+frontend/src/services/transactionJournalMigration.ts:204:        legacySource: 'swaperex-swap-history',
+frontend/src/services/transactionJournalMigration.ts:217:        legacySource: 'swaperex-swap-history',
+frontend/src/services/transactionJournalMigration.ts:229:        legacySource: 'swaperex-swap-history',
+frontend/src/services/transactionJournalMigration.ts:246:        legacySource: 'swaperex-swap-history',
+frontend/src/services/transactionJournalMigration.ts:260:        legacySource: 'swaperex-swap-history',
+frontend/src/services/transactionJournalMigration.ts:321:        legacySource: 'swaperex-pending-swap-v1',
+frontend/src/stores/customTokenStore.ts:124:      name: 'swaperex-custom-tokens',
+frontend/src/services/pancakeWrapperQuote.ts:62: * Single-tier quote via SwaperexPancakeV3FeeWrapper (net output after protocol fee).
+frontend/src/stores/radarStore.ts:148:      name: 'swaperex-radar',
+frontend/src/services/uniswapQuote.ts:318: * Quote via SwaperexUniswapV3FeeWrapper (net output after protocol fee).
+frontend/src/constants/homepageProductCopy.ts:40:/** Product principles — shown in Why Swaperex / trust, not as “statistics”. */
+frontend/src/stores/signalHistoryStore.ts:183:      name: 'swaperex-signal-history',
+frontend/src/stores/termsStore.ts:4: * Persists a single, local-only acceptance flag for the Swaperex Terms of Use
+frontend/src/stores/termsStore.ts:18:export const TERMS_ACCEPTED_STORAGE_KEY = 'swaperex_terms_accepted_v1';
+frontend/src/services/uniswapWrapperQuoteV2.ts:64: * Quote via Swaperex Uniswap V3 fee wrapper V2 (net output after protocol fee).
+frontend/src/stores/swapHistoryStore.ts:155:      name: 'swaperex-swap-history',
+frontend/src/admin/adminApi.ts:10:export const ADMIN_TOKEN_SESSION_KEY = 'swaperex_admin_x_admin_token';
+frontend/src/components/common/TermsGateModal.tsx:10: * - Terms / Privacy links route within the SPA via the `swaperex:navigate`
+frontend/src/components/common/TermsGateModal.tsx:36:    new CustomEvent('swaperex:navigate', { detail: { page } }),
+frontend/src/services/__tests__/supportDiagnosticService.test.ts:21:    source: 'swaperex-client',
+frontend/src/stores/presetStore.ts:166:      name: 'swaperex-swap-presets',
+frontend/src/services/__tests__/transactionDetailService.test.ts:25:    source: 'swaperex-client',
+frontend/src/services/__tests__/transactionDetailService.test.ts:52:    source: 'swaperex-client',
+frontend/src/services/__tests__/transactionReconciliation.test.ts:14:    source: 'swaperex-client',
+frontend/src/components/common/OnboardingHint.tsx:20:const DISMISSED_HINTS_KEY = 'swaperex-dismissed-hints';
+frontend/src/stores/portfolioStore.ts:304:      name: 'swaperex-portfolio',
+frontend/src/components/transactions/__tests__/TransactionDetailsDialog.test.tsx:21:    source: 'swaperex-client',
+frontend/src/components/common/TransactionError.tsx:8:import { normalizeSwaperexError } from '@/utils/swaperexErrorClassification';
+frontend/src/components/common/TransactionError.tsx:121:  const normalized = normalizeSwaperexError(error, { stage: 'swap-submit' });
+frontend/src/services/uniswapTxBuilder.ts:112:/** SwaperexUniswapV3FeeWrapper — ERC20→ERC20 exact input single (net min out) */
+frontend/src/services/uniswapTxBuilder.ts:280: * Build swap calldata for Swaperex Uniswap V3 fee wrapper (ERC20→ERC20 only).
+frontend/src/services/wallet/sanitizeAppKitPersistedState.ts:12:const SWAPEREX_LAST_CONNECTOR_KEY = 'swaperex_last_connector';
+frontend/src/services/wallet/sanitizeAppKitPersistedState.ts:29:    const last = localStorage.getItem(SWAPEREX_LAST_CONNECTOR_KEY);
+frontend/src/services/wallet/sanitizeAppKitPersistedState.ts:31:      localStorage.removeItem(SWAPEREX_LAST_CONNECTOR_KEY);
+frontend/src/services/uniswapWrapperQuoteV3.ts:3: * Multi-hop packed `path` + `quoteExactInputERC20` on the Swaperex wrapper.
+frontend/src/services/uniswapWrapperQuoteV3.ts:91: * Quote via Swaperex Uniswap V3 fee wrapper V3 (`quoteExactInputERC20`).
+frontend/src/services/wallet/__tests__/sanitizeAppKitPersistedState.test.ts:13:    localStorage.setItem('swaperex_last_connector', 'injected');
+frontend/src/services/wallet/__tests__/sanitizeAppKitPersistedState.test.ts:16:    expect(localStorage.getItem('swaperex_last_connector')).toBeNull();
+frontend/src/services/wallet/appKitActionsRegistry.ts:44:  window.dispatchEvent(new CustomEvent('swaperex:wallet-bootstrap'));
+frontend/src/services/wallet/appKitActionsRegistry.ts:50:  window.addEventListener('swaperex:wallet-bootstrap', handler);
+frontend/src/services/wallet/appKitActionsRegistry.ts:51:  return () => window.removeEventListener('swaperex:wallet-bootstrap', handler);
+frontend/src/components/swap/SwapPreviewModal.tsx:46:  normalizeSwaperexErrorFromMessage,
+frontend/src/components/swap/SwapPreviewModal.tsx:47:  type SwaperexErrorCategory,
+frontend/src/components/swap/SwapPreviewModal.tsx:418:                  label={SWAP_SURFACE_COPY.swaperexFeeLabel}
+frontend/src/components/swap/SwapPreviewModal.tsx:420:                  title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
+frontend/src/components/swap/SwapPreviewModal.tsx:430:                  label={SWAP_SURFACE_COPY.swaperexFeeLabel}
+frontend/src/components/swap/SwapPreviewModal.tsx:432:                  title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
+frontend/src/components/swap/SwapPreviewModal.tsx:444:                  label={`${SWAP_SURFACE_COPY.swaperexFeeLabel} (V2)`}
+frontend/src/components/swap/SwapPreviewModal.tsx:446:                  title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
+frontend/src/components/swap/SwapPreviewModal.tsx:458:                  label={`${SWAP_SURFACE_COPY.swaperexFeeLabel} (V3)`}
+frontend/src/components/swap/SwapPreviewModal.tsx:460:                  title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
+frontend/src/components/swap/SwapPreviewModal.tsx:467:                  label={SWAP_SURFACE_COPY.swaperexFeeLabel}
+frontend/src/components/swap/SwapPreviewModal.tsx:469:                  title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
+frontend/src/components/swap/SwapPreviewModal.tsx:481:                  label={`${SWAP_SURFACE_COPY.swaperexFeeLabel} (V2)`}
+frontend/src/components/swap/SwapPreviewModal.tsx:483:                  title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
+frontend/src/components/swap/SwapPreviewModal.tsx:908:              label={SWAP_SURFACE_COPY.swaperexFeeLabel}
+frontend/src/components/swap/SwapPreviewModal.tsx:910:              title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
+frontend/src/components/swap/SwapPreviewModal.tsx:920:              label={SWAP_SURFACE_COPY.swaperexFeeLabel}
+frontend/src/components/swap/SwapPreviewModal.tsx:922:              title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
+frontend/src/components/swap/SwapPreviewModal.tsx:934:              label={`${SWAP_SURFACE_COPY.swaperexFeeLabel} (V2)`}
+frontend/src/components/swap/SwapPreviewModal.tsx:936:              title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
+frontend/src/components/swap/SwapPreviewModal.tsx:947:            label={`${SWAP_SURFACE_COPY.swaperexFeeLabel} (V3)`}
+frontend/src/components/swap/SwapPreviewModal.tsx:949:            title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
+frontend/src/components/swap/SwapPreviewModal.tsx:955:              label={SWAP_SURFACE_COPY.swaperexFeeLabel}
+frontend/src/components/swap/SwapPreviewModal.tsx:957:              title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
+frontend/src/components/swap/SwapPreviewModal.tsx:969:              label={`${SWAP_SURFACE_COPY.swaperexFeeLabel} (V2)`}
+frontend/src/components/swap/SwapPreviewModal.tsx:971:              title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
+frontend/src/components/swap/SwapPreviewModal.tsx:1363:function iconTypeForCategory(category: SwaperexErrorCategory): ErrorInfo['type'] {
+frontend/src/components/swap/SwapPreviewModal.tsx:1389:  const normalized = normalizeSwaperexErrorFromMessage(error, context);
+frontend/src/services/wallet/appkit.ts:74:    // Embedded email/social login pulls extra chunks (crypto/UI). Swaperex uses WalletConnect + read-only only.
+frontend/src/api/client.ts:2: * API Client for Swaperex Backend
+frontend/src/tokens/index.ts:120:    const stored = localStorage.getItem('swaperex-custom-tokens');
+frontend/src/tokens/index.ts:142:    const stored = localStorage.getItem('swaperex-custom-tokens');
+frontend/src/components/swap/SwapInterface.tsx:2433:                      <span className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.swaperexFeeLabel}</span>
+frontend/src/components/swap/SwapInterface.tsx:2446:                      <span className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.swaperexFeeLabel}</span>
+frontend/src/components/swap/SwapInterface.tsx:2459:                      <span className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.swaperexFeeLabel}</span>
+frontend/src/components/swap/SwapInterface.tsx:2462:                        title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
+frontend/src/components/swap/SwapInterface.tsx:2472:                      <span className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.swaperexFeeLabel}</span>
+frontend/src/components/swap/SwapInterface.tsx:2475:                        title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
+frontend/src/components/swap/SwapInterface.tsx:2485:                      <span className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.swaperexFeeLabel}</span>
+frontend/src/components/swap/SwapInterface.tsx:2488:                        title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
+frontend/src/components/swap/SwapInterface.tsx:2498:                      <span className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.swaperexFeeLabel}</span>
+frontend/src/components/swap/SwapInterface.tsx:2501:                        title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
+frontend/src/components/swap/SwapInterface.tsx:2510:                    <span className="text-dark-400 shrink-0">{SWAP_SURFACE_COPY.swaperexFeeLabel}</span>
+frontend/src/components/swap/SwapInterface.tsx:2674:                          title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
+frontend/src/components/swap/SwapInterface.tsx:2693:                          title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
+frontend/src/components/swap/SwapInterface.tsx:2707:                          title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
+frontend/src/components/swap/SwapInterface.tsx:2726:                          title={SWAP_SURFACE_COPY.swaperexFeeTooltip}
+frontend/src/components/swap/SwapInterface.tsx:3358:                Security data is informational only, not financial advice. Custom tokens are not verified by Kobbex.
+frontend/src/services/screener/cache.ts:15:const LS_PREFIX = 'swaperex-screener-cache:';
+frontend/src/services/quoteAggregator.ts:149:    'Commission-required mode only allows Swaperex wrapper routes. Choose a wrapper route or switch network.',
+frontend/src/services/quoteAggregator.ts:208:        reason: 'Commission required: Swaperex Uniswap wrapper V3 (multi-hop) when available.',
+frontend/src/services/quoteAggregator.ts:215:          'Commission required: Swaperex Uniswap wrapper V3 (multi-hop) when available.',
+frontend/src/services/quoteAggregator.ts:238:    reason: 'Commission required: Swaperex Uniswap wrapper route only.',
+frontend/src/services/quoteAggregator.ts:245:    selectionReason: 'Commission required: Swaperex Uniswap wrapper route only.',
+frontend/src/services/quoteAggregator.ts:279:    reason: 'Commission required: Swaperex Pancake wrapper V2 route only.',
+frontend/src/services/quoteAggregator.ts:286:    selectionReason: 'Commission required: Swaperex Pancake wrapper V2 route only.',
+frontend/src/services/quoteAggregator.ts:439:    /** Packed Uniswap V3 path bytes (`0x…`) when executing via Swaperex wrapper V3. */
+frontend/src/services/quoteAggregator.ts:934:                ? `${comparison.selectionReason} · Swaperex Wrapper V2 participated and won on net output.`
+frontend/src/services/quoteAggregator.ts:935:                : `${comparison.selectionReason} · Swaperex Wrapper V2 participated but did not win.`;
+frontend/src/services/quoteAggregator.ts:1088:    throw new Error('Commission-required mode: only Swaperex wrapper routes can be quoted.');
+frontend/src/vite-env.d.ts:41:  /** Deployed SwaperexUniswapV3FeeWrapper on Ethereum mainnet (checksummed). Required when wrapper is enabled. */
+frontend/src/vite-env.d.ts:69:  /** Deployed Swaperex Pancake V3 fee wrapper on BSC (checksummed). Required when wrapper is enabled. */
+frontend/src/vite-env.d.ts:76:  /** Deployed Swaperex Pancake V3 fee wrapper V2 on BSC (checksummed). */
+frontend/src/utils/swaperexErrorPresentation.ts:8:  NormalizedSwaperexError,
+frontend/src/utils/swaperexErrorPresentation.ts:9:  SwaperexErrorCategory,
+frontend/src/utils/swaperexErrorPresentation.ts:10:} from '@/types/swaperexErrors';
+frontend/src/utils/swaperexErrorPresentation.ts:14:  normalizeSwaperexErrorFromMessage,
+frontend/src/utils/swaperexErrorPresentation.ts:15:} from '@/utils/swaperexErrorClassification';
+frontend/src/utils/swaperexErrorPresentation.ts:16:import type { ErrorClassificationContext } from '@/types/swaperexErrors';
+frontend/src/utils/swaperexErrorPresentation.ts:18:function severityFor(category: SwaperexErrorCategory, finality: NormalizedSwaperexError['finality']): ErrorPresentation['severity'] {
+frontend/src/utils/swaperexErrorPresentation.ts:29:function suggestionFor(error: NormalizedSwaperexError): string | undefined {
+frontend/src/utils/swaperexErrorPresentation.ts:55:  SwaperexErrorCategory,
+frontend/src/utils/swaperexErrorPresentation.ts:90:export function getPermittedErrorActions(error: NormalizedSwaperexError): ErrorRecommendedAction[] {
+frontend/src/utils/swaperexErrorPresentation.ts:106:  error: NormalizedSwaperexError,
+frontend/src/utils/swaperexErrorPresentation.ts:112:export function getErrorPresentation(error: NormalizedSwaperexError): ErrorPresentation {
+frontend/src/utils/swaperexErrorPresentation.ts:135:  return getErrorPresentation(normalizeSwaperexErrorFromMessage(message, context));
+frontend/src/utils/swaperexErrorPresentation.ts:162:export function presentErrorCategoryLabel(category: SwaperexErrorCategory): string {
+frontend/src/utils/productionMonitoring.ts:27:const PAUSE_404_SESSION_KEY = 'swaperex-monitoring-ingest-paused-404';
+frontend/src/utils/productionMonitoring.ts:118:  /** P4.1-A — commission-required pair has no Swaperex wrapper quote path. */
+frontend/src/utils/productionMonitoring.ts:157:const STORAGE_KEY = 'swaperex-monitoring-buffer';
+frontend/src/utils/productionMonitoring.ts:158:const SESSION_KEY = 'swaperex-monitoring-session-id';
+frontend/src/utils/swaperexErrorClassification.ts:2: * P17.6 — Canonical Swaperex error classifier (single owner for raw errors).
+frontend/src/utils/swaperexErrorClassification.ts:10:  NormalizedSwaperexError,
+frontend/src/utils/swaperexErrorClassification.ts:11:  SwaperexErrorCategory,
+frontend/src/utils/swaperexErrorClassification.ts:12:  SwaperexErrorStage,
+frontend/src/utils/swaperexErrorClassification.ts:13:} from '@/types/swaperexErrors';
+frontend/src/utils/swaperexErrorClassification.ts:29:function defaultStage(context: ErrorClassificationContext): SwaperexErrorStage {
+frontend/src/utils/swaperexErrorClassification.ts:34:  category: SwaperexErrorCategory;
+frontend/src/utils/swaperexErrorClassification.ts:35:  stage: SwaperexErrorStage;
+frontend/src/utils/swaperexErrorClassification.ts:45:}): NormalizedSwaperexError {
+frontend/src/utils/swaperexErrorClassification.ts:64:): NormalizedSwaperexError {
+frontend/src/utils/swaperexErrorClassification.ts:125:export function normalizeSwaperexError(
+frontend/src/utils/swaperexErrorClassification.ts:128:): NormalizedSwaperexError {
+frontend/src/utils/swaperexErrorClassification.ts:449:export function normalizeSwaperexErrorFromMessage(
+frontend/src/utils/swaperexErrorClassification.ts:452:): NormalizedSwaperexError {
+frontend/src/utils/swaperexErrorClassification.ts:453:  return normalizeSwaperexError(message ? new Error(message) : new Error(''), context);
+frontend/src/utils/routePrecheck.ts:9:export const RECENT_SUCCESSFUL_PAIRS_KEY = 'swaperex-recent-successful-pairs';
+frontend/src/utils/__tests__/recoveredSwapTrace.test.ts:20:    source: 'swaperex-client',
+frontend/src/utils/__tests__/recoveredSwapTrace.test.ts:52:      source: 'swaperex-client',
+frontend/src/utils/__tests__/recoveredSwapTrace.test.ts:81:      source: 'swaperex-client',
+frontend/src/utils/transactionJournalValidation.ts:27:/** Chains Swaperex may journal (swap + common migrated chains). */
+frontend/src/utils/transactionJournalValidation.ts:183:  if (value.source !== 'swaperex-client' && value.source !== 'legacy-migrated') return false;
+frontend/src/utils/transactionJournalValidation.ts:217:  if (value.legacySource !== 'swaperex-swap-history' && value.legacySource !== 'swaperex-pending-swap-v1') {
+frontend/src/utils/transactionDetailFormatting.ts:9:import { getJournalStatusPresentation } from '@/utils/swaperexErrorPresentation';
+frontend/src/utils/operatorObservabilityMapping.ts:70:  errorSemantics: 'swaperexErrorClassification.ts (P17.6)',
+frontend/src/utils/__tests__/transactionJournalValidation.test.ts:27:    source: 'swaperex-client',
+frontend/src/utils/__tests__/transactionJournalTransitions.test.ts:19:    source: 'swaperex-client',
+frontend/src/utils/adminApi.ts:7:const ADMIN_TOKEN_SESSION_KEY = 'swaperex-admin-api-token';
+frontend/src/utils/recoveredSwapTrace.ts:12:import { getJournalStatusPresentation } from '@/utils/swaperexErrorPresentation';
+frontend/src/utils/__tests__/swaperexErrorClassification.test.ts:3:  normalizeSwaperexError,
+frontend/src/utils/__tests__/swaperexErrorClassification.test.ts:5:} from '@/utils/swaperexErrorClassification';
+frontend/src/utils/__tests__/swaperexErrorClassification.test.ts:10:} from '@/utils/swaperexErrorPresentation';
+frontend/src/utils/__tests__/swaperexErrorClassification.test.ts:15:describe('normalizeSwaperexError — taxonomy matrix', () => {
+frontend/src/utils/__tests__/swaperexErrorClassification.test.ts:19:    context?: Parameters<typeof normalizeSwaperexError>[1];
+frontend/src/utils/__tests__/swaperexErrorClassification.test.ts:127:    const normalized = normalizeSwaperexError(error, context);
+frontend/src/utils/__tests__/swaperexErrorClassification.test.ts:144:    const normalized = normalizeSwaperexError(
+frontend/src/utils/__tests__/swaperexErrorClassification.test.ts:153:    const normalized = normalizeSwaperexError(
+frontend/src/utils/__tests__/swaperexErrorClassification.test.ts:162:    const normalized = normalizeSwaperexError(
+frontend/src/utils/__tests__/swaperexErrorClassification.test.ts:171:    const normalized = normalizeSwaperexError(
+frontend/src/utils/__tests__/swaperexErrorClassification.test.ts:206:    const normalized = normalizeSwaperexError({ code: 4001 });
+frontend/src/utils/__tests__/unifiedActivity.test.ts:44:    source: 'swaperex-client',
+frontend/src/utils/__tests__/unifiedActivity.test.ts:72:    source: 'swaperex-client',
+frontend/src/utils/errors.ts:13:import type { ErrorClassificationContext, NormalizedSwaperexError } from '@/types/swaperexErrors';
+frontend/src/utils/errors.ts:14:import { toLegacyErrorCategory } from '@/types/swaperexErrors';
+frontend/src/utils/errors.ts:16:  normalizeSwaperexError,
+frontend/src/utils/errors.ts:17:} from '@/utils/swaperexErrorClassification';
+frontend/src/utils/errors.ts:18:import { getErrorPresentation } from '@/utils/swaperexErrorPresentation';
+frontend/src/utils/errors.ts:21:  normalizeSwaperexError,
+frontend/src/utils/errors.ts:22:  normalizeSwaperexErrorFromMessage,
+frontend/src/utils/errors.ts:24:} from '@/utils/swaperexErrorClassification';
+frontend/src/utils/errors.ts:32:} from '@/utils/swaperexErrorPresentation';
+frontend/src/utils/errors.ts:37:  NormalizedSwaperexError,
+frontend/src/utils/errors.ts:38:  SwaperexErrorCategory,
+frontend/src/utils/errors.ts:39:  SwaperexErrorStage,
+frontend/src/utils/errors.ts:40:} from '@/types/swaperexErrors';
+frontend/src/utils/errors.ts:43:  normalized: NormalizedSwaperexError,
+frontend/src/utils/errors.ts:239:    normalizeSwaperexError(error, {
+frontend/src/utils/errors.ts:263:  const normalized = normalizeSwaperexError(error, {
+frontend/src/utils/errors.ts:347:  const normalized = normalizeSwaperexError(error, {
+frontend/src/utils/commission.ts:32:  isSwaperexWrapper: boolean;
+frontend/src/utils/commission.ts:164:  const isSwaperexWrapper = txToNorm ? isWrapperByTxTo : wrapperKey != null;
+frontend/src/utils/commission.ts:166:  if (isSwaperexWrapper) {
+frontend/src/utils/commission.ts:187:      isSwaperexWrapper: true,
+frontend/src/utils/commission.ts:210:      isSwaperexWrapper: false,
+frontend/src/utils/commission.ts:230:    isSwaperexWrapper: false,
+frontend/src/utils/pendingSwapStorage.ts:9:export const PENDING_SWAP_STORAGE_KEY = 'swaperex-pending-swap-v1';

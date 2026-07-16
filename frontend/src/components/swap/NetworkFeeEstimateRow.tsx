@@ -1,6 +1,6 @@
 /**
  * P15 — Network fee estimate row (gas units + optional native fee).
- * Separates network gas from Swaperex commission in the UI.
+ * Separates network gas from Kobbex commission in the UI.
  */
 
 import { useEffect, useState } from 'react';
@@ -64,7 +64,7 @@ export function NetworkFeeEstimateRow({
           <p className="text-[11px] text-dark-500 leading-snug">
             {result?.unavailableReason ??
               (result?.isLiveEstimate
-                ? 'Approximate network gas — not the Swaperex commission. Your wallet confirms the final fee.'
+                ? 'Approximate network gas — not the Kobbex commission. Your wallet confirms the final fee.'
                 : SWAP_SURFACE_COPY.networkFeeWalletFallback)}
           </p>
         </>

@@ -29,7 +29,7 @@ import { CHAIN_ACTIVITY_LABELS, type UnifiedActivityItem } from '@/types/unified
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 import { formatBalance, swapAggregatorProviderLabel } from '@/utils/format';
 
-/** Compact recent Swaperex journal activity for the swap page. */
+/** Compact recent Kobbex journal activity for the swap page. */
 export function DeviceSwapActivityStrip({
   chainId,
   maxItems = 3,
@@ -58,15 +58,15 @@ export function DeviceSwapActivityStrip({
   return (
     <div className="relative z-10 mt-4 pt-4 border-t border-white/[0.06]" data-testid="device-swap-activity-strip">
       <div className="flex items-center justify-between gap-2 mb-2">
-        <h3 className="text-sm font-semibold text-dark-300">Recent Swaperex activity</h3>
+        <h3 className="text-sm font-semibold text-dark-300">Recent Kobbex activity</h3>
         <Link to="/portfolio" className="text-[10px] text-accent/90 hover:text-accent">
           View all activity
         </Link>
       </div>
       <p className="text-[11px] text-dark-500 mb-2 leading-snug">
-        Saved on this device from Swaperex. Verify any in-flight transaction on the explorer before repeating.
+        Saved on this device from Kobbex. Verify any in-flight transaction on the explorer before repeating.
       </p>
-      <ul className="space-y-2 list-none p-0 m-0" aria-label="Recent Swaperex activity">
+      <ul className="space-y-2 list-none p-0 m-0" aria-label="Recent Kobbex activity">
         {rows.map((item) => (
           <li key={item.id}>
             <CompactJournalRow item={item} onRepeat={onRepeatSwap} onViewDetails={onViewDetails} />

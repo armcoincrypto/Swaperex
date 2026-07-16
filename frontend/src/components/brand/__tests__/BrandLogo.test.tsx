@@ -10,14 +10,24 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 describe('BrandLogo (P20)', () => {
-  it('renders accessible Swaperex home control', () => {
+  it('renders accessible Kobbex home control', () => {
     render(
       <MemoryRouter>
         <BrandLogo />
       </MemoryRouter>,
     );
-    expect(screen.getByRole('link', { name: 'Swaperex home' })).toBeTruthy();
-    expect(screen.getByText('Swaperex')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Kobbex home' })).toBeTruthy();
+    expect(screen.getByText('Kobbex')).toBeTruthy();
+  });
+
+  it('does not render Swaperex or the "by Kobbex" byline', () => {
+    render(
+      <MemoryRouter>
+        <BrandLogo />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByText('Swaperex')).toBeNull();
+    expect(screen.queryByText(/by Kobbex/i)).toBeNull();
   });
 
   it('invokes onNavigateHome without disconnect semantics', () => {
@@ -27,7 +37,7 @@ describe('BrandLogo (P20)', () => {
         <BrandLogo onNavigateHome={onNavigateHome} />
       </MemoryRouter>,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Swaperex home' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Kobbex home' }));
     expect(onNavigateHome).toHaveBeenCalledTimes(1);
   });
 });
