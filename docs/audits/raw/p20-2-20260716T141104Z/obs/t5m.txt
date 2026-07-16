@@ -1,0 +1,12 @@
+=== T+5m 2026-07-16T14:28:32Z ===
+environment=production
+commit=d8a929493227b97f51c7682e1362256b8a9f0716
+short=d8a9294
+branch=release/swaperex-p20-2-production-quality-closure
+deployed=2026-07-16T14:21:30Z
+
+200 /
+200 /portfolio
+200 /markets
+200 /security
+artifact=d8a9294
