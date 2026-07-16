@@ -1,0 +1,13 @@
+{
+  "verdict": "SWAPEREX_P20_1_UI_DENSITY_DEFECTS_FIXED_DEPLOYED_PASS",
+  "productionUrl": "https://dex.kobbex.com",
+  "startingArtifact": "2d2ad08297a77f07a36fccb813570a5c4da6b942",
+  "releaseBranch": "release/swaperex-p20-1-compact-intelligence",
+  "tests": { "files": 70, "total": 694 },
+  "commission": "126/126",
+  "scope": "presentation-only",
+  "kobbopayChanged": false,
+  "p7Changed": false,
+  "contractsChanged": false,
+  "databaseChanged": false
+}
