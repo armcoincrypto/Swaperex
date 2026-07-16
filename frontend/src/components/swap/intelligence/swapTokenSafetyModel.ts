@@ -302,3 +302,122 @@ export function statusDotClass(status: SafetySignalStatus): string {
       return 'bg-dark-500';
   }
 }
+
+export type TokenSafetySummaryStatus = SafetySignalStatus | 'loading' | 'na';
+
+export interface TokenSafetySummaryLine {
+  id: 'contract' | 'ownership' | 'supply' | 'liquidity';
+  categoryLabel: string;
+  value: string;
+  status: TokenSafetySummaryStatus;
+}
+
+const SUMMARY_CATEGORIES: Array<{
+  id: TokenSafetySummaryLine['id'];
+  categoryLabel: string;
+  signalId: string;
+}> = [
+  { id: 'contract', categoryLabel: 'Contract', signalId: 'contract' },
+  { id: 'ownership', categoryLabel: 'Ownership', signalId: 'ownership' },
+  { id: 'supply', categoryLabel: 'Supply controls', signalId: 'mintability' },
+  { id: 'liquidity', categoryLabel: 'Liquidity scan', signalId: 'liquidity' },
+];
+
+function compactSummaryValue(signal: SwapTokenSafetySignal): string {
+  switch (signal.status) {
+    case 'ok':
+      if (signal.id === 'contract') return 'Verified';
+      if (signal.id === 'ownership') return 'No high-risk signal detected';
+      if (signal.id === 'mintability') return 'No supply-control signal detected';
+      if (signal.id === 'liquidity') return 'Liquidity data available';
+      return signal.detail;
+    case 'warn':
+    case 'risk':
+      return signal.detail;
+    default:
+      if (signal.id === 'contract') return 'Contract verification unavailable';
+      if (signal.id === 'ownership') return 'Ownership data unavailable';
+      if (signal.id === 'mintability') return 'Supply-control data unavailable';
+      if (signal.id === 'liquidity') return 'Liquidity data unavailable';
+      return 'Unavailable';
+  }
+}
+
+function unavailableSummaryLine(
+  category: (typeof SUMMARY_CATEGORIES)[number],
+): TokenSafetySummaryLine {
+  const unavailableById: Record<TokenSafetySummaryLine['id'], string> = {
+    contract: 'Contract verification unavailable',
+    ownership: 'Ownership data unavailable',
+    supply: 'Supply-control data unavailable',
+    liquidity: 'Liquidity data unavailable',
+  };
+  return {
+    id: category.id,
+    categoryLabel: category.categoryLabel,
+    value: unavailableById[category.id],
+    status: 'unknown',
+  };
+}
+
+/** Four-line compact summary derived from canonical scanner signals — presentation only. */
+export function buildTokenSafetySummaryLines(params: {
+  signals: SwapTokenSafetySignal[] | null;
+  loading?: boolean;
+  isNative?: boolean;
+  hasToken?: boolean;
+}): TokenSafetySummaryLine[] {
+  if (params.loading) {
+    return SUMMARY_CATEGORIES.map((category) => ({
+      id: category.id,
+      categoryLabel: category.categoryLabel,
+      value: 'Analysis loading',
+      status: 'loading',
+    }));
+  }
+
+  if (!params.hasToken) {
+    return SUMMARY_CATEGORIES.map((category) => ({
+      id: category.id,
+      categoryLabel: category.categoryLabel,
+      value: 'Select a receive token',
+      status: 'na',
+    }));
+  }
+
+  if (params.isNative) {
+    return SUMMARY_CATEGORIES.map((category) => ({
+      id: category.id,
+      categoryLabel: category.categoryLabel,
+      value: 'Not applicable',
+      status: 'na',
+    }));
+  }
+
+  if (!params.signals) {
+    return SUMMARY_CATEGORIES.map(unavailableSummaryLine);
+  }
+
+  return SUMMARY_CATEGORIES.map((category) => {
+    const signal = params.signals!.find((entry) => entry.id === category.signalId);
+    if (!signal) return unavailableSummaryLine(category);
+    return {
+      id: category.id,
+      categoryLabel: category.categoryLabel,
+      value: compactSummaryValue(signal),
+      status: signal.status,
+    };
+  });
+}
+
+/** Critical or high-priority warnings that must stay visible when collapsed. */
+export function getTokenSafetyCriticalAlerts(
+  signals: SwapTokenSafetySignal[] | null,
+): SwapTokenSafetySignal[] {
+  if (!signals) return [];
+  return signals.filter((signal) => signal.status === 'risk' || signal.status === 'warn');
+}
+
+export function hasTokenSafetyHighRisk(signals: SwapTokenSafetySignal[] | null): boolean {
+  return !!signals?.some((signal) => signal.status === 'risk');
+}

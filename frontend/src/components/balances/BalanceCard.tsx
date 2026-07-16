@@ -5,6 +5,7 @@
  */
 
 import { formatBalance, formatUsd } from '@/utils/format';
+import { CHAINS } from '@/config/chains';
 import { SwapTokenAvatar } from '@/components/common/SwapTokenAvatar';
 import type { TokenBalance } from '@/types/api';
 
@@ -15,7 +16,24 @@ interface BalanceCardProps {
   showSwapButton?: boolean;
 }
 
+function getTokenSecondaryLabel(balance: TokenBalance): string | null {
+  const symbol = balance.symbol.trim();
+  const name = balance.name?.trim();
+
+  if (name && name.toUpperCase() !== symbol.toUpperCase()) {
+    return name;
+  }
+
+  if (!balance.contract_address && balance.chain && balance.chain in CHAINS) {
+    return CHAINS[balance.chain as keyof typeof CHAINS].name;
+  }
+
+  return null;
+}
+
 export function BalanceCard({ balance, onClick, onSwap, showSwapButton = false }: BalanceCardProps) {
+  const secondaryLabel = getTokenSecondaryLabel(balance);
+
   const handleSwapClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     onSwap?.(balance.symbol);
@@ -37,16 +55,19 @@ export function BalanceCard({ balance, onClick, onSwap, showSwapButton = false }
           <div className="font-semibold text-[15px] leading-tight tracking-tight truncate">
             {balance.symbol}
           </div>
-          <div className="text-sm text-dark-400 truncate max-w-[10rem] sm:max-w-[12rem]">
-            {balance.name || balance.symbol}
-          </div>
+          {secondaryLabel ? (
+            <div className="text-xs text-dark-400 truncate max-w-[10rem] sm:max-w-[12rem] mt-0.5">
+              {secondaryLabel}
+            </div>
+          ) : null}
         </div>
       </div>
 
       <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
-        <div className="text-right min-w-[4.5rem]">
-          <div className="font-semibold tabular-nums text-[15px] leading-tight">
-            {formatBalance(balance.balance)}
+        <div className="text-right min-w-[5.5rem]">
+          <div className="font-semibold tabular-nums text-[15px] leading-tight whitespace-nowrap">
+            <span>{formatBalance(balance.balance)}</span>
+            <span className="text-dark-400 font-normal text-xs ml-1">{balance.symbol}</span>
           </div>
           {balance.usd_value ? (
             <div className="text-xs text-dark-400 tabular-nums mt-0.5">{formatUsd(balance.usd_value)}</div>

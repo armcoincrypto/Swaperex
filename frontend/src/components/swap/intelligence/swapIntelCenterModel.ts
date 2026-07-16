@@ -63,7 +63,7 @@ export function buildTradePreparationItems(params: {
     quoteDetail = 'No quote yet — enter amount or refresh';
   }
 
-  return [
+  const items: TradePrepItem[] = [
     {
       id: 'network',
       label: 'Wallet network matches route',
@@ -97,6 +97,82 @@ export function buildTradePreparationItems(params: {
       detail: quoteDetail,
     },
   ];
+
+  return items;
+}
+
+export type TradePreparationTone = 'ok' | 'warn' | 'pending' | 'idle';
+
+export interface TradePreparationSummary {
+  tone: TradePreparationTone;
+  label: string;
+  supportingText: string;
+  expandByDefault: boolean;
+}
+
+/** Presentation-only summary for compact Trade Preparation row. */
+export function getTradePreparationSummary(
+  items: TradePrepItem[],
+  isConnected: boolean,
+): TradePreparationSummary {
+  const readyCount = items.filter((item) => item.status === 'ok').length;
+  const pendingCount = items.filter(
+    (item) => item.status === 'pending' || item.status === 'idle',
+  ).length;
+  const warnItems = items.filter((item) => item.status === 'warn');
+
+  if (!isConnected) {
+    return {
+      tone: 'idle',
+      label: 'Connect wallet to continue',
+      supportingText: 'Wallet required for checklist',
+      expandByDefault: false,
+    };
+  }
+
+  const byPriority = [
+    items.find((item) => item.id === 'network' && item.status === 'warn'),
+    items.find((item) => item.id === 'token' && item.status === 'warn'),
+    items.find((item) => item.id === 'slippage' && item.status === 'warn'),
+    items.find((item) => item.id === 'quote' && item.status === 'pending'),
+    ...warnItems.filter(
+      (item) => !['network', 'token', 'slippage', 'quote'].includes(item.id),
+    ),
+  ].find(Boolean);
+
+  if (byPriority?.status === 'warn') {
+    return {
+      tone: 'warn',
+      label: byPriority.detail,
+      supportingText: byPriority.label,
+      expandByDefault: true,
+    };
+  }
+
+  if (byPriority?.status === 'pending') {
+    return {
+      tone: 'pending',
+      label: byPriority.detail,
+      supportingText: `${readyCount} ready · ${pendingCount} pending`,
+      expandByDefault: false,
+    };
+  }
+
+  if (readyCount === items.length) {
+    return {
+      tone: 'ok',
+      label: 'Ready to review',
+      supportingText: `${readyCount} checks ready`,
+      expandByDefault: false,
+    };
+  }
+
+  return {
+    tone: pendingCount > 0 ? 'pending' : 'idle',
+    label: pendingCount > 0 ? `${readyCount} ready · ${pendingCount} pending` : 'Review checklist',
+    supportingText: 'Pre-sign review before you swap',
+    expandByDefault: false,
+  };
 }
 
 export function buildMarketContext(activeChainId: number): MarketContextRow[] {
