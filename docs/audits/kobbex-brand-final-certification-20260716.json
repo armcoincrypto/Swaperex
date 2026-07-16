@@ -1,0 +1,40 @@
+{
+  "verdict": "KOBBEX_DEX_BRAND_UNIFICATION_DEPLOYED_PASS",
+  "phase": "kobbex-dex-brand-unification",
+  "date": "2026-07-16",
+  "production_url": "https://dex.kobbex.com",
+  "starting_artifact": "d8a929493227b97f51c7682e1362256b8a9f0716",
+  "final_artifact": "78c0aafb4dcbd51c8893d5361d0e4e552cfbbf11",
+  "starting_head": "195a6bef57ec9c3c001521a9024693f63e4abcde",
+  "final_head": "78c0aafb4dcbd51c8893d5361d0e4e552cfbbf11",
+  "release_branch": "release/kobbex-dex-brand-unification",
+  "backup": "/var/www/backups/swaperex-d8a9294-20260716T194822Z",
+  "gates": {
+    "typecheck": "PASS",
+    "build": "PASS",
+    "lint": "not_configured_preexisting",
+    "unit_tests": { "files": 75, "tests": 713, "result": "PASS" },
+    "commission_audit": "126/126",
+    "public_swaperex_residual_live_html": 0,
+    "sourcemaps_in_dist": 0
+  },
+  "observation": {
+    "duration": "1h",
+    "checkpoints": ["T+0", "T+5m", "T+15m", "T+30m", "T+1h"],
+    "all_short": "78c0aaf",
+    "swaperex_in_html": 0,
+    "nginx_5xx": 0,
+    "routes_200": ["/", "/portfolio", "/radar", "/screener"],
+    "result": "PASS"
+  },
+  "impact": {
+    "kobbopay": "unchanged",
+    "p7": "unchanged",
+    "database": "unchanged",
+    "contracts": "unchanged",
+    "custody": "none",
+    "commission": "none",
+    "user_funds": "none",
+    "nginx": "unchanged"
+  }
+}

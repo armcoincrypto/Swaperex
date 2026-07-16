@@ -1,0 +1,1 @@
+rollback cmd: rsync -a --delete /var/www/backups/swaperex-d8a9294-20260716T194822Z/ /var/www/swaperex/

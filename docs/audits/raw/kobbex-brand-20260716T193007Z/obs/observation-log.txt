@@ -1,0 +1,6 @@
+[T+0] 2026-07-16T19:49:09Z short=78c0aaf swaperex_in_html=0 nginx_recent_5xx=0 routes: /:200 /portfolio:200 /radar:200 /screener:200
+[T+5m] 2026-07-16T19:54:10Z short=78c0aaf swaperex_in_html=0 nginx_recent_5xx=0 routes: /:200 /portfolio:200 /radar:200 /screener:200
+[T+15m] 2026-07-16T20:04:10Z short=78c0aaf swaperex_in_html=0 nginx_recent_5xx=0 routes: /:200 /portfolio:200 /radar:200 /screener:200
+[T+30m] 2026-07-16T20:19:12Z short=78c0aaf swaperex_in_html=0 nginx_recent_5xx=0 routes: /:200 /portfolio:200 /radar:200 /screener:200
+[T+1h] 2026-07-16T20:49:13Z short=78c0aaf swaperex_in_html=0 nginx_recent_5xx=0 routes: /:200 /portfolio:200 /radar:200 /screener:200
+OBSERVATION_COMPLETE

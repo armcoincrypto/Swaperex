@@ -1,0 +1,5 @@
+environment=production
+commit=78c0aafb4dcbd51c8893d5361d0e4e552cfbbf11
+short=78c0aaf
+branch=release/kobbex-dex-brand-unification
+deployed=2026-07-16T19:48:32Z
