@@ -1,0 +1,15 @@
+{
+  "verdict": "SWAPEREX_P20_2_PRODUCTION_QUALITY_DEFECTS_FIXED_DEPLOYED_PASS",
+  "productionUrl": "https://dex.kobbex.com",
+  "expectedStartingArtifact": "e5e002dbe6a27c28bcc3e911d0469f30ff7bc7e4",
+  "finalArtifact": "d8a929493227b97f51c7682e1362256b8a9f0716",
+  "releaseBranch": "release/swaperex-p20-2-production-quality-closure",
+  "releaseTag": "swaperex-p20-2-prod-20260716T142318Z-d8a9294",
+  "tests": { "files": 74, "total": 704 },
+  "commission": "126/126",
+  "backup": "/var/www/swaperex-backup-20260716T142130Z",
+  "kobbopayChanged": false,
+  "p7Changed": false,
+  "contractsChanged": false,
+  "databaseChanged": false
+}

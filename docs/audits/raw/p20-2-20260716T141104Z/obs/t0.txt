@@ -1,0 +1,34 @@
+=== T+0 2026-07-16T14:23:32Z ===
+environment=production
+commit=d8a929493227b97f51c7682e1362256b8a9f0716
+short=d8a9294
+branch=release/swaperex-p20-2-production-quality-closure
+deployed=2026-07-16T14:21:30Z
+
+homepage 200
+200 /
+200 /portfolio
+200 /markets
+200 /security
+200 /trust
+assets/index-DENhINOE.js
+assets/index-L6hf0u3a.css
+assets/vendor-react-w8jZXnmi.js
+--- bundle string checks ---
+MISS : 'Swap amount is empty or zero' -> []
+FOUND: 'Enter an amount' -> ['TradingIntelligencePanel-B_7qAR_z.js', 'TradeShell-DDvO07bE.js', 'index-DENhINOE.js']
+FOUND: 'View only' -> ['TokenScreener-DEB0wKBp.js']
+FOUND: 'Top Gainers' -> ['TokenScreener-DEB0wKBp.js']
+FOUND: 'Largest by Market Cap' -> ['TokenScreener-DEB0wKBp.js']
+FOUND: 'No tokens monitored' -> ['RadarPanel-ZXtmUu7d.js']
+FOUND: 'Show more' -> ['TokenScreener-DEB0wKBp.js']
+FOUND: 'A route is not currently guaranteed' -> ['TradeShell-DDvO07bE.js', 'index-DENhINOE.js']
+FOUND: 'Balance-distribution score' -> ['PortfolioPage-BVIVmDmH.js']
+FOUND: 'View full token analysis' -> ['TradingIntelligencePanel-B_7qAR_z.js']
+--- backup ---
+environment=production
+commit=e5e002dbe6a27c28bcc3e911d0469f30ff7bc7e4
+short=e5e002d
+branch=release/swaperex-p20-1-compact-intelligence
+6b0c5f80d33aa174a8b4f3937618b2b0c300afdd72e230c95d317d6ba113bebf  /var/www/swaperex/version.txt
+1593e09ea645afa42fefe965586f3a8c1acd2a6bc2ef7e3d2efab28f6b04da8e  /var/www/swaperex-backup-20260716T142130Z/version.txt
