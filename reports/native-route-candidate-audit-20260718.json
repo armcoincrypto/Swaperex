@@ -1,0 +1,2314 @@
+{
+  "auditedAt": "2026-07-18T13:28:19.381Z",
+  "method": "wrapper quotes at three sizes + exact fee math + native swap eth_call simulation",
+  "noTransactionsBroadcast": true,
+  "commissionRequired": true,
+  "chains": [
+    {
+      "chainId": 1,
+      "chain": "Ethereum",
+      "wrapper": "0x660B2E98E9eeAA4CaE21f319FbF3D6aD6909b491",
+      "treasury": "0x509Cfd32ce279E08010C143F90Cc1782a3520196",
+      "feeBps": 20,
+      "paused": false,
+      "maxUnitDegradationPct": 5,
+      "rows": [
+        {
+          "key": "1|ETH|USDT",
+          "chainId": 1,
+          "fromSymbol": "ETH",
+          "toSymbol": "USDT",
+          "wrapper": "0x660B2E98E9eeAA4CaE21f319FbF3D6aD6909b491",
+          "feeBps": 20,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 0.0021,
+          "simulation": {
+            "amountIn": "0.01",
+            "amountOutGross": "18.401333",
+            "feeAmount": "0.036802",
+            "amountOutNet": "18.364531",
+            "ethCallFrom": "0x28C6c06298d514Db089934071355E5743bf21d60"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.001",
+              "amountOutGross": "1.840136",
+              "amountOutNet": "1.836456",
+              "feeAmount": "0.00368",
+              "feeTier": 100,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "90995"
+            },
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "18.401333",
+              "amountOutNet": "18.364531",
+              "feeAmount": "0.036802",
+              "feeTier": 100,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "90995"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "184.009828",
+              "amountOutNet": "183.641809",
+              "feeAmount": "0.368019",
+              "feeTier": 100,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "90987"
+            }
+          ]
+        },
+        {
+          "key": "1|ETH|USDC",
+          "chainId": 1,
+          "fromSymbol": "ETH",
+          "toSymbol": "USDC",
+          "wrapper": "0x660B2E98E9eeAA4CaE21f319FbF3D6aD6909b491",
+          "feeBps": 20,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 0.0006,
+          "simulation": {
+            "amountIn": "0.01",
+            "amountOutGross": "18.381336",
+            "feeAmount": "0.036762",
+            "amountOutNet": "18.344574",
+            "ethCallFrom": "0x28C6c06298d514Db089934071355E5743bf21d60"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.001",
+              "amountOutGross": "1.838134",
+              "amountOutNet": "1.834458",
+              "feeAmount": "0.003676",
+              "feeTier": 100,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "90029"
+            },
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "18.381336",
+              "amountOutNet": "18.344574",
+              "feeAmount": "0.036762",
+              "feeTier": 100,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "90029"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "183.812291",
+              "amountOutNet": "183.444667",
+              "feeAmount": "0.367624",
+              "feeTier": 100,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "90029"
+            }
+          ]
+        },
+        {
+          "key": "1|ETH|DAI",
+          "chainId": 1,
+          "fromSymbol": "ETH",
+          "toSymbol": "DAI",
+          "wrapper": "0x660B2E98E9eeAA4CaE21f319FbF3D6aD6909b491",
+          "feeBps": 20,
+          "status": "REJECTED",
+          "error": "execution reverted (unknown custom error) data=0xbc90c0f4"
+        },
+        {
+          "key": "1|ETH|WBTC",
+          "chainId": 1,
+          "fromSymbol": "ETH",
+          "toSymbol": "WBTC",
+          "wrapper": "0x660B2E98E9eeAA4CaE21f319FbF3D6aD6909b491",
+          "feeBps": 20,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 0.039,
+          "simulation": {
+            "amountIn": "0.01",
+            "amountOutGross": "0.00028746",
+            "feeAmount": "0.00000057",
+            "amountOutNet": "0.00028689",
+            "ethCallFrom": "0x28C6c06298d514Db089934071355E5743bf21d60"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.001",
+              "amountOutGross": "0.00002874",
+              "amountOutNet": "0.00002869",
+              "feeAmount": "0.00000005",
+              "feeTier": 100,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "82136"
+            },
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "0.00028746",
+              "amountOutNet": "0.00028689",
+              "feeAmount": "0.00000057",
+              "feeTier": 100,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "89841"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "0.00287362",
+              "amountOutNet": "0.00286788",
+              "feeAmount": "0.00000574",
+              "feeTier": 100,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "90827"
+            }
+          ]
+        },
+        {
+          "key": "1|ETH|LINK",
+          "chainId": 1,
+          "fromSymbol": "ETH",
+          "toSymbol": "LINK",
+          "wrapper": "0x660B2E98E9eeAA4CaE21f319FbF3D6aD6909b491",
+          "feeBps": 20,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 0.0077,
+          "simulation": {
+            "amountIn": "0.01",
+            "amountOutGross": "2.224769177175778968",
+            "feeAmount": "0.004449538354351557",
+            "amountOutNet": "2.220319638821427411",
+            "ethCallFrom": "0x28C6c06298d514Db089934071355E5743bf21d60"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.001",
+              "amountOutGross": "0.222478484160127508",
+              "amountOutNet": "0.222033527191807253",
+              "feeAmount": "0.000444956968320255",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "79813"
+            },
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "2.224769177175778968",
+              "amountOutNet": "2.220319638821427411",
+              "feeAmount": "0.004449538354351557",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "88474"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "22.246125450519974787",
+              "amountOutNet": "22.201633199618934838",
+              "feeAmount": "0.044492250901039949",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "87528"
+            }
+          ]
+        },
+        {
+          "key": "1|ETH|UNI",
+          "chainId": 1,
+          "fromSymbol": "ETH",
+          "toSymbol": "UNI",
+          "wrapper": "0x660B2E98E9eeAA4CaE21f319FbF3D6aD6909b491",
+          "feeBps": 20,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 0.0135,
+          "simulation": {
+            "amountIn": "0.01",
+            "amountOutGross": "5.269816679121909361",
+            "feeAmount": "0.010539633358243818",
+            "amountOutNet": "5.259277045763665543",
+            "ethCallFrom": "0x28C6c06298d514Db089934071355E5743bf21d60"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.001",
+              "amountOutGross": "0.526988137628284101",
+              "amountOutNet": "0.525934161353027533",
+              "feeAmount": "0.001053976275256568",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "83993"
+            },
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "5.269816679121909361",
+              "amountOutNet": "5.259277045763665543",
+              "feeAmount": "0.010539633358243818",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "83993"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "52.691697948718591349",
+              "amountOutNet": "52.586314552821154167",
+              "feeAmount": "0.105383395897437182",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "87757"
+            }
+          ]
+        },
+        {
+          "key": "1|ETH|AAVE",
+          "chainId": 1,
+          "fromSymbol": "ETH",
+          "toSymbol": "AAVE",
+          "wrapper": "0x660B2E98E9eeAA4CaE21f319FbF3D6aD6909b491",
+          "feeBps": 20,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 0.0103,
+          "simulation": {
+            "amountIn": "0.01",
+            "amountOutGross": "0.208707966719351507",
+            "feeAmount": "0.000417415933438703",
+            "amountOutNet": "0.208290550785912804",
+            "ethCallFrom": "0x28C6c06298d514Db089934071355E5743bf21d60"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.001",
+              "amountOutGross": "0.020870992942397417",
+              "amountOutNet": "0.020829250956512623",
+              "feeAmount": "0.000041741985884794",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "89184"
+            },
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "0.208707966719351507",
+              "amountOutNet": "0.208290550785912804",
+              "feeAmount": "0.000417415933438703",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "95845"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "2.086883417032304334",
+              "amountOutNet": "2.082709650198239726",
+              "feeAmount": "0.004173766834064608",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "95841"
+            }
+          ]
+        },
+        {
+          "key": "1|ETH|ARB",
+          "chainId": 1,
+          "fromSymbol": "ETH",
+          "toSymbol": "ARB",
+          "wrapper": "0x660B2E98E9eeAA4CaE21f319FbF3D6aD6909b491",
+          "feeBps": 20,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 0.4695,
+          "simulation": {
+            "amountIn": "0.01",
+            "amountOutGross": "204.073833035918920356",
+            "feeAmount": "0.40814766607183784",
+            "amountOutNet": "203.665685369847082516",
+            "ethCallFrom": "0x28C6c06298d514Db089934071355E5743bf21d60"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.001",
+              "amountOutGross": "20.416135065613236041",
+              "amountOutNet": "20.375302795482009569",
+              "feeAmount": "0.040832270131226472",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "94230"
+            },
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "204.073833035918920356",
+              "amountOutNet": "203.665685369847082516",
+              "feeAmount": "0.40814766607183784",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "95160"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "2032.027659880711754598",
+              "amountOutNet": "2027.963604560950331089",
+              "feeAmount": "4.064055319761423509",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "95204"
+            }
+          ]
+        },
+        {
+          "key": "1|ETH|LDO",
+          "chainId": 1,
+          "fromSymbol": "ETH",
+          "toSymbol": "LDO",
+          "wrapper": "0x660B2E98E9eeAA4CaE21f319FbF3D6aD6909b491",
+          "feeBps": 20,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 0.2026,
+          "simulation": {
+            "amountIn": "0.01",
+            "amountOutGross": "51.361235041612135859",
+            "feeAmount": "0.102722470083224271",
+            "amountOutNet": "51.258512571528911588",
+            "ethCallFrom": "0x28C6c06298d514Db089934071355E5743bf21d60"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.001",
+              "amountOutGross": "5.137071438051686713",
+              "amountOutNet": "5.12679729517558334",
+              "feeAmount": "0.010274142876103373",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "172859"
+            },
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "51.361235041612135859",
+              "amountOutNet": "51.258512571528911588",
+              "feeAmount": "0.102722470083224271",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "178556"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "512.666337106187733759",
+              "amountOutNet": "511.641004431975358292",
+              "feeAmount": "1.025332674212375467",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "179500"
+            }
+          ]
+        },
+        {
+          "key": "1|ETH|MKR",
+          "chainId": 1,
+          "fromSymbol": "ETH",
+          "toSymbol": "MKR",
+          "wrapper": "0x660B2E98E9eeAA4CaE21f319FbF3D6aD6909b491",
+          "feeBps": 20,
+          "status": "REJECTED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": false,
+          "unitDegradationPct": 80.2739,
+          "simulation": {
+            "amountIn": "0.01",
+            "amountOutGross": "0.007161249087042634",
+            "feeAmount": "0.000014322498174085",
+            "amountOutNet": "0.007146926588868549",
+            "ethCallFrom": "0x28C6c06298d514Db089934071355E5743bf21d60"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.001",
+              "amountOutGross": "0.000719623771408635",
+              "amountOutNet": "0.000718184523865818",
+              "feeAmount": "0.000001439247542817",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "90744"
+            },
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "0.007161249087042634",
+              "amountOutNet": "0.007146926588868549",
+              "feeAmount": "0.000014322498174085",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "89764"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "0.014195396549213456",
+              "amountOutNet": "0.01416700575611503",
+              "feeAmount": "0.000028390793098426",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 4,
+              "gasEstimate": "433572"
+            }
+          ]
+        },
+        {
+          "key": "1|ETH|CRV",
+          "chainId": 1,
+          "fromSymbol": "ETH",
+          "toSymbol": "CRV",
+          "wrapper": "0x660B2E98E9eeAA4CaE21f319FbF3D6aD6909b491",
+          "feeBps": 20,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 0.0166,
+          "simulation": {
+            "amountIn": "0.01",
+            "amountOutGross": "86.173580229193133437",
+            "feeAmount": "0.172347160458386266",
+            "amountOutNet": "86.001233068734747171",
+            "ethCallFrom": "0x28C6c06298d514Db089934071355E5743bf21d60"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.001",
+              "amountOutGross": "8.617488088415147791",
+              "amountOutNet": "8.600253112238317496",
+              "feeAmount": "0.017234976176830295",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "79874"
+            },
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "86.173580229193133437",
+              "amountOutNet": "86.001233068734747171",
+              "feeAmount": "0.172347160458386266",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "88857"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "861.605758386992175407",
+              "amountOutNet": "859.882546870218191057",
+              "feeAmount": "1.72321151677398435",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "88841"
+            }
+          ]
+        },
+        {
+          "key": "1|ETH|PEPE",
+          "status": "POLICY_BLOCKED"
+        },
+        {
+          "key": "1|ETH|SHIB",
+          "chainId": 1,
+          "fromSymbol": "ETH",
+          "toSymbol": "SHIB",
+          "wrapper": "0x660B2E98E9eeAA4CaE21f319FbF3D6aD6909b491",
+          "feeBps": 20,
+          "status": "REJECTED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": false,
+          "unitDegradationPct": 20.9378,
+          "simulation": {
+            "amountIn": "0.01",
+            "amountOutGross": "4294120.221516427234611383",
+            "feeAmount": "8588.240443032854469222",
+            "amountOutNet": "4285531.981073394380142161",
+            "ethCallFrom": "0x28C6c06298d514Db089934071355E5743bf21d60"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.001",
+              "amountOutGross": "441693.247852803654945832",
+              "amountOutNet": "440809.861357098047635941",
+              "feeAmount": "883.386495705607309891",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "86250"
+            },
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "4294120.221516427234611383",
+              "amountOutNet": "4285531.981073394380142161",
+              "feeAmount": "8588.240443032854469222",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "86264"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "34921240.115980188937775277",
+              "amountOutNet": "34851397.635748228559899727",
+              "feeAmount": "69842.48023196037787555",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 3,
+              "gasEstimate": "177578"
+            }
+          ]
+        },
+        {
+          "key": "1|ETH|COMP",
+          "chainId": 1,
+          "fromSymbol": "ETH",
+          "toSymbol": "COMP",
+          "wrapper": "0x660B2E98E9eeAA4CaE21f319FbF3D6aD6909b491",
+          "feeBps": 20,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 0.8908,
+          "simulation": {
+            "amountIn": "0.01",
+            "amountOutGross": "1.065102540190524903",
+            "feeAmount": "0.002130205080381049",
+            "amountOutNet": "1.062972335110143854",
+            "ethCallFrom": "0x28C6c06298d514Db089934071355E5743bf21d60"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.001",
+              "amountOutGross": "0.106597282600342549",
+              "amountOutNet": "0.106384088035141864",
+              "feeAmount": "0.000213194565200685",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "93841"
+            },
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "1.065102540190524903",
+              "amountOutNet": "1.062972335110143854",
+              "feeAmount": "0.002130205080381049",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "93859"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "10.564772065787338807",
+              "amountOutNet": "10.54364252165576413",
+              "feeAmount": "0.021129544131574677",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "93867"
+            }
+          ]
+        },
+        {
+          "key": "1|ETH|SNX",
+          "chainId": 1,
+          "fromSymbol": "ETH",
+          "toSymbol": "SNX",
+          "wrapper": "0x660B2E98E9eeAA4CaE21f319FbF3D6aD6909b491",
+          "feeBps": 20,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 3.897,
+          "simulation": {
+            "amountIn": "0.01",
+            "amountOutGross": "82.271976368637096526",
+            "feeAmount": "0.164543952737274193",
+            "amountOutNet": "82.107432415899822333",
+            "ethCallFrom": "0x28C6c06298d514Db089934071355E5743bf21d60"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.001",
+              "amountOutGross": "8.304976918880898876",
+              "amountOutNet": "8.288366965043137079",
+              "feeAmount": "0.016609953837761797",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "154105"
+            },
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "82.271976368637096526",
+              "amountOutNet": "82.107432415899822333",
+              "feeAmount": "0.164543952737274193",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "184260"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "798.133076488668358971",
+              "amountOutNet": "796.536810335691022254",
+              "feeAmount": "1.596266152977336717",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "184300"
+            }
+          ]
+        },
+        {
+          "key": "1|ETH|ENS",
+          "chainId": 1,
+          "fromSymbol": "ETH",
+          "toSymbol": "ENS",
+          "wrapper": "0x660B2E98E9eeAA4CaE21f319FbF3D6aD6909b491",
+          "feeBps": 20,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 0.1261,
+          "simulation": {
+            "amountIn": "0.01",
+            "amountOutGross": "3.94497663152405331",
+            "feeAmount": "0.007889953263048106",
+            "amountOutNet": "3.937086678261005204",
+            "ethCallFrom": "0x28C6c06298d514Db089934071355E5743bf21d60"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.001",
+              "amountOutGross": "0.394542948762545251",
+              "amountOutNet": "0.393753862865020161",
+              "feeAmount": "0.00078908589752509",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "85672"
+            },
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "3.94497663152405331",
+              "amountOutNet": "3.937086678261005204",
+              "feeAmount": "0.007889953263048106",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "94339"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "39.40453781621689646",
+              "amountOutNet": "39.325728740584462668",
+              "feeAmount": "0.078809075632433792",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "94625"
+            }
+          ]
+        },
+        {
+          "key": "1|ETH|PENDLE",
+          "chainId": 1,
+          "fromSymbol": "ETH",
+          "toSymbol": "PENDLE",
+          "wrapper": "0x660B2E98E9eeAA4CaE21f319FbF3D6aD6909b491",
+          "feeBps": 20,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 0.0248,
+          "simulation": {
+            "amountIn": "0.01",
+            "amountOutGross": "12.121741163956316316",
+            "feeAmount": "0.024243482327912632",
+            "amountOutNet": "12.097497681628403684",
+            "ethCallFrom": "0x28C6c06298d514Db089934071355E5743bf21d60"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.001",
+              "amountOutGross": "1.212201484211170263",
+              "amountOutNet": "1.209777081242747923",
+              "feeAmount": "0.00242440296842234",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "83107"
+            },
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "12.121741163956316316",
+              "amountOutNet": "12.097497681628403684",
+              "feeAmount": "0.024243482327912632",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "84075"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "121.190050619191027994",
+              "amountOutNet": "120.947670517952645939",
+              "feeAmount": "0.242380101238382055",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "92762"
+            }
+          ]
+        },
+        {
+          "key": "1|ETH|ENA",
+          "chainId": 1,
+          "fromSymbol": "ETH",
+          "toSymbol": "ENA",
+          "wrapper": "0x660B2E98E9eeAA4CaE21f319FbF3D6aD6909b491",
+          "feeBps": 20,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 3.7261,
+          "simulation": {
+            "amountIn": "0.01",
+            "amountOutGross": "228.168138527530292409",
+            "feeAmount": "0.456336277055060584",
+            "amountOutNet": "227.711802250475231825",
+            "ethCallFrom": "0x28C6c06298d514Db089934071355E5743bf21d60"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.001",
+              "amountOutGross": "22.89709368327931276",
+              "amountOutNet": "22.851299495912754135",
+              "feeAmount": "0.045794187366558625",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "85357"
+            },
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "228.168138527530292409",
+              "amountOutNet": "227.711802250475231825",
+              "feeAmount": "0.456336277055060584",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "85393"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "2204.392849524408671692",
+              "amountOutNet": "2199.984063825359854349",
+              "feeAmount": "4.408785699048817343",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "92794"
+            }
+          ]
+        },
+        {
+          "key": "1|ETH|ONDO",
+          "chainId": 1,
+          "fromSymbol": "ETH",
+          "toSymbol": "ONDO",
+          "wrapper": "0x660B2E98E9eeAA4CaE21f319FbF3D6aD6909b491",
+          "feeBps": 20,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 0.0144,
+          "simulation": {
+            "amountIn": "0.01",
+            "amountOutGross": "53.286585814314556065",
+            "feeAmount": "0.106573171628629112",
+            "amountOutNet": "53.180012642685926953",
+            "ethCallFrom": "0x28C6c06298d514Db089934071355E5743bf21d60"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.001",
+              "amountOutGross": "5.328728523075992881",
+              "amountOutNet": "5.318071066029840896",
+              "feeAmount": "0.010657457046151985",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "90097"
+            },
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "53.286585814314556065",
+              "amountOutNet": "53.180012642685926953",
+              "feeAmount": "0.106573171628629112",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "93205"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "532.795926595408666234",
+              "amountOutNet": "531.730334742217848902",
+              "feeAmount": "1.065591853190817332",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "93197"
+            }
+          ]
+        },
+        {
+          "key": "1|ETH|GRT",
+          "chainId": 1,
+          "fromSymbol": "ETH",
+          "toSymbol": "GRT",
+          "wrapper": "0x660B2E98E9eeAA4CaE21f319FbF3D6aD6909b491",
+          "feeBps": 20,
+          "status": "REJECTED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": false,
+          "unitDegradationPct": 8.2386,
+          "simulation": {
+            "amountIn": "0.01",
+            "amountOutGross": "1079.164895377042095677",
+            "feeAmount": "2.158329790754084191",
+            "amountOutNet": "1077.006565586288011486",
+            "ethCallFrom": "0x28C6c06298d514Db089934071355E5743bf21d60"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.001",
+              "amountOutGross": "108.803628524209349187",
+              "amountOutNet": "108.586021267160930489",
+              "feeAmount": "0.217607257048418698",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "89182"
+            },
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "1079.164895377042095677",
+              "amountOutNet": "1077.006565586288011486",
+              "feeAmount": "2.158329790754084191",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "89224"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "9983.969291176392455396",
+              "amountOutNet": "9964.001352594039670486",
+              "feeAmount": "19.96793858235278491",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "118149"
+            }
+          ]
+        },
+        {
+          "key": "1|ETH|SUSHI",
+          "chainId": 1,
+          "fromSymbol": "ETH",
+          "toSymbol": "SUSHI",
+          "wrapper": "0x660B2E98E9eeAA4CaE21f319FbF3D6aD6909b491",
+          "feeBps": 20,
+          "status": "REJECTED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": false,
+          "unitDegradationPct": 10.5318,
+          "simulation": {
+            "amountIn": "0.01",
+            "amountOutGross": "112.201545944696697995",
+            "feeAmount": "0.224403091889393395",
+            "amountOutNet": "111.9771428528073046",
+            "ethCallFrom": "0x28C6c06298d514Db089934071355E5743bf21d60"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.001",
+              "amountOutGross": "11.340373472319914418",
+              "amountOutNet": "11.31769272537527459",
+              "feeAmount": "0.022680746944639828",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "87687"
+            },
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "112.201545944696697995",
+              "amountOutNet": "111.9771428528073046",
+              "feeAmount": "0.224403091889393395",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "87703"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "1014.602455182963540484",
+              "amountOutNet": "1012.573250272597613404",
+              "feeAmount": "2.02920491036592708",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "125619"
+            }
+          ]
+        },
+        {
+          "key": "1|ETH|MANA",
+          "chainId": 1,
+          "fromSymbol": "ETH",
+          "toSymbol": "MANA",
+          "wrapper": "0x660B2E98E9eeAA4CaE21f319FbF3D6aD6909b491",
+          "feeBps": 20,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 2.6254,
+          "simulation": {
+            "amountIn": "0.01",
+            "amountOutGross": "261.999303953881818944",
+            "feeAmount": "0.523998607907763637",
+            "amountOutNet": "261.475305345974055307",
+            "ethCallFrom": "0x28C6c06298d514Db089934071355E5743bf21d60"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.001",
+              "amountOutGross": "26.265801926176339738",
+              "amountOutNet": "26.213270322323987059",
+              "feeAmount": "0.052531603852352679",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "90608"
+            },
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "261.999303953881818944",
+              "amountOutNet": "261.475305345974055307",
+              "feeAmount": "0.523998607907763637",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "90676"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "2557.622868065752700952",
+              "amountOutNet": "2552.507622329621195551",
+              "feeAmount": "5.115245736131505401",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 2,
+              "gasEstimate": "120777"
+            }
+          ]
+        },
+        {
+          "key": "1|ETH|SAND",
+          "chainId": 1,
+          "fromSymbol": "ETH",
+          "toSymbol": "SAND",
+          "wrapper": "0x660B2E98E9eeAA4CaE21f319FbF3D6aD6909b491",
+          "feeBps": 20,
+          "status": "REJECTED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": false,
+          "unitDegradationPct": 80.6409,
+          "simulation": {
+            "amountIn": "0.01",
+            "amountOutGross": "3.797029206800124311",
+            "feeAmount": "0.007594058413600248",
+            "amountOutNet": "3.789435148386524063",
+            "ethCallFrom": "0x28C6c06298d514Db089934071355E5743bf21d60"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.001",
+              "amountOutGross": "0.383758585237630849",
+              "amountOutNet": "0.382991068067155588",
+              "feeAmount": "0.000767517170475261",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "2430123"
+            },
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "3.797029206800124311",
+              "amountOutNet": "3.789435148386524063",
+              "feeAmount": "0.007594058413600248",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 2,
+              "gasEstimate": "2454056"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "7.429236152199359282",
+              "amountOutNet": "7.414377679894960564",
+              "feeAmount": "0.014858472304398718",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 5,
+              "gasEstimate": "2783211"
+            }
+          ]
+        },
+        {
+          "key": "1|ETH|APE",
+          "chainId": 1,
+          "fromSymbol": "ETH",
+          "toSymbol": "APE",
+          "wrapper": "0x660B2E98E9eeAA4CaE21f319FbF3D6aD6909b491",
+          "feeBps": 20,
+          "status": "REJECTED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": false,
+          "unitDegradationPct": 5.0308,
+          "simulation": {
+            "amountIn": "0.01",
+            "amountOutGross": "126.436174499319057176",
+            "feeAmount": "0.252872348998638114",
+            "amountOutNet": "126.183302150320419062",
+            "ethCallFrom": "0x28C6c06298d514Db089934071355E5743bf21d60"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.001",
+              "amountOutGross": "12.764829708231739164",
+              "amountOutNet": "12.739300048815275686",
+              "feeAmount": "0.025529659416463478",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "87056"
+            },
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "126.436174499319057176",
+              "amountOutNet": "126.183302150320419062",
+              "feeAmount": "0.252872348998638114",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "117714"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "1212.265371685179116623",
+              "amountOutNet": "1209.84084094180875839",
+              "feeAmount": "2.424530743370358233",
+              "feeTier": 3000,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "116784"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "chainId": 56,
+      "chain": "BNB Chain",
+      "wrapper": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+      "treasury": "0x509Cfd32ce279E08010C143F90Cc1782a3520196",
+      "feeBps": 50,
+      "paused": false,
+      "maxUnitDegradationPct": 5,
+      "rows": [
+        {
+          "key": "56|BNB|USDT",
+          "chainId": 56,
+          "fromSymbol": "BNB",
+          "toSymbol": "USDT",
+          "wrapper": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+          "feeBps": 50,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 0.0005,
+          "simulation": {
+            "amountIn": "0.1",
+            "amountOutGross": "56.922517841922789535",
+            "feeAmount": "0.284612589209613947",
+            "amountOutNet": "56.637905252713175588",
+            "ethCallFrom": "0x8894E0a0c962CB723c1976a4421c95949bE2D4E3"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "5.692254482652534943",
+              "amountOutNet": "5.663793210239272269",
+              "feeAmount": "0.028461272413262674",
+              "feeTier": 100,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "92223"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "56.922517841922789535",
+              "amountOutNet": "56.637905252713175588",
+              "feeAmount": "0.284612589209613947",
+              "feeTier": 100,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "92223"
+            },
+            {
+              "amountIn": "1",
+              "amountOutGross": "569.222479973043340194",
+              "amountOutNet": "566.376367573178123494",
+              "feeAmount": "2.8461123998652167",
+              "feeTier": 100,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "92223"
+            }
+          ]
+        },
+        {
+          "key": "56|BNB|USDC",
+          "chainId": 56,
+          "fromSymbol": "BNB",
+          "toSymbol": "USDC",
+          "wrapper": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+          "feeBps": 50,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 0.0049,
+          "simulation": {
+            "amountIn": "0.1",
+            "amountOutGross": "56.888413450622498706",
+            "feeAmount": "0.284442067253112493",
+            "amountOutNet": "56.603971383369386213",
+            "ethCallFrom": "0x8894E0a0c962CB723c1976a4421c95949bE2D4E3"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "5.688866432899108516",
+              "amountOutNet": "5.660422100734612974",
+              "feeAmount": "0.028444332164495542",
+              "feeTier": 100,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "99475"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "56.888413450622498706",
+              "amountOutNet": "56.603971383369386213",
+              "feeAmount": "0.284442067253112493",
+              "feeTier": 100,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "99475"
+            },
+            {
+              "amountIn": "1",
+              "amountOutGross": "568.859047886320529974",
+              "amountOutNet": "566.014752646888927325",
+              "feeAmount": "2.844295239431602649",
+              "feeTier": 100,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "99501"
+            }
+          ]
+        },
+        {
+          "key": "56|BNB|BUSD",
+          "chainId": 56,
+          "fromSymbol": "BNB",
+          "toSymbol": "BUSD",
+          "wrapper": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+          "feeBps": 50,
+          "status": "REJECTED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": false,
+          "unitDegradationPct": 20.8464,
+          "simulation": {
+            "amountIn": "0.1",
+            "amountOutGross": "55.702926255770904099",
+            "feeAmount": "0.27851463127885452",
+            "amountOutNet": "55.424411624492049579",
+            "ethCallFrom": "0x8894E0a0c962CB723c1976a4421c95949bE2D4E3"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "5.677138632719600498",
+              "amountOutNet": "5.648752939556002496",
+              "feeAmount": "0.028385693163598002",
+              "feeTier": 100,
+              "feeExact": true,
+              "initializedTicksCrossed": 4,
+              "gasEstimate": "236461"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "55.702926255770904099",
+              "amountOutNet": "55.424411624492049579",
+              "feeAmount": "0.27851463127885452",
+              "feeTier": 100,
+              "feeExact": true,
+              "initializedTicksCrossed": 78,
+              "gasEstimate": "2268769"
+            },
+            {
+              "amountIn": "1",
+              "amountOutGross": "449.365845714599575391",
+              "amountOutNet": "447.119016486026577515",
+              "feeAmount": "2.246829228572997876",
+              "feeTier": 100,
+              "feeExact": true,
+              "initializedTicksCrossed": 399,
+              "gasEstimate": "11131011"
+            }
+          ]
+        },
+        {
+          "key": "56|BNB|FDUSD",
+          "chainId": 56,
+          "fromSymbol": "BNB",
+          "toSymbol": "FDUSD",
+          "wrapper": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+          "feeBps": 50,
+          "status": "REJECTED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": false,
+          "unitDegradationPct": 61.5435,
+          "simulation": {
+            "amountIn": "0.1",
+            "amountOutGross": "55.678744843646313548",
+            "feeAmount": "0.278393724218231567",
+            "amountOutNet": "55.400351119428081981",
+            "ethCallFrom": "0x8894E0a0c962CB723c1976a4421c95949bE2D4E3"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "5.696386723408632013",
+              "amountOutNet": "5.667904789791588853",
+              "feeAmount": "0.02848193361704316",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 6,
+              "gasEstimate": "303965"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "55.678744843646313548",
+              "amountOutNet": "55.400351119428081981",
+              "feeAmount": "0.278393724218231567",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 52,
+              "gasEstimate": "1837184"
+            },
+            {
+              "amountIn": "1",
+              "amountOutGross": "219.063375852820266734",
+              "amountOutNet": "217.968058973556165401",
+              "feeAmount": "1.095316879264101333",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 89,
+              "gasEstimate": "3587714"
+            }
+          ]
+        },
+        {
+          "key": "56|BNB|CAKE",
+          "chainId": 56,
+          "fromSymbol": "BNB",
+          "toSymbol": "CAKE",
+          "wrapper": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+          "feeBps": 50,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 0.913,
+          "simulation": {
+            "amountIn": "0.1",
+            "amountOutGross": "40.419857452497364201",
+            "feeAmount": "0.202099287262486821",
+            "amountOutNet": "40.21775816523487738",
+            "ethCallFrom": "0x8894E0a0c962CB723c1976a4421c95949bE2D4E3"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "4.045371597566438505",
+              "amountOutNet": "4.025144739578606313",
+              "feeAmount": "0.020226857987832192",
+              "feeTier": 100,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "94903"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "40.419857452497364201",
+              "amountOutNet": "40.21775816523487738",
+              "feeAmount": "0.202099287262486821",
+              "feeTier": 100,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "94879"
+            },
+            {
+              "amountIn": "1",
+              "amountOutGross": "400.843635873665116155",
+              "amountOutNet": "398.839417694296790575",
+              "feeAmount": "2.00421817936832558",
+              "feeTier": 100,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "101880"
+            }
+          ]
+        },
+        {
+          "key": "56|BNB|BTCB",
+          "chainId": 56,
+          "fromSymbol": "BNB",
+          "toSymbol": "BTCB",
+          "wrapper": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+          "feeBps": 50,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 0.0083,
+          "simulation": {
+            "amountIn": "0.1",
+            "amountOutGross": "0.000889188616743135",
+            "feeAmount": "0.000004445943083715",
+            "amountOutNet": "0.00088474267365942",
+            "ethCallFrom": "0x8894E0a0c962CB723c1976a4421c95949bE2D4E3"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "0.000088919534650398",
+              "amountOutNet": "0.000088474936977147",
+              "feeAmount": "0.000000444597673251",
+              "feeTier": 100,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "115771"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "0.000889188616743135",
+              "amountOutNet": "0.00088474267365942",
+              "feeAmount": "0.000004445943083715",
+              "feeTier": 100,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "115771"
+            },
+            {
+              "amountIn": "1",
+              "amountOutGross": "0.008891213247368458",
+              "amountOutNet": "0.008846757181131616",
+              "feeAmount": "0.000044456066236842",
+              "feeTier": 100,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "124446"
+            }
+          ]
+        },
+        {
+          "key": "56|BNB|ETH",
+          "chainId": 56,
+          "fromSymbol": "BNB",
+          "toSymbol": "ETH",
+          "wrapper": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+          "feeBps": 50,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 0.0313,
+          "simulation": {
+            "amountIn": "0.1",
+            "amountOutGross": "0.030928309487804705",
+            "feeAmount": "0.000154641547439023",
+            "amountOutNet": "0.030773667940365682",
+            "ethCallFrom": "0x8894E0a0c962CB723c1976a4421c95949bE2D4E3"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "0.003092919042118877",
+              "amountOutNet": "0.003077454446908283",
+              "feeAmount": "0.000015464595210594",
+              "feeTier": 100,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "115773"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "0.030928309487804705",
+              "amountOutNet": "0.030773667940365682",
+              "feeAmount": "0.000154641547439023",
+              "feeTier": 100,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "115767"
+            },
+            {
+              "amountIn": "1",
+              "amountOutGross": "0.309195029131857044",
+              "amountOutNet": "0.307649053986197759",
+              "feeAmount": "0.001545975145659285",
+              "feeTier": 100,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "124474"
+            }
+          ]
+        },
+        {
+          "key": "56|BNB|DAI",
+          "chainId": 56,
+          "fromSymbol": "BNB",
+          "toSymbol": "DAI",
+          "wrapper": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+          "feeBps": 50,
+          "status": "REJECTED",
+          "error": "execution reverted (unknown custom error) data=0xdb8fe633"
+        },
+        {
+          "key": "56|BNB|XRP",
+          "chainId": 56,
+          "fromSymbol": "BNB",
+          "toSymbol": "XRP",
+          "wrapper": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+          "feeBps": 50,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 0.0185,
+          "simulation": {
+            "amountIn": "0.1",
+            "amountOutGross": "52.244218976689848131",
+            "feeAmount": "0.26122109488344924",
+            "amountOutNet": "51.982997881806398891",
+            "ethCallFrom": "0x8894E0a0c962CB723c1976a4421c95949bE2D4E3"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "5.224509862442823203",
+              "amountOutNet": "5.198387313130609087",
+              "feeAmount": "0.026122549312214116",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "114359"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "52.244218976689848131",
+              "amountOutNet": "51.982997881806398891",
+              "feeAmount": "0.26122109488344924",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "115319"
+            },
+            {
+              "amountIn": "1",
+              "amountOutGross": "522.354241281954083775",
+              "amountOutNet": "519.742470075544313357",
+              "feeAmount": "2.611771206409770418",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "124006"
+            }
+          ]
+        },
+        {
+          "key": "56|BNB|DOGE",
+          "chainId": 56,
+          "fromSymbol": "BNB",
+          "toSymbol": "DOGE",
+          "wrapper": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+          "feeBps": 50,
+          "status": "REJECTED",
+          "error": "execution reverted (unknown custom error) data=0x4dd0e5b9"
+        },
+        {
+          "key": "56|BNB|ADA",
+          "chainId": 56,
+          "fromSymbol": "BNB",
+          "toSymbol": "ADA",
+          "wrapper": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+          "feeBps": 50,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 0.0361,
+          "simulation": {
+            "amountIn": "0.1",
+            "amountOutGross": "345.349908333706600854",
+            "feeAmount": "1.726749541668533004",
+            "amountOutNet": "343.62315879203806785",
+            "ethCallFrom": "0x8894E0a0c962CB723c1976a4421c95949bE2D4E3"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "34.536123721939085598",
+              "amountOutNet": "34.363443103329390171",
+              "feeAmount": "0.172680618609695427",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "112557"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "345.349908333706600854",
+              "amountOutNet": "343.62315879203806785",
+              "feeAmount": "1.726749541668533004",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "112583"
+            },
+            {
+              "amountIn": "1",
+              "amountOutGross": "3452.366603418208771959",
+              "amountOutNet": "3435.1047704011177281",
+              "feeAmount": "17.261833017091043859",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "121254"
+            }
+          ]
+        },
+        {
+          "key": "56|BNB|DOT",
+          "chainId": 56,
+          "fromSymbol": "BNB",
+          "toSymbol": "DOT",
+          "wrapper": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+          "feeBps": 50,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 0.1746,
+          "simulation": {
+            "amountIn": "0.1",
+            "amountOutGross": "67.832743860913035359",
+            "feeAmount": "0.339163719304565176",
+            "amountOutNet": "67.493580141608470183",
+            "ethCallFrom": "0x8894E0a0c962CB723c1976a4421c95949bE2D4E3"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "6.784352686666253032",
+              "amountOutNet": "6.750430923232921767",
+              "feeAmount": "0.033921763433331265",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "112589"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "67.832743860913035359",
+              "amountOutNet": "67.493580141608470183",
+              "feeAmount": "0.339163719304565176",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "121264"
+            },
+            {
+              "amountIn": "1",
+              "amountOutGross": "677.251020270828989917",
+              "amountOutNet": "673.864765169474844968",
+              "feeAmount": "3.386255101354144949",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "121274"
+            }
+          ]
+        },
+        {
+          "key": "56|BNB|LINK",
+          "chainId": 56,
+          "fromSymbol": "BNB",
+          "toSymbol": "LINK",
+          "wrapper": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+          "feeBps": 50,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 0.021,
+          "simulation": {
+            "amountIn": "0.1",
+            "amountOutGross": "6.865715907098328544",
+            "feeAmount": "0.034328579535491642",
+            "amountOutNet": "6.831387327562836902",
+            "ethCallFrom": "0x8894E0a0c962CB723c1976a4421c95949bE2D4E3"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "0.68658467315019125",
+              "amountOutNet": "0.683151749784440294",
+              "feeAmount": "0.003432923365750956",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "116108"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "6.865715907098328544",
+              "amountOutNet": "6.831387327562836902",
+              "feeAmount": "0.034328579535491642",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "116108"
+            },
+            {
+              "amountIn": "1",
+              "amountOutGross": "68.64407937215716835",
+              "amountOutNet": "68.300858975296382509",
+              "feeAmount": "0.343220396860785841",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "125097"
+            }
+          ]
+        },
+        {
+          "key": "56|BNB|UNI",
+          "chainId": 56,
+          "fromSymbol": "BNB",
+          "toSymbol": "UNI",
+          "wrapper": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+          "feeBps": 50,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 0.2345,
+          "simulation": {
+            "amountIn": "0.1",
+            "amountOutGross": "16.275378902247722107",
+            "feeAmount": "0.08137689451123861",
+            "amountOutNet": "16.194002007736483497",
+            "ethCallFrom": "0x8894E0a0c962CB723c1976a4421c95949bE2D4E3"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "1.627885729820486328",
+              "amountOutNet": "1.619746301171383897",
+              "feeAmount": "0.008139428649102431",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "129737"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "16.275378902247722107",
+              "amountOutNet": "16.194002007736483497",
+              "feeAmount": "0.08137689451123861",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "129723"
+            },
+            {
+              "amountIn": "1",
+              "amountOutGross": "162.406765257028573745",
+              "amountOutNet": "161.594731430743430877",
+              "feeAmount": "0.812033826285142868",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "129995"
+            }
+          ]
+        },
+        {
+          "key": "56|BNB|LTC",
+          "chainId": 56,
+          "fromSymbol": "BNB",
+          "toSymbol": "LTC",
+          "wrapper": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+          "feeBps": 50,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 0.1984,
+          "simulation": {
+            "amountIn": "0.1",
+            "amountOutGross": "1.244249187969656708",
+            "feeAmount": "0.006221245939848283",
+            "amountOutNet": "1.238027942029808425",
+            "ethCallFrom": "0x8894E0a0c962CB723c1976a4421c95949bE2D4E3"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "0.124447409550623728",
+              "amountOutNet": "0.12382517250287061",
+              "feeAmount": "0.000622237047753118",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "112928"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "1.244249187969656708",
+              "amountOutNet": "1.238027942029808425",
+              "feeAmount": "0.006221245939848283",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "121621"
+            },
+            {
+              "amountIn": "1",
+              "amountOutGross": "12.420045756427445909",
+              "amountOutNet": "12.35794552764530868",
+              "feeAmount": "0.062100228782137229",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "121643"
+            }
+          ]
+        },
+        {
+          "key": "56|BNB|FIL",
+          "chainId": 56,
+          "fromSymbol": "BNB",
+          "toSymbol": "FIL",
+          "wrapper": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+          "feeBps": 50,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 0.8342,
+          "simulation": {
+            "amountIn": "0.1",
+            "amountOutGross": "76.282303584490464796",
+            "feeAmount": "0.381411517922452323",
+            "amountOutNet": "75.900892066568012473",
+            "ethCallFrom": "0x8894E0a0c962CB723c1976a4421c95949bE2D4E3"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "7.634066599676600367",
+              "amountOutNet": "7.595896266678217366",
+              "feeAmount": "0.038170332998383001",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "128851"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "76.282303584490464796",
+              "amountOutNet": "75.900892066568012473",
+              "feeAmount": "0.381411517922452323",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "128847"
+            },
+            {
+              "amountIn": "1",
+              "amountOutGross": "757.038431785837331793",
+              "amountOutNet": "753.253239626908145135",
+              "feeAmount": "3.785192158929186658",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "162523"
+            }
+          ]
+        },
+        {
+          "key": "56|BNB|ATOM",
+          "chainId": 56,
+          "fromSymbol": "BNB",
+          "toSymbol": "ATOM",
+          "wrapper": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+          "feeBps": 50,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 2.1495,
+          "simulation": {
+            "amountIn": "0.1",
+            "amountOutGross": "37.97949621951364498",
+            "feeAmount": "0.189897481097568224",
+            "amountOutNet": "37.789598738416076756",
+            "ethCallFrom": "0x8894E0a0c962CB723c1976a4421c95949bE2D4E3"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "3.805534184738879808",
+              "amountOutNet": "3.786506513815185409",
+              "feeAmount": "0.019027670923694399",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "95361"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "37.97949621951364498",
+              "amountOutNet": "37.789598738416076756",
+              "feeAmount": "0.189897481097568224",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "95347"
+            },
+            {
+              "amountIn": "1",
+              "amountOutGross": "372.373429451060566417",
+              "amountOutNet": "370.511562303805263585",
+              "feeAmount": "1.861867147255302832",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "95401"
+            }
+          ]
+        },
+        {
+          "key": "56|BNB|TRX",
+          "chainId": 56,
+          "fromSymbol": "BNB",
+          "toSymbol": "TRX",
+          "wrapper": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+          "feeBps": 50,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 0.0464,
+          "simulation": {
+            "amountIn": "0.1",
+            "amountOutGross": "179.360653",
+            "feeAmount": "0.896803",
+            "amountOutNet": "178.46385",
+            "ethCallFrom": "0x8894E0a0c962CB723c1976a4421c95949bE2D4E3"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "17.936821",
+              "amountOutNet": "17.847137",
+              "feeAmount": "0.089684",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "95598"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "179.360653",
+              "amountOutNet": "178.46385",
+              "feeAmount": "0.896803",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "95562"
+            },
+            {
+              "amountIn": "1",
+              "amountOutGross": "1792.850692",
+              "amountOutNet": "1783.886439",
+              "feeAmount": "8.964253",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "94624"
+            }
+          ]
+        },
+        {
+          "key": "56|BNB|TUSD",
+          "chainId": 56,
+          "fromSymbol": "BNB",
+          "toSymbol": "TUSD",
+          "wrapper": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+          "feeBps": 50,
+          "status": "REJECTED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": false,
+          "unitDegradationPct": 98.9834,
+          "simulation": {
+            "amountIn": "0.1",
+            "amountOutGross": "0.096859055076049301",
+            "feeAmount": "0.000484295275380246",
+            "amountOutNet": "0.096374759800669055",
+            "ethCallFrom": "0x8894E0a0c962CB723c1976a4421c95949bE2D4E3"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "0.09542253092981015",
+              "amountOutNet": "0.0949454182751611",
+              "feeAmount": "0.00047711265464905",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "147718"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "0.096859055076049301",
+              "amountOutNet": "0.096374759800669055",
+              "feeAmount": "0.000484295275380246",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "178056"
+            },
+            {
+              "amountIn": "1",
+              "amountOutGross": "0.097005089930328651",
+              "amountOutNet": "0.096520064480677008",
+              "feeAmount": "0.000485025449651643",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "200797"
+            }
+          ]
+        },
+        {
+          "key": "56|BNB|PEPE",
+          "chainId": 56,
+          "fromSymbol": "BNB",
+          "toSymbol": "PEPE",
+          "wrapper": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+          "feeBps": 50,
+          "status": "REJECTED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": false,
+          "unitDegradationPct": 93.0703,
+          "simulation": {
+            "amountIn": "0.1",
+            "amountOutGross": "13483199.174139167196291816",
+            "feeAmount": "67415.995870695835981459",
+            "amountOutNet": "13415783.178268471360310357",
+            "ethCallFrom": "0x8894E0a0c962CB723c1976a4421c95949bE2D4E3"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "1946536.074758334943010665",
+              "amountOutNet": "1936803.394384543268295612",
+              "feeAmount": "9732.680373791674715053",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 0,
+              "gasEstimate": "93240"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "13483199.174139167196291816",
+              "amountOutNet": "13415783.178268471360310357",
+              "feeAmount": "67415.995870695835981459",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 7,
+              "gasEstimate": "367107"
+            },
+            {
+              "amountIn": "1",
+              "amountOutGross": "13488865.367394814932528963",
+              "amountOutNet": "13421421.040557840857866319",
+              "feeAmount": "67444.326836974074662644",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 9,
+              "gasEstimate": "561611"
+            }
+          ]
+        },
+        {
+          "key": "56|BNB|FLOKI",
+          "chainId": 56,
+          "fromSymbol": "BNB",
+          "toSymbol": "FLOKI",
+          "wrapper": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+          "feeBps": 50,
+          "status": "CERTIFIED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": true,
+          "unitDegradationPct": 0.189,
+          "simulation": {
+            "amountIn": "0.1",
+            "amountOutGross": "30.076287831",
+            "feeAmount": "0.150381439",
+            "amountOutNet": "29.925906392",
+            "ethCallFrom": "0x8894E0a0c962CB723c1976a4421c95949bE2D4E3"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "3.008146462",
+              "amountOutNet": "2.99310573",
+              "feeAmount": "0.015040732",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "755745"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "30.076287831",
+              "amountOutNet": "29.925906392",
+              "feeAmount": "0.150381439",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "755761"
+            },
+            {
+              "amountIn": "1",
+              "amountOutGross": "300.246177407",
+              "amountOutNet": "298.74494652",
+              "feeAmount": "1.501230887",
+              "feeTier": 2500,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "755785"
+            }
+          ]
+        },
+        {
+          "key": "56|BNB|TWT",
+          "chainId": 56,
+          "fromSymbol": "BNB",
+          "toSymbol": "TWT",
+          "wrapper": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+          "feeBps": 50,
+          "status": "REJECTED",
+          "feeExact": true,
+          "simulationPass": true,
+          "liquidityPass": false,
+          "unitDegradationPct": 35.6828,
+          "simulation": {
+            "amountIn": "0.1",
+            "amountOutGross": "31.698874408810226343",
+            "feeAmount": "0.158494372044051131",
+            "amountOutNet": "31.540380036766175212",
+            "ethCallFrom": "0x8894E0a0c962CB723c1976a4421c95949bE2D4E3"
+          },
+          "quotes": [
+            {
+              "amountIn": "0.01",
+              "amountOutGross": "3.260436782974291701",
+              "amountOutNet": "3.244134599059420243",
+              "feeAmount": "0.016302183914871458",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "163929"
+            },
+            {
+              "amountIn": "0.1",
+              "amountOutGross": "31.698874408810226343",
+              "amountOutNet": "31.540380036766175212",
+              "feeAmount": "0.158494372044051131",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 1,
+              "gasEstimate": "163913"
+            },
+            {
+              "amountIn": "1",
+              "amountOutGross": "209.702206237460149678",
+              "amountOutNet": "208.65369520627284893",
+              "feeAmount": "1.048511031187300748",
+              "feeTier": 500,
+              "feeExact": true,
+              "initializedTicksCrossed": 4,
+              "gasEstimate": "2897238"
+            }
+          ]
+        },
+        {
+          "key": "56|BNB|XVS",
+          "chainId": 56,
+          "fromSymbol": "BNB",
+          "toSymbol": "XVS",
+          "wrapper": "0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6",
+          "feeBps": 50,
+          "status": "REJECTED",
+          "error": "execution reverted (unknown custom error) data=0x4dd0e5b9"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "candidateCount": 47,
+    "certifiedCount": 31,
+    "rejectedCount": 15,
+    "policyBlockedCount": 1,
+    "certifiedDirectionalKeys": [
+      "1|ETH|AAVE",
+      "1|ETH|ARB",
+      "1|ETH|COMP",
+      "1|ETH|CRV",
+      "1|ETH|ENA",
+      "1|ETH|ENS",
+      "1|ETH|LDO",
+      "1|ETH|LINK",
+      "1|ETH|MANA",
+      "1|ETH|ONDO",
+      "1|ETH|PENDLE",
+      "1|ETH|SNX",
+      "1|ETH|UNI",
+      "1|ETH|USDC",
+      "1|ETH|USDT",
+      "1|ETH|WBTC",
+      "56|BNB|ADA",
+      "56|BNB|ATOM",
+      "56|BNB|BTCB",
+      "56|BNB|CAKE",
+      "56|BNB|DOT",
+      "56|BNB|ETH",
+      "56|BNB|FIL",
+      "56|BNB|FLOKI",
+      "56|BNB|LINK",
+      "56|BNB|LTC",
+      "56|BNB|TRX",
+      "56|BNB|UNI",
+      "56|BNB|USDC",
+      "56|BNB|USDT",
+      "56|BNB|XRP"
+    ],
+    "rejectedDirectionalKeys": [
+      "1|ETH|APE",
+      "1|ETH|DAI",
+      "1|ETH|GRT",
+      "1|ETH|MKR",
+      "1|ETH|SAND",
+      "1|ETH|SHIB",
+      "1|ETH|SUSHI",
+      "56|BNB|BUSD",
+      "56|BNB|DAI",
+      "56|BNB|DOGE",
+      "56|BNB|FDUSD",
+      "56|BNB|PEPE",
+      "56|BNB|TUSD",
+      "56|BNB|TWT",
+      "56|BNB|XVS"
+    ]
+  }
+}

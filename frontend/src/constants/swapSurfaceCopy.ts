@@ -71,7 +71,7 @@ export const SWAP_SURFACE_COPY = {
   nativeWrappedPairRouteHelperBsc:
     'BNB ↔ WBNB is a wrap/unwrap action, not a normal DEX swap route. Dedicated wrap support is not enabled here yet.',
   unsupportedCommissionRouteQuickTokensBsc:
-    'Quick picks on BNB Chain: BNB, WBNB, USDT, USDC, BTCB — then search for anything else.',
+    'Quick picks on BNB Chain: BNB ⇄ USDT, BNB ⇄ USDC, BNB ⇄ BTCB, BNB ⇄ CAKE — then search for anything else.',
   unsupportedCommissionRouteQuickTokensDefault:
     'Try well-known majors on this network first, then search for other tokens.',
   unsupportedCommissionRouteCta: 'Choose another token',

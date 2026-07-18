@@ -97,7 +97,10 @@ import {
   type ConfirmSwapBlockReason,
 } from '@/utils/confirmSwapExecution';
 import { classifyCommissionRoute } from '@/utils/commission';
-import { isCommissionPairAuditBlocked } from '@/constants/commissionCoverage';
+import {
+  assertCommissionRouteCertified,
+  type CertifiedCommissionRoute,
+} from '@/utils/commissionRoutePolicy';
 import { estimateWrapperFeeWeiFromNetOutput } from '@/utils/wrapperFee';
 import {
   decodeNativeEthOutputAndFeeFromLogs,
@@ -291,6 +294,8 @@ export interface SwapQuote extends QuoteResult {
    * Execution is blocked until the user refreshes the quote; not the same as "approval required".
    */
   allowanceCheckUncertain?: boolean;
+  /** Stable certified-route fingerprint captured at quote time (commission-required mode). */
+  certifiedRouteFingerprint?: string;
 }
 
 // Default slippage tolerance (0.5%)
@@ -315,6 +320,41 @@ const WALLET_SIGN_IN_FLIGHT_RELEASE_MS = 120_000;
 
 // BSC Pancake wrapper V2 target contract (spender / swap target)
 const PANCAKE_WRAPPER_V2_EXPECTED_TO = '0x22B1FE0ba0E451707A675CC0AC19162A83E2c3a6';
+
+function assertLiveCertifiedCommissionRoute(args: {
+  chainId: number;
+  fromSymbol: string;
+  toSymbol: string;
+  fromAsset?: { contract_address?: string; is_native?: boolean } | null;
+  toAsset?: { contract_address?: string; is_native?: boolean } | null;
+  expectedFingerprint?: string | null;
+}): CertifiedCommissionRoute {
+  const route = assertCommissionRouteCertified({
+    chainId: args.chainId,
+    tokenIn: {
+      symbol: args.fromSymbol,
+      address: args.fromAsset?.contract_address,
+      is_native: args.fromAsset?.is_native,
+    },
+    tokenOut: {
+      symbol: args.toSymbol,
+      address: args.toAsset?.contract_address,
+      is_native: args.toAsset?.is_native,
+    },
+  });
+  if (args.expectedFingerprint && route.fingerprint !== args.expectedFingerprint) {
+    throw attachCommissionRouteFailure('unsupported_commission_route', 'not_certified', {
+      attemptedProvider: 'stale_quote_fingerprint',
+      chainId: args.chainId,
+      fromSymbol: args.fromSymbol,
+      toSymbol: args.toSymbol,
+      fromAmount: '',
+      fromTokenAddress: route.tokenIn.isNative ? 'native' : route.tokenIn.address,
+      toTokenAddress: route.tokenOut.isNative ? 'native' : route.tokenOut.address,
+    });
+  }
+  return route;
+}
 
 // Supported chain IDs for swap (all chains with 1inch support)
 const SUPPORTED_CHAIN_IDS = [1, 56, 137, 42161, 10, 43114, 100, 250, 8453] as const;
@@ -737,21 +777,51 @@ export function useSwap() {
       }
 
       const commissionRequired = isCommissionRequiredMode();
-      if (
-        commissionRequired &&
-        isCommissionPairAuditBlocked(chainId || 1, fromSymbol, toSymbol)
-      ) {
-        throw attachCommissionRouteFailure(
-          'unsupported_commission_route',
-          'Pair blocked by Swaperex commission audit policy.',
-          {
-            attemptedProvider: 'policy_block',
+      let certifiedRouteAtQuote: CertifiedCommissionRoute | null = null;
+      if (commissionRequired) {
+        try {
+          certifiedRouteAtQuote = assertCommissionRouteCertified({
             chainId: chainId || 1,
-            fromSymbol,
-            toSymbol,
-            fromAmount,
-          },
-        );
+            tokenIn: {
+              symbol: fromSymbol,
+              address: fromAsset.contract_address,
+              is_native: fromAsset.is_native,
+            },
+            tokenOut: {
+              symbol: toSymbol,
+              address: toAsset.contract_address,
+              is_native: toAsset.is_native,
+            },
+          });
+        } catch (certErr) {
+          const denial =
+            certErr && typeof certErr === 'object' && 'commissionRouteDenialReason' in certErr
+              ? String((certErr as { commissionRouteDenialReason?: string }).commissionRouteDenialReason)
+              : 'not_certified';
+          const tokenInAddr =
+            certErr && typeof certErr === 'object' && 'commissionQuoteAttempt' in certErr
+              ? (certErr as { commissionQuoteAttempt?: { fromTokenAddress?: string | null } })
+                  .commissionQuoteAttempt?.fromTokenAddress
+              : fromAsset.contract_address;
+          const tokenOutAddr =
+            certErr && typeof certErr === 'object' && 'commissionQuoteAttempt' in certErr
+              ? (certErr as { commissionQuoteAttempt?: { toTokenAddress?: string | null } })
+                  .commissionQuoteAttempt?.toTokenAddress
+              : toAsset.contract_address;
+          throw attachCommissionRouteFailure(
+            'unsupported_commission_route',
+            denial,
+            {
+              attemptedProvider: denial,
+              chainId: chainId || 1,
+              fromSymbol,
+              toSymbol,
+              fromAmount,
+              fromTokenAddress: tokenInAddr ?? null,
+              toTokenAddress: tokenOutAddr ?? null,
+            },
+          );
+        }
       }
       const tokenInMetaForMode = getTokenBySymbol(fromSymbol, chainId || 1);
       const tokenOutMetaForMode = getTokenBySymbol(toSymbol, chainId || 1);
@@ -1480,6 +1550,54 @@ export function useSwap() {
       });
 
       // Build extended quote for UI - includes all fields for compatibility
+      if (commissionRequired) {
+        const accepted = assertCommissionRouteCertified({
+          chainId: chainId || 1,
+          tokenIn: {
+            symbol: fromSymbol,
+            address: fromAsset.contract_address,
+            is_native: fromAsset.is_native,
+          },
+          tokenOut: {
+            symbol: toSymbol,
+            address: toAsset.contract_address,
+            is_native: toAsset.is_native,
+          },
+        });
+        if (
+          certifiedRouteAtQuote &&
+          accepted.fingerprint !== certifiedRouteAtQuote.fingerprint
+        ) {
+          throw attachCommissionRouteFailure(
+            'unsupported_commission_route',
+            'not_certified',
+            {
+              attemptedProvider: aggregatedQuote.provider,
+              chainId: chainId || 1,
+              fromSymbol,
+              toSymbol,
+              fromAmount,
+              fromTokenAddress: accepted.tokenIn.isNative ? 'native' : accepted.tokenIn.address,
+              toTokenAddress: accepted.tokenOut.isNative ? 'native' : accepted.tokenOut.address,
+            },
+          );
+        }
+        certifiedRouteAtQuote = accepted;
+        if (!isCommissionWrapperExecutionProvider(aggregatedQuote.provider)) {
+          throw attachCommissionRouteFailure(
+            'unsupported_commission_route',
+            'not_certified',
+            {
+              attemptedProvider: aggregatedQuote.provider,
+              chainId: chainId || 1,
+              fromSymbol,
+              toSymbol,
+              fromAmount,
+            },
+          );
+        }
+      }
+
       const extendedQuote: SwapQuote = {
         ...quote,
         fromSymbol,
@@ -1511,6 +1629,7 @@ export function useSwap() {
         price_impact: aggregatedQuote.priceImpact,
         minimum_received: aggregatedQuote.minAmountOutFormatted,
         allowanceCheckUncertain: allowanceCheckUncertain || undefined,
+        certifiedRouteFingerprint: certifiedRouteAtQuote?.fingerprint,
       };
 
       // Check if this request is still valid (inputs haven't changed)
@@ -1738,6 +1857,26 @@ export function useSwap() {
       });
       swapObsLog('approval_skipped', { reason: 'native_input', provider: swapQuote.provider });
       return true;
+    }
+
+    if (isCommissionRequiredMode()) {
+      assertLiveCertifiedCommissionRoute({
+        chainId,
+        fromSymbol: swapQuote.fromSymbol,
+        toSymbol: swapQuote.toSymbol,
+        fromAsset,
+        toAsset,
+        expectedFingerprint: swapQuote.certifiedRouteFingerprint,
+      });
+      if (!isCommissionWrapperExecutionProvider(swapQuote.provider)) {
+        throw attachCommissionRouteFailure('unsupported_commission_route', 'not_certified', {
+          attemptedProvider: swapQuote.provider,
+          chainId,
+          fromSymbol: swapQuote.fromSymbol,
+          toSymbol: swapQuote.toSymbol,
+          fromAmount: '',
+        });
+      }
     }
 
     try {
@@ -2019,6 +2158,8 @@ export function useSwap() {
     getSigner,
     state.status,
     address,
+    fromAsset,
+    toAsset,
     armApprovalWalletSigningGuard,
     clearApprovalWalletSigningGuard,
   ]);
@@ -2027,6 +2168,17 @@ export function useSwap() {
   const executeSwap = useCallback(async (): Promise<string> => {
     if (!swapQuote || !address || !chainId) {
       throw new Error('No quote available. Please enter an amount and wait for a quote before proceeding.');
+    }
+
+    if (isCommissionRequiredMode()) {
+      assertLiveCertifiedCommissionRoute({
+        chainId,
+        fromSymbol: swapQuote.fromSymbol,
+        toSymbol: swapQuote.toSymbol,
+        fromAsset,
+        toAsset,
+        expectedFingerprint: swapQuote.certifiedRouteFingerprint,
+      });
     }
 
     markSwapExecutionTiming('preflight_started', {
@@ -2457,6 +2609,22 @@ export function useSwap() {
           code: -32002,
         });
       }
+
+      // Final application-controlled boundary before wallet submission.
+      if (isCommissionRequiredMode()) {
+        assertLiveCertifiedCommissionRoute({
+          chainId,
+          fromSymbol: swapQuote.fromSymbol,
+          toSymbol: swapQuote.toSymbol,
+          fromAsset,
+          toAsset,
+          expectedFingerprint: swapQuote.certifiedRouteFingerprint,
+        });
+        if (!isCommissionWrapperExecutionProvider(swapQuote.provider)) {
+          throw new Error('Commission-required mode: only Swaperex wrapper execution is allowed.');
+        }
+      }
+
       armSwapWalletSigningGuard();
       let tx;
       let commissionTraceForSwap:
@@ -3151,6 +3319,17 @@ export function useSwap() {
       throw new Error('No active swap to confirm. Please get a new quote and try again.');
     }
 
+    if (isCommissionRequiredMode() && chainId) {
+      assertLiveCertifiedCommissionRoute({
+        chainId,
+        fromSymbol: swapQuote.fromSymbol,
+        toSymbol: swapQuote.toSymbol,
+        fromAsset,
+        toAsset,
+        expectedFingerprint: swapQuote.certifiedRouteFingerprint,
+      });
+    }
+
     const quoteAge = Date.now() - swapQuote.quoteTimestamp;
 
     const blockConfirmSwap = (reason: ConfirmSwapBlockReason): never => {
@@ -3232,7 +3411,7 @@ export function useSwap() {
       lastApprovalRecordIdRef.current = null;
       clearSwapExecutionTiming();
     }
-  }, [state.status, swapQuote, executeSwap, chainId, ensureActiveFlowId]);
+  }, [state.status, swapQuote, executeSwap, chainId, ensureActiveFlowId, fromAsset, toAsset]);
 
   // Quote TTL for UX / refresh CTA only while we are still in "quote + preview" — not during wallet/on-chain execution.
   // Otherwise the wall-clock age keeps growing and leaks "expired" / refresh messaging behind an in-flight swap.

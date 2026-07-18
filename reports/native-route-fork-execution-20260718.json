@@ -1,0 +1,30 @@
+{
+  "auditedAt": "2026-07-18T14:20:53.394Z",
+  "method": "local Anvil mainnet-fork execution in both directions",
+  "candidateReport": "/root/Swaperex-route-truth-20260718/reports/native-route-candidate-audit-20260718.json",
+  "noProductionTransactions": true,
+  "noProductionFundsUsed": true,
+  "chains": [
+    {
+      "chainId": 1,
+      "chain": "Ethereum",
+      "results": [
+        {
+          "key": "1|ETH|LINK",
+          "status": "REJECTED",
+          "error": "missing revert data"
+        }
+      ]
+    },
+    {
+      "chainId": 56,
+      "chain": "BNB Chain",
+      "results": []
+    }
+  ],
+  "summary": {
+    "routeFamiliesCertified": 0,
+    "routeFamiliesRejected": 1,
+    "certifiedDirectionalKeys": []
+  }
+}

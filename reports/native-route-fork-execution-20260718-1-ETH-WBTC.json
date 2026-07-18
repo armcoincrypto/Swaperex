@@ -1,0 +1,53 @@
+{
+  "auditedAt": "2026-07-18T14:23:20.328Z",
+  "method": "local Anvil mainnet-fork execution in both directions",
+  "candidateReport": "/root/Swaperex-route-truth-20260718/reports/native-route-candidate-audit-20260718.json",
+  "noProductionTransactions": true,
+  "noProductionFundsUsed": true,
+  "chains": [
+    {
+      "chainId": 1,
+      "chain": "Ethereum",
+      "results": [
+        {
+          "key": "1|ETH|WBTC",
+          "reverseKey": "1|WBTC|ETH",
+          "status": "CERTIFIED_BIDIRECTIONAL",
+          "execution": {
+            "forward": {
+              "direction": "ETH→WBTC",
+              "amountIn": "0.01",
+              "feeTier": 100,
+              "feeAmount": "0.00000057",
+              "amountOutNet": "0.0002869",
+              "treasuryDelta": "0.00000057",
+              "txStatus": 1
+            },
+            "reverse": {
+              "direction": "WBTC→ETH",
+              "amountIn": "0.00014345",
+              "feeTier": 100,
+              "feeAmount": "0.000009977852989351",
+              "amountOutNet": "0.004978948641686582",
+              "treasuryDelta": "0.000009977852989351",
+              "txStatus": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "chainId": 56,
+      "chain": "BNB Chain",
+      "results": []
+    }
+  ],
+  "summary": {
+    "routeFamiliesCertified": 1,
+    "routeFamiliesRejected": 0,
+    "certifiedDirectionalKeys": [
+      "1|ETH|WBTC",
+      "1|WBTC|ETH"
+    ]
+  }
+}

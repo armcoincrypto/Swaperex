@@ -13,6 +13,8 @@
     "format": "prettier --write src",
     "test": "vitest run",
     "test:watch": "vitest",
+    "audit:commission-coverage-alignment": "node ../scripts/audit/audit-commission-coverage-alignment.mjs",
+    "audit:commission-negative-probes": "node ../scripts/audit/audit-commission-negative-probes.mjs",
     "playwright:install": "playwright install chromium"
   },
   "dependencies": {

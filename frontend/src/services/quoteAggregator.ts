@@ -52,6 +52,7 @@ import { getBestUniswapWrapperV3Quote, type UniswapWrapperV3QuoteResult } from '
 import { swapObsLog } from '@/utils/swapObservability';
 import { keccak256, toUtf8Bytes } from 'ethers';
 import { isCommissionRequiredMode } from '@/config/commissionRequired';
+import { assertCommissionRouteCertified } from '@/utils/commissionRoutePolicy';
 import { getRouteDisplayName } from '@/utils/routePresentation';
 
 /** Keep [swap:obs] JSON lines compact in the console */
@@ -749,6 +750,14 @@ export async function getAggregatedQuote(
 ): Promise<AggregatedQuoteResult> {
   if (!SUPPORTED_CHAINS.includes(chainId as SupportedChainId)) {
     throw new Error(`Quote aggregator only supports chains: ${SUPPORTED_CHAINS.join(', ')}`);
+  }
+
+  if (isCommissionRequiredMode()) {
+    assertCommissionRouteCertified({
+      chainId,
+      tokenIn,
+      tokenOut,
+    });
   }
 
   if (routeMode !== 'best') {

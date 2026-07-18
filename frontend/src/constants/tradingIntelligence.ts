@@ -30,8 +30,8 @@ const TRENDING_PAIR_KEYS = new Set([
   '1|ETH|USDT',
   '1|USDC|ETH',
   '1|ETH|USDC',
-  '56|WBNB|USDT',
   '56|BNB|USDT',
+  '56|BNB|USDC',
   '1|WETH|USDC',
 ]);
 

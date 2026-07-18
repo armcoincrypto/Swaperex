@@ -1,5 +1,5 @@
 /**
- * P4A — Featured audited commission routes (display-only; existing pairs only).
+ * Featured audited commission routes (display-only; existing pairs only).
  */
 
 import {
@@ -10,6 +10,14 @@ import type { PopularCommissionRoute } from '@/constants/popularCommissionRoutes
 
 /** Curated homepage / swap-card featured pairs — must pass commission audit. */
 const FEATURED_CATALOG: PopularCommissionRoute[] = [
+  {
+    chainId: 1,
+    chainLabel: 'Ethereum',
+    fromSymbol: 'ETH',
+    toSymbol: 'USDC',
+    label: 'ETH ⇄ USDC',
+    bidirectional: true,
+  },
   {
     chainId: 1,
     chainLabel: 'Ethereum',
@@ -27,35 +35,27 @@ const FEATURED_CATALOG: PopularCommissionRoute[] = [
     bidirectional: true,
   },
   {
-    chainId: 1,
-    chainLabel: 'Ethereum',
-    fromSymbol: 'WETH',
-    toSymbol: 'DAI',
-    label: 'WETH ⇄ DAI',
-    bidirectional: true,
-  },
-  {
     chainId: 56,
     chainLabel: 'BNB Chain',
-    fromSymbol: 'WBNB',
+    fromSymbol: 'BNB',
     toSymbol: 'USDT',
-    label: 'WBNB ⇄ USDT',
+    label: 'BNB ⇄ USDT',
     bidirectional: true,
   },
   {
     chainId: 56,
     chainLabel: 'BNB Chain',
-    fromSymbol: 'WBNB',
+    fromSymbol: 'BNB',
     toSymbol: 'USDC',
-    label: 'WBNB ⇄ USDC',
+    label: 'BNB ⇄ USDC',
     bidirectional: true,
   },
   {
     chainId: 56,
     chainLabel: 'BNB Chain',
-    fromSymbol: 'WBNB',
+    fromSymbol: 'BNB',
     toSymbol: 'CAKE',
-    label: 'WBNB ⇄ CAKE',
+    label: 'BNB ⇄ CAKE',
     bidirectional: true,
   },
 ];
@@ -82,12 +82,12 @@ function routeIsAuditVerified(route: PopularCommissionRoute): boolean {
 export type FeaturedRouteBadge = 'featured' | 'audited' | 'high-liquidity';
 
 const FEATURED_BADGE_BY_KEY: Record<string, FeaturedRouteBadge> = {
+  '1|ETH|USDC': 'featured',
   '1|WETH|USDC': 'featured',
   '1|WETH|USDT': 'featured',
-  '1|WETH|DAI': 'audited',
-  '56|WBNB|USDT': 'featured',
-  '56|WBNB|USDC': 'high-liquidity',
-  '56|WBNB|CAKE': 'audited',
+  '56|BNB|USDT': 'featured',
+  '56|BNB|USDC': 'high-liquidity',
+  '56|BNB|CAKE': 'audited',
 };
 
 export function getFeaturedRouteBadge(route: PopularCommissionRoute): FeaturedRouteBadge {

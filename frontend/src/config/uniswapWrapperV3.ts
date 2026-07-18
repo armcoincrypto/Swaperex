@@ -18,7 +18,22 @@ function parseEnvBoolean(raw: string | undefined): boolean {
 const DEFAULT_UNISWAP_WRAPPER_V3_FEE_BPS = 20;
 
 /** Built-in commission paths (token symbols, WETH = wrapped ETH only — no native ETH in V3 ERC20 API). */
-const DEFAULT_CANARY_SEGMENTS = ['WETH-USDC', 'WETH-USDC-SNX', 'WETH-USDC-PENDLE'] as const;
+const DEFAULT_CANARY_SEGMENTS = [
+  'WETH-USDC',
+  'WETH-USDT',
+  'WETH-DAI',
+  'WETH-WBTC',
+  'WETH-LINK',
+  'WETH-UNI',
+  'WETH-AAVE',
+  'WETH-LDO',
+  'WETH-CRV',
+  'WETH-COMP',
+  'WETH-ENS',
+  'WETH-ONDO',
+  'WETH-ENA',
+  'WETH-MANA',
+] as const;
 
 export type UniswapWrapperV3CanarySegment = readonly string[];
 

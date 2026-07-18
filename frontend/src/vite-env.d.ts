@@ -59,7 +59,7 @@ interface ImportMetaEnv {
   /** Optional UI copy; should match on-chain `feeBps` (default 20). */
   readonly VITE_UNISWAP_WRAPPER_V3_FEE_BPS?: string
   /**
-   * Comma-separated allowlist segments, e.g. `WETH-USDC,WETH-USDC-SNX,WETH-USDC-PENDLE`.
+   * Comma-separated allowlist segments, e.g. `WETH-USDC,WETH-USDT,WETH-DAI`.
    * When unset and V3 is enabled, a built-in default list is used (same three paths).
    */
   readonly VITE_UNISWAP_WRAPPER_V3_CANARY_PAIRS?: string

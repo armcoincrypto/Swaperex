@@ -1,0 +1,161 @@
+{
+  "auditedAt": "2026-07-18T14:24:04.715Z",
+  "method": "local Anvil mainnet-fork execution in both directions",
+  "candidateReport": "/root/Swaperex-route-truth-20260718/reports/native-route-candidate-audit-20260718.json",
+  "noProductionTransactions": true,
+  "noProductionFundsUsed": true,
+  "chains": [
+    {
+      "chainId": 1,
+      "chain": "Ethereum",
+      "results": []
+    },
+    {
+      "chainId": 56,
+      "chain": "BNB Chain",
+      "results": [
+        {
+          "key": "56|BNB|USDT",
+          "reverseKey": "56|USDT|BNB",
+          "status": "CERTIFIED_BIDIRECTIONAL",
+          "execution": {
+            "forward": {
+              "direction": "BNB→USDT",
+              "amountIn": "0.1",
+              "feeTier": 100,
+              "feeAmount": "0.285158871483500953",
+              "amountOutNet": "56.74661542521668967",
+              "treasuryDelta": "0.285158871483500953",
+              "txStatus": 1
+            },
+            "reverse": {
+              "direction": "USDT→BNB",
+              "amountIn": "28.373307712608344835",
+              "feeTier": 100,
+              "feeAmount": "0.000248700317468369",
+              "amountOutNet": "0.049491363176205605",
+              "treasuryDelta": "0.000248700317468369",
+              "txStatus": 1
+            }
+          }
+        },
+        {
+          "key": "56|BNB|USDC",
+          "reverseKey": "56|USDC|BNB",
+          "status": "CERTIFIED_BIDIRECTIONAL",
+          "execution": {
+            "forward": {
+              "direction": "BNB→USDC",
+              "amountIn": "0.1",
+              "feeTier": 100,
+              "feeAmount": "0.284985906274874892",
+              "amountOutNet": "56.712195348700103541",
+              "treasuryDelta": "0.284985906274874892",
+              "txStatus": 1
+            },
+            "reverse": {
+              "direction": "USDC→BNB",
+              "amountIn": "28.35609767435005177",
+              "feeTier": 100,
+              "feeAmount": "0.000248700859309703",
+              "amountOutNet": "0.049491471002631047",
+              "treasuryDelta": "0.000248700859309703",
+              "txStatus": 1
+            }
+          }
+        },
+        {
+          "key": "56|BNB|CAKE",
+          "reverseKey": "56|CAKE|BNB",
+          "status": "CERTIFIED_BIDIRECTIONAL",
+          "execution": {
+            "forward": {
+              "direction": "BNB→CAKE",
+              "amountIn": "0.1",
+              "feeTier": 100,
+              "feeAmount": "0.202211066370099122",
+              "amountOutNet": "40.240002207649725328",
+              "treasuryDelta": "0.202211066370099122",
+              "txStatus": 1
+            },
+            "reverse": {
+              "direction": "CAKE→BNB",
+              "amountIn": "20.120001103824862664",
+              "feeTier": 100,
+              "feeAmount": "0.000248816570093224",
+              "amountOutNet": "0.049514497448551583",
+              "treasuryDelta": "0.000248816570093224",
+              "txStatus": 1
+            }
+          }
+        },
+        {
+          "key": "56|BNB|BTCB",
+          "reverseKey": "56|BTCB|BNB",
+          "status": "CERTIFIED_BIDIRECTIONAL",
+          "execution": {
+            "forward": {
+              "direction": "BNB→BTCB",
+              "amountIn": "0.1",
+              "feeTier": 100,
+              "feeAmount": "0.000004445804275709",
+              "amountOutNet": "0.000884715050866279",
+              "treasuryDelta": "0.000004445804275709",
+              "txStatus": 1
+            },
+            "reverse": {
+              "direction": "BTCB→BNB",
+              "amountIn": "0.000442357525433139",
+              "feeTier": 100,
+              "feeAmount": "0.000248701303505814",
+              "amountOutNet": "0.049491559397657013",
+              "treasuryDelta": "0.000248701303505814",
+              "txStatus": 1
+            }
+          }
+        },
+        {
+          "key": "56|BNB|ETH",
+          "reverseKey": "56|ETH|BNB",
+          "status": "CERTIFIED_BIDIRECTIONAL",
+          "execution": {
+            "forward": {
+              "direction": "BNB→ETH",
+              "amountIn": "0.1",
+              "feeTier": 100,
+              "feeAmount": "0.00015466667194122",
+              "amountOutNet": "0.030778667716302799",
+              "treasuryDelta": "0.00015466667194122",
+              "txStatus": 1
+            },
+            "reverse": {
+              "direction": "ETH→BNB",
+              "amountIn": "0.015389333858151399",
+              "feeTier": 100,
+              "feeAmount": "0.000248704208243341",
+              "amountOutNet": "0.049492137440424982",
+              "treasuryDelta": "0.000248704208243341",
+              "txStatus": 1
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "routeFamiliesCertified": 5,
+    "routeFamiliesRejected": 0,
+    "certifiedDirectionalKeys": [
+      "56|BNB|BTCB",
+      "56|BNB|CAKE",
+      "56|BNB|ETH",
+      "56|BNB|USDC",
+      "56|BNB|USDT",
+      "56|BTCB|BNB",
+      "56|CAKE|BNB",
+      "56|ETH|BNB",
+      "56|USDC|BNB",
+      "56|USDT|BNB"
+    ]
+  }
+}

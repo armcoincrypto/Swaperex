@@ -127,7 +127,9 @@ function encodeV3Path(tokenAddresses, fees) {
 }
 
 function parseV3Canary(env) {
-  const raw = env.VITE_UNISWAP_WRAPPER_V3_CANARY_PAIRS || 'WETH-USDC,WETH-USDC-DAI,WETH-USDC-SNX,WETH-USDC-PENDLE';
+  const raw =
+    env.VITE_UNISWAP_WRAPPER_V3_CANARY_PAIRS ||
+    'WETH-USDC,WETH-USDT,WETH-DAI,WETH-WBTC,WETH-LINK,WETH-UNI,WETH-AAVE,WETH-LDO,WETH-CRV,WETH-COMP,WETH-ENS,WETH-ONDO,WETH-ENA,WETH-MANA';
   return raw.split(',').map((seg) =>
     seg
       .trim()
@@ -158,9 +160,13 @@ function pairKey(chainId, from, to) {
   return `${chainId}|${from.toUpperCase()}|${to.toUpperCase()}`;
 }
 
-/** Candidate undirected pairs to audit */
+/** Candidate undirected pairs to audit (must match execution-safe catalog). */
 const CANDIDATES = [
-  // Ethereum — production majors
+  // Ethereum — native V2 legs
+  { chainId: 1, a: 'ETH', b: 'USDC' },
+  { chainId: 1, a: 'ETH', b: 'USDT' },
+  { chainId: 1, a: 'ETH', b: 'WBTC' },
+  // Ethereum — WETH V3 direct majors
   { chainId: 1, a: 'WETH', b: 'USDC' },
   { chainId: 1, a: 'WETH', b: 'USDT' },
   { chainId: 1, a: 'WETH', b: 'DAI' },
@@ -169,23 +175,41 @@ const CANDIDATES = [
   { chainId: 1, a: 'WETH', b: 'UNI' },
   { chainId: 1, a: 'WETH', b: 'AAVE' },
   { chainId: 1, a: 'WETH', b: 'LDO' },
-  { chainId: 1, a: 'WETH', b: 'SNX' },
-  { chainId: 1, a: 'WETH', b: 'PENDLE' },
-  { chainId: 1, a: 'ETH', b: 'USDC' },
-  { chainId: 1, a: 'ETH', b: 'USDT' },
-  // BSC
+  { chainId: 1, a: 'WETH', b: 'CRV' },
+  { chainId: 1, a: 'WETH', b: 'COMP' },
+  { chainId: 1, a: 'WETH', b: 'ENS' },
+  { chainId: 1, a: 'WETH', b: 'ONDO' },
+  { chainId: 1, a: 'WETH', b: 'ENA' },
+  { chainId: 1, a: 'WETH', b: 'MANA' },
+  // BNB Chain — native V2 legs (WBNB ERC-20 legs are not executable)
   { chainId: 56, a: 'BNB', b: 'USDT' },
   { chainId: 56, a: 'BNB', b: 'USDC' },
-  { chainId: 56, a: 'WBNB', b: 'USDT' },
-  { chainId: 56, a: 'WBNB', b: 'BTCB' },
+  { chainId: 56, a: 'BNB', b: 'BTCB' },
+  { chainId: 56, a: 'BNB', b: 'CAKE' },
+  { chainId: 56, a: 'BNB', b: 'ETH' },
   { chainId: 56, a: 'CAKE', b: 'USDT' },
-  { chainId: 56, a: 'WBNB', b: 'CAKE' },
-  { chainId: 56, a: 'WBNB', b: 'USDC' },
-  { chainId: 56, a: 'WBNB', b: 'ETH' },
-  { chainId: 56, a: 'WBNB', b: 'FDUSD' },
 ];
 
-const BLOCKED = new Set(['1|WETH|PEPE', '1|PEPE|WETH']);
+const BLOCKED = new Set([
+  '1|WETH|PEPE',
+  '1|PEPE|WETH',
+  '1|ETH|PEPE',
+  '1|PEPE|ETH',
+  '56|WBNB|USDT',
+  '56|USDT|WBNB',
+  '56|WBNB|USDC',
+  '56|USDC|WBNB',
+  '56|WBNB|BTCB',
+  '56|BTCB|WBNB',
+  '56|WBNB|CAKE',
+  '56|CAKE|WBNB',
+  '56|WBNB|ETH',
+  '56|ETH|WBNB',
+  '56|WBNB|FDUSD',
+  '56|FDUSD|WBNB',
+  '56|BNB|FDUSD',
+  '56|FDUSD|BNB',
+]);
 
 async function quoteEthV2(provider, wrapper, tokenIn, tokenOut, amountHuman) {
   const inAddr = swapAddress(tokenIn, 1);
