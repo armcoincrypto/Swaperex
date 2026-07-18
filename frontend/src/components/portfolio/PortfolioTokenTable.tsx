@@ -19,6 +19,11 @@ import type { TokenBalance } from '@/services/portfolioTypes';
 import { PORTFOLIO_CHAIN_IDS } from '@/services/portfolioTypes';
 import { SwapTokenAvatar } from '@/components/common/SwapTokenAvatar';
 import {
+  getSwapAvailability,
+  isExecutableSwapCta,
+  swapAvailabilityLabel,
+} from '@/utils/swapAvailability';
+import {
   ShellEmptyState,
   ShellLoadingRows,
   ShellPanel,
@@ -187,8 +192,19 @@ function PortfolioTokenRow({
   }, [token.address, token.isNative]);
 
   const handleSwap = useCallback(() => {
-    if (onSwap) onSwap(token.symbol, chainId);
-  }, [onSwap, token.symbol, chainId]);
+    if (!onSwap) return;
+    if (!isExecutableSwapCta({ chainId, token: { symbol: token.symbol, address: token.address, is_native: token.isNative } })) {
+      return;
+    }
+    onSwap(token.symbol, chainId);
+  }, [onSwap, token.symbol, token.address, token.isNative, chainId]);
+
+  const swapAvailability = getSwapAvailability({
+    chainId,
+    tokenIn: { symbol: token.symbol, address: token.address, is_native: token.isNative },
+  });
+  const showExecutableSwap = !!onSwap && swapAvailability.status === 'executable';
+  const showViewOnlySwap = !!onSwap && !showExecutableSwap;
 
   const handleWatchlist = useCallback(() => {
     if (!isWatched) {
@@ -233,7 +249,7 @@ function PortfolioTokenRow({
       </td>
       <td className="px-4 py-3">
         <div className="flex items-center justify-end gap-0.5 opacity-70 group-hover:opacity-100 transition-opacity">
-          {onSwap && (
+          {showExecutableSwap && (
             <button
               type="button"
               onClick={handleSwap}
@@ -241,6 +257,14 @@ function PortfolioTokenRow({
             >
               Swap
             </button>
+          )}
+          {showViewOnlySwap && (
+            <span
+              className="px-2 py-1 rounded-md text-[10px] font-semibold text-dark-500 border border-white/[0.06]"
+              title="No production-certified Kobbex swap route for this holding"
+            >
+              {swapAvailabilityLabel(swapAvailability.status)}
+            </span>
           )}
           {!token.isNative && (
             <>

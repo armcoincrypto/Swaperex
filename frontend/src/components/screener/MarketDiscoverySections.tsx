@@ -7,6 +7,7 @@ import type { ScreenerToken, ScreenerChainId } from '@/services/screener/types';
 import { CHAIN_LABELS } from '@/services/screener/types';
 import { SwapTokenAvatar } from '@/components/common/SwapTokenAvatar';
 import { ShellPanel } from '@/components/ui/ShellPrimitives';
+import { isExecutableSwapCta } from '@/utils/swapAvailability';
 
 interface Props {
   tokens: ScreenerToken[];
@@ -90,12 +91,30 @@ export function MarketDiscoverySections({ tokens, onSelect, className = '' }: Pr
               <p className="text-xs text-dark-500 flex-1 flex items-center">No matches on this chain.</p>
             ) : (
               <ul className="space-y-1.5 flex-1">
-                {rows.map((token) => (
+                {rows.map((token) => {
+                  const executable = isExecutableSwapCta({
+                    chainId: token.chainId,
+                    token: {
+                      symbol: token.symbol,
+                      address: token.contractAddress || undefined,
+                      is_native: !token.contractAddress,
+                    },
+                  });
+                  return (
                   <li key={token.id}>
                     <button
                       type="button"
-                      onClick={() => onSelect(token)}
-                      className="w-full flex items-center gap-2 rounded-lg border border-transparent hover:border-white/[0.08] hover:bg-black/20 px-2 py-1.5 transition-colors text-left group"
+                      onClick={() => {
+                        if (!executable) return;
+                        onSelect(token);
+                      }}
+                      disabled={!executable}
+                      className={`w-full flex items-center gap-2 rounded-lg border border-transparent px-2 py-1.5 transition-colors text-left group ${
+                        executable
+                          ? 'hover:border-white/[0.08] hover:bg-black/20'
+                          : 'opacity-60 cursor-default'
+                      }`}
+                      title={executable ? 'Open certified swap route' : 'View only — no certified swap route'}
                     >
                       <SwapTokenAvatar
                         symbol={token.symbol}
@@ -112,6 +131,9 @@ export function MarketDiscoverySections({ tokens, onSelect, className = '' }: Pr
                           >
                             {CHAIN_LABELS[token.chainId]}
                           </span>
+                          {!executable && (
+                            <span className="text-[9px] text-dark-500 shrink-0">View only</span>
+                          )}
                         </div>
                         <p className="text-[10px] text-dark-500 truncate">{token.name}</p>
                       </div>
@@ -136,7 +158,8 @@ export function MarketDiscoverySections({ tokens, onSelect, className = '' }: Pr
                       </span>
                     </button>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
           </ShellPanel>

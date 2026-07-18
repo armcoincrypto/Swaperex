@@ -13,6 +13,8 @@ import {
   tokenToAssetInfo,
 } from '@/utils/swapUrlState';
 import { isSwapEnabledNetwork } from '@/config/networkCapabilities';
+import { isCommissionRouteCertified } from '@/utils/commissionRoutePolicy';
+import { isCommissionRequiredMode } from '@/config/commissionRequired';
 
 export function useSwapUrlSync(enabled: boolean): void {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -44,6 +46,22 @@ export function useSwapUrlSync(enabled: boolean): void {
       void switchNetwork(params.chain).catch(() => {
         /* wallet may reject */
       });
+    }
+
+    // Fail closed: do not hydrate uncertified pairs from deep links in commission mode.
+    if (params.from && params.to && isCommissionRequiredMode()) {
+      if (
+        !isCommissionRouteCertified({
+          chainId: effectiveChain,
+          tokenIn: params.from,
+          tokenOut: params.to,
+        })
+      ) {
+        requestAnimationFrame(() => {
+          applyingUrlRef.current = false;
+        });
+        return;
+      }
     }
 
     if (params.from) {

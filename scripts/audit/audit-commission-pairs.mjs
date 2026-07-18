@@ -33,9 +33,64 @@ const PANCAKE_FEE_TIERS = [100, 500, 2500, 10000];
 
 /** Default human amounts per token class */
 const AMOUNT_PROFILES = {
-  small: { ETH: '0.001', WETH: '0.001', BNB: '0.01', WBNB: '0.01', USDC: '5', USDT: '5', default: '0.01' },
-  normal: { ETH: '0.01', WETH: '0.01', BNB: '0.1', WBNB: '0.1', USDC: '25', USDT: '25', default: '0.1' },
-  large: { ETH: '0.1', WETH: '0.1', BNB: '1', WBNB: '1', USDC: '250', USDT: '250', default: '1' },
+  small: {
+    ETH: '0.001',
+    WETH: '0.001',
+    BNB: '0.01',
+    WBNB: '0.01',
+    USDC: '5',
+    USDT: '5',
+    // Mid-priced ERC-20s need larger notional so 20 bps fee is non-zero in wei
+    ENS: '1',
+    COMP: '0.1',
+    AAVE: '0.05',
+    UNI: '1',
+    LINK: '1',
+    LDO: '5',
+    CRV: '10',
+    ONDO: '5',
+    ENA: '20',
+    MANA: '20',
+    default: '0.01',
+  },
+  normal: {
+    ETH: '0.01',
+    WETH: '0.01',
+    BNB: '0.1',
+    WBNB: '0.1',
+    USDC: '25',
+    USDT: '25',
+    ENS: '5',
+    COMP: '0.5',
+    AAVE: '0.25',
+    UNI: '5',
+    LINK: '5',
+    LDO: '25',
+    CRV: '50',
+    ONDO: '25',
+    ENA: '100',
+    MANA: '100',
+    default: '0.1',
+  },
+  large: {
+    ETH: '0.1',
+    WETH: '0.1',
+    BNB: '1',
+    WBNB: '1',
+    USDC: '250',
+    USDT: '250',
+    ENS: '25',
+    COMP: '2',
+    AAVE: '1',
+    UNI: '25',
+    LINK: '25',
+    LDO: '100',
+    CRV: '200',
+    ONDO: '100',
+    ENA: '500',
+    MANA: '500',
+    default: '1',
+  },
 };
 
 const V2_SINGLE_ABI = [
@@ -220,7 +275,10 @@ async function quoteEthV2(provider, wrapper, tokenIn, tokenOut, amountHuman) {
   for (const fee of FEE_TIERS) {
     try {
       const r = await c.quoteExactInputSingleERC20.staticCall(inAddr, outAddr, fee, amountInWei, 0n);
-      return { provider: 'uniswap-v3-wrapper-v2', feeBps: 20, feeTier: fee, amountOutGross: r[0], feeAmount: r[1], amountOutNet: r[2] };
+      // Some fee tiers return zero output without reverting — skip those.
+      if (r[1] > 0n && r[2] > 0n) {
+        return { provider: 'uniswap-v3-wrapper-v2', feeBps: 20, feeTier: fee, amountOutGross: r[0], feeAmount: r[1], amountOutNet: r[2] };
+      }
     } catch (e) {
       lastErr = e;
     }
@@ -242,15 +300,17 @@ async function quoteEthV3(provider, wrapper, pathSyms, tokens, amountHuman, toke
     const pathBytes = encodeV3Path(addrs, fees);
     try {
       const r = await c.quoteExactInputERC20.staticCall(pathBytes, addrs[0], addrs[addrs.length - 1], amountInWei);
-      return {
-        provider: 'uniswap-v3-wrapper-v3',
-        feeBps: 20,
-        feeTier: fee,
-        path: pathSyms.join('→'),
-        amountOutGross: r[0],
-        feeAmount: r[1],
-        amountOutNet: r[2],
-      };
+      if (r[1] > 0n && r[2] > 0n) {
+        return {
+          provider: 'uniswap-v3-wrapper-v3',
+          feeBps: 20,
+          feeTier: fee,
+          path: pathSyms.join('→'),
+          amountOutGross: r[0],
+          feeAmount: r[1],
+          amountOutNet: r[2],
+        };
+      }
     } catch (e) {
       lastErr = e;
     }
@@ -267,7 +327,9 @@ async function quoteBscV2(provider, wrapper, tokenIn, tokenOut, amountHuman) {
   for (const fee of PANCAKE_FEE_TIERS) {
     try {
       const r = await c.quoteExactInputSingleERC20.staticCall(inAddr, outAddr, fee, amountInWei, 0n);
-      return { provider: 'pancakeswap-v3-wrapper-v2', feeBps: 50, feeTier: fee, amountOutGross: r[0], feeAmount: r[1], amountOutNet: r[2] };
+      if (r[1] > 0n && r[2] > 0n) {
+        return { provider: 'pancakeswap-v3-wrapper-v2', feeBps: 50, feeTier: fee, amountOutGross: r[0], feeAmount: r[1], amountOutNet: r[2] };
+      }
     } catch (e) {
       lastErr = e;
     }

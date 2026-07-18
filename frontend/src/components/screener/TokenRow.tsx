@@ -13,6 +13,10 @@ import { NATIVE_TOKEN_ADDRESS } from '@/tokens';
 import { SwapTokenAvatar } from '@/components/common/SwapTokenAvatar';
 import { TokenDetailsPanel } from './TokenDetailsPanel';
 import { isSwapEnabledNetwork, getSwapUnavailableReason } from '@/config/networkCapabilities';
+import {
+  getSwapAvailability,
+  swapAvailabilityLabel,
+} from '@/utils/swapAvailability';
 
 const CHAIN_PILL: Record<ScreenerChainId, string> = {
   1: 'bg-blue-500/15 text-blue-300 border-blue-500/25',
@@ -39,8 +43,22 @@ const EXPLORER_URLS: Record<ScreenerChainId, string> = {
 
 export function TokenRow({ token, isAdvanced, isExpanded, onToggleExpand, onSwap, onRunTokenCheck }: Props) {
   const { addToken, removeToken, hasToken } = useWatchlistStore();
-  const swapEnabled = isSwapEnabledNetwork(token.chainId);
-  const swapUnavailableReason = swapEnabled ? '' : getSwapUnavailableReason(token.chainId);
+  const availability = getSwapAvailability({
+    chainId: token.chainId,
+    tokenIn: {
+      symbol: token.symbol,
+      address: token.contractAddress || undefined,
+      is_native: !token.contractAddress,
+    },
+  });
+  const swapEnabled =
+    isSwapEnabledNetwork(token.chainId) && availability.status === 'executable';
+  const swapUnavailableReason = !isSwapEnabledNetwork(token.chainId)
+    ? getSwapUnavailableReason(token.chainId)
+    : availability.status === 'view_only'
+      ? 'View only — swaps are not available on this network.'
+      : 'Swap unavailable — no production-certified Kobbex route for this token.';
+  const ctaLabel = swapEnabled ? (isAdvanced ? 'Swap' : 'Trade') : swapAvailabilityLabel(availability.status);
   const addr = token.contractAddress || NATIVE_TOKEN_ADDRESS;
   const isWatched = hasToken(token.chainId, addr);
 
@@ -172,7 +190,7 @@ export function TokenRow({ token, isAdvanced, isExpanded, onToggleExpand, onSwap
                 className="px-3 py-1.5 text-xs font-medium rounded-lg border border-white/[0.08] text-dark-400 bg-black/20"
                 title={swapUnavailableReason}
               >
-                View only
+                {ctaLabel}
               </span>
             )}
           </div>
@@ -191,7 +209,7 @@ export function TokenRow({ token, isAdvanced, isExpanded, onToggleExpand, onSwap
                 className="px-3 py-1.5 text-xs font-medium rounded-lg border border-white/[0.08] text-dark-400 bg-black/20"
                 title={swapUnavailableReason}
               >
-                View only
+                {ctaLabel}
               </span>
             )}
           </div>

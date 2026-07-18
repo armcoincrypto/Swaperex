@@ -19,6 +19,7 @@ import { MarketDiscoverySections } from './MarketDiscoverySections';
 import { ShellPanel, ShellBanner, ShellEmptyState } from '@/components/ui/ShellPrimitives';
 import { SWAP_SURFACE_COPY } from '@/constants/swapSurfaceCopy';
 import { isSwapEnabledNetwork } from '@/config/networkCapabilities';
+import { buildCertifiedSwapNavigation, isExecutableSwapCta } from '@/utils/swapAvailability';
 import {
   SCREENER_CHAINS,
   CHAIN_LABELS,
@@ -80,8 +81,28 @@ export function TokenScreener({ onSwapSelect }: TokenScreenerProps) {
   const handleSwap = useCallback(
     (token: ScreenerToken) => {
       if (!isSwapEnabledNetwork(token.chainId)) return;
-      const stablecoin = 'USDT';
-      onSwapSelect?.(token.symbol, stablecoin, token.chainId);
+      if (
+        !isExecutableSwapCta({
+          chainId: token.chainId,
+          token: {
+            symbol: token.symbol,
+            address: token.contractAddress || undefined,
+            is_native: !token.contractAddress,
+          },
+        })
+      ) {
+        return;
+      }
+      const nav = buildCertifiedSwapNavigation({
+        chainId: token.chainId,
+        token: {
+          symbol: token.symbol,
+          address: token.contractAddress || undefined,
+          is_native: !token.contractAddress,
+        },
+      });
+      if (!nav) return;
+      onSwapSelect?.(nav.fromSymbol, nav.toSymbol, nav.chainId);
       trackEvent('screener_used');
     },
     [onSwapSelect, trackEvent],

@@ -23,6 +23,12 @@ import { useSystemStatusStore } from '@/stores/systemStatusStore';
 import { type SwapRecord } from '@/stores/swapHistoryStore';
 import type { AssetInfo } from '@/types/api';
 import { getTokenBySymbol } from '@/tokens';
+import {
+  buildCertifiedSwapNavigation,
+  isExecutableSwapCta,
+} from '@/utils/swapAvailability';
+import { isCommissionRouteCertified } from '@/utils/commissionRoutePolicy';
+import { isSwapEnabledNetwork } from '@/config/networkCapabilities';
 import { useWalletBootstrapStore } from '@/stores/walletBootstrapStore';
 import {
   hasWalletConnectStorageHint,
@@ -360,12 +366,24 @@ export default function TradeShell() {
 
   // Handle swap selection from screener - prefill swap form
   const handleScreenerSwapSelect = async (fromSymbol: string, toSymbol: string, targetChainId: number) => {
+    if (!isSwapEnabledNetwork(targetChainId)) return;
+    if (
+      !isCommissionRouteCertified({
+        chainId: targetChainId,
+        tokenIn: fromSymbol,
+        tokenOut: toSymbol,
+      })
+    ) {
+      return;
+    }
+
     // Switch chain if needed
     if (chainId !== targetChainId) {
       try {
         await switchNetwork(targetChainId);
       } catch (err) {
         console.error('Failed to switch network:', err);
+        return;
       }
     }
 
@@ -412,95 +430,138 @@ export default function TradeShell() {
   // Handle swap from portfolio v2 - prefill from token and go to swap
   const handlePortfolioSwapV2 = (symbol: string, targetChainId: number) => {
     const cid = targetChainId || chainId || 1;
-    const token = getTokenBySymbol(symbol, cid);
-    if (token) {
+    if (!isSwapEnabledNetwork(cid)) return;
+    const nav = buildCertifiedSwapNavigation({ chainId: cid, token: symbol });
+    if (!nav) return;
+
+    const fromToken = getTokenBySymbol(nav.fromSymbol, cid);
+    const toToken = getTokenBySymbol(nav.toSymbol, cid);
+    const chainKey = cid === 56 ? 'bsc' : cid === 137 ? 'polygon' : 'ethereum';
+    if (fromToken) {
       setFromAsset({
-        symbol: token.symbol,
-        name: token.name,
-        chain: cid === 56 ? 'bsc' : cid === 137 ? 'polygon' : 'ethereum',
-        decimals: token.decimals,
-        is_native: symbol === 'ETH' || symbol === 'BNB' || symbol === 'MATIC',
-        contract_address: token.address,
-        logo_url: token.logoURI,
+        symbol: fromToken.symbol,
+        name: fromToken.name,
+        chain: chainKey,
+        decimals: fromToken.decimals,
+        is_native: nav.fromSymbol === 'ETH' || nav.fromSymbol === 'BNB' || nav.fromSymbol === 'MATIC',
+        contract_address: fromToken.address,
+        logo_url: fromToken.logoURI,
       });
-      const stablecoin = getTokenBySymbol('USDT', cid);
-      if (stablecoin && stablecoin.symbol !== symbol) {
-        setToAsset({
-          symbol: stablecoin.symbol,
-          name: stablecoin.name,
-          chain: cid === 56 ? 'bsc' : cid === 137 ? 'polygon' : 'ethereum',
-          decimals: stablecoin.decimals,
-          is_native: false,
-          contract_address: stablecoin.address,
-          logo_url: stablecoin.logoURI,
-        });
-      }
+    }
+    if (toToken) {
+      setToAsset({
+        symbol: toToken.symbol,
+        name: toToken.name,
+        chain: chainKey,
+        decimals: toToken.decimals,
+        is_native: nav.toSymbol === 'ETH' || nav.toSymbol === 'BNB' || nav.toSymbol === 'MATIC',
+        contract_address: toToken.address,
+        logo_url: toToken.logoURI,
+      });
     }
     goToPage('swap');
   };
 
-  // Handle radar signal click - navigate to swap with token prefilled
+  // Handle radar signal click - only navigate to swap when a certified route exists
   const handleRadarSignalClick = (signal: RadarSignal) => {
-    // Try to find the token in our known tokens
-    const token = getTokenBySymbol(signal.tokenSymbol, signal.chainId);
+    if (!isExecutableSwapCta({ chainId: signal.chainId, token: signal.tokenSymbol })) {
+      return;
+    }
+    const nav = buildCertifiedSwapNavigation({
+      chainId: signal.chainId,
+      token: {
+        symbol: signal.tokenSymbol,
+        address: signal.tokenAddress,
+      },
+    });
+    if (!nav) return;
 
-    if (token) {
+    const fromToken = getTokenBySymbol(nav.fromSymbol, signal.chainId);
+    const toToken = getTokenBySymbol(nav.toSymbol, signal.chainId);
+    const chainKey =
+      signal.chainId === 56 ? 'bsc' : signal.chainId === 137 ? 'polygon' : 'ethereum';
+
+    if (fromToken) {
       setFromAsset({
-        symbol: token.symbol,
-        name: token.name,
-        chain: signal.chainId === 56 ? 'bsc' : signal.chainId === 137 ? 'polygon' : 'ethereum',
-        decimals: token.decimals,
-        is_native: signal.tokenSymbol === 'ETH' || signal.tokenSymbol === 'BNB' || signal.tokenSymbol === 'MATIC',
-        contract_address: token.address,
-        logo_url: token.logoURI,
+        symbol: fromToken.symbol,
+        name: fromToken.name,
+        chain: chainKey,
+        decimals: fromToken.decimals,
+        is_native: nav.fromSymbol === 'ETH' || nav.fromSymbol === 'BNB' || nav.fromSymbol === 'MATIC',
+        contract_address: fromToken.address,
+        logo_url: fromToken.logoURI,
       });
     } else {
-      // For custom tokens, create asset from signal data
-      setFromAsset({
-        symbol: signal.tokenSymbol,
-        name: signal.tokenSymbol,
-        chain: signal.chainId === 56 ? 'bsc' : signal.chainId === 137 ? 'polygon' : 'ethereum',
-        decimals: 18,
-        is_native: false,
-        contract_address: signal.tokenAddress,
-      });
+      return;
     }
 
-    // Set stablecoin as "to" token
-    const stablecoin = getTokenBySymbol('USDT', signal.chainId);
-    if (stablecoin) {
+    if (toToken) {
       setToAsset({
-        symbol: stablecoin.symbol,
-        name: stablecoin.name,
-        chain: signal.chainId === 56 ? 'bsc' : signal.chainId === 137 ? 'polygon' : 'ethereum',
-        decimals: stablecoin.decimals,
-        is_native: false,
-        contract_address: stablecoin.address,
-        logo_url: stablecoin.logoURI,
+        symbol: toToken.symbol,
+        name: toToken.name,
+        chain: chainKey,
+        decimals: toToken.decimals,
+        is_native: nav.toSymbol === 'ETH' || nav.toSymbol === 'BNB' || nav.toSymbol === 'MATIC',
+        contract_address: toToken.address,
+        logo_url: toToken.logoURI,
       });
     }
 
-    // Navigate to swap
     goToPage('swap');
   };
 
   // Handle Quick Repeat from swap history
   const handleRepeatSwap = (record: SwapRecord) => {
-    // Prefill from asset
+    const cid =
+      record.fromAsset?.chain === 'bsc'
+        ? 56
+        : record.fromAsset?.chain === 'polygon'
+          ? 137
+          : 1;
+    if (
+      !isCommissionRouteCertified({
+        chainId: cid,
+        tokenIn: {
+          symbol: record.fromAsset?.symbol,
+          address: record.fromAsset?.contract_address,
+          is_native: record.fromAsset?.is_native,
+        },
+        tokenOut: {
+          symbol: record.toAsset?.symbol,
+          address: record.toAsset?.contract_address,
+          is_native: record.toAsset?.is_native,
+        },
+      })
+    ) {
+      return;
+    }
     setFromAsset(record.fromAsset);
-
-    // Prefill to asset
     setToAsset(record.toAsset);
-
-    // Prefill amount
     setFromAmount(record.fromAmount);
-
-    // Navigate to swap page
     goToPage('swap');
   };
 
   const handleTradingPairSelect = useCallback(
     (from: AssetInfo, to: AssetInfo) => {
+      const cid =
+        from.chain === 'bsc' ? 56 : from.chain === 'polygon' ? 137 : from.chain === 'arbitrum' ? 42161 : 1;
+      if (
+        !isCommissionRouteCertified({
+          chainId: cid,
+          tokenIn: {
+            symbol: from.symbol,
+            address: from.contract_address,
+            is_native: from.is_native,
+          },
+          tokenOut: {
+            symbol: to.symbol,
+            address: to.contract_address,
+            is_native: to.is_native,
+          },
+        })
+      ) {
+        return;
+      }
       setFromAsset(from);
       setToAsset(to);
       setFromAmount('');

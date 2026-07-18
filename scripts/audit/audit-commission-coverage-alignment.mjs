@@ -148,6 +148,53 @@ if (!aggSrc.includes('assertCommissionRouteCertified')) {
   mismatches.push('EXECUTION: quoteAggregator does not enforce certified routes');
 }
 
+const tokenRowSrc = read('frontend/src/components/screener/TokenRow.tsx');
+const portfolioSrc = read('frontend/src/components/portfolio/PortfolioTokenTable.tsx');
+const screenerSrc = read('frontend/src/components/screener/TokenScreener.tsx');
+const shellSrc = read('frontend/src/components/layout/TradeShell.tsx');
+const urlSyncSrc = read('frontend/src/hooks/useSwapUrlSync.ts');
+const availabilitySrc = read('frontend/src/utils/swapAvailability.ts');
+
+let marketsExecutableCtas = 0;
+let portfolioExecutableCtas = 0;
+let featuredExecutableCtas = featured.length;
+let deepLinkDefaults = 0;
+const uncertifiedCtaTargets = [];
+
+if (!availabilitySrc.includes('buildCertifiedSwapNavigation')) {
+  uncertifiedCtaTargets.push('swapAvailability missing buildCertifiedSwapNavigation');
+}
+if (!tokenRowSrc.includes('getSwapAvailability')) {
+  uncertifiedCtaTargets.push('TokenRow does not use getSwapAvailability');
+} else {
+  marketsExecutableCtas += 1;
+}
+if (!screenerSrc.includes('buildCertifiedSwapNavigation')) {
+  uncertifiedCtaTargets.push('TokenScreener does not build certified navigation');
+} else {
+  marketsExecutableCtas += 1;
+}
+if (!portfolioSrc.includes('isExecutableSwapCta') && !portfolioSrc.includes('getSwapAvailability')) {
+  uncertifiedCtaTargets.push('PortfolioTokenTable missing certified CTA gate');
+} else {
+  portfolioExecutableCtas += 1;
+}
+if (!shellSrc.includes('buildCertifiedSwapNavigation') || !shellSrc.includes('isCommissionRouteCertified')) {
+  uncertifiedCtaTargets.push('TradeShell handlers missing certified route checks');
+}
+if (!urlSyncSrc.includes('isCommissionRouteCertified')) {
+  uncertifiedCtaTargets.push('useSwapUrlSync does not certify deep-link pairs');
+} else {
+  deepLinkDefaults += 1;
+}
+if (shellSrc.includes("getTokenBySymbol('USDT'") && shellSrc.includes('handlePortfolioSwapV2')) {
+  // Hardcoded USDT portfolio path should be gone
+  const portfolioFn = shellSrc.slice(shellSrc.indexOf('handlePortfolioSwapV2'));
+  if (portfolioFn.includes("getTokenBySymbol('USDT'")) {
+    uncertifiedCtaTargets.push('TradeShell portfolio handler still hardcodes USDT counterpart');
+  }
+}
+
 console.log(`CERTIFIED_ROUTES=${CERTIFIED.size}`);
 console.log(`CERTIFIED_ETH=${ethCount}`);
 console.log(`CERTIFIED_BSC=${bscCount}`);
@@ -155,6 +202,15 @@ console.log(`POPULAR_ROUTES=${popular.length}`);
 console.log(`FEATURED_ROUTES=${featured.length}`);
 console.log(`CANARY_ROUTES=${CANARY.length}`);
 console.log(`BLOCKED_ROUTES=${BLOCKED.size}`);
+console.log(`MARKETS_EXECUTABLE_CTAS=${marketsExecutableCtas}`);
+console.log(`PORTFOLIO_EXECUTABLE_CTAS=${portfolioExecutableCtas}`);
+console.log(`FEATURED_EXECUTABLE_CTAS=${featuredExecutableCtas}`);
+console.log(`DEEP_LINK_DEFAULTS=${deepLinkDefaults}`);
+console.log(`UNCERTIFIED_CTA_TARGETS=${uncertifiedCtaTargets.length}`);
+for (const m of uncertifiedCtaTargets) {
+  console.log(`  - CTA: ${m}`);
+  mismatches.push(m);
+}
 console.log(`MISMATCHES=${mismatches.length}`);
 for (const m of mismatches) console.log(`  - ${m}`);
 
