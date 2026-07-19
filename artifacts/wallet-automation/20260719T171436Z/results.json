@@ -1,0 +1,189 @@
+{
+  "startedAt": "2026-07-19T17:14:36.413Z",
+  "base": "http://127.0.0.1:4177",
+  "mode": "no_broadcast",
+  "journeys": {
+    "eth-native-usdc": {
+      "result": "PASS",
+      "route": {
+        "chainId": 1,
+        "tokenIn": "ETH",
+        "tokenOut": "USDC"
+      },
+      "urlOk": true,
+      "quoteOk": true,
+      "destOk": true,
+      "nativeNoApprove": true,
+      "wrapper": "0x660b2e98e9eeaa4cae21f319fbf3d6ad6909b491",
+      "sendIntercepted": 1,
+      "networkBroadcasts": 0,
+      "walletCalls": [
+        "eth_sendTransaction"
+      ],
+      "consoleErrors": [
+        "[Swap Execution] Error: {message: could not coalesce error (error={ \"code\": 4900, \"d…10000\" } ] }, code=UNKNOWN_ERROR, version=6.16.0), code: UNKNOWN_ERROR, reason: undefined, stack: Error: could not coalesce error (error={ \"code\": 4….1:4177/assets/vendor-ethers-CS9BpkGU.js:2:198111, raw: Error: could not coalesce error (error={ \"code\": 4900, \"data\": { \"reason\": \"NO_BROADCAST_BLOCKED\" }…}",
+        "[RPC Error] {code: UNKNOWN_ERROR, category: unknown_error, message: could not coalesce error (error={ \"code\": 4900, \"d…_BROADCAST_BLOCKED\" }, \"message\": \"KOBBEX_NO_BROA}",
+        "[Swap] Transaction failed: {category: unknown, message: No transaction hash was received., isRecoverable: true, shouldShowRetry: false, technicalReason: could not coalesce error (error={ \"code\": 4900, \"d…ansaction\", \"params\": [ { \"data\": \"0xb56a633a000…}"
+      ]
+    },
+    "eth-erc20-weth-usdc": {
+      "result": "PASS",
+      "route": {
+        "chainId": 1,
+        "tokenIn": "WETH",
+        "tokenOut": "USDC"
+      },
+      "quoteOk": true,
+      "approvePrepared": true,
+      "swapDestOk": false,
+      "sendIntercepted": 1,
+      "networkBroadcasts": 0,
+      "walletCalls": [
+        "eth_sendTransaction"
+      ],
+      "lastTx": {
+        "chainId": 1,
+        "from": "0xa11ce00000000000000000000000000000000001",
+        "to": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+        "value": "0x0",
+        "data": "0x095ea7b3000000000000000000000000a7702ce9267567fd811b39c886cdabec6eb249fc000000000000000000000000000000000000000000000000002386f26fc10000",
+        "dataSelector": "0x095ea7b3",
+        "dataLength": 68,
+        "gas": "0x30d40",
+        "timestamp": 1784481299518,
+        "routeFingerprint": "1|WETH|USDC",
+        "blocked": true,
+        "mode": "no_broadcast"
+      }
+    },
+    "bnb-native-usdt": {
+      "result": "PASS",
+      "route": {
+        "chainId": 56,
+        "tokenIn": "native",
+        "tokenOut": "USDT"
+      },
+      "urlOk": true,
+      "quoteOk": true,
+      "destOk": true,
+      "valueOk": true,
+      "noApprove": true,
+      "wrapper": "0x22b1fe0ba0e451707a675cc0ac19162a83e2c3a6",
+      "sendIntercepted": 1,
+      "networkBroadcasts": 0,
+      "walletCalls": [
+        "wallet_switchEthereumChain",
+        "wallet_switchEthereumChain",
+        "eth_sendTransaction"
+      ]
+    },
+    "bnb-erc20-cake-usdt": {
+      "result": "PASS",
+      "route": {
+        "chainId": 56,
+        "tokenIn": "CAKE",
+        "tokenOut": "USDT"
+      },
+      "quoteOk": true,
+      "approvePrepared": false,
+      "wrapperSeen": true,
+      "sendIntercepted": 1,
+      "networkBroadcasts": 0,
+      "walletCalls": [
+        "wallet_switchEthereumChain",
+        "wallet_switchEthereumChain",
+        "eth_sendTransaction"
+      ]
+    },
+    "wallet-rejections": {
+      "result": "PASS",
+      "acctRejected": true,
+      "switchRejected": true,
+      "sendRejected": true,
+      "sendIntercepted": 1,
+      "networkBroadcasts": 0
+    },
+    "wrong-network": {
+      "result": "PASS",
+      "showsUnsupported": true,
+      "switched": true,
+      "rejectSafe": true,
+      "sendIntercepted": 0,
+      "networkBroadcasts": 0
+    },
+    "account-change": {
+      "result": "PASS",
+      "accountChanged": true,
+      "testAccount": "0xb0b0000000000000000000000000000000000002",
+      "sendIntercepted": 0,
+      "networkBroadcasts": 0
+    },
+    "chain-change": {
+      "result": "PASS",
+      "chainOk": true,
+      "chainId": 56,
+      "sendIntercepted": 0,
+      "networkBroadcasts": 0
+    },
+    "unsupported-routes": {
+      "result": "PASS",
+      "cases": [
+        {
+          "label": "WBNB-USDT",
+          "url": "http://127.0.0.1:4177/swap?chain=56&from=WBNB&to=USDT"
+        },
+        {
+          "label": "PEPE-WETH",
+          "url": "http://127.0.0.1:4177/swap?chain=1&from=PEPE&to=WETH"
+        },
+        {
+          "label": "ETH-WETH",
+          "url": "http://127.0.0.1:4177/swap?chain=1&from=ETH&to=WETH"
+        },
+        {
+          "label": "BNB-WBNB",
+          "url": "http://127.0.0.1:4177/swap?chain=56&from=BNB&to=WBNB"
+        },
+        {
+          "label": "Polygon",
+          "url": "http://127.0.0.1:4177/swap?chain=137&from=USDC&to=WETH"
+        }
+      ],
+      "unsupportedSendAttempts": 0,
+      "sendIntercepted": 0,
+      "networkBroadcasts": 0
+    },
+    "mobile-viewport": {
+      "result": "PASS",
+      "connectVisible": true,
+      "reachable": true,
+      "sendIntercepted": 1,
+      "networkBroadcasts": 0
+    },
+    "walletconnect-modal-smoke": {
+      "result": "PASS",
+      "modalOk": true,
+      "crashed": false,
+      "note": "Shared post-connection path certified via EIP-1193 harness; live WC QR pairing not exercised",
+      "sendIntercepted": 0,
+      "networkBroadcasts": 0
+    }
+  },
+  "totals": {
+    "WALLET_JOURNEYS_PASS": 11,
+    "WALLET_JOURNEYS_FAIL": 0,
+    "SEND_REQUESTS_INTERCEPTED": 6,
+    "NETWORK_BROADCASTS": 0,
+    "UNSUPPORTED_ROUTE_SEND_ATTEMPTS": 0
+  },
+  "productionScan": {
+    "distExists": true,
+    "testWalletDisabled": true,
+    "debugWalletRouteAbsent": true,
+    "noFakeAccountExposed": true,
+    "noTestPrivateKey": true,
+    "noSimulationUi": true,
+    "findings": []
+  },
+  "walletConnectGap": "Shared post-connection path certified via EIP-1193 harness; live WC QR pairing not exercised"
+}

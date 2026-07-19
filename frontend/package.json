@@ -13,6 +13,7 @@
     "format": "prettier --write src",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:wallet:no-broadcast": "node ../scripts/audit/wallet-automation/run-no-broadcast-journeys.mjs",
     "audit:commission-coverage-alignment": "node ../scripts/audit/audit-commission-coverage-alignment.mjs",
     "audit:commission-negative-probes": "node ../scripts/audit/audit-commission-negative-probes.mjs",
     "playwright:install": "playwright install chromium"
