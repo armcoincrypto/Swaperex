@@ -1,5 +1,6 @@
 /**
- * P16.2 — Bidirectional sync between swap store and URL search params.
+ * P16.2 / P21.3 — Bidirectional sync between swap store and URL search params.
+ * External navigations (homepage chips, shared links) re-apply certified pairs.
  */
 
 import { useEffect, useRef } from 'react';
@@ -26,13 +27,18 @@ export function useSwapUrlSync(enabled: boolean): void {
   const setToAsset = useSwapStore((s) => s.setToAsset);
   const setSlippage = useSwapStore((s) => s.setSlippage);
 
-  const hydratedRef = useRef(false);
   const applyingUrlRef = useRef(false);
+  /** Ignore the next URL→store pass after we pushed store→URL. */
+  const skipNextUrlApplyRef = useRef(false);
 
-  // Hydrate store from URL once when swap URL sync is enabled
+  // URL → store (initial load + subsequent Link / history navigations)
   useEffect(() => {
-    if (!enabled || hydratedRef.current) return;
-    hydratedRef.current = true;
+    if (!enabled) return;
+
+    if (skipNextUrlApplyRef.current) {
+      skipNextUrlApplyRef.current = false;
+      return;
+    }
 
     const { params } = parseSwapSearchParams(`?${searchParams.toString()}`);
     applyingUrlRef.current = true;
@@ -76,8 +82,15 @@ export function useSwapUrlSync(enabled: boolean): void {
     requestAnimationFrame(() => {
       applyingUrlRef.current = false;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once per mount
-  }, [enabled]);
+  }, [
+    enabled,
+    searchParams,
+    chainId,
+    setFromAsset,
+    setToAsset,
+    setSlippage,
+    switchNetwork,
+  ]);
 
   // Push store → URL when swap state changes (swap-enabled chains only)
   useEffect(() => {
@@ -94,6 +107,15 @@ export function useSwapUrlSync(enabled: boolean): void {
     const current = searchParams.toString();
     if (swapSearchStringsEqual(current, next)) return;
 
+    skipNextUrlApplyRef.current = true;
     setSearchParams(new URLSearchParams(next), { replace: true });
-  }, [enabled, chainId, fromAsset?.symbol, toAsset?.symbol, slippage, searchParams, setSearchParams]);
+  }, [
+    enabled,
+    chainId,
+    fromAsset?.symbol,
+    toAsset?.symbol,
+    slippage,
+    searchParams,
+    setSearchParams,
+  ]);
 }
