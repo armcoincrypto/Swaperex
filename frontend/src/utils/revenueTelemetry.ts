@@ -8,6 +8,7 @@ import { logProductionEvent } from '@/utils/productionMonitoring';
 
 export type RevenueTelemetrySource =
   | 'featured_chip'
+  | 'homepage_chip'
   | 'recovery_chip'
   | 'route_discovery'
   | 'network_selector'

@@ -160,7 +160,15 @@
   }
 
   .homepage-route-chip {
-    @apply inline-flex items-center rounded-md border border-white/[0.08] bg-electro-bg/60 px-2 py-1 text-[11px] text-dark-300;
+    @apply inline-flex items-center rounded-md border border-white/[0.08] bg-electro-bg/60 px-2.5 py-1.5 text-[11px] text-dark-300 min-h-[44px] sm:min-h-0;
+  }
+
+  a.homepage-route-chip--action {
+    @apply text-dark-200 no-underline transition-colors hover:border-emerald-600/40 hover:bg-emerald-950/30 hover:text-emerald-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500/60;
+  }
+
+  span.homepage-route-chip--info {
+    @apply cursor-default text-dark-400 border-white/[0.05];
   }
 }
 

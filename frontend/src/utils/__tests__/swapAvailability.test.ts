@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildCertifiedDirectionalSwapNavigation,
   buildCertifiedSwapNavigation,
   getCertifiedRoutesForToken,
   getSwapAvailability,
@@ -72,5 +73,24 @@ describe('swapAvailability helpers', () => {
     expect(nav).toBeNull();
     const usdtNav = buildCertifiedSwapNavigation({ chainId: 56, token: 'USDT' });
     expect(usdtNav?.fromSymbol === 'WBNB' || usdtNav?.toSymbol === 'WBNB').toBe(false);
+  });
+
+  it('builds directional certified search params for homepage prefills', () => {
+    const nav = buildCertifiedDirectionalSwapNavigation({
+      chainId: 1,
+      tokenIn: 'WETH',
+      tokenOut: 'LINK',
+    });
+    expect(nav).not.toBeNull();
+    expect(nav!.search).toMatch(/chain=1/);
+    expect(nav!.search).toMatch(/from=WETH/);
+    expect(nav!.search).toMatch(/to=LINK/);
+    expect(
+      buildCertifiedDirectionalSwapNavigation({
+        chainId: 56,
+        tokenIn: 'BNB',
+        tokenOut: 'WBNB',
+      }),
+    ).toBeNull();
   });
 });

@@ -154,15 +154,38 @@ const screenerSrc = read('frontend/src/components/screener/TokenScreener.tsx');
 const shellSrc = read('frontend/src/components/layout/TradeShell.tsx');
 const urlSyncSrc = read('frontend/src/hooks/useSwapUrlSync.ts');
 const availabilitySrc = read('frontend/src/utils/swapAvailability.ts');
+const homepagePopularSrc = read('frontend/src/components/homepage/HomepagePopularRoutes.tsx');
+const homepageChipsSrc = read('frontend/src/utils/homepageRouteChips.ts');
 
 let marketsExecutableCtas = 0;
 let portfolioExecutableCtas = 0;
 let featuredExecutableCtas = featured.length;
 let deepLinkDefaults = 0;
 const uncertifiedCtaTargets = [];
+const homepageUncertifiedTargets = [];
+const homepageInvalidIdentities = [];
+const homepageManualUrls = [];
 
 if (!availabilitySrc.includes('buildCertifiedSwapNavigation')) {
   uncertifiedCtaTargets.push('swapAvailability missing buildCertifiedSwapNavigation');
+}
+if (!availabilitySrc.includes('buildCertifiedDirectionalSwapNavigation')) {
+  homepageUncertifiedTargets.push('swapAvailability missing buildCertifiedDirectionalSwapNavigation');
+}
+if (!homepageChipsSrc.includes('buildCertifiedDirectionalSwapNavigation')) {
+  homepageUncertifiedTargets.push('homepageRouteChips must use buildCertifiedDirectionalSwapNavigation');
+}
+if (!homepagePopularSrc.includes('resolveHomepageRouteChip')) {
+  homepageUncertifiedTargets.push('HomepagePopularRoutes must resolve chips via resolveHomepageRouteChip');
+}
+if (homepagePopularSrc.includes('`/swap?') || homepagePopularSrc.includes("'/swap?")) {
+  // Manual string templates for query assembly are forbidden; href must come from chip.search
+  if (!homepagePopularSrc.includes('chip.search')) {
+    homepageManualUrls.push('HomepagePopularRoutes assembles swap URLs without chip.search');
+  }
+}
+if (/searchParams\.set\(|URLSearchParams|from=.*to=/.test(homepagePopularSrc) && !homepagePopularSrc.includes('chip.search')) {
+  homepageManualUrls.push('HomepagePopularRoutes appears to build query strings manually');
 }
 if (!tokenRowSrc.includes('getSwapAvailability')) {
   uncertifiedCtaTargets.push('TokenRow does not use getSwapAvailability');
@@ -195,6 +218,34 @@ if (shellSrc.includes("getTokenBySymbol('USDT'") && shellSrc.includes('handlePor
   }
 }
 
+// Homepage chip inventory (catalog-backed; executable chips must be certified)
+let homepageRouteChips = popular.length;
+let homepageExecutableChips = 0;
+let homepageInformationalChips = 0;
+for (const r of popular) {
+  const forward = pairKey(r.chainId, r.from, r.to);
+  const reverse = pairKey(r.chainId, r.to, r.from);
+  const forwardOk = CERTIFIED.has(forward) && !BLOCKED.has(forward);
+  const reverseOk = !r.bidirectional || (CERTIFIED.has(reverse) && !BLOCKED.has(reverse));
+  if (r.from === 'WBNB' || r.to === 'WBNB') {
+    homepageUncertifiedTargets.push(`homepage chip WBNB endpoint: ${forward}`);
+  }
+  if (r.chainId !== 1 && r.chainId !== 56) {
+    homepageUncertifiedTargets.push(`homepage chip on view-only chain: ${forward}`);
+  }
+  if (!r.from || !r.to || r.from === r.to) {
+    homepageInvalidIdentities.push(`homepage chip invalid identity: ${forward}`);
+  }
+  if (forwardOk && reverseOk) {
+    homepageExecutableChips += 1;
+  } else {
+    homepageInformationalChips += 1;
+    if (!forwardOk) {
+      homepageUncertifiedTargets.push(`homepage executable candidate missing coverage: ${forward}`);
+    }
+  }
+}
+
 console.log(`CERTIFIED_ROUTES=${CERTIFIED.size}`);
 console.log(`CERTIFIED_ETH=${ethCount}`);
 console.log(`CERTIFIED_BSC=${bscCount}`);
@@ -206,9 +257,27 @@ console.log(`MARKETS_EXECUTABLE_CTAS=${marketsExecutableCtas}`);
 console.log(`PORTFOLIO_EXECUTABLE_CTAS=${portfolioExecutableCtas}`);
 console.log(`FEATURED_EXECUTABLE_CTAS=${featuredExecutableCtas}`);
 console.log(`DEEP_LINK_DEFAULTS=${deepLinkDefaults}`);
+console.log(`HOMEPAGE_ROUTE_CHIPS=${homepageRouteChips}`);
+console.log(`HOMEPAGE_EXECUTABLE_CHIPS=${homepageExecutableChips}`);
+console.log(`HOMEPAGE_INFORMATIONAL_CHIPS=${homepageInformationalChips}`);
+console.log(`HOMEPAGE_UNCERTIFIED_TARGETS=${homepageUncertifiedTargets.length}`);
+console.log(`HOMEPAGE_INVALID_IDENTITIES=${homepageInvalidIdentities.length}`);
+console.log(`HOMEPAGE_MANUAL_URLS=${homepageManualUrls.length}`);
 console.log(`UNCERTIFIED_CTA_TARGETS=${uncertifiedCtaTargets.length}`);
 for (const m of uncertifiedCtaTargets) {
   console.log(`  - CTA: ${m}`);
+  mismatches.push(m);
+}
+for (const m of homepageUncertifiedTargets) {
+  console.log(`  - HOMEPAGE: ${m}`);
+  mismatches.push(m);
+}
+for (const m of homepageInvalidIdentities) {
+  console.log(`  - HOMEPAGE_ID: ${m}`);
+  mismatches.push(m);
+}
+for (const m of homepageManualUrls) {
+  console.log(`  - HOMEPAGE_URL: ${m}`);
   mismatches.push(m);
 }
 console.log(`MISMATCHES=${mismatches.length}`);

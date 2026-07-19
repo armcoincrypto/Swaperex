@@ -19,6 +19,7 @@ import {
   type CommissionRouteDenialReason,
   type CommissionTokenRef,
 } from '@/utils/commissionRoutePolicy';
+import { buildSwapSearchParams } from '@/utils/swapUrlState';
 
 export type SwapAvailabilityStatus =
   | 'executable'
@@ -180,6 +181,40 @@ export function buildCertifiedSwapNavigation(input: {
     return { chainId: input.chainId, fromSymbol: counterpart, toSymbol: identity.symbol };
   }
   return null;
+}
+
+/**
+ * Exact directional prefill for homepage (and similar) certified chips.
+ * Returns null unless the pair is executable and identities resolve.
+ */
+export function buildCertifiedDirectionalSwapNavigation(input: {
+  chainId: number;
+  tokenIn: CommissionTokenRef | string;
+  tokenOut: CommissionTokenRef | string;
+}): { chainId: number; fromSymbol: string; toSymbol: string; search: string } | null {
+  const availability = getSwapAvailability({
+    chainId: input.chainId,
+    tokenIn: input.tokenIn,
+    tokenOut: input.tokenOut,
+  });
+  if (availability.status !== 'executable' || !availability.route) return null;
+
+  const { chainId, tokenIn, tokenOut } = availability.route;
+  const search = buildSwapSearchParams({
+    chainId,
+    fromSymbol: tokenIn.symbol,
+    toSymbol: tokenOut.symbol,
+  });
+  if (!search.includes('from=') || !search.includes('to=') || !search.includes('chain=')) {
+    return null;
+  }
+
+  return {
+    chainId,
+    fromSymbol: tokenIn.symbol,
+    toSymbol: tokenOut.symbol,
+    search,
+  };
 }
 
 export function getSwapAvailability(input: {
