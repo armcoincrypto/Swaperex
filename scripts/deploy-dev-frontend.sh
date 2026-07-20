@@ -210,7 +210,32 @@ npm ci --production=false
 
 BUILD_DIR="$(mktemp -d "${TMPDIR:-/tmp}/swaperex-dev-build.XXXXXX")"
 log "Phase 1: Building frontend into temp dir: $BUILD_DIR"
-npm run build -- --outDir "$BUILD_DIR" --emptyOutDir
+
+resolve_wc_project_id() {
+  if [[ -n "${VITE_WC_PROJECT_ID:-}" && "${VITE_WC_PROJECT_ID}" != "PASTE_YOUR_PROJECT_ID_HERE" && "${VITE_WC_PROJECT_ID}" != "your_project_id_here" ]]; then
+    printf '%s' "$VITE_WC_PROJECT_ID"
+    return 0
+  fi
+  local f v
+  for f in \
+      "$FRONTEND_DIR/.env.production.local" \
+      "$FRONTEND_DIR/.env.local" \
+      "$FRONTEND_DIR/.env" \
+      "/root/Swaperex/frontend/.env"
+  do
+    [[ -f "$f" ]] || continue
+    v="$(grep -h -E '^(VITE_WC_PROJECT_ID|VITE_WALLETCONNECT_PROJECT_ID)=' "$f" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\r' | sed -e 's/^["'\'']//' -e 's/["'\'']$//' || true)"
+    if [[ -n "$v" && "$v" != "PASTE_YOUR_PROJECT_ID_HERE" && "$v" != "your_project_id_here" ]]; then
+      printf '%s' "$v"
+      return 0
+    fi
+  done
+  return 1
+}
+
+WC_PROJECT_ID="$(resolve_wc_project_id)" || die "VITE_WC_PROJECT_ID missing — refusing to build without WalletConnect project ID" 1
+log "Phase 1: WalletConnect project ID present (length=${#WC_PROJECT_ID})"
+VITE_WC_PROJECT_ID="$WC_PROJECT_ID" npm run build -- --outDir "$BUILD_DIR" --emptyOutDir
 
 [[ -d "$BUILD_DIR" ]] || die "build output missing: $BUILD_DIR"
 [[ -f "$BUILD_DIR/index.html" ]] || die "staged index.html missing"

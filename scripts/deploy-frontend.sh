@@ -85,9 +85,38 @@ if ! npm ci --production=false; then
   die "npm ci failed (full log above — do not pipe npm through tail)" 1
 fi
 
+# WalletConnect project ID is a public client identifier, but must be present at Vite
+# build time. Recent .env.production revisions omit it; resolve from env / local .env
+# files so production never ships an empty bake that crashes WalletBootstrap.
+resolve_wc_project_id() {
+    if [[ -n "${VITE_WC_PROJECT_ID:-}" && "${VITE_WC_PROJECT_ID}" != "PASTE_YOUR_PROJECT_ID_HERE" && "${VITE_WC_PROJECT_ID}" != "your_project_id_here" ]]; then
+        printf '%s' "$VITE_WC_PROJECT_ID"
+        return 0
+    fi
+    local f v
+    for f in \
+        "$FRONTEND_DIR/.env.production.local" \
+        "$FRONTEND_DIR/.env.local" \
+        "$FRONTEND_DIR/.env" \
+        "/root/Swaperex/frontend/.env"
+    do
+        [[ -f "$f" ]] || continue
+        v="$(grep -h -E '^(VITE_WC_PROJECT_ID|VITE_WALLETCONNECT_PROJECT_ID)=' "$f" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\r' | sed -e 's/^["'\'']//' -e 's/["'\'']$//' || true)"
+        if [[ -n "$v" && "$v" != "PASTE_YOUR_PROJECT_ID_HERE" && "$v" != "your_project_id_here" ]]; then
+            printf '%s' "$v"
+            return 0
+        fi
+    done
+    return 1
+}
+
+log "Phase 1: Resolving WalletConnect project ID for Vite bake-in..."
+WC_PROJECT_ID="$(resolve_wc_project_id)" || die "VITE_WC_PROJECT_ID missing — refusing to deploy a build that crashes Connect Wallet. Set VITE_WC_PROJECT_ID or add it to /root/Swaperex/frontend/.env" 1
+log "Phase 1: WalletConnect project ID present (length=${#WC_PROJECT_ID})"
+
 log "Phase 1: Building frontend..."
-if ! VITE_GIT_COMMIT="$COMMIT_SHORT" npm run build; then
-  die "npm run build failed (full log above — do not pipe npm through tail)" 1
+if ! VITE_GIT_COMMIT="$COMMIT_SHORT" VITE_WC_PROJECT_ID="$WC_PROJECT_ID" npm run build; then
+    die "npm run build failed (full log above — do not pipe npm through tail)" 1
 fi
 
 [[ -d "$FRONTEND_DIR/dist" ]] || die "Build succeeded but dist/ not found" 1

@@ -1,12 +1,15 @@
 /**
  * Lazy-loaded wallet host: AppKit store bridge + modal action registration.
  * initAppKit runs at module load (before any component render) so useAppKit* hooks never race init.
+ *
+ * When the WalletConnect project ID is missing/placeholder, createAppKit is skipped.
+ * In that case we must NOT call useAppKit* hooks (they throw into the root ErrorBoundary).
  */
 
 import { useEffect } from 'react';
 import { useAppKit, useDisconnect } from '@reown/appkit/react';
 import { AppKitBridge } from '@/components/wallet/AppKitBridge';
-import { initAppKit } from '@/services/wallet/appkit';
+import { initAppKit, isAppKitCreated } from '@/services/wallet/appkit';
 import {
   registerAppKitActions,
   unregisterAppKitActions,
@@ -58,7 +61,18 @@ function AppKitModalErrorGuard() {
   return null;
 }
 
-export default function WalletBootstrap() {
+/** Unblocks waitForAppKitActions when AppKit cannot be created (missing project ID). */
+function WalletConnectUnavailableHost() {
+  useEffect(() => {
+    signalAppKitActionsReady();
+    console.warn(
+      '[WalletBootstrap] AppKit not created (missing or placeholder WalletConnect project ID). Hooks skipped to avoid fatal crash.',
+    );
+  }, []);
+  return null;
+}
+
+function WalletBootstrapReady() {
   return (
     <>
       <AppKitBridge />
@@ -66,4 +80,11 @@ export default function WalletBootstrap() {
       <AppKitModalErrorGuard />
     </>
   );
+}
+
+export default function WalletBootstrap() {
+  if (!isAppKitCreated()) {
+    return <WalletConnectUnavailableHost />;
+  }
+  return <WalletBootstrapReady />;
 }

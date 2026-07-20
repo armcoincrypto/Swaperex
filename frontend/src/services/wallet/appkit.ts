@@ -21,13 +21,20 @@ import {
 } from '@/utils/constants';
 
 let initialized = false;
+/** True only after `createAppKit` succeeds — hooks must not run otherwise. */
+let appKitCreated = false;
 
-function isWalletConnectProjectIdPlaceholder(projectId: string): boolean {
+export function isWalletConnectProjectIdPlaceholder(projectId: string): boolean {
   return (
     !projectId ||
     projectId === 'PASTE_YOUR_PROJECT_ID_HERE' ||
     projectId === 'your_project_id_here'
   );
+}
+
+/** Whether Reown AppKit was created for this page load (safe for WalletBootstrap guards). */
+export function isAppKitCreated(): boolean {
+  return appKitCreated;
 }
 
 export function initAppKit() {
@@ -78,4 +85,5 @@ export function initAppKit() {
       socials: false,
     },
   });
+  appKitCreated = true;
 }

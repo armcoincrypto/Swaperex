@@ -34,9 +34,29 @@ import {
 } from '@/wallet';
 import type { EIP1193Provider, ConnectorId } from '@/wallet';
 import { getWalletBootstrapBalanceChains } from '@/hooks/useBalances';
+import {
+  HAS_WALLETCONNECT_PROJECT_ID,
+  WALLETCONNECT_PROJECT_ID,
+} from '@/utils/constants';
 
 const EXTENSION_WALLETS_DISABLED_MSG =
   'Browser extension wallets are disabled on this deployment. Use WalletConnect.';
+
+const WALLETCONNECT_NOT_CONFIGURED_MSG =
+  'WalletConnect is not configured on this deployment. Please try again later.';
+
+const WALLETCONNECT_INIT_FAILED_MSG =
+  'WalletConnect failed to initialize. Please refresh the page and try again.';
+
+function isMissingWalletConnectProjectId(): boolean {
+  const id = WALLETCONNECT_PROJECT_ID;
+  return (
+    !HAS_WALLETCONNECT_PROJECT_ID ||
+    !id ||
+    id === 'PASTE_YOUR_PROJECT_ID_HERE' ||
+    id === 'your_project_id_here'
+  );
+}
 
 async function readChainIdFromProvider(raw: EIP1193Provider): Promise<number | null> {
   try {
@@ -154,12 +174,21 @@ export function useWallet() {
 
   const connectWalletConnect = useCallback(async () => {
     clearError();
+    if (isMissingWalletConnectProjectId()) {
+      setConnectionError(WALLETCONNECT_NOT_CONFIGURED_MSG);
+      throw new Error(WALLETCONNECT_NOT_CONFIGURED_MSG);
+    }
     connectorIdRef.current = 'walletconnect';
     setConnectorLabel('WalletConnect');
     await waitForAppKitActions();
-    getOpenAppKit()?.({ view: 'Connect', namespace: 'eip155' });
+    const open = getOpenAppKit();
+    if (!open) {
+      setConnectionError(WALLETCONNECT_INIT_FAILED_MSG);
+      throw new Error(WALLETCONNECT_INIT_FAILED_MSG);
+    }
+    open({ view: 'Connect', namespace: 'eip155' });
     // AppKitBridge will sync connection to store when user connects in modal
-  }, [clearError]);
+  }, [clearError, setConnectionError]);
 
   // ─── Disconnect ───────────────────────────────────────────
 
