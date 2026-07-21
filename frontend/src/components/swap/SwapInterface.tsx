@@ -62,6 +62,8 @@ import {
   scaleFeeByGasUnits,
 } from '@/utils/safeNativeMax';
 import { resolveQuoteReadiness } from '@/utils/quoteReadiness';
+import { isQuoteQualityExecutable } from '@/utils/quoteQuality';
+import { QUOTE_FRESHNESS_TTL_SECONDS } from '@/utils/quoteFreshness';
 import {
   getRouteDisplayName,
   getRouteExplanation,
@@ -105,7 +107,7 @@ import {
 } from '@/services/tokenSafetyProbe';
 import { analyzeSwapFromContext, type SwapIntelligence } from '@/services/dex';
 import type { AssetInfo } from '@/types/api';
-import { isAddress } from 'ethers';
+import { formatUnits, isAddress } from 'ethers';
 import { isDebugMode } from '@/utils/chainHealth';
 import { getSwapQuoteInputFingerprint } from '@/utils/swapQuoteInputFingerprint';
 import { emitSwapLifecycleStage } from '@/utils/swapLifecycleTelemetry';
@@ -686,7 +688,7 @@ export function SwapInterface() {
   const { markPresetUsed } = usePresetStore();
 
   // Quote expiry countdown (30 second TTL)
-  const QUOTE_EXPIRY_SECONDS = 30;
+  const QUOTE_EXPIRY_SECONDS = QUOTE_FRESHNESS_TTL_SECONDS;
   const [quoteSecondsRemaining, setQuoteSecondsRemaining] = useState<number | null>(null);
 
   // Delayed spinner state - don't show spinner immediately (Uniswap-style UX)
@@ -738,11 +740,11 @@ export function SwapInterface() {
     }
   }, [currentChainId, prevChainId, fromAsset, toAsset, setFromAsset, setToAsset, setFromAmount, reset, AVAILABLE_TOKENS]);
 
-  // Fixed-route modes are chain-specific; reset to Best price if the network cannot run the selection
+  // Fixed-route modes are chain-specific; reset to the canonical certified route when unavailable.
   useEffect(() => {
     if (isQuoteRouteModeDisabled(routeMode, currentChainId)) {
       setRouteMode('best');
-      toast.info('Route preference set to Best price — not available on this network.');
+      toast.info('Route preference reset to the certified route — selected venue is unavailable on this network.');
     }
   }, [currentChainId, routeMode, setRouteMode]);
 
@@ -1031,6 +1033,10 @@ export function SwapInterface() {
     Boolean(fromAmount && parseFloat(fromAmount) > 0) &&
     !insufficientBalance;
 
+  const quoteQualityBlocked = Boolean(
+    swapQuote?.economics && !isQuoteQualityExecutable(swapQuote.economics),
+  );
+
   const quoteReadiness = useMemo(
     () =>
       resolveQuoteReadiness({
@@ -1203,6 +1209,7 @@ export function SwapInterface() {
     if (!swapQuote || !swapQuote.amountOutFormatted) return;
     if (status !== 'previewing') return;
     if (swapQuote.allowanceCheckUncertain) return;
+    if (quoteQualityBlocked) return;
 
     // Reset the skip confirmation flag
     setSkipConfirmationActive(false);
@@ -1217,7 +1224,15 @@ export function SwapInterface() {
       .catch((err) => {
         console.warn('[Swap] Auto-execute failed:', err);
       });
-  }, [skipConfirmationActive, swapQuote, status, swap, confirmSwap, isReadOnly]);
+  }, [
+    skipConfirmationActive,
+    swapQuote,
+    status,
+    swap,
+    confirmSwap,
+    isReadOnly,
+    quoteQualityBlocked,
+  ]);
 
   // Expired quote: refresh only (stay on swap card). Fresh quote: open preview as today.
   const handleMainSwapAction = async () => {
@@ -1263,6 +1278,15 @@ export function SwapInterface() {
   // Open preview modal - ONLY if quote is valid and fresh
   const handlePreviewSwap = async () => {
     if (isReadOnly) return;
+
+    if (quoteQualityBlocked) {
+      toast.warning(
+        swapQuote?.economics?.warnings.includes('HIGH_PRICE_IMPACT')
+          ? 'This quote exceeds the 5% price-impact safety limit and cannot proceed.'
+          : 'This quote is no longer safe to execute. Refresh and review it again.',
+      );
+      return;
+    }
 
     if (insufficientGas) {
       toast.error(
@@ -1336,6 +1360,10 @@ export function SwapInterface() {
 
   // Confirm swap from preview modal
   const handleConfirmSwap = async () => {
+    if (quoteQualityBlocked) {
+      toast.warning('This quote is blocked by the quote-quality safety policy.');
+      return;
+    }
     if (insufficientGas) {
       toast.error(
         gasAffordability?.blockingMessage ??
@@ -1482,6 +1510,7 @@ export function SwapInterface() {
     if (insufficientGas && gasAffordability?.blockingMessage) {
       return `Insufficient ${gasAffordability.nativeSymbol} for fees`;
     }
+    if (quoteQualityBlocked) return 'Quote blocked — review warning';
     if (isQuoteFetchUiLoading) return SWAP_SURFACE_COPY.gettingQuote;
     if (status === 'error' && error) {
       if (!swapQuote && quoteErrorParsed?.reasonCode === 'unsupported_commission_route') {
@@ -1517,6 +1546,7 @@ export function SwapInterface() {
     }
     if (insufficientBalance) return true;
     if (insufficientGas) return true;
+    if (quoteQualityBlocked) return true;
     if (isQuoteFetchUiLoading) return true;
     if (status === 'error' && error) {
       if (!swapQuote && quoteErrorParsed?.reasonCode === 'unsupported_commission_route') {
@@ -2427,6 +2457,29 @@ export function SwapInterface() {
               )}
               {(() => {
                 const q = swapQuote;
+                if (q.economics) {
+                  return (
+                    <div className="flex justify-between gap-2 min-w-0 items-baseline">
+                      <span className="text-dark-400 shrink-0">
+                        {SWAP_SURFACE_COPY.swaperexFeeLabel}
+                      </span>
+                      <span
+                        className="min-w-0 text-right text-dark-200 tabular-nums break-words"
+                        title="Exact output-token commission returned by the certified wrapper quote"
+                      >
+                        {formatBalance(
+                          formatUnits(
+                            q.economics.commissionAmount,
+                            q.economics.tokenOut.decimals,
+                          ),
+                          6,
+                        )}{' '}
+                        {q.economics.tokenOut.symbol} (
+                        {(q.economics.commissionBps / 100).toFixed(2)}%)
+                      </span>
+                    </div>
+                  );
+                }
                 if (q.provider === '1inch' && isMonetizationActiveForProvider('1inch')) {
                   return (
                     <div className="flex justify-between gap-2 min-w-0 items-baseline">
@@ -2517,6 +2570,35 @@ export function SwapInterface() {
                   </div>
                 );
               })()}
+              <div className="flex justify-between gap-2 min-w-0 items-baseline">
+                <span className="text-dark-400 shrink-0">Network fee (est.)</span>
+                <span className="min-w-0 text-right text-dark-200 tabular-nums break-words">
+                  {networkFeeEstimate?.nativeFeeFormatted ??
+                    (networkFeeEstimate?.settled ? 'Unavailable' : 'Estimating…')}
+                </span>
+              </div>
+              {swapQuote.economics && (
+                <div className="flex justify-between gap-2 min-w-0 items-baseline">
+                  <span className="text-dark-400 shrink-0">Quote quality</span>
+                  <span
+                    className={`min-w-0 text-right font-medium ${
+                      swapQuote.economics.qualityStatus === 'BLOCKED'
+                        ? 'text-red-400'
+                        : swapQuote.economics.qualityStatus === 'HIGH'
+                          ? 'text-orange-300'
+                          : swapQuote.economics.qualityStatus === 'ELEVATED'
+                            ? 'text-yellow-300'
+                            : swapQuote.economics.qualityStatus === 'UNKNOWN'
+                              ? 'text-dark-300'
+                              : 'text-green-300'
+                    }`}
+                  >
+                    {swapQuote.economics.qualityStatus === 'UNKNOWN'
+                      ? 'Unknown data'
+                      : swapQuote.economics.qualityStatus}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Advanced details — full technical context; open by default with ?debug=1 */}
@@ -2830,18 +2912,44 @@ export function SwapInterface() {
           </div>
         )}
 
-        {/* High Price Impact Warning — suppressed in Phase 2 quote-only so execution noise does not dominate */}
+        {/* Canonical quote-quality warnings — unsafe impact is blocked, unknown is never called safe. */}
+        {swapQuote?.economics &&
+          !isEthNativeV2QuoteOnlyNoExec &&
+          swapQuote.economics.warnings.length > 0 && (
+            <div
+              className={`mt-4 p-3 rounded-xl text-sm flex items-start gap-2 ${
+                swapQuote.economics.qualityStatus === 'BLOCKED'
+                  ? 'bg-red-900/20 border border-red-800 text-red-300'
+                  : 'bg-amber-950/30 border border-amber-700/50 text-amber-200'
+              }`}
+              role={swapQuote.economics.qualityStatus === 'BLOCKED' ? 'alert' : 'status'}
+            >
+              <WarningIcon />
+              <span>
+                {swapQuote.economics.warnings.includes('HIGH_PRICE_IMPACT')
+                  ? swapQuote.economics.qualityStatus === 'BLOCKED'
+                    ? 'Price impact exceeds 5%. This quote is blocked; reduce the amount and refresh.'
+                    : 'High price impact. Reduce the amount and refresh before continuing.'
+                  : swapQuote.economics.warnings.includes('NO_PRICE_IMPACT_DATA')
+                    ? 'Price impact is unavailable for this pool quote. It is not being labeled safe; review minimum received and network cost.'
+                    : swapQuote.economics.warnings.includes('HIGH_GAS')
+                      ? 'Estimated network cost is high relative to the expected receive value.'
+                      : 'This certified quote has route-quality warnings. Review the economics before continuing.'}
+              </span>
+            </div>
+          )}
         {swapQuote &&
+          !swapQuote.economics &&
           !isEthNativeV2QuoteOnlyNoExec &&
           (() => {
-          const n = parsePriceImpactPercentOrNaN(swapQuote.price_impact);
-          return Number.isFinite(n) && n > 3;
-        })() && (
-          <div className="mt-4 p-3 bg-red-900/20 border border-red-800 rounded-xl text-sm text-red-400 flex items-center gap-2">
-            <WarningIcon />
-            <span>High price impact! You may receive significantly less.</span>
-          </div>
-        )}
+            const n = parsePriceImpactPercentOrNaN(swapQuote.price_impact);
+            return Number.isFinite(n) && n > 3;
+          })() && (
+            <div className="mt-4 p-3 bg-red-900/20 border border-red-800 rounded-xl text-sm text-red-400 flex items-center gap-2">
+              <WarningIcon />
+              <span>High price impact! You may receive significantly less.</span>
+            </div>
+          )}
 
         {/* Error Display — avoid harsh banner while a good quote is still on screen */}
         {error &&
@@ -3685,7 +3793,7 @@ function SlippageSettings({
           })}
         </div>
         <p className="text-[11px] text-dark-500 mt-2 leading-snug">
-          Best price compares routes. Fixed options execute only on that venue — no silent fallback.
+          Certified route uses only commission-enforced implementations. Fixed options execute only on that venue — no silent fallback.
         </p>
       </div>
 

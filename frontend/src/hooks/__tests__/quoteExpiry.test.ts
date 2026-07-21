@@ -5,7 +5,7 @@ import { describe, it, expect } from 'vitest';
  *
  * The actual check is:
  *   const quoteAge = Date.now() - swapQuote.quoteTimestamp;
- *   if (quoteAge > QUOTE_EXPIRY_MS) { throw 'QUOTE_EXPIRED' }
+ *   if (quoteAge >= QUOTE_EXPIRY_MS) { throw 'QUOTE_EXPIRED' }
  *
  * We test the pure logic here without rendering the hook.
  */
@@ -13,7 +13,7 @@ import { describe, it, expect } from 'vitest';
 const QUOTE_EXPIRY_MS = 30000;
 
 function isQuoteExpired(quoteTimestamp: number, now: number): boolean {
-  return (now - quoteTimestamp) > QUOTE_EXPIRY_MS;
+  return (now - quoteTimestamp) >= QUOTE_EXPIRY_MS;
 }
 
 describe('quote expiry logic', () => {
@@ -27,9 +27,9 @@ describe('quote expiry logic', () => {
     expect(isQuoteExpired(now - 29000, now)).toBe(false);
   });
 
-  it('quote at exactly 30s is not expired (boundary)', () => {
+  it('quote at exactly 30s is expired (boundary)', () => {
     const now = Date.now();
-    expect(isQuoteExpired(now - 30000, now)).toBe(false);
+    expect(isQuoteExpired(now - 30000, now)).toBe(true);
   });
 
   it('quote at 30.001s is expired', () => {

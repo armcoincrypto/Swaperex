@@ -10,6 +10,7 @@
 import { Contract, JsonRpcProvider, Network, formatUnits, parseUnits } from 'ethers';
 import { CHAINS } from '@/config/chains';
 import { getTokenBySymbol } from '@/tokens';
+import { PRICE_IMPACT_NOT_ESTIMATED } from '@/utils/format';
 
 /**
  * PancakeSwap V3 Contract Addresses on BSC
@@ -55,6 +56,10 @@ export type PancakeFeeTier = (typeof PANCAKE_FEE_TIERS)[keyof typeof PANCAKE_FEE
 export interface PancakeQuoteResult {
   amountIn: string;
   amountOut: string;
+  /** Gross wrapper output before Kobbex commission (raw token units). */
+  amountOutGross?: string;
+  /** Exact Kobbex commission returned by the wrapper quote (raw token units). */
+  commissionAmount?: string;
   amountOutFormatted: string;
   priceImpact: string;
   gasEstimate: string;
@@ -230,7 +235,8 @@ export async function getPancakeQuote(
       amountIn: amountInWei.toString(),  // Return in wei format for consistency
       amountOut: amountOut.toString(),
       amountOutFormatted,
-      priceImpact: priceImpact.toFixed(2),
+      priceImpact:
+        priceImpact == null ? PRICE_IMPACT_NOT_ESTIMATED : priceImpact.toFixed(2),
       gasEstimate: gasEstimate.toString(),
       feeTier,
       sqrtPriceX96After: sqrtPriceX96After.toString(),
@@ -297,13 +303,13 @@ function calculatePriceImpact(
   outputAmount: number,
   tokenIn: string,
   tokenOut: string
-): number {
+): number | null {
   // For stablecoin pairs
   const stablecoins = ['USDT', 'USDC', 'BUSD', 'DAI', 'FDUSD'];
   if (stablecoins.includes(tokenIn.toUpperCase()) && stablecoins.includes(tokenOut.toUpperCase())) {
     return Math.abs(1 - outputAmount / inputAmount) * 100;
   }
-  return 0;
+  return null;
 }
 
 /**

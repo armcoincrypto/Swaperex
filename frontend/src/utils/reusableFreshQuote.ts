@@ -1,5 +1,6 @@
 import type { AggregatedQuote, QuoteRouteMode } from '@/services/quoteAggregator';
 import type { UniswapWrapperV3QuoteResult } from '@/services/uniswapWrapperQuoteV3';
+import { QUOTE_FRESHNESS_TTL_MS } from '@/utils/quoteFreshness';
 
 /** Minimal quote shape for preview reuse checks (avoids circular import with useSwap). */
 export type PreviewReuseQuote = {
@@ -28,7 +29,7 @@ export type SwapStatusForReuse =
   | 'error';
 
 /** Aligns with `useSwap` confirmSwap — quote valid through 30s inclusive. */
-export const QUOTE_PREVIEW_REUSE_MAX_AGE_MS = 30_000;
+export const QUOTE_PREVIEW_REUSE_MAX_AGE_MS = QUOTE_FRESHNESS_TTL_MS;
 
 export type ReusableFreshQuoteReason =
   | 'reusable'
@@ -127,7 +128,7 @@ export function isReusableFreshQuote(params: ReusableFreshQuoteParams): Reusable
   if (!quote.success) return fail('quote_not_successful');
 
   const quoteAgeMs = quote.quoteTimestamp != null ? now - quote.quoteTimestamp : null;
-  if (quoteAgeMs == null || quoteAgeMs > QUOTE_PREVIEW_REUSE_MAX_AGE_MS) {
+  if (quoteAgeMs == null || quoteAgeMs >= QUOTE_PREVIEW_REUSE_MAX_AGE_MS) {
     return fail('quote_expired', quoteAgeMs);
   }
 

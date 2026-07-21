@@ -305,12 +305,12 @@ export type QuoteProvider =
   | 'pancakeswap-v3-wrapper-v2'
   | '1inch';
 
-/** User routing preference: compare all sources, or fix one execution venue. */
+/** User routing preference: use the canonical route policy, or fix one execution venue. */
 export type QuoteRouteMode = 'best' | QuoteProvider;
 
 /** Human-readable label for settings and preview — delegates to canonical route presentation. */
 export function formatQuoteRoutePreferenceLabel(mode: QuoteRouteMode): string {
-  if (mode === 'best') return 'Best price';
+  if (mode === 'best') return 'Certified route';
   return getRouteDisplayName(mode);
 }
 
@@ -336,7 +336,7 @@ export function isQuoteRouteModeDisabled(mode: QuoteRouteMode, chainId: number):
 function assertForcedRouteAllowed(provider: QuoteProvider, chainId: number): void {
   if (provider === 'uniswap-v3-wrapper') {
     throw new Error(
-      'The Uniswap fee wrapper cannot be selected as a fixed route. Choose Best price or Uniswap; the wrapper applies automatically when enabled in the environment.',
+      'The Uniswap fee wrapper cannot be selected as a fixed route. Choose Certified route or Uniswap; the wrapper applies automatically when enabled in the environment.',
     );
   }
   if (provider === 'uniswap-v3-wrapper-v3') {
@@ -346,7 +346,7 @@ function assertForcedRouteAllowed(provider: QuoteProvider, chainId: number): voi
   }
   if (provider === 'pancakeswap-v3-wrapper') {
     throw new Error(
-      'The Pancake fee wrapper cannot be selected as a fixed route. Choose Best price or Pancake; the wrapper applies automatically when enabled in the environment.',
+      'The Pancake fee wrapper cannot be selected as a fixed route. Choose Certified route or Pancake; the wrapper applies automatically when enabled in the environment.',
     );
   }
   if (provider === 'pancakeswap-v3-wrapper-v2') {
@@ -379,12 +379,12 @@ function assertForcedRouteAllowed(provider: QuoteProvider, chainId: number): voi
   }
   if (provider === 'uniswap-v3' && chainId !== 1) {
     throw new Error(
-      'Uniswap V3 is only available on Ethereum mainnet. Switch networks or choose Best price or 1inch.',
+      'Uniswap V3 is only available on Ethereum mainnet. Switch networks or choose Certified route or 1inch.',
     );
   }
   if (provider === 'pancakeswap-v3' && chainId !== 56) {
     throw new Error(
-      'PancakeSwap is only available on BNB Chain. Switch networks or choose Best price or 1inch.',
+      'PancakeSwap is only available on BNB Chain. Switch networks or choose Certified route or 1inch.',
     );
   }
 }
@@ -737,7 +737,7 @@ function formatFromWei(amount: string, decimals: number): string {
  * @param amountIn - Input amount (human readable)
  * @param chainId - Chain ID (1 = ETH, 56 = BSC, 137 = Polygon, etc.)
  * @param slippage - Slippage tolerance percentage
- * @param routeMode - Best price (compare venues) or force a single provider
+ * @param routeMode - Canonical certified route policy or force a single provider
  */
 export async function getAggregatedQuote(
   tokenIn: string,
@@ -1064,13 +1064,13 @@ function selectBestQuote(
     return {
       best: oneInchQuote!,
       alternative: directQuote!,
-      selectionReason: `Selected 1inch for the best quoted output (+${Math.abs(diff).toFixed(2)}%)`,
+      selectionReason: `Selected 1inch for higher quoted output among available providers (+${Math.abs(diff).toFixed(2)}%)`,
     };
   } else {
     return {
       best: directQuote!,
       alternative: oneInchQuote!,
-      selectionReason: `Selected ${fallbackName} for the best quoted output (+${Math.abs(diff).toFixed(2)}%)`,
+      selectionReason: `Selected ${fallbackName} for higher quoted output among available providers (+${Math.abs(diff).toFixed(2)}%)`,
     };
   }
 }
@@ -1102,7 +1102,7 @@ export async function getQuoteFromProvider(
     const quote = await getBestOneInchQuote(tokenIn, tokenOut, amountIn, chainId, apiKey);
     if (!quote) {
       throw new Error(
-        'No quote from 1inch for this pair or amount. Try another size, or switch to Best price to compare routes.',
+        'No quote from 1inch for this pair or amount. Try another size, or switch to Certified route.',
       );
     }
     return normalizeOneInchQuote(quote, slippage, tokenOutData.decimals, chainId);
@@ -1409,7 +1409,7 @@ export async function getQuoteFromProvider(
     }
   } else if (provider === 'pancakeswap-v3-wrapper') {
     throw new Error(
-      'The Pancake fee wrapper cannot be quoted as a fixed route. Choose Best price or Pancake; the wrapper applies automatically when enabled.',
+      'The Pancake fee wrapper cannot be quoted as a fixed route. Choose Certified route or Pancake; the wrapper applies automatically when enabled.',
     );
   }
 

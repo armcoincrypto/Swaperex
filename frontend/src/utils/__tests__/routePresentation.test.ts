@@ -36,6 +36,6 @@ describe('routePresentation', () => {
     expect(formatQuoteRoutePreferenceLabel('uniswap-v3-wrapper-v2')).toBe(
       getRouteDisplayName('uniswap-v3-wrapper-v2'),
     );
-    expect(formatQuoteRoutePreferenceLabel('best')).toBe('Best price');
+    expect(formatQuoteRoutePreferenceLabel('best')).toBe('Certified route');
   });
 });

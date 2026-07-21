@@ -7,6 +7,7 @@ import { Contract, JsonRpcProvider, Network, formatUnits, parseUnits } from 'eth
 import { ETHEREUM_CONFIG } from '@/config';
 import { getTokenBySymbol, getSwapAddress, isNativeToken } from '@/tokens';
 import { getUniswapWrapperV2Config, isUniswapWrapperV2QuoteEligible } from '@/config/uniswapWrapperV2';
+import { PRICE_IMPACT_NOT_ESTIMATED } from '@/utils/format';
 import { type FeeTier, type QuoteResult } from './uniswapQuote';
 
 const WRAPPER_V2_QUOTE_ABI = [
@@ -52,17 +53,17 @@ function calculatePriceImpact(
   outputAmount: number,
   tokenIn: string,
   tokenOut: string,
-): number {
+): number | null {
   const stablecoins = ['USDT', 'USDC', 'DAI', 'BUSD', 'FDUSD'];
   if (stablecoins.includes(tokenIn.toUpperCase()) && stablecoins.includes(tokenOut.toUpperCase())) {
     return Math.abs(1 - outputAmount / inputAmount) * 100;
   }
-  return 0;
+  return null;
 }
 
 /**
  * Quote via Swaperex Uniswap V3 fee wrapper V2 (net output after protocol fee).
- * Tries fee tiers 100 → 500 → 3000 → 10000 sequentially; first pool that quotes wins.
+ * Compares every available fee tier and returns the highest exact net output.
  */
 export async function getUniswapWrapperV2Quote(
   tokenIn: string,
@@ -100,6 +101,7 @@ export async function getUniswapWrapperV2Quote(
   const rpc = getEthereumStaticProvider();
   const wrapper = new Contract(cfg.wrapperAddress, WRAPPER_V2_QUOTE_ABI, rpc);
 
+  const candidates: QuoteResult[] = [];
   for (const fee of FEE_TIERS) {
     try {
       const result = await wrapper.quoteExactInputSingleERC20.staticCall(
@@ -109,7 +111,14 @@ export async function getUniswapWrapperV2Quote(
         amountInWei,
         0n,
       );
-      const [, , amountOutNet, sqrtPriceX96After, initializedTicksCrossed, gasEstimate] = result;
+      const [
+        amountOutGross,
+        commissionAmount,
+        amountOutNet,
+        sqrtPriceX96After,
+        initializedTicksCrossed,
+        gasEstimate,
+      ] = result;
 
       const amountOutFormatted = formatUnits(amountOutNet, tokenOutData.decimals);
       const inputValue = parseFloat(amountIn);
@@ -121,18 +130,21 @@ export async function getUniswapWrapperV2Quote(
         tokenOutData.symbol,
       );
 
-      return {
+      candidates.push({
         amountIn: amountInWei.toString(),
         amountOut: amountOutNet.toString(),
+        amountOutGross: amountOutGross.toString(),
+        commissionAmount: commissionAmount.toString(),
         amountOutFormatted,
-        priceImpact: priceImpact.toFixed(2),
+        priceImpact:
+          priceImpact == null ? PRICE_IMPACT_NOT_ESTIMATED : priceImpact.toFixed(2),
         gasEstimate: gasEstimate.toString(),
         feeTier: fee,
         sqrtPriceX96After: sqrtPriceX96After.toString(),
         initializedTicksCrossed: Number(initializedTicksCrossed),
         route: `${tokenInData.symbol} → ${tokenOutData.symbol}`,
         provider: 'uniswap-v3-wrapper-v2',
-      };
+      });
     } catch {
       console.debug('[UniswapWrapperQuoteV2] quoteExactInputSingleERC20 tier skipped (no pool or revert)', {
         fee,
@@ -142,10 +154,16 @@ export async function getUniswapWrapperV2Quote(
     }
   }
 
+  if (candidates.length > 0) {
+    return candidates.reduce((best, current) =>
+      BigInt(current.amountOut) > BigInt(best.amountOut) ? current : best,
+    );
+  }
+
   throw new Error(`${NO_POOL_MESSAGE} for ${tokenInData.symbol}/${tokenOutData.symbol}`);
 }
 
-/** Best wrapper V2 quote (same as single-path quote with multi-fee fallback inside `getUniswapWrapperV2Quote`). */
+/** Best wrapper V2 quote (all available fee tiers are compared inside). */
 export async function getBestUniswapWrapperV2Quote(
   tokenIn: string,
   tokenOut: string,

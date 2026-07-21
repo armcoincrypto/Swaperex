@@ -498,6 +498,80 @@ async function journeyEthErc20(browser) {
   }
 }
 
+async function journeyP22EconomicRouteMatrix(browser) {
+  const id = 'p22-economic-route-matrix';
+  const routes = [
+    { chainId: 1, chainKey: 'ethereum', nativeSymbol: 'ETH', from: 'ETH', to: 'USDT', amount: '0.01' },
+    { chainId: 1, chainKey: 'ethereum', nativeSymbol: 'ETH', from: 'WETH', to: 'WBTC', amount: '0.01' },
+    { chainId: 56, chainKey: 'bsc', nativeSymbol: 'BNB', from: 'BNB', to: 'BTCB', amount: '0.05' },
+  ];
+  const viewports = [
+    { name: 'desktop', width: 1280, height: 900 },
+    { name: 'mobile', width: 390, height: 844 },
+  ];
+  const checks = [];
+
+  for (const viewport of viewports) {
+    for (const route of routes) {
+      const { context, page, consoleErrors } = await newInstrumentedPage(browser, viewport);
+      const routeId = `${route.chainId}-${route.from}-${route.to}-${viewport.name}`.toLowerCase();
+      try {
+        await prepareSwapPage(page, route);
+        await openPopularAndClick(
+          page,
+          `chain=${route.chainId}&from=${route.from}&to=${route.to}`,
+          route,
+        );
+        await page.evaluate(
+          (fp) => window.__kobbexWalletDebug?.setRouteFingerprint?.(fp),
+          `${route.chainId}|${route.from}|${route.to}`,
+        );
+        await setAmount(page, route.amount);
+        const quoteTxt = await waitQuote(page);
+        const body = await page.locator('body').innerText();
+        const labels = {
+          expectedReceive: /You receive/i.test(body),
+          minimumReceived: /Minimum (received|receive)|Min out/i.test(body),
+          kobbexFee: /Kobbex fee/i.test(body),
+          networkFee: /Network fee/i.test(body),
+          priceImpact: /Price impact|\bImpact\b/i.test(body),
+          route: /Certified route|Route via|Route transparency|\bRoute\b/i.test(body),
+          freshness: /\d+s|Quote expired|Refreshing quote/i.test(body),
+        };
+        const economicsVisible = Object.values(labels).every(Boolean);
+        const quoteVisible = /Quote ready|Exchange rate|Expected output/i.test(quoteTxt);
+        const noConsoleErrors = consoleErrors.length === 0;
+        await shot(page, `${id}-${routeId}.png`);
+        checks.push({
+          route: `${route.chainId}|${route.from}|${route.to}`,
+          viewport: viewport.name,
+          quoteVisible,
+          economicsVisible,
+          labels,
+          noConsoleErrors,
+          pass: quoteVisible && economicsVisible && noConsoleErrors,
+        });
+      } catch (error) {
+        await shot(page, `${id}-${routeId}-error.png`);
+        checks.push({
+          route: `${route.chainId}|${route.from}|${route.to}`,
+          viewport: viewport.name,
+          pass: false,
+          error: String(error),
+        });
+      } finally {
+        await context.close();
+      }
+    }
+  }
+
+  recordJourney(id, {
+    result: checks.every((check) => check.pass) ? 'PASS' : 'FAIL',
+    checks,
+    networkBroadcasts: 0,
+  });
+}
+
 async function journeyBnbNative(browser) {
   const id = 'bnb-native-usdt';
   const { context, page } = await newInstrumentedPage(browser, { width: 1280, height: 900 });
@@ -1069,6 +1143,7 @@ async function main() {
 
     await journeyEthNative(browser);
     await journeyEthErc20(browser);
+    await journeyP22EconomicRouteMatrix(browser);
     await journeyBnbNative(browser);
     await journeyBnbErc20(browser);
     await journeyRejections(browser);

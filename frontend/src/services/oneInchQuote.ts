@@ -15,6 +15,7 @@
 import { getTokenBySymbol, type Token } from '@/tokens';
 import { createOneInchSwapV6Url } from '@/config/api';
 import { fetchWithTimeout } from '@/utils/fetchWithTimeout';
+import { PRICE_IMPACT_NOT_ESTIMATED } from '@/utils/format';
 
 /**
  * Supported chain IDs for 1inch
@@ -263,7 +264,7 @@ export async function getOneInchQuote(
     // Calculate approximate price impact (simplified)
     const inputValue = parseFloat(amountIn);
     const outputValue = parseFloat(dstAmountFormatted);
-    let priceImpact = '0';
+    let priceImpact = PRICE_IMPACT_NOT_ESTIMATED;
 
     // For stablecoin pairs, calculate impact from 1:1
     const stablecoins = ['USDT', 'USDC', 'DAI', 'BUSD', 'FDUSD'];

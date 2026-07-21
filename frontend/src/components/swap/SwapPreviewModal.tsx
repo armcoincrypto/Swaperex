@@ -215,6 +215,7 @@ export function SwapPreviewModal({
       : 'normal';
   const isHighImpact = Number.isFinite(priceImpact) && priceImpact > 3;
   const isVeryHighImpact = Number.isFinite(priceImpact) && priceImpact > 10;
+  const quoteQualityBlocked = quote.economics?.qualityStatus === 'BLOCKED';
   const gasUnitsDisplay = formatGasLimitUnits(quote.gasEstimate);
   const isLoading = step === 'approving' || step === 'swapping' || step === 'broadcasting';
   /** Swap tx submitted — closing the modal must not imply the chain tx was cancelled. */
@@ -263,10 +264,12 @@ export function SwapPreviewModal({
             onConfirm();
           }}
           loading={isLoading}
-          disabled={isExpired || isLoading}
+          disabled={isExpired || isLoading || quoteQualityBlocked}
           fullWidth
         >
-          {isExpired
+          {quoteQualityBlocked
+            ? 'Quote blocked — reduce amount'
+            : isExpired
             ? SWAP_SURFACE_COPY.quoteExpiredTitle
             : isLoading
               ? getLoadingText(step)
@@ -568,7 +571,25 @@ export function SwapPreviewModal({
           )}
 
           {/* High Impact Warning */}
-          {isHighImpact && (
+          {quote.economics?.warnings.includes('NO_PRICE_IMPACT_DATA') && (
+            <div className="flex items-center gap-2 rounded-lg p-3 mb-4 bg-amber-950/30 text-amber-200 border border-amber-700/50">
+              <WarningIcon />
+              <span className="text-sm">
+                Price impact is unavailable and is not labeled safe. Review minimum received and network cost.
+              </span>
+            </div>
+          )}
+          {quote.economics?.warnings.includes('HIGH_PRICE_IMPACT') && (
+            <div className="flex items-center gap-2 rounded-lg p-3 mb-4 bg-red-900/30 text-red-300 border border-red-800">
+              <WarningIcon />
+              <span className="text-sm">
+                {quoteQualityBlocked
+                  ? 'Price impact exceeds 5%. This quote cannot proceed; reduce the amount and refresh.'
+                  : 'High price impact. Consider reducing the swap amount.'}
+              </span>
+            </div>
+          )}
+          {!quote.economics && isHighImpact && (
             <div className={`flex items-center gap-2 rounded-lg p-3 mb-4 ${
               isVeryHighImpact
                 ? 'bg-red-900/30 text-red-400 border border-red-800'

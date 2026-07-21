@@ -86,7 +86,7 @@ describe('isReusableFreshQuote', () => {
     expect(result.reason).toBe('quote_expired');
   });
 
-  it('allows quote at exactly 30s (confirmSwap boundary)', () => {
+  it('rejects quote at exactly 30s (single expiry boundary)', () => {
     const now = Date.now();
     const result = isReusableFreshQuote(
       baseParams({
@@ -94,7 +94,8 @@ describe('isReusableFreshQuote', () => {
         quote: baseQuote({ quoteTimestamp: now - QUOTE_PREVIEW_REUSE_MAX_AGE_MS }),
       }),
     );
-    expect(result.reusable).toBe(true);
+    expect(result.reusable).toBe(false);
+    expect(result.reason).toBe('quote_expired');
   });
 
   it('rejects amount mismatch', () => {

@@ -11,6 +11,7 @@ import {
   isUniswapWrapperV3CommissionEligible,
   resolveUniswapWrapperV3CanarySymbolsForSwap,
 } from '@/config/uniswapWrapperV3';
+import { PRICE_IMPACT_NOT_ESTIMATED } from '@/utils/format';
 import { type FeeTier, type QuoteResult } from './uniswapQuote';
 
 const WRAPPER_V3_QUOTE_ABI = [
@@ -132,6 +133,7 @@ export async function getUniswapWrapperV3Quote(
   const rpc = getEthereumStaticProvider();
   const wrapper = new Contract(cfg.wrapperAddress, WRAPPER_V3_QUOTE_ABI, rpc);
 
+  const candidates: UniswapWrapperV3QuoteResult[] = [];
   for (const fees of feeTuples(hops)) {
     const path = encodeV3Path(addrs, fees);
     try {
@@ -149,11 +151,13 @@ export async function getUniswapWrapperV3Quote(
       const amountOutFormatted = formatUnits(amountOutNet, tokenOutData.decimals);
       const firstFee = fees[0]!;
 
-      return {
+      candidates.push({
         amountIn: amountInWei.toString(),
         amountOut: amountOutNet.toString(),
+        amountOutGross: amountOutGross.toString(),
+        commissionAmount: feeAmount.toString(),
         amountOutFormatted,
-        priceImpact: '0',
+        priceImpact: PRICE_IMPACT_NOT_ESTIMATED,
         gasEstimate: gasEstimate.toString(),
         feeTier: firstFee as FeeTier,
         sqrtPriceX96After: '0',
@@ -164,13 +168,25 @@ export async function getUniswapWrapperV3Quote(
         v3FeeTiers: [...fees],
         amountOutGrossWei: amountOutGross.toString(),
         feeAmountWei: feeAmount.toString(),
-      };
+      });
     } catch {
       console.debug('[UniswapWrapperQuoteV3] quoteExactInputERC20 skipped (no pool or revert)', {
         fees,
         path: row.join('→'),
       });
     }
+  }
+
+  if (candidates.length > 0) {
+    return candidates.reduce((best, current) => {
+      const bestNet = BigInt(best.amountOut);
+      const currentNet = BigInt(current.amountOut);
+      if (currentNet !== bestNet) return currentNet > bestNet ? current : best;
+      const bestGas = BigInt(best.gasEstimate);
+      const currentGas = BigInt(current.gasEstimate);
+      if (currentGas !== bestGas) return currentGas < bestGas ? current : best;
+      return current.wrapperPath.localeCompare(best.wrapperPath) < 0 ? current : best;
+    });
   }
 
   throw new Error(`${NO_ROUTE_MESSAGE} for ${tokenInData.symbol}/${tokenOutData.symbol}`);

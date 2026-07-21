@@ -1,0 +1,138 @@
+{
+  "eth-native-usdc": {
+    "journey": "eth-native-usdc",
+    "route": {
+      "chainId": 1,
+      "tokenIn": "ETH",
+      "tokenOut": "USDC"
+    },
+    "walletCalls": [
+      "eth_sendTransaction"
+    ],
+    "transactionDestinationVerified": true,
+    "broadcastBlocked": true,
+    "networkTransactionHash": null,
+    "result": "PASS"
+  },
+  "eth-erc20-weth-usdc": {
+    "journey": "eth-erc20-weth-usdc",
+    "route": {
+      "chainId": 1,
+      "tokenIn": "WETH",
+      "tokenOut": "USDC"
+    },
+    "walletCalls": [
+      "eth_sendTransaction"
+    ],
+    "transactionDestinationVerified": false,
+    "broadcastBlocked": true,
+    "networkTransactionHash": null,
+    "result": "PASS"
+  },
+  "p22-economic-route-matrix": {
+    "journey": "p22-economic-route-matrix",
+    "route": null,
+    "walletCalls": [],
+    "transactionDestinationVerified": false,
+    "broadcastBlocked": true,
+    "networkTransactionHash": null,
+    "result": "PASS"
+  },
+  "bnb-native-usdt": {
+    "journey": "bnb-native-usdt",
+    "route": {
+      "chainId": 56,
+      "tokenIn": "native",
+      "tokenOut": "USDT"
+    },
+    "walletCalls": [
+      "wallet_switchEthereumChain",
+      "wallet_switchEthereumChain",
+      "eth_sendTransaction"
+    ],
+    "transactionDestinationVerified": true,
+    "broadcastBlocked": true,
+    "networkTransactionHash": null,
+    "result": "PASS"
+  },
+  "bnb-erc20-cake-usdt": {
+    "journey": "bnb-erc20-cake-usdt",
+    "route": {
+      "chainId": 56,
+      "tokenIn": "CAKE",
+      "tokenOut": "USDT"
+    },
+    "walletCalls": [
+      "wallet_switchEthereumChain",
+      "wallet_switchEthereumChain",
+      "eth_sendTransaction"
+    ],
+    "transactionDestinationVerified": true,
+    "broadcastBlocked": true,
+    "networkTransactionHash": null,
+    "result": "PASS"
+  },
+  "wallet-rejections": {
+    "journey": "wallet-rejections",
+    "route": null,
+    "walletCalls": [],
+    "transactionDestinationVerified": false,
+    "broadcastBlocked": true,
+    "networkTransactionHash": null,
+    "result": "PASS"
+  },
+  "wrong-network": {
+    "journey": "wrong-network",
+    "route": null,
+    "walletCalls": [],
+    "transactionDestinationVerified": false,
+    "broadcastBlocked": true,
+    "networkTransactionHash": null,
+    "result": "PASS"
+  },
+  "account-change": {
+    "journey": "account-change",
+    "route": null,
+    "walletCalls": [],
+    "transactionDestinationVerified": false,
+    "broadcastBlocked": true,
+    "networkTransactionHash": null,
+    "result": "PASS"
+  },
+  "chain-change": {
+    "journey": "chain-change",
+    "route": null,
+    "walletCalls": [],
+    "transactionDestinationVerified": false,
+    "broadcastBlocked": true,
+    "networkTransactionHash": null,
+    "result": "PASS"
+  },
+  "unsupported-routes": {
+    "journey": "unsupported-routes",
+    "route": null,
+    "walletCalls": [],
+    "transactionDestinationVerified": false,
+    "broadcastBlocked": true,
+    "networkTransactionHash": null,
+    "result": "PASS"
+  },
+  "mobile-viewport": {
+    "journey": "mobile-viewport",
+    "route": null,
+    "walletCalls": [],
+    "transactionDestinationVerified": false,
+    "broadcastBlocked": true,
+    "networkTransactionHash": null,
+    "result": "PASS"
+  },
+  "walletconnect-modal-smoke": {
+    "journey": "walletconnect-modal-smoke",
+    "route": null,
+    "walletCalls": [],
+    "transactionDestinationVerified": false,
+    "broadcastBlocked": true,
+    "networkTransactionHash": null,
+    "result": "PASS"
+  }
+}

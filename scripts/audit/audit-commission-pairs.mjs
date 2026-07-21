@@ -272,16 +272,24 @@ async function quoteEthV2(provider, wrapper, tokenIn, tokenOut, amountHuman) {
   const amountInWei = parseUnits(amountHuman, tokenIn.decimals);
   const c = new Contract(wrapper, V2_SINGLE_ABI, provider);
   let lastErr;
+  const candidates = [];
   for (const fee of FEE_TIERS) {
     try {
       const r = await c.quoteExactInputSingleERC20.staticCall(inAddr, outAddr, fee, amountInWei, 0n);
       // Some fee tiers return zero output without reverting — skip those.
       if (r[1] > 0n && r[2] > 0n) {
-        return { provider: 'uniswap-v3-wrapper-v2', feeBps: 20, feeTier: fee, amountOutGross: r[0], feeAmount: r[1], amountOutNet: r[2] };
+        candidates.push({ provider: 'uniswap-v3-wrapper-v2', feeBps: 20, feeTier: fee, amountOutGross: r[0], feeAmount: r[1], amountOutNet: r[2], gasEstimate: r[5] });
       }
     } catch (e) {
       lastErr = e;
     }
+  }
+  if (candidates.length) {
+    return candidates.sort((a, b) =>
+      a.amountOutNet === b.amountOutNet
+        ? Number(a.gasEstimate - b.gasEstimate)
+        : a.amountOutNet > b.amountOutNet ? -1 : 1,
+    )[0];
   }
   throw lastErr || new Error('no V2 pool');
 }
@@ -294,26 +302,39 @@ async function quoteEthV3(provider, wrapper, pathSyms, tokens, amountHuman, toke
   const hops = addrs.length - 1;
   const c = new Contract(wrapper, V3_MULTI_ABI, provider);
   let lastErr;
-  for (const fee of FEE_TIERS) {
-    if (hops !== 1 && hops !== 2) throw new Error('unsupported hop count');
-    const fees = hops === 1 ? [fee] : [fee, fee];
+  const candidates = [];
+  if (hops !== 1 && hops !== 2) throw new Error('unsupported hop count');
+  const feeCombinations =
+    hops === 1
+      ? FEE_TIERS.map((fee) => [fee])
+      : FEE_TIERS.flatMap((first) => FEE_TIERS.map((second) => [first, second]));
+  for (const fees of feeCombinations) {
     const pathBytes = encodeV3Path(addrs, fees);
     try {
       const r = await c.quoteExactInputERC20.staticCall(pathBytes, addrs[0], addrs[addrs.length - 1], amountInWei);
       if (r[1] > 0n && r[2] > 0n) {
-        return {
+        candidates.push({
           provider: 'uniswap-v3-wrapper-v3',
           feeBps: 20,
-          feeTier: fee,
+          feeTier: fees[0],
+          feeTiers: fees,
           path: pathSyms.join('→'),
           amountOutGross: r[0],
           feeAmount: r[1],
           amountOutNet: r[2],
-        };
+          gasEstimate: r[5],
+        });
       }
     } catch (e) {
       lastErr = e;
     }
+  }
+  if (candidates.length) {
+    return candidates.sort((a, b) =>
+      a.amountOutNet === b.amountOutNet
+        ? Number(a.gasEstimate - b.gasEstimate)
+        : a.amountOutNet > b.amountOutNet ? -1 : 1,
+    )[0];
   }
   throw lastErr || new Error('no V3 pool');
 }
@@ -324,15 +345,23 @@ async function quoteBscV2(provider, wrapper, tokenIn, tokenOut, amountHuman) {
   const amountInWei = parseUnits(amountHuman, tokenIn.decimals);
   const c = new Contract(wrapper, V2_SINGLE_ABI, provider);
   let lastErr;
+  const candidates = [];
   for (const fee of PANCAKE_FEE_TIERS) {
     try {
       const r = await c.quoteExactInputSingleERC20.staticCall(inAddr, outAddr, fee, amountInWei, 0n);
       if (r[1] > 0n && r[2] > 0n) {
-        return { provider: 'pancakeswap-v3-wrapper-v2', feeBps: 50, feeTier: fee, amountOutGross: r[0], feeAmount: r[1], amountOutNet: r[2] };
+        candidates.push({ provider: 'pancakeswap-v3-wrapper-v2', feeBps: 50, feeTier: fee, amountOutGross: r[0], feeAmount: r[1], amountOutNet: r[2], gasEstimate: r[5] });
       }
     } catch (e) {
       lastErr = e;
     }
+  }
+  if (candidates.length) {
+    return candidates.sort((a, b) =>
+      a.amountOutNet === b.amountOutNet
+        ? Number(a.gasEstimate - b.gasEstimate)
+        : a.amountOutNet > b.amountOutNet ? -1 : 1,
+    )[0];
   }
   throw lastErr || new Error('no BSC V2 pool');
 }
@@ -378,6 +407,22 @@ async function quoteDirection({ chainId, fromSym, toSym, profile, env, ethTokens
         error: 'feeAmount is zero — commission not applied',
       };
     }
+    const expectedFee = (result.amountOutGross * BigInt(result.feeBps)) / 10_000n;
+    if (
+      result.feeAmount !== expectedFee ||
+      result.amountOutNet !== result.amountOutGross - result.feeAmount
+    ) {
+      return {
+        chainId,
+        pair: `${fromSym}/${toSym}`,
+        direction: `${fromSym}→${toSym}`,
+        quoteStatus: 'FAIL',
+        amountIn,
+        error: 'wrapper accounting invariant failed',
+      };
+    }
+    const slippageBps = 50n;
+    const minimumReceived = result.amountOutNet - (result.amountOutNet * slippageBps) / 10_000n;
 
     return {
       chainId,
@@ -386,14 +431,24 @@ async function quoteDirection({ chainId, fromSym, toSym, profile, env, ethTokens
       quoteStatus: 'PASS',
       profile,
       amountIn,
+      grossOutputRaw: result.amountOutGross.toString(),
+      grossOutput: formatUnits(result.amountOutGross, tokenOut.decimals),
       amountOut: formatUnits(result.amountOutNet, tokenOut.decimals),
+      feeAmountRaw: result.feeAmount.toString(),
       feeAmount: formatUnits(result.feeAmount, tokenOut.decimals),
+      netOutputRaw: result.amountOutNet.toString(),
+      netOutput: formatUnits(result.amountOutNet, tokenOut.decimals),
+      gasEstimate: result.gasEstimate?.toString() ?? null,
+      minimumReceivedRaw: minimumReceived.toString(),
+      minimumReceived: formatUnits(minimumReceived, tokenOut.decimals),
+      slippageBps: Number(slippageBps),
       feeBps: result.feeBps,
       provider: result.provider,
       feeTier: result.feeTier,
+      feeTiers: result.feeTiers ?? [result.feeTier],
       path: result.path || null,
       wrapper: chainId === 1
-        ? result.provider.includes('v3')
+        ? result.provider === 'uniswap-v3-wrapper-v3'
           ? env.VITE_UNISWAP_WRAPPER_V3_ADDRESS
           : env.VITE_UNISWAP_WRAPPER_V2_ADDRESS
         : env.VITE_PANCAKE_WRAPPER_V2_ADDRESS,

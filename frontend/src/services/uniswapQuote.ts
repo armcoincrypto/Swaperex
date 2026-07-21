@@ -32,6 +32,10 @@ export type FeeTier = (typeof FEE_TIERS)[keyof typeof FEE_TIERS];
 export interface QuoteResult {
   amountIn: string;
   amountOut: string;
+  /** Gross wrapper output before Kobbex commission (raw token units). */
+  amountOutGross?: string;
+  /** Exact Kobbex commission returned by the wrapper quote (raw token units). */
+  commissionAmount?: string;
   amountOutFormatted: string;
   priceImpact: string;
   gasEstimate: string;
@@ -367,7 +371,14 @@ export async function getWrapperQuote(
     result = await quoteOnce();
   }
 
-  const [, , amountOutNet, sqrtPriceX96After, initializedTicksCrossed, gasEstimate] = result;
+  const [
+    amountOutGross,
+    commissionAmount,
+    amountOutNet,
+    sqrtPriceX96After,
+    initializedTicksCrossed,
+    gasEstimate,
+  ] = result;
 
   const amountOutFormatted = formatUnits(amountOutNet, tokenOutData.decimals);
   const inputValue = parseFloat(amountIn);
@@ -382,6 +393,8 @@ export async function getWrapperQuote(
   return {
     amountIn: amountInWei.toString(),
     amountOut: amountOutNet.toString(),
+    amountOutGross: amountOutGross.toString(),
+    commissionAmount: commissionAmount.toString(),
     amountOutFormatted,
     priceImpact: priceImpact === null ? PRICE_IMPACT_NOT_ESTIMATED : priceImpact.toFixed(2),
     gasEstimate: gasEstimate.toString(),

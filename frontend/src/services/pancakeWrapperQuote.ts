@@ -5,6 +5,7 @@
 import { Contract, JsonRpcProvider, Network, formatUnits, parseUnits } from 'ethers';
 import { getTokenBySymbol, getSwapAddress, isNativeToken } from '@/tokens';
 import { getPancakeWrapperConfig } from '@/config';
+import { PRICE_IMPACT_NOT_ESTIMATED } from '@/utils/format';
 import {
   BSC_CONFIG,
   PANCAKE_FEE_TIERS,
@@ -50,12 +51,12 @@ function calculatePriceImpact(
   outputAmount: number,
   tokenIn: string,
   tokenOut: string,
-): number {
+): number | null {
   const stablecoins = ['USDT', 'USDC', 'BUSD', 'DAI', 'FDUSD'];
   if (stablecoins.includes(tokenIn.toUpperCase()) && stablecoins.includes(tokenOut.toUpperCase())) {
     return Math.abs(1 - outputAmount / inputAmount) * 100;
   }
-  return 0;
+  return null;
 }
 
 /**
@@ -105,7 +106,14 @@ export async function getPancakeWrapperQuote(
     result = await quoteOnce();
   }
 
-  const [, , amountOutNet, sqrtPriceX96After, initializedTicksCrossed, gasEstimate] = result;
+  const [
+    amountOutGross,
+    commissionAmount,
+    amountOutNet,
+    sqrtPriceX96After,
+    initializedTicksCrossed,
+    gasEstimate,
+  ] = result;
 
   const amountOutFormatted = formatUnits(amountOutNet, tokenOutData.decimals);
   const inputValue = parseFloat(amountIn);
@@ -120,8 +128,11 @@ export async function getPancakeWrapperQuote(
   return {
     amountIn: amountInWei.toString(),
     amountOut: amountOutNet.toString(),
+    amountOutGross: amountOutGross.toString(),
+    commissionAmount: commissionAmount.toString(),
     amountOutFormatted,
-    priceImpact: priceImpact.toFixed(2),
+    priceImpact:
+      priceImpact == null ? PRICE_IMPACT_NOT_ESTIMATED : priceImpact.toFixed(2),
     gasEstimate: gasEstimate.toString(),
     feeTier,
     sqrtPriceX96After: sqrtPriceX96After.toString(),

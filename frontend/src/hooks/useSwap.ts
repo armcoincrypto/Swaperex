@@ -101,6 +101,15 @@ import {
   assertCommissionRouteCertified,
   type CertifiedCommissionRoute,
 } from '@/utils/commissionRoutePolicy';
+import { buildCertifiedQuoteEconomics } from '@/utils/certifiedQuoteEconomics';
+import type { QuoteEconomics } from '@/utils/quoteEconomics';
+import { isQuoteQualityExecutable } from '@/utils/quoteQuality';
+import { selectBestCertifiedQuote } from '@/utils/selectBestCertifiedQuote';
+import { assertExecutionGasBudget } from '@/utils/executionGasPreflight';
+import {
+  QUOTE_FRESHNESS_TTL_MS,
+  isExecutableQuoteExpired,
+} from '@/utils/quoteFreshness';
 import { estimateWrapperFeeWeiFromNetOutput } from '@/utils/wrapperFee';
 import {
   decodeNativeEthOutputAndFeeFromLogs,
@@ -296,13 +305,25 @@ export interface SwapQuote extends QuoteResult {
   allowanceCheckUncertain?: boolean;
   /** Stable certified-route fingerprint captured at quote time (commission-required mode). */
   certifiedRouteFingerprint?: string;
+  /** Canonical, integer-only accounting and quality decision for the executable route. */
+  economics?: QuoteEconomics;
+  /** Safe structured evidence for why this certified implementation was selected. */
+  selectionEvidence?: {
+    selectedRoute: string;
+    selectionReason: string;
+    candidateCount: number;
+    netOutput: string;
+    priceImpactBps?: number;
+    hopCount: number;
+    warnings: string[];
+  };
 }
 
 // Default slippage tolerance (0.5%)
 const DEFAULT_SLIPPAGE = 0.5;
 
 // Quote expires after 30 seconds
-const QUOTE_EXPIRY_MS = 30000;
+const QUOTE_EXPIRY_MS = QUOTE_FRESHNESS_TTL_MS;
 
 /** Verbose swap fetch / route / lifecycle trace — dev or `VITE_DEBUG_SWAP=true` only. */
 const SWAP_TRACE_LOG =
@@ -1345,6 +1366,8 @@ export function useSwap() {
       }
 
       const aggregatedQuote = aggregation.best;
+      // Freshness begins when provider output is received, not after allowance RPCs.
+      const quoteTimestamp = Date.now();
 
       if (SWAP_TRACE_LOG) {
         console.debug('aggregated_quote_selected', {
@@ -1598,6 +1621,79 @@ export function useSwap() {
         }
       }
 
+      let economics: QuoteEconomics | undefined;
+      let selectionEvidence: SwapQuote['selectionEvidence'];
+      let qualitySelectionReason = aggregation.selectionReason;
+
+      if (commissionRequired && certifiedRouteAtQuote) {
+        const tokenOut = getTokenBySymbol(toSymbol, chainId || 1);
+        const wrapperAddress =
+          typeof spenderForLog === 'string' && spenderForLog.startsWith('0x')
+            ? spenderForLog
+            : '';
+        if (!tokenIn || !tokenOut || !wrapperAddress) {
+          throw new Error('Certified quote is missing token or wrapper identity');
+        }
+
+        const v3Quote =
+          aggregatedQuote.provider === 'uniswap-v3-wrapper-v3'
+            ? (aggregatedQuote.originalQuote as UniswapWrapperV3QuoteResult)
+            : null;
+        const routeText = String(quote.route ?? '');
+        const routeHopCount =
+          v3Quote?.v3FeeTiers?.length ??
+          Math.max(1, routeText.split(/\s*→\s*/).filter(Boolean).length - 1);
+
+        economics = buildCertifiedQuoteEconomics({
+          chainId: chainId || 1,
+          certifiedRouteFingerprint: certifiedRouteAtQuote.fingerprint,
+          provider: aggregatedQuote.provider,
+          wrapperAddress,
+          tokenIn: {
+            symbol: fromSymbol,
+            address: fromAsset.is_native ? null : tokenIn.address,
+            decimals: fromAsset.decimals,
+            isNative: fromAsset.is_native,
+          },
+          tokenOut: {
+            symbol: toSymbol,
+            address: toAsset.is_native ? null : tokenOut.address,
+            decimals: toAsset.decimals,
+            isNative: toAsset.is_native,
+          },
+          amountIn: aggregatedQuote.amountIn,
+          amountOutGross: quote.amountOutGross,
+          commissionAmount: quote.commissionAmount,
+          amountOutNet: aggregatedQuote.amountOut,
+          gasEstimate: quote.gasEstimate,
+          priceImpactPercent: aggregatedQuote.priceImpact,
+          slippagePercent: slippage || DEFAULT_SLIPPAGE,
+          feeTier: aggregatedQuote.providerDetails.feeTier,
+          wrapperPath: aggregatedQuote.providerDetails.wrapperV3Path,
+          hopCount: routeHopCount,
+          quotedAt: quoteTimestamp,
+          expiresAt: quoteTimestamp + QUOTE_EXPIRY_MS,
+        });
+
+        const qualitySelection = isQuoteQualityExecutable(economics, quoteTimestamp)
+          ? selectBestCertifiedQuote([economics], quoteTimestamp)
+          : null;
+        qualitySelectionReason = qualitySelection
+          ? qualitySelection.selectionReason === 'only_executable_certified_route'
+            ? 'Only executable certified route for this trade.'
+            : 'Selected for expected net value among certified routes.'
+          : 'Certified route blocked by quote-quality policy.';
+        selectionEvidence = {
+          selectedRoute: economics.routeFingerprint,
+          selectionReason: qualitySelection?.selectionReason ?? 'blocked_quote_quality',
+          candidateCount: qualitySelection?.candidatesConsidered ?? 1,
+          netOutput: economics.netAmountOut.toString(),
+          priceImpactBps: economics.priceImpactBps,
+          hopCount: economics.hopCount,
+          warnings: economics.warnings,
+        };
+      }
+
       const extendedQuote: SwapQuote = {
         ...quote,
         fromSymbol,
@@ -1609,7 +1705,7 @@ export function useSwap() {
         // PHASE 10: Provider info
         provider: aggregatedQuote.provider,
         aggregatedQuote,
-        quoteSelectionReason: aggregation.selectionReason,
+        quoteSelectionReason: qualitySelectionReason,
         runnerUpAggregatedQuote: aggregation.alternative
           ? {
               provider: aggregation.alternative.provider,
@@ -1618,7 +1714,7 @@ export function useSwap() {
           : null,
         routeMode: effectiveRouteMode,
         // Quote expiry: timestamp when this quote was received
-        quoteTimestamp: Date.now(),
+        quoteTimestamp,
         // UI-compatible fields
         success: true,
         from_asset: fromSymbol,
@@ -1630,6 +1726,8 @@ export function useSwap() {
         minimum_received: aggregatedQuote.minAmountOutFormatted,
         allowanceCheckUncertain: allowanceCheckUncertain || undefined,
         certifiedRouteFingerprint: certifiedRouteAtQuote?.fingerprint,
+        economics,
+        selectionEvidence,
       };
 
       // Check if this request is still valid (inputs haven't changed)
@@ -2180,6 +2278,13 @@ export function useSwap() {
         expectedFingerprint: swapQuote.certifiedRouteFingerprint,
       });
     }
+    if (swapQuote.economics && !isQuoteQualityExecutable(swapQuote.economics)) {
+      throw new Error(
+        swapQuote.economics.warnings.includes('HIGH_PRICE_IMPACT')
+          ? 'QUOTE_BLOCKED_HIGH_PRICE_IMPACT'
+          : 'QUOTE_EXPIRED',
+      );
+    }
 
     markSwapExecutionTiming('preflight_started', {
       provider: swapQuote.provider,
@@ -2212,6 +2317,16 @@ export function useSwap() {
         await executeApproval();
         // Update quote to reflect approval
         setSwapQuote((s) => (s ? { ...s, needsApproval: false } : null));
+
+        // Approval can remain open long enough for the swap quote to expire. Never
+        // carry an old min-out into the swap transaction after approval.
+        if (
+          isExecutableQuoteExpired(swapQuote.quoteTimestamp) ||
+          (swapQuote.economics && !isQuoteQualityExecutable(swapQuote.economics))
+        ) {
+          toast.warning('Approval completed, but the quote expired. Refresh and review before swapping.');
+          throw new Error('QUOTE_EXPIRED_AFTER_APPROVAL');
+        }
       }
 
       // Resolve signer before flipping to `swapping` so we do not show "Sign swap in your wallet" while
@@ -2581,6 +2696,40 @@ export function useSwap() {
           v3GasHintApplied = true;
           swapTrace('[Swap] V3 gas limit hint from quote', { gasLimit: v3Hint.toString() });
         }
+      }
+
+      // Final execution-boundary gas check using the current account balance,
+      // current fee data, and the fully built transaction. This runs after any
+      // approval so spent approval gas cannot make the swap overdraw native funds.
+      const txRequest = {
+        to: swapTx.to,
+        data: swapTx.data,
+        value: BigInt(swapTx.value),
+        ...(resolvedGasLimit !== undefined ? { gasLimit: resolvedGasLimit } : {}),
+      };
+      try {
+        const estimatedGas = await signer.estimateGas(txRequest);
+        const paddedEstimate = (estimatedGas * 120n) / 100n;
+        if (resolvedGasLimit == null || paddedEstimate > resolvedGasLimit) {
+          resolvedGasLimit = paddedEstimate;
+        }
+        const feeData = await signer.provider.getFeeData();
+        const maxFeePerGas = feeData.maxFeePerGas ?? feeData.gasPrice;
+        const nativeBalance = await signer.provider.getBalance(address);
+        assertExecutionGasBudget({
+          chainId,
+          nativeBalanceWei: nativeBalance,
+          transactionValueWei: BigInt(swapTx.value),
+          gasUnits: resolvedGasLimit,
+          maxFeePerGasWei: maxFeePerGas ?? 0n,
+        });
+      } catch (gasError) {
+        const message =
+          gasError instanceof Error && /Insufficient (ETH|BNB) for network fees/.test(gasError.message)
+            ? gasError.message
+            : 'Current network fee could not be verified safely. Refresh the quote and try again.';
+        toast.warning(message);
+        throw new Error(message);
       }
 
       swapTrace('[Swap] Sending swap:', {
@@ -3355,7 +3504,7 @@ export function useSwap() {
 
     // QUOTE EXPIRY CHECK: Block execution if quote is stale (>30 seconds old)
     // Stay in 'previewing' state so user can click "Refresh" instead of seeing error screen
-    if (quoteAge > QUOTE_EXPIRY_MS) {
+    if (isExecutableQuoteExpired(swapQuote.quoteTimestamp)) {
       const expiredSeconds = Math.floor(quoteAge / 1000);
       logLifecycle('previewing', 'previewing', { reason: 'quote_expired', quoteAge: expiredSeconds });
       swapObsLog('quote_expired_block', {
@@ -3365,6 +3514,16 @@ export function useSwap() {
       });
       toast.warning('Quote expired. Refresh for a current price.');
       throw new Error('QUOTE_EXPIRED');
+    }
+
+    if (swapQuote.economics && !isQuoteQualityExecutable(swapQuote.economics)) {
+      const highImpact = swapQuote.economics.warnings.includes('HIGH_PRICE_IMPACT');
+      toast.warning(
+        highImpact
+          ? 'This quote exceeds the 5% price-impact safety limit and cannot proceed.'
+          : 'This quote is no longer safe to execute. Refresh and review it again.',
+      );
+      throw new Error(highImpact ? 'QUOTE_BLOCKED_HIGH_PRICE_IMPACT' : 'QUOTE_EXPIRED');
     }
 
     swapObsLog('confirm_swap', {
@@ -3417,7 +3576,7 @@ export function useSwap() {
   // Otherwise the wall-clock age keeps growing and leaks "expired" / refresh messaging behind an in-flight swap.
   const isQuoteExpired =
     !!swapQuote &&
-    (Date.now() - swapQuote.quoteTimestamp) > QUOTE_EXPIRY_MS &&
+    isExecutableQuoteExpired(swapQuote.quoteTimestamp) &&
     (state.status === 'previewing' ||
       state.status === 'fetching_quote' ||
       state.status === 'checking_allowance');
